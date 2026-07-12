@@ -1,0 +1,33 @@
+# ── dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+
+# ── secrets & local config (never committed, in any form) ────────────────────
+.env
+.env.*
+*.pem
+*.key
+*_rsa
+*_ed25519
+*.p12
+*.keystore
+
+# ── runtime state (lives in ~/.clone-frame-hub, never in the repo) ───────────
+*.log
+logs/
+
+# ── build output ──────────────────────────────────────────────────────────────
+*.app/
+dist/
+build/
+
+# ── editor / OS noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── local backups (working copies only) ───────────────────────────────────────
+*.bak
+*.bak-*
+*.orig
