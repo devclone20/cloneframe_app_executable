@@ -1,0 +1,19 @@
+{
+  "id": "exo",
+  "name": "EXO LAB",
+  "tagline": "local compute",
+  "summary": "Pool your own devices into one local AI cluster — no cloud, no cost.",
+  "kind": "server",
+  "license": "Apache-2.0",
+  "repo": "https://github.com/exo-explore/exo",
+  "home": "integrations/exo",
+  "src": "src",
+  "bridgeModule": "exo",
+  "endpoint": "http://localhost:52415",
+  "port": 52415,
+  "install": "install.sh",
+  "launch": { "via": "bridge", "fn": "launch" },
+  "opensIn": "integrations",
+  "icon": "#i-lab",
+  "status": "ready"
+}

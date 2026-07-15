@@ -1,2 +1,12 @@
 node_modules/
 *.log
+
+# CLONE FRAME HUB integrations (EXO / Tmux-Orchestrator / Manaflow)
+# Built/cloned runtime artifacts live inside each integration folder under
+# integrations/ (sibling of bridge/); see integrations/.gitignore. Mirrored here
+# for tooling that scans from bridge/.
+../integrations/*/src
+../integrations/*/.venv
+../integrations/*/node_modules
+../integrations/*/.exo.log
+../integrations/*/.exo.pid

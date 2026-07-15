@@ -502,5 +502,57 @@ export async function fetchRaw(url, { maxBytes = 4 * 1024 * 1024, ua } = {}) {
   return { ok: res.ok, status: res.status, finalUrl: res.url || u, contentType, body };
 }
 
-export const Web = { fetchUrl, search, research, fetchRaw };
+// ── public: frameable ────────────────────────────────────────────────────────
+// Lightweight header probe for the in-app browser's hybrid loader: may this REMOTE
+// url be embedded directly in our <iframe>? Inspects X-Frame-Options and CSP
+// frame-ancestors on the FINAL (post-redirect) response; never reads the body.
+// SSRF-guarded per hop (reuses safeFetchFollow). Result is short-cached.
+const FRAME_TTL_OK = 10 * 60_000;  // frameable: stable, cache longer
+const FRAME_TTL_NO = 5 * 60_000;   // not-frameable / error: shorter
+const FRAME_MAX = 256;
+const frameCache = new Map();      // key -> { exp, val }
+function frameKey(u) { try { const x = new URL(u); return x.origin + x.pathname; } catch { return String(u || ''); } }
+function frameGet(k) { const h = frameCache.get(k); if (!h) return null; if (h.exp <= Date.now()) { frameCache.delete(k); return null; } return h.val; }
+function frameSet(k, val, ttl) { frameCache.set(k, { exp: Date.now() + ttl, val }); while (frameCache.size > FRAME_MAX) frameCache.delete(frameCache.keys().next().value); }
+function blocksFraming(headers) {
+  const xfo = (headers.get('x-frame-options') || '').toLowerCase();
+  if (xfo && (xfo.includes('deny') || xfo.includes('sameorigin') || xfo.includes('allow-from'))) return true;
+  const csp = headers.get('content-security-policy') || '';
+  if (csp) {
+    const m = /frame-ancestors([^;]*)/i.exec(csp);
+    if (m) {
+      const val = m[1].trim().toLowerCase();
+      if (val === '' || val === "'none'") return true;   // frame-ancestors 'none' → nobody may frame
+      if (!/\*/.test(val)) return true;                  // a specific allow-list we can't be part of
+    }
+  }
+  return false;
+}
+export async function frameable(url) {
+  const u = typeof url === 'string' ? url.trim() : '';
+  if (!/^https?:\/\//i.test(u)) return { ok: false, frameable: false, reason: 'bad-url' };
+  const key = frameKey(u);
+  const cached = frameGet(key);
+  if (cached) return cached;
+  let res;
+  try {
+    res = await safeFetchFollow(u, {
+      'user-agent': UA,
+      accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
+      'sec-fetch-dest': 'iframe', 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'cross-site',
+    });
+  } catch (err) {
+    const reason = err?.message === 'blocked' ? 'blocked' : (err?.name === 'AbortError' ? 'timeout' : String(err?.message || err));
+    const val = { ok: false, frameable: false, reason };
+    frameSet(key, val, FRAME_TTL_NO);
+    return val;
+  }
+  try { res.body?.cancel?.(); } catch {}   // headers only — never read the body
+  const val = { ok: true, frameable: !blocksFraming(res.headers), finalUrl: res.url || u, status: res.status };
+  frameSet(key, val, val.frameable ? FRAME_TTL_OK : FRAME_TTL_NO);
+  return val;
+}
+
+export const Web = { fetchUrl, search, research, fetchRaw, frameable };
 export default Web;

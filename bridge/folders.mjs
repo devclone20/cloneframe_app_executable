@@ -35,7 +35,55 @@ const TREE = [
   { rel: 'Servers', desc: 'non-secret pointers to online servers (secrets live in ~/.clone-frame-hub, never here)' },
   { rel: 'Downloads', desc: 'things the app downloads' },
   { rel: 'Logs', desc: 'logs' },
+  { rel: 'Workspaces', desc: 'one folder per CLONE FRAME surface — drop files here and they appear in that tab' },
+  { rel: 'Workspaces/CODE', desc: 'files & projects the CODE tab works on' },
+  { rel: 'Workspaces/CODE/projects', desc: 'projects the CODE tab works on' },
+  { rel: 'Workspaces/CODE/sessions', desc: 'exported transcripts' },
+  { rel: 'Workspaces/CODE/scratch', desc: 'scratch space' },
+  { rel: 'Workspaces/Terminal', desc: 'working dirs for standalone terminals' },
+  { rel: 'Workspaces/Terminal/workdirs', desc: 'terminal working directories' },
+  { rel: 'Workspaces/Terminal/logs', desc: 'terminal logs' },
+  { rel: 'Workspaces/HARNESS', desc: 'harness crews & runs' },
+  { rel: 'Workspaces/HARNESS/crews', desc: 'harness crews' },
+  { rel: 'Workspaces/HARNESS/runs', desc: 'harness runs' },
+  { rel: 'Workspaces/LAB', desc: 'exo clusters, chats, models' },
+  { rel: 'Workspaces/LAB/clusters', desc: 'exo clusters' },
+  { rel: 'Workspaces/LAB/chats', desc: 'lab chats' },
+  { rel: 'Workspaces/LAB/models', desc: 'lab models' },
+  { rel: 'Workspaces/CLI-EconomyOS', desc: 'agents built & deployed on each network' },
+  { rel: 'Workspaces/CLI-EconomyOS/Virtuals', desc: 'Virtuals network' },
+  { rel: 'Workspaces/CLI-EconomyOS/Virtuals/agents', desc: 'Virtuals agents' },
+  { rel: 'Workspaces/CLI-EconomyOS/Virtuals/drafts', desc: 'Virtuals drafts' },
+  { rel: 'Workspaces/CLI-EconomyOS/Robinhood', desc: 'Robinhood network' },
+  { rel: 'Workspaces/CLI-EconomyOS/Robinhood/agents', desc: 'Robinhood agents' },
+  { rel: 'Workspaces/CLI-EconomyOS/Robinhood/launches', desc: 'Robinhood launches' },
+  { rel: 'Workspaces/CLI-EconomyOS/Robinhood/drafts', desc: 'Robinhood drafts' },
+  { rel: 'Workspaces/CLI-EconomyOS/OKX-AI', desc: 'OKX-AI network' },
+  { rel: 'Workspaces/CLI-EconomyOS/OKX-AI/listings', desc: 'OKX-AI listings' },
+  { rel: 'Workspaces/CLI-EconomyOS/OKX-AI/drafts', desc: 'OKX-AI drafts' },
+  { rel: 'Workspaces/CLI-EconomyOS/OKX-AI/tasks', desc: 'OKX-AI tasks' },
+  { rel: 'Workspaces/INTEGRATIONS', desc: 'external tools you bring into CLONE FRAME' },
+  { rel: 'Workspaces/INTEGRATIONS/EXO-LAB', desc: 'EXO-LAB integration' },
+  { rel: 'Workspaces/INTEGRATIONS/Manaflow', desc: 'Manaflow integration' },
+  { rel: 'Workspaces/INTEGRATIONS/TMUX', desc: 'TMUX integration' },
+  { rel: 'Workspaces/Browser', desc: 'browser downloads & bookmarks' },
+  { rel: 'Workspaces/Browser/downloads', desc: 'browser downloads' },
+  { rel: 'Workspaces/Browser/bookmarks', desc: 'browser bookmarks' },
 ];
+
+// App panel TYPE KEYS → the Workspaces rel path that belongs to that surface.
+const SURFACES = {
+  terminal: 'Workspaces/CODE',
+  shell: 'Workspaces/Terminal',
+  harness: 'Workspaces/HARNESS',
+  lab: 'Workspaces/LAB',
+  economyos: 'Workspaces/CLI-EconomyOS',
+  virtuals: 'Workspaces/CLI-EconomyOS/Virtuals',
+  robinhood: 'Workspaces/CLI-EconomyOS/Robinhood',
+  okxai: 'Workspaces/CLI-EconomyOS/OKX-AI',
+  integrate: 'Workspaces/INTEGRATIONS',
+  research: 'Workspaces/Browser',
+};
 
 function loadConf() { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch { return {}; } }
 function saveConf(o) {
@@ -192,6 +240,50 @@ export const Folders = {
       const abs = resolveWithin(rootPath(), rel);
       if (!abs) return { ok: false, error: 'refused: path escapes the CloneFrame root' };
       return { ok: true, abs };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  surfaces() {
+    try {
+      const root = rootPath();
+      const surfaces = [];
+      for (const [key, rel] of Object.entries(SURFACES)) {
+        const abs = resolveWithin(root, rel);
+        if (!abs) continue;
+        surfaces.push({ key, rel, abs, exists: fs.existsSync(abs) });
+      }
+      return { ok: true, root, surfaces };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  surfaceRel(key) {
+    try {
+      const rel = Object.prototype.hasOwnProperty.call(SURFACES, key) ? SURFACES[key] : null;
+      if (!rel) return { ok: false, error: 'unknown surface' };
+      const abs = resolveWithin(rootPath(), rel);
+      if (!abs) return { ok: false, error: 'refused: path escapes the CloneFrame root' };
+      return { ok: true, rel, abs };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  surfaceTree(key) {
+    const rel = Object.prototype.hasOwnProperty.call(SURFACES, key) ? SURFACES[key] : null;
+    if (!rel) return { ok: false, error: 'unknown surface' };
+    return this.tree(rel);
+  },
+
+  addFolder(parentRel, name) {
+    try {
+      const clean = String(name == null ? '' : name).replace(/[^\w .-]/g, '').trim().slice(0, 64);
+      if (!clean || clean === '.' || clean === '..' || /^[. ]+$/.test(clean)) return { ok: false, error: 'invalid folder name' };
+      const root = rootPath();
+      const parentAbs = resolveWithin(root, parentRel);
+      if (!parentAbs) return { ok: false, error: 'refused: path escapes the CloneFrame root' };
+      const rel = path.posix.join(String(parentRel || ''), clean);
+      const abs = resolveWithin(root, rel);
+      if (!abs) return { ok: false, error: 'refused: path escapes the CloneFrame root' };
+      fs.mkdirSync(abs, { recursive: true, mode: 0o755 });
+      return { ok: true, rel, abs };
     } catch (e) { return { ok: false, error: e.message }; }
   },
 };

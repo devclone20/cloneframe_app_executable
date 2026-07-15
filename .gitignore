@@ -1,27 +1,52 @@
 # ── dependencies ─────────────────────────────────────────────────────────────
 node_modules/
+**/node_modules/
 
 # ── secrets & local config (never committed, in any form) ────────────────────
 .env
 .env.*
+**/.env
+**/.env.*
 *.pem
 *.key
 *_rsa
 *_ed25519
 *.p12
 *.keystore
+*.pfx
+secrets.*
+*.secret
 
 # ── runtime state (lives in ~/.clone-frame-hub, never in the repo) ───────────
 *.log
 logs/
+*.pid
+.clone-frame-hub/
+
+# ── integrations: only manifests + install scripts are tracked. Everything an ─
+#    installer downloads/clones/builds stays out of git (secrets live in there). ─
+integrations/*/src/
+integrations/*/.venv/
+integrations/*/venv/
+integrations/*/node_modules/
+integrations/**/_metadata/
+integrations/runtime/chrome-*/
+integrations/runtime/*.app/
+integrations/manaflow/convex-local-backend
+integrations/manaflow/*.sqlite3
+integrations/manaflow/convex_local_storage/
+integrations/manaflow/.convex*
+integrations/manaflow/.manaflow*
 
 # ── build output ──────────────────────────────────────────────────────────────
 *.app/
 dist/
 build/
+login-island/dist/
 
 # ── editor / OS noise ─────────────────────────────────────────────────────────
 .DS_Store
+**/.DS_Store
 Thumbs.db
 .idea/
 .vscode/
@@ -31,3 +56,4 @@ Thumbs.db
 *.bak
 *.bak-*
 *.orig
+index.html.bak*

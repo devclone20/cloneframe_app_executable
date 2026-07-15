@@ -1,0 +1,13 @@
+{
+  "id": "runtime",
+  "name": "Browser Runtime",
+  "tagline": "Chrome for Testing",
+  "summary": "Bundled Chromium (Chrome for Testing) that CLONE FRAME launches in — the only way to load the Framer extension (branded Chrome 142+ blocks it), so the in-app browser works fully: links stay inside the app and any site embeds directly.",
+  "kind": "runtime",
+  "license": "Google Chrome for Testing Terms of Service",
+  "repo": "https://googlechromelabs.github.io/chrome-for-testing/",
+  "home": "integrations/runtime",
+  "install": "install.sh",
+  "launchesWith": "integrations/framer",
+  "status": "ready"
+}

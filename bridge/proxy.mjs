@@ -66,14 +66,14 @@ const CONTROLLER = `<script>(function(){
   function abs(h){try{return new URL(h,REAL).href}catch(e){return null}}
   function ok(u){return u&&/^https?:/i.test(u)}
   function send(m){try{parent.postMessage(m,"*")}catch(e){}}
-  function nav(u,newTab){if(ok(u))send({__cfhub:1,type:"navigate",url:u,newTab:!!newTab})}
+  function nav(u,newTab,gesture){if(ok(u))send({__cfhub:1,type:"navigate",url:u,newTab:!!newTab,gesture:!!gesture})}
   function loaded(){send({__cfhub:1,type:"loaded",title:(document.title||"").slice(0,300)})}
   if(document.readyState!=="loading")loaded();else document.addEventListener("DOMContentLoaded",loaded);
   window.addEventListener("load",loaded);
 
   // L1: JS-driven "open in new tab" — no allow-popups, so route it to the parent.
   try{
-    window.open=function(u){nav(abs(u||""),true);return {closed:false,focus:function(){},blur:function(){},close:function(){},postMessage:function(){},location:{href:""}}};
+    window.open=function(u){nav(abs(u||""),true,false);return {closed:false,focus:function(){},blur:function(){},close:function(){},postMessage:function(){},location:{href:""}}};
   }catch(e){}
 
   function anchorNav(e,forceNew){
@@ -83,7 +83,10 @@ const CONTROLLER = `<script>(function(){
     if(!href||href.charAt(0)==="#"||/^(javascript|mailto|tel|sms|data|blob):/i.test(href))return false;
     var u=abs(href);if(!ok(u))return false;
     e.preventDefault();
-    nav(u,forceNew||a.target==="_blank"||e.metaKey||e.ctrlKey);
+    // Only a REAL user gesture (⌘/Ctrl-click or middle-click) opens a new tab.
+    // A bare target="_blank" navigates IN PLACE — this is what stops the tab storm.
+    var isGesture=forceNew||e.metaKey||e.ctrlKey;
+    nav(u, isGesture || a.target==="_blank", isGesture);
     return true;
   }
   // L2: left-click + middle-click(auxclick) both intercepted.
@@ -98,18 +101,18 @@ const CONTROLLER = `<script>(function(){
     if(method==="get"){
       var qs="";try{qs=new URLSearchParams(new FormData(f)).toString()}catch(_){return}
       var base=action.split("#")[0];
-      e.preventDefault();nav(base+(base.indexOf("?")>=0?"&":"?")+qs,newTab);return;
+      e.preventDefault();nav(base+(base.indexOf("?")>=0?"&":"?")+qs,newTab,newTab);return;
     }
     // L3: POST — we can't proxy a POST body through GET, but we MUST stop the iframe
     // self-navigating to a bare origin (blank pane). Take the user to the action page.
-    e.preventDefault();nav(action.split("#")[0],newTab);
+    e.preventDefault();nav(action.split("#")[0],newTab,newTab);
   },true);
 
   // L4 (partial): SPA client routing via History API — surface the new URL so the
   // address bar stays truthful; the parent re-fetches it as a real document.
   try{
     var _ps=history.pushState;
-    history.pushState=function(s,t,u){var r=_ps.apply(this,arguments);if(u)nav(abs(u),false);return r};
+    history.pushState=function(s,t,u){var r=_ps.apply(this,arguments);if(u)nav(abs(u),false,false);return r};
   }catch(e){}
 })();</script>`;
 

@@ -128,6 +128,17 @@ export const Acp = {
     return { ok: true, installed: true, bin: b, version: (v.text || '').trim() || (v.json ?? ''), configured, authenticated: !!who, whoami: who };
   },
 
+  // ---- tokenizable chains for THIS CLI build (Base only until acp>=1.0.23 adds Robinhood 4663) ----
+  // Lets the UI show the real chain picker and, when Robinhood is missing, the exact
+  // one-line update the user runs — instead of pretending a launch will work.
+  async chains() {
+    const b = bin();
+    if (!b) return { ok: false, installed: false, chains: [], hasRobinhood: false };
+    const r = await exec(['--json', 'chain', 'list'], { timeoutMs: 10000 });
+    const list = (r.ok && r.json && Array.isArray(r.json.chains)) ? r.json.chains : [];
+    return { ok: r.ok, chains: list, hasRobinhood: list.some(c => Number(c.id) === 4663), updateCmd: 'npm i -g @virtuals-protocol/acp-cli@latest' };
+  },
+
   // ---- the single gate every CLI call goes through ----
   async run(argv, opts = {}) {
     if (!Array.isArray(argv) || !argv.length || argv.length > 24) return { ok: false, error: 'bad argv' };

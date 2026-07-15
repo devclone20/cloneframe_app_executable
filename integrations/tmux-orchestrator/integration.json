@@ -1,0 +1,20 @@
+{
+  "id": "tmux",
+  "name": "TMUX",
+  "tagline": "terminal multiplexer",
+  "summary": "Agent crews in tmux windows that survive disconnects.",
+  "kind": "tool",
+  "license": "MIT",
+  "repo": "https://github.com/Jedward23/Tmux-Orchestrator",
+  "home": "integrations/tmux-orchestrator",
+  "src": "src",
+  "bridgeModule": "tmuxorch",
+  "install": "install.sh",
+  "launch": {
+    "via": "bridge",
+    "fn": "launch"
+  },
+  "opensIn": "integrations",
+  "icon": "#i-term",
+  "status": "ready"
+}
