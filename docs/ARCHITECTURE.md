@@ -221,6 +221,12 @@ The engine is careful about resources: at most 12 concurrent sessions, a 30-minu
 
 ## (E) The integrations map
 
+> [!NOTE]
+> **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
+> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
+> module, no source. The details below describe how each will work once it ships.
+
+
 Integrations are bundled tools that install into their own folder and launch through their own bridge module. The repository ships **only manifests and installers** — no giant binaries, no secrets committed. Each `install.sh` clones its upstream into `integrations/<name>/src/` and builds it there, preserving the upstream licence.
 
 ```mermaid
@@ -265,7 +271,7 @@ Every integration module spawns with `shell: false` and argv arrays — no strin
 
 ---
 
-## (F) Manaflow without Docker
+## (F) Manaflow without Docker *(coming soon)*
 
 Manaflow is the exception among the integrations: it is not a single self-contained server but a **Bun monorepo of several services**, and upstream it normally wants Docker. CLONE FRAME runs it **without Docker** by using Convex's own CLI to stand up an *anonymous local deployment* for the data layer.
 

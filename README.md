@@ -58,7 +58,7 @@ flowchart LR
     UI <-->|"DATA: token-gated WebSocket /stream"| Bridge
     Bridge --> Shell["Shell + real terminal"]
     Bridge --> Files["Your files · ~/CloneFrame"]
-    Bridge --> LLM["Your model<br/>cloud key or local EXO"]
+    Bridge --> LLM["Your model<br/>your cloud API key"]
     Bridge --> Tools["Bundled integrations"]
     Bridge --> Wallet["Your wallet<br/>unsigned transactions only"]
 ```
@@ -91,14 +91,23 @@ in Finder, that every frame reads from and writes to.
 
 ### Bundled integrations
 
+Available today:
+
 | Integration | Licence | What it does |
 |-------------|---------|--------------|
-| **EXO LAB** | Apache-2.0 | Run a local LLM cluster across your own devices, serving an API on `:52415`, opened inside the app. This is how you run a fully local model with no cloud key. |
-| **Manaflow / cmux** | MIT | Spawn parallel coding agents. Runs **without Docker** via the Convex CLI's anonymous local deployment. |
-| **TMUX** | MIT | Persistent agent crews in tmux windows that survive disconnects, with a native panel and a live "▸ Live" terminal. |
 | **Framer** | bundled MV3 extension | Lets the in-app browser frame sites that normally block embedding. |
 | **Runtime** | bundled | A Chrome for Testing that the app launches into so the Framer extension can load. |
-| **Live Terminal** | built-in | A real interactive terminal in the app — xterm.js over the token-gated WebSocket to node-pty on the bridge. Powers TMUX "▸ Live". |
+| **Live Terminal** | built-in | A real interactive terminal in the app — xterm.js over the token-gated WebSocket to node-pty on the bridge. |
+
+> [!NOTE]
+> **Coming soon — EXO LAB · Manaflow · TMUX.** These three appear in the INTEGRATIONS
+> tab as **"coming soon"** placeholders. They are not bundled in this build yet:
+>
+> | Integration | What it will do |
+> |-------------|-----------------|
+> | **EXO LAB** | Run a local LLM cluster across your own devices — a fully local model with no cloud key. |
+> | **Manaflow** | Spawn parallel coding agents in isolated workspaces. |
+> | **TMUX** | Persistent agent crews in tmux windows that survive disconnects. |
 
 ## Quick start
 
@@ -124,12 +133,11 @@ CLONE FRAME does not ship a model. You choose how to connect one:
 
 ```mermaid
 flowchart TD
-    Start["Connect a model"] --> Q{"Cloud or local?"}
-    Q -->|"Cloud"| Key["Paste an API key<br/>stays in your session · never committed"]
-    Q -->|"Local"| Exo["Run EXO LAB<br/>local cluster serving :52415 · no cloud key"]
+    Start["Connect a model"] --> Key["Paste a cloud API key<br/>stays in your session · never committed"]
     Key --> Done["Your model is live in the app"]
-    Exo --> Done
 ```
+
+> Fully local models (via **EXO LAB**) are **coming soon** — see the INTEGRATIONS tab.
 
 Full walkthrough: [docs/CONNECT.md](docs/CONNECT.md).
 
@@ -160,7 +168,7 @@ Full model and threat notes: [SECURITY.md](SECURITY.md).
 | [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) | A friendly tour of the app and its frames. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The two pieces, the two channels, and the boundary law in depth. |
 | [docs/INSTALL.md](docs/INSTALL.md) | Install and run on macOS, Linux, and Windows. |
-| [docs/CONNECT.md](docs/CONNECT.md) | Connect a cloud API key or a local EXO model. |
+| [docs/CONNECT.md](docs/CONNECT.md) | Connect a cloud API key (local models coming soon). |
 | [SECURITY.md](SECURITY.md) | The full security model and how to report issues. |
 
 ## License

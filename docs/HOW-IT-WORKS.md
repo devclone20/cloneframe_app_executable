@@ -204,7 +204,13 @@ signing every transaction in your wallet as you go.
 
 ---
 
-## INTEGRATIONS — bundled tools, embedded in-app
+## INTEGRATIONS — tools embedded in-app
+
+> [!NOTE]
+> **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
+> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
+> module, no source. The details below describe how each will work once it ships.
+
 
 **What it is.** A shelf of external tools you can install and launch, each one opening
 **inside** the app rather than in a separate window. The repository ships only the small

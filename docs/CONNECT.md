@@ -161,7 +161,7 @@ This is the quickest path.
 > revoke access, rotate the key at your provider — the app holds no copy it can
 > leak.
 
-### 2b · A fully local model via EXO LAB
+### 2b · A fully local model via EXO LAB *(coming soon)*
 
 If you would rather **no cloud key at all**, run the model on your own hardware.
 EXO LAB clusters your own devices and serves a local model API.
@@ -293,6 +293,12 @@ flowchart LR
 ---
 
 ## 6 · Integrations setup
+
+> [!NOTE]
+> **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
+> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
+> module, no source. The details below describe how each will work once it ships.
+
 
 The **INTEGRATIONS** tab bundles a few powerful tools. The repository ships only
 their **manifests and installers** — so nothing huge or secret is committed —

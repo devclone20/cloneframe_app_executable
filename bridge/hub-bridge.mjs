@@ -250,41 +250,6 @@ async function handleChat(req, res, body) {
   } finally { clearTimeout(to); }
 }
 
-// ── exo chat relay: stream exo's OpenAI-style SSE (/v1/chat/completions) as plain
-//    text chunks so the browser NEVER touches :52415 directly (boundary law). ──────
-async function handleExoChat(req, res, body) {
-  streamHead(res);
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const model = body.model || '';
-  if (!model) { res.end('\x00ERR\x00pick an exo model first'); return; }
-  const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT);
-  req.on('close', () => ctl.abort());
-  try {
-    const r = await fetch('http://127.0.0.1:52415/v1/chat/completions', {
-      method: 'POST', signal: ctl.signal,
-      headers: { 'content-type': 'application/json' },
-      body: j({ model, messages, stream: true }),
-    });
-    if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00exo ' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
-    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl; while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
-        const t = line.trim();
-        if (!t.startsWith('data:')) continue;
-        const payload = t.slice(5).trim(); if (payload === '[DONE]') continue;
-        try { const ev = JSON.parse(payload); const tok = ev.choices?.[0]?.delta?.content; if (tok) res.write(tok); } catch {}
-      }
-    }
-    res.end();
-  } catch (e) {
-    res.end('\x00ERR\x00' + (e.name === 'AbortError' ? 'timeout' : e.message));
-  } finally { clearTimeout(to); }
-}
-
 // ── Email (real IMAP/SMTP via email.mjs — lazily loaded so a mail issue never
 //    takes down shell/chat; deps: imapflow + nodemailer + mailparser) ─────────
 let _emailMod = null, _emailErr = null;
@@ -383,14 +348,14 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  exo: './exo.mjs', manaflow: './manaflow.mjs', tmuxorch: './tmuxorch.mjs', pty: './pty.mjs' };
+  pty: './pty.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  exo: 'Exo', manaflow: 'Manaflow', tmuxorch: 'TmuxOrch', pty: 'Pty' };
+  pty: 'Pty' };
 const _modCache = {};
 async function getMod(name) {
   if (_modCache[name]) return _modCache[name];
@@ -467,7 +432,6 @@ async function bootTasks() {
   catch (e) { console.log('  folders    off (' + ((e && e.message) || e) + ')'); }
   try { const T = await getMod('tasks'); if (T.init) await T.init(); if (T.startScheduler) T.startScheduler(); console.log('  tasks      scheduler on'); }
   catch (e) { console.log('  tasks      off (' + ((e && e.message) || e) + ')'); }
-  try { const O = await getMod('tmuxorch'); if (O.startScheduler) { const r = O.startScheduler(); console.log('  tmuxorch   check-ins re-armed (' + ((r && r.armed) || 0) + ')'); } } catch {}
   // scheduled-email poller: send due emails every 60s (best-effort, never crashes)
   const sched = setInterval(async () => {
     try { const S = await getMod('scheduled'); if (S.tick) await S.tick(); } catch {}
@@ -509,7 +473,6 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && url.pathname === '/chat') { await handleChat(req, res, await readBody(req)); return; }
   if (req.method === 'POST' && url.pathname === '/provider-chat') { await handleProviderChat(req, res, await readBody(req)); return; }
-  if (req.method === 'POST' && url.pathname === '/exo/chat') { await handleExoChat(req, res, await readBody(req)); return; }
   if (req.method === 'POST' && url.pathname.startsWith('/email/')) { await handleEmail(req, res, url.pathname, await readBody(req)); return; }
   if (req.method === 'GET' && url.pathname === '/email/accounts') { await handleEmail(req, res, '/email/accounts', {}); return; }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
@@ -546,14 +509,7 @@ async function dispatchStream(ws, url) {
   const op = url.searchParams.get('op') || 'shell';
   const cols = Math.max(1, Math.min(1000, Number(url.searchParams.get('cols')) || 80));
   const rows = Math.max(1, Math.min(1000, Number(url.searchParams.get('rows')) || 24));
-  let hello;
-  if (op === 'attach') {
-    const session = url.searchParams.get('session') || '';
-    if (!/^cf-[A-Za-z0-9_-]{1,40}$/.test(session)) { try { ws.close(1008, 'bad session'); } catch {} return; }
-    hello = { cmd: 'tmux', args: ['attach', '-t', session], cols, rows };   // attach a cf-* crew (validated)
-  } else {
-    hello = { cmd: process.env.SHELL || 'zsh', args: ['-l'], cwd: url.searchParams.get('cwd') || undefined, cols, rows };
-  }
+  const hello = { cmd: process.env.SHELL || 'zsh', args: ['-l'], cwd: url.searchParams.get('cwd') || undefined, cols, rows };
   Pty.attach(ws, hello);
 }
 

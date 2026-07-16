@@ -311,7 +311,7 @@ It never asks for a private key or seed phrase.
 | **Window opens but says "not paired"** | You opened a different origin than the Bridge serves | Open the exact `http://127.0.0.1:8765` from the banner, or paste the printed pairing snippet into **MY MACHINE → HUB BRIDGE**. |
 | **`npm install` fails on the terminal add-on** | `node-pty` needs build tools (common on Windows) | Install build tools, or use **WSL2**. The app still runs without it; you only lose the in-window live terminal. |
 | **The app asks to turn a permission on** | You tried an action that needs an opt-in switch | That is by design. Open **Settings**, read what the switch enables, and flip it only if you want that power. |
-| **A model call does nothing** | No model connected | In Settings, add your own API key, or run a local model via **EXO LAB** — the app ships no model of its own. |
+| **A model call does nothing** | No model connected | In Settings, add your own API key — the app ships no model of its own. (Local models via EXO LAB are coming soon.) |
 | **Bridge started but a feature is silent** | An optional add-on did not install | Check `~/.clone-frame-hub/server.log`. The core keeps running; re-run `npm install` to restore the add-on. |
 
 ---

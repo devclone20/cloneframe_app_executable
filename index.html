@@ -3515,136 +3515,8 @@ addEventListener('pointerdown',e=>{
   }
 },true);
 
-/* ---------- Exo (My machine — Apache-2.0; real endpoints confirmed in research/I11)
-   Adapted from exo-explore/exo (Apache-2.0, attribution). localhost ONLY — exo has no auth. ---------- */
-const Exo=(()=>{
-  const BASE='http://localhost:52415';
-  let lastState=null;
-  async function j(path,opt){
-    opt=opt||{};
-    if(Bridge.on()){ // boundary law: exo data-plane goes THROUGH the bridge — never browser→:52415
-      const method=(opt.method||'GET').toUpperCase();
-      let body=null;if(opt.body){try{body=JSON.parse(opt.body)}catch(_){body=null}}
-      const r=await RPC('exo','api',method,path,body);
-      return r===undefined?null:r;
-    }
-    if(!(Store.get().exo&&Store.get().exo.direct))return null; // unpaired + no legacy flag → offline (bridge is the only path)
-    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),2800);
-    try{const r=await fetch(BASE+path,Object.assign({signal:ctl.signal},opt));clearTimeout(to);if(!r.ok)throw 0;return await r.json()}
-    catch(e){clearTimeout(to);return null}
-  }
-  async function state(){lastState=await j('/state');return lastState}
-  async function models(){return (await j('/models'))||(await j('/v1/models'))}
-  async function probe(){
-    const m=await models();
-    if(m){
-      const arr=Array.isArray(m)?m:(m.data||m.models||Object.keys(m)||[]);
-      return{on:true,n:arr.length,msg:`exo ONLINE — ${arr.length} model${arr.length===1?'':'s'} · localhost:52415`};
-    }
-    return{on:false,msg:'exo not detected — run exo on your machine (github.com/exo-explore/exo)'};
-  }
-  // parse /state into a friendly device list (name, chip, ram used/total, temp, watts, gpu)
-  function nodes(st){
-    st=st||lastState;if(!st)return[];
-    const id=st.nodeIdentities||{},mem=st.nodeMemory||{},sys=st.nodeSystem||{};
-    return Object.keys(id).map(k=>{
-      const n=id[k]||{},m=mem[k]||{},sy=sys[k]||{};
-      const total=(m.ramTotal&&m.ramTotal.inBytes)||0,avail=(m.ramAvailable&&m.ramAvailable.inBytes)||0;
-      return{id:k,name:n.friendlyName||n.modelId||'device',chip:n.chipId||'',os:n.osVersion||'',
-        ramTotal:total,ramUsed:total-avail,ramAvail:avail,
-        temp:sy.temp||0,watts:sy.sysPower||0,gpu:sy.gpuUsage||0};
-    });
-  }
-  function memAvailGB(st){const ns=nodes(st);return ns.reduce((a,n)=>a+n.ramAvail,0)/1e9}
-  // model catalog normalized for the picker
-  async function catalog(){
-    const m=await models();if(!m)return[];
-    const arr=Array.isArray(m)?m:(m.data||[]);
-    return arr.map(x=>({id:x.id,name:x.name||x.id,family:x.family||'other',quant:x.quantization||'',
-      gb:(x.storage_size_megabytes||0)/1024,ctx:x.context_length||0,custom:!!x.is_custom,tensor:!!x.supports_tensor}));
-  }
-  // instances parsed from /state: which models are launched and which are READY to chat
-  function instances(st){
-    st=st||lastState;if(!st)return[];
-    const out=[],runners=st.runners||{};
-    for(const[id,w]of Object.entries(st.instances||{})){
-      const inst=w&&(w.MlxRingInstance||Object.values(w)[0]);if(!inst)continue;
-      const sa=inst.shardAssignments||{},mid=sa.modelId||'';
-      const r2s=sa.runnerToShard||{};
-      const rids=Object.keys(r2s);
-      const ready=rids.length>0&&rids.every(r=>runners[r]&&runners[r].RunnerReady!==undefined);
-      const firstShard=rids.length?r2s[rids[0]]:null;
-      const sharding=firstShard&&Object.keys(firstShard)[0]==='TensorShardMetadata'?'Tensor':'Pipeline';
-      out.push({id:inst.instanceId||id,model:mid,ready,runners:rids.length,sharding,meta:'MLX Ring'});
-    }
-    return out;
-  }
-  function readyModels(st){return new Set(instances(st).filter(x=>x.ready).map(x=>x.model))}
-  // launch a model on the cluster: placement → POST /instance (downloads on first use)
-  async function loadModel(modelId,opts){
-    opts=opts||{};
-    const sharding=String(opts.sharding||'pipeline').toLowerCase()==='tensor'?'Tensor':'Pipeline';
-    const q=`model_id=${encodeURIComponent(modelId)}&sharding=${sharding}&instance_meta=MlxRing&min_nodes=${opts.minDevices||1}`;
-    const pl=await j('/instance/placement?'+q);
-    if(!pl||pl.detail||pl.error){
-      let msg=(pl&&pl.error&&pl.error.message)||(pl&&pl.detail&&(typeof pl.detail==='string'?pl.detail:JSON.stringify(pl.detail)))||'placement failed';
-      if(/cycle|memory|sufficient/i.test(msg))msg='not enough memory on your cluster for this model — pick a smaller one (see the fit tag)';
-      return{ok:false,error:msg};
-    }
-    const r=await j('/instance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instance:pl})});
-    if(r&&(r.detail||r.error))return{ok:false,error:(r.error&&r.error.message)||JSON.stringify(r.detail).slice(0,120)};
-    return{ok:true};
-  }
-  // stream SSE OpenAI-style (data: {...} / data: [DONE]) — model id is REQUIRED (an instance must exist)
-  async function chatStream(messages,onTok,signal,opts){
-    const model=(opts&&opts.model)||'';
-    if(!model)throw new Error('pick an exo model first');
-    if(Bridge.on()){await Bridge.streamRaw('/exo/chat',{model,messages},onTok,signal);return} // relayed — no browser→:52415
-    if(!(Store.get().exo&&Store.get().exo.direct))throw new Error('connect the HUB Bridge (MY MACHINE) to use exo');
-    const r=await fetch(BASE+'/v1/chat/completions',{
-      method:'POST',signal,headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model,messages,stream:true})
-    });
-    if(!r.ok||!r.body){let t='';try{const e=await r.json();t=(e.error&&e.error.message)||''}catch(_){}throw new Error(t||('exo http '+r.status))}
-    const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
-    for(;;){
-      const{done,value}=await rd.read();
-      if(done)break;
-      buf+=dec.decode(value,{stream:true});
-      const lines=buf.split('\n');buf=lines.pop();
-      for(const ln of lines){
-        const t=ln.trim();
-        if(!t.startsWith('data:'))continue;
-        const d=t.slice(5).trim();
-        if(d==='[DONE]')return;
-        try{const o=JSON.parse(d);const tok=o.choices?.[0]?.delta?.content;if(tok)onTok(tok)}catch(_){}
-      }
-    }
-  }
-  async function deleteInstance(id){const r=await j('/instance/'+encodeURIComponent(id),{method:'DELETE'});return r!==null?{ok:true}:{ok:false,error:'delete failed'}}
-  return{probe,state,models,catalog,nodes,memAvailGB,instances,readyModels,loadModel,deleteInstance,chatStream,last:()=>lastState,
-    // lifecycle the browser can't do — driven by bridge/exo.mjs (install/launch/stop the bundled exo)
-    status:()=>RPC('exo','status'),install:()=>RPC('exo','install'),update:()=>RPC('exo','update'),
-    launch:(o)=>RPC('exo','launch',o||{}),stop:()=>RPC('exo','stop'),logs:(o)=>RPC('exo','logs',o||{})};
-})();
-
-/* ---------- Manaflow (agent-workflow tool) — lifecycle only, via bridge/manaflow.mjs ----------
-   Pure RPC (born after the boundary law): the ONLY Manaflow-origin contact is the iframe src
-   in the INTEGRATIONS panel; every control action goes through POST /mod/manaflow. */
-const Manaflow=(()=>({
-  status:()=>RPC('manaflow','status'),detect:()=>RPC('manaflow','detect'),install:()=>RPC('manaflow','install'),
-  launch:(o)=>RPC('manaflow','launch',o||{}),stop:()=>RPC('manaflow','stop'),logs:(o)=>RPC('manaflow','logs',o||{})
-}))();
-
-/* ---------- Tmux Orchestrator — agent-crew control-plane, via bridge/tmuxorch.mjs ----------
-   NO web UI, NO iframe: a native control panel drives tmux crews entirely through RPC. */
-const Tmux=(()=>({
-  detect:()=>RPC('tmuxorch','detect'),status:()=>RPC('tmuxorch','status'),install:()=>RPC('tmuxorch','install'),logs:(o)=>RPC('tmuxorch','logs',o||{}),
-  sessions:()=>RPC('tmuxorch','sessions'),windows:(s)=>RPC('tmuxorch','windows',s),
-  newCrew:(name,cwd,o)=>RPC('tmuxorch','newCrew',name,cwd,o||{}),send:(t,text)=>RPC('tmuxorch','send',t,text),
-  capture:(t,o)=>RPC('tmuxorch','capture',t,o||{}),kill:(s)=>RPC('tmuxorch','kill',s),
-  schedule:(t,min,note)=>RPC('tmuxorch','schedule',t,min,note),listCheckins:()=>RPC('tmuxorch','listCheckins'),cancelCheckin:(id)=>RPC('tmuxorch','cancelCheckin',id)
-}))();
+/* EXO LAB / Manaflow / TMUX integrations removed 2026-07-16 — kept only as "coming soon"
+   entries in the INTEGRATIONS tab. No client, no bridge module, no bundled source. */
 
 /* ---------- live PTY terminal — xterm.js ↔ the bridge WS /stream (Foundation #37) ----------
    Real interactive terminal INSIDE the app: keystrokes → WS → node-pty; output → WS → xterm.
@@ -3775,24 +3647,23 @@ const Bridge=(()=>{
   return{connect,refresh,disconnect,health,shell,chat,providerChat,interrupt,on,brainReady,info:()=>info,endpoint:getEndpoint,parse};
 })();
 
-/* ---------- Brain: brain router (bridge → exo → BYOK → mock; never dead) ---------- */
+/* ---------- Brain: brain router (bridge → BYOK → mock; never dead) ---------- */
 const Brain=(()=>{
-  let exoOn=false,label='local mock';
+  let label='local mock';
   const MOCK_GEN=[
 `I'm with you. This is the CLONE FRAME HUB — your grid is a universe of frames and I'm the agent linked to your soul.
 
 What I can do in this demo:
 - **/soul** — see my soul (monorepo → Irys)
 - **/harness** — open the spine's COUNCIL
-- **/exo** — look for your local cluster
 - **/brain** — see which brain I'm using
 
-> Once you connect an exo or a BYOK key in MY MACHINE, I start answering with a real model.`,
+> Once you connect a BYOK key in MY MACHINE, I start answering with a real model.`,
 `Good question. Right now I'm a **local mock** — I write for myself so the console is never dead.
 
 \`\`\`js
 // the router that gives me a voice
-const kind = exoOn ? 'exo' : (byokKey ? 'byok' : 'mock');
+const kind = byokKey ? 'byok' : 'mock';
 \`\`\`
 
 Connect a real brain in the **MY MACHINE** panel and this same conversation continues — your messages stay saved locally.`,
@@ -3816,7 +3687,6 @@ Compiled by the Forge's **compile-soul** and published on Irys with an on-chain 
     [/harness|conselho|crew|espinha/i,`The harness spine is sacred: **ORCHESTRATOR** moderates, **SAFETY** holds a fail-closed veto, **EVALUATOR** and **TREASURY** guard quality and funds, and the **OWNER** is you — nothing irreversible happens without your click.
 
 Type \`/harness\` or open the Harness panel → **COUNCIL** mode to watch a deliberation.`],
-    [/exo|cluster|machine|maquina|máquina/i,`**exo** pools your devices into a local inference cluster (Apache-2.0). If it's running on \`localhost:52415\`, I detect it and start using it as my brain — no cloud, no cost. See the **MY MACHINE** panel.`],
   ];
   let mockIdx=0;
   function pickMock(userText){
@@ -3832,17 +3702,16 @@ Type \`/harness\` or open the Harness panel → **COUNCIL** mode to watch a deli
     const a=Store.get().brain.active;
     if(a==='mock')return'mock';
     if(a==='bridge')return Bridge.brainReady()?'bridge':'mock';
-    if(a==='exo')return exoOn?'exo':'mock';
-    if(a==='auto')return Bridge.brainReady()?'bridge':(exoOn?'exo':(readyProvider()?'byok':'mock'));
+    if(a==='auto')return Bridge.brainReady()?'bridge':(readyProvider()?'byok':'mock');
     return readyProvider(a)?'byok':'mock';
   }
   function update(){
     const k=activeKind();
     const p=readyProvider(Store.get().brain.active)||readyProvider();
-    label='iCLONE · '+(k==='bridge'?('machine · '+(Bridge.info()?.model||'claude')):k==='exo'?'exo local':k==='byok'?(p?p.name:'byok'):'mock');
+    label='iCLONE · '+(k==='bridge'?('machine · '+(Bridge.info()?.model||'claude')):k==='byok'?(p?p.name:'byok'):'mock');
     Bus.emit('brain:changed',label);
   }
-  async function detect(){const r=await Exo.probe();exoOn=r.on;update();return r}
+  async function detect(){update();return{on:false}}
   async function typeOut(text,onTok,signal){
     if(REDUCED){onTok(text);return}
     for(let i=0;i<text.length;){
@@ -3867,13 +3736,12 @@ Type \`/harness\` or open the Harness panel → **COUNCIL** mode to watch a deli
   async function stream(messages,onTok,signal){
     const kind=activeKind();
     if(kind==='bridge'){try{const r=await Bridge.chat(messages,onTok,signal);if(r&&r.err)onTok('\n\n_⚠ '+r.err+'_');return'bridge'}catch(e){}}
-    if(kind==='exo'){try{await Exo.chatStream(messages,onTok,signal);return'exo'}catch(e){}}
     if(kind==='byok'){try{await byokStream(messages,onTok,signal);return'byok'}catch(e){}}
     if(signal?.aborted)return'abort';
     await typeOut(pickMock(String(messages[messages.length-1]?.content||'')),onTok,signal);
     return'mock';
   }
-  return{stream,detect,typeOut,update,label:()=>label,exoOn:()=>exoOn,activeKind,readyProvider};
+  return{stream,detect,typeOut,update,label:()=>label,exoOn:()=>false,activeKind,readyProvider};
 })();
 Bus.on('bridge:changed',()=>Brain.update());
 
@@ -4187,7 +4055,7 @@ const Panels=(()=>{
           </div>
         </div>
       </div>`},
-    machine:{icon:'#i-chip',title:'MY MACHINE',sub:'bridge · cluster · brain',w:520,h:600,body:()=>`
+    machine:{icon:'#i-chip',title:'MY MACHINE',sub:'bridge · brain',w:520,h:600,body:()=>`
       <div class="isl"><h4>HUB BRIDGE — the real body on your machine<span class="r" id="brstat"><span class="brdot"></span>checking…</span></h4>
         <div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">A local daemon (Node, zero dependencies) that gives the terminal a real body: a <b>true shell</b> + <b>Claude</b> with your key (BYOK — stays on your disk, <b>never</b> on the site). Listens only on 127.0.0.1, with a pairing token.</div>
         <div class="brrun"><code id="brcmd">node bridge/hub-bridge.mjs</code><button class="btn" id="brcopy" style="padding:7px 12px;font-size:9px">COPY</button></div>
@@ -4195,18 +4063,13 @@ const Panels=(()=>{
         <div id="brinfo" style="font-size:9.5px;color:var(--ink-faint);margin-top:6px;line-height:1.5"></div>
         <div class="secnote">the address stays saved; the token lives only in this browser session (sessionStorage). Whoever has the token gets a shell just like yours — keep it local.</div>
       </div>
-      <div class="isl"><h4>DEVICES — LOCAL RING<span class="r" id="mstat">detecting…</span></h4>
-        <div id="mdevs"></div>
-        <div class="secnote">⚠ exo listens on 0.0.0.0 without auth — the HUB only connects to localhost, never to a public IP.</div>
-      </div>
-      <div class="isl"><h4>MODELS<span class="r">download = demo</span></h4><div id="mmods"></div></div>
-      <div class="isl"><h4>WHAT FITS — in the ring memory</h4><div id="mfit"></div></div>
+
       <div class="isl"><h4>BRAIN — who answers in the CONSOLE</h4>
         <div id="mbrains"></div>
         <div class="keyadd"><input id="mkey" type="password" placeholder="paste an API key (detects the provider)" autocomplete="off"><button class="btn" id="mkeybtn" style="padding:7px 12px;font-size:9px">CONNECT</button></div>
         <div class="secnote">keys live only in this browser session (sessionStorage) — never persisted.</div>
       </div>
-      <div class="btnrow"><button class="btn" id="mdetect">DETECT EXO</button></div>`},
+`},
     agents:{icon:'#i-agents',title:'MY AGENTS',sub:'iCLONE · VEGETA · your agents',w:520,h:520,body:()=>`
       <div style="font-size:10px;color:var(--ink-faint);line-height:1.5;margin-bottom:12px">
         Connect your real agents. On-chain reads (ERC-8004, Base) are read-only and never sign.
@@ -4286,13 +4149,11 @@ const Panels=(()=>{
         <div id="queue"></div>`}},
     harness:{icon:'#i-harness',title:'HARNESS',sub:'crew list · use in the terminal',w:640,h:580,pad:false,body:()=>`
       <div class="hnwrap"><div class="hnlist" id="hnlist"></div><div class="hndetail" id="hndetail"></div></div>`},
-    lab:{icon:'#i-lab',title:'LAB',sub:'exo cluster · chat · agents',w:720,h:600,pad:false,body:()=>`
+    lab:{icon:'#i-lab',title:'LAB',sub:'chat · agents',w:720,h:600,pad:false,body:()=>`
       <div class="labx">
         <div class="labtabs">
-          <button class="labtab on" data-lt="cluster">Cluster</button>
-          <button class="labtab" data-lt="chat">Chat</button>
+          <button class="labtab on" data-lt="chat">Chat</button>
           <button class="labtab" data-lt="agents">Agents</button>
-          <span class="labstat" id="labstat"><span class="g off"></span>checking exo…</span>
         </div>
         <div class="labbody" id="labbody"></div>
       </div>`},
@@ -4653,12 +4514,11 @@ const Panels=(()=>{
         await runReal(c);return;
       }
       line(c);
-      if(name==='help'){out('<span class="sys">commands:</span> ls · pwd · cd · git status · ssh &lt;host&gt; · exo · agents · harness · soul · neofetch · theme &lt;name&gt; · clear\n<span class="dim">the real shell runs through the local HUB Bridge (BYOK) — never stores secrets on the site.</span>');renderShell();return}
+      if(name==='help'){out('<span class="sys">commands:</span> ls · pwd · cd · git status · ssh &lt;host&gt; · agents · harness · soul · neofetch · theme &lt;name&gt; · clear\n<span class="dim">the real shell runs through the local HUB Bridge (BYOK) — never stores secrets on the site.</span>');renderShell();return}
       if(name==='ls'){out('<span class="path">neural_soul.md</span>  <span class="path">monorepo/</span>  <span class="path">skills/</span>  manifest.yml  bundle.lock.json');renderShell();return}
       if(name==='pwd'){out('/agents/'+(ssh?'iclone':'me')+'/'+cwd.replace('~','home'));renderShell();return}
       if(name==='cd'){cwd=args[0]?(args[0]==='..'?'~':'~/'+args[0].replace(/^[~/]+/,'')):'~';renderShell();return}
       if(name==='git'&&args[0]==='status'){out('<span class="ok">On branch '+branch+'</span>\nChanges not staged:\n  <span class="warn">modified:</span>   index.html');renderShell();return}
-      if(name==='exo'){out('<span class="sys">detecting exo at localhost:52415…</span>');renderShell();const r=await Exo.probe();out((r.on?'<span class="ok">':'<span class="warn">')+r.msg+'</span>');renderShell();return}
       if(name==='ssh'){
         const h=args[0]||'';
         if(!h){out('<span class="warn">usage: ssh &lt;host&gt; — connects to your HUB Bridge (BYOK). The site never contains the droplet IP.</span>');renderShell();return}
@@ -5512,10 +5372,10 @@ const Panels=(()=>{
     renderSessions();renderChat();loadModels();loadHarnesses();
   }
 
-  /* ---------- LAB = exolab: local AI cluster + model management + chat with any model + animated iNFT ---------- */
+  /* ---------- LAB: chat with any model + your agents (animated iNFT) ---------- */
   function wireLab(p){
     const body=p.querySelector('#labbody'),statEl=p.querySelector('#labstat');
-    let tab='cluster',exoOn=false,st=null,cat=[],fam='all',mq='',pollT=null,exoLife=null;
+    let tab='chat',cat=[],fam='all',mq='',pollT=null;
     let inftSub=localStorage.getItem('cfhub.lab.inftsub')||'turbo',osSel=null; // SERVER section: Turbo (local) | Online Server (droplet)
     if(inftSub==='myinft')inftSub='turbo'; // legacy value — My iNFT now lives in CLI ECONOMYOS
     let load={sharding:'pipeline',interconnect:'tcp',minDevices:1};
@@ -5594,7 +5454,6 @@ const Panels=(()=>{
     function afterScan(){
       const changed=reconcileInft();
       if(tab==='agents')renderAgents();
-      else if(tab==='cluster')renderCluster();
       else if(tab==='chat')renderChat();
       if(changed)Bus.emit('inft:changed');
     }
@@ -5637,155 +5496,14 @@ const Panels=(()=>{
     }
     async function refreshInft(){ if(WalletAuth.addr()&&Bridge.on())scanAgents(false); }
 
-    // ---- exo status poll ----
-    async function poll(){
-      const pr=await Exo.probe();exoOn=pr.on;
-      statEl.innerHTML=`<span class="g ${exoOn?'':'off'}"></span>${exoOn?'exo ONLINE · localhost:52415':'exo offline'}`;
-      if(exoOn){try{st=await Exo.state()}catch(_){}}
-      if(tab==='cluster')renderCluster();
-    }
-    function startPoll(){stopPoll();poll();pollT=setInterval(()=>{if(document.body.contains(p))poll();else stopPoll()},4000)}
-    function stopPoll(){if(pollT){clearInterval(pollT);pollT=null}}
 
-    // ---- CLUSTER ----
-    function renderCluster(){
-      const ns=exoOn?Exo.nodes(st):[];
-      let html=inftCard(false);
-      // Agents you selected in the Agents tab (pinned iNFTs) live here in the cluster.
-      const roster=(Store.get().pinnedAgents||[]);
-      if(roster.length){
-        const active=Store.get().activeAgent;
-        html+=`<div class="labsec"><b>YOUR AGENTS <span class="dim" style="font-weight:400">· selected in Agents · ${roster.length} in this cluster</span></b>
-          <div class="clroster" style="margin-top:8px">`+roster.map((a,i)=>{
-            const isAct=String(a.tokenId)===String(active);
-            return `<div class="clagent${isAct?' on':''}">
-              <div class="clagent-av">${a.image?`<img src="${esc2(a.image)}" alt="" onerror="this.remove()">`:`<svg><use href="#i-agent"/></svg>`}</div>
-              <div class="clagent-main"><b>${esc2(a.name||'Agent')}</b><span class="dim">${esc2(a.collection||'')}${a.tokenId?(' · #'+esc2(String(a.tokenId))):''}</span></div>
-              ${isAct?`<span class="clagent-live">● LIVE</span>`:`<button class="btn mini" data-actv="${i}">Make live</button>`}
-              <button class="btn mini" data-openag="${i}">Open</button>
-            </div>`;
-          }).join('')+`</div></div>`;
-      }
-      if(!exoOn){
-        html+=`<div class="qempty" style="padding:24px 20px;line-height:1.7">
-          <div style="font-family:var(--mono);font-size:15px;color:var(--fg)">LOCAL AI CLUSTER</div>
-          <div style="margin-top:7px">Pool your devices into a local inference cluster — no cloud, no cost. <b>exo</b> lives inside CLONE FRAME (Apache-2.0); install and launch it right here.</div>
-          <div id="exolifectl" style="margin-top:13px">${exoLifeMarkup()}</div>
-          <pre id="exolog" style="display:none;margin-top:11px;max-height:190px;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></pre>
-        </div>`;
-      }else{
-        html+='<div class="labnodes">'+ns.map((n,ni)=>{
-          const pct=n.ramTotal?Math.round(n.ramUsed/n.ramTotal*100):0,gpu=Math.round(n.gpu*100);
-          return `<div class="labnode ds4-visor"><div class="nh"><span class="ds4-k">NODE ${String(ni+1).padStart(2,'0')}</span><b>${esc2(n.name)}</b><span class="chip">${esc2(n.chip)}</span></div>
-            <div class="labgs">${DS.gauge(n.gpu,gpu+'%','GPU',gpu>=90)}${DS.gauge(n.temp/105,Math.round(n.temp)+'°C','TEMP',n.temp>=85)}${DS.gauge(n.watts/40,n.watts.toFixed(0)+'W','PWR',false)}</div>
-            <div class="nm"><span class="ds4-k">RAM ${gb(n.ramUsed/1e9)} / ${gb(n.ramTotal/1e9)}</span><span class="ds4-k" style="color:var(--fg)">${pct}%</span></div>
-            ${DS.led(pct/100,pct>=92)}
-          </div>`}).join('')+'</div>';
-        html+=`<div class="labtopo"><b style="color:var(--fg)">TOPOLOGY</b> · ${ns.length} node${ns.length===1?'':'s'} · ${gb(Exo.memAvailGB(st))} available for models. Add another device running exo and it auto-joins the ring (Thunderbolt/RDMA when available).</div>`;
-        // active model + downloads in progress (exolab parity, from /state)
-        const inst=st&&st.instances?Object.values(st.instances):[],runs=st&&st.runners?Object.values(st.runners):[];
-        const dls=st&&st.downloads?Object.values(st.downloads).flat():[];
-        const einst=Exo.instances(st);
-        if(einst.length)html+=`<div class="labsec"><b>ACTIVE MODELS</b>${einst.map(x=>`<div class="labsecrow"><span class="d3" style="${x.ready?'':'background:#e8b86d'}"></span>${esc2(shortName?shortName(x.model):x.model)} <span class="dim" style="font-size:8px">${esc2(x.sharding)}</span><button class="tbo-del" data-idel="${esc2(x.id)}" style="margin-left:auto">DELETE</button></div>`).join('')}</div>`;
-        const inprog=dls.filter(d=>d&&(d.DownloadInProgress||d.DownloadPending));
-        if(inprog.length)html+=`<div class="labsec"><b>DOWNLOADS</b>${inprog.slice(0,4).map(d=>{const p=d.DownloadInProgress||d.DownloadPending||{};const nm=(p.shardMetadata&&p.shardMetadata.modelId)||p.modelId||'model';return `<div class="labsecrow"><span class="d3 dl"></span>${esc2(String(nm)).split('/').pop()} <span class="dim" style="margin-left:auto">${d.DownloadPending?'pending':'downloading…'}</span></div>`}).join('')}</div>`;
-        // integration endpoints (any tool can point at exo)
-        html+=`<div class="labsec"><b>ENDPOINTS <span class="dim" style="font-weight:400">· point any tool at your cluster</span></b>
-          <div class="labep"><span>OpenAI</span><code>http://localhost:52415/v1</code></div>
-          <div class="labep"><span>Claude</span><code>http://localhost:52415</code></div>
-          <div class="labep"><span>Ollama</span><code>http://localhost:52415/ollama</code></div></div>`;
-        html+=`<div class="labsec" style="display:flex;align-items:center;gap:9px"><span class="d3" style="background:#3fd68f"></span><span class="dim" style="font-size:9.5px;flex:1">exo running · part of CLONE FRAME</span><button class="btn mini" id="exostop">⏻ Stop</button></div>`;
-      }
-      body.innerHTML=html;
-      body.querySelectorAll('[data-idel]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='…';const r=await Exo.deleteInstance(b.dataset.idel);Toast.show(r.ok?'Instance deleted — memory freed':'Delete failed');await Exo.state();if(tab==='cluster')renderCluster()}));
-      body.querySelectorAll('[data-openag]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const a=roster[+b.dataset.openag];if(a){Store.get().labInft=a;Store.get().activeAgent=a.tokenId;Store.save();openPanel('agentview')}}));
-      body.querySelectorAll('[data-actv]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const a=roster[+b.dataset.actv];if(a){Store.get().labInft=a;Store.get().activeAgent=a.tokenId;Store.save();Toast.show('✓ '+(a.name||'Agent')+' is now live in the cluster');renderCluster()}}));
-      // exo lifecycle — install/launch when the cluster is down; stop when it's up
-      if(!exoOn){wireExoLife();refreshExoLife()}
-      const stopBtn=body.querySelector('#exostop');
-      if(stopBtn)stopBtn.addEventListener('click',async()=>{stopBtn.textContent='…';const r=await Exo.stop();if(r&&r.ok){Toast.show('exo stopped');exoOn=false;st=null;if(tab==='cluster')renderCluster()}else{Toast.show((r&&r.reason)?('exo is '+r.reason+' — stop it where you started it'):'stop failed');stopBtn.textContent='⏻ Stop'}});
-    }
-    // exo lifecycle card — cached state so it doesn't flicker to "checking…" on every 4s poll
-    function exoLifeMarkup(){
-      if(!Bridge.on())return `<span class="dim" style="font-size:10px">Connect the HUB Bridge in <b>MY MACHINE</b> to install & launch exo.</span> <button class="btn mini" id="exomm">Open MY MACHINE</button>`;
-      if(!exoLife)return '<span class="dim" style="font-size:10px">checking…</span>';
-      if(exoLife.installed)return `<button class="btn acc" id="exolaunch">▶ Launch cluster</button> <span class="dim" style="font-size:9px">exo is installed — start it to use your devices.</span>`;
-      return `<button class="btn acc" id="exoinstall">↓ Install exo</button> <span class="dim" style="font-size:9px">one-time — brings exo (Apache-2.0) + runtime into CLONE FRAME.</span>`;
-    }
-    function wireExoLife(){
-      const ctl=body.querySelector('#exolifectl'),logEl=body.querySelector('#exolog');if(!ctl)return;
-      const mm=ctl.querySelector('#exomm');if(mm)mm.addEventListener('click',()=>openPanel('machine'));
-      const la=ctl.querySelector('#exolaunch');if(la)la.addEventListener('click',async()=>{ctl.innerHTML='<span class="dim" style="font-size:10px">launching…</span>';if(logEl)logEl.style.display='';try{await Exo.launch({})}catch(_){}exoLogPoll(logEl,120)});
-      const inb=ctl.querySelector('#exoinstall');if(inb)inb.addEventListener('click',ev=>{ev.target.disabled=true;try{Exo.install()}catch(_){}if(logEl){logEl.style.display='';logEl.textContent='starting install…\n'}exoLogPoll(logEl,600)});
-    }
-    async function refreshExoLife(){
-      if(!Bridge.on())return;
-      let s=null;try{s=await Exo.status()}catch(_){}
-      if(!body.isConnected||tab!=='cluster')return;
-      if(s&&s.reachable){exoOn=true;try{st=await Exo.state()}catch(_){}if(tab==='cluster')renderCluster();return}
-      const nl={installed:!!(s&&s.installed)};
-      const changed=JSON.stringify(nl)!==JSON.stringify(exoLife);exoLife=nl;
-      if(changed){const ctl=body.querySelector('#exolifectl');if(ctl){ctl.innerHTML=exoLifeMarkup();wireExoLife()}}
-    }
-    // poll exo logs + status into a console until it comes online (or maxTicks)
-    function exoLogPoll(logEl,maxTicks){
-      let since=0,ticks=0;const iv=setInterval(async()=>{
-        if(!body.isConnected||++ticks>maxTicks){clearInterval(iv);return}
-        try{const r=await Exo.logs({sinceByte:since});if(r&&r.text){logEl.textContent+=r.text;since=r.size;logEl.scrollTop=logEl.scrollHeight}}catch(_){}
-        let s=null;try{s=await Exo.status()}catch(_){}
-        if(s&&s.reachable){clearInterval(iv);Toast.show('exo is online');exoOn=true;try{st=await Exo.state()}catch(_){}if(tab==='cluster')renderCluster()}
-      },1500);
-    }
 
-    // ---- MODELS (exo picker: family sidebar, memory-fit, download) ----
-    const FAMILIES=['all','llama','qwen','gemma','deepseek','minimax','glm','kimi','nvidia','other'];
-    async function ensureCatalog(){if(!cat.length&&exoOn){try{cat=await Exo.catalog()}catch(_){}}}
-    async function renderModels(){
-      body.innerHTML='<div class="qempty" style="padding:16px">loading models…</div>';
-      await ensureCatalog();
-      if(!exoOn){body.innerHTML='<div class="qempty" style="padding:24px;line-height:1.7">exo offline — start exo on your machine to browse and download local models.<br><br>You can still chat with any API or local model in the <b>Chat</b> tab.</div>';return}
-      const availGB=Exo.memAvailGB(st);
-      const list=cat.filter(m=>(fam==='all'||m.family===fam)&&(!mq||m.name.toLowerCase().includes(mq)||m.id.toLowerCase().includes(mq)));
-      const fits=list.filter(m=>m.gb<=availGB).sort((a,b)=>a.gb-b.gb);
-      const rest=list.filter(m=>m.gb>availGB).sort((a,b)=>a.gb-b.gb);
-      const row=m=>`<div class="labmprow" data-id="${esc2(m.id)}"><b>${esc2(m.name)}</b>${m.quant?`<span class="q">${esc2(m.quant)}</span>`:''}<span class="sz ${m.gb>availGB?'big':''}">${gb(m.gb)}</span><button class="dl" data-dl="${esc2(m.id)}" title="Download">↓</button></div>`;
-      body.innerHTML=`<div class="labmp">
-        <div class="labfam">${FAMILIES.map(f=>`<button class="${f===fam?'on':''}" data-fam="${f}">${f.toUpperCase()}</button>`).join('')}</div>
-        <div class="labmpmain">
-          <div class="labmpbar"><input id="labmq" placeholder="Search models…" value="${esc2(mq)}"><span class="mem">${gb(availGB)} free</span></div>
-          <div style="flex:1;overflow-y:auto">
-            ${fits.length?`<div class="labmphead">✓ RECOMMENDED — fits in available memory</div>`+fits.map(row).join(''):''}
-            ${rest.length?`<div class="labmphead dim">OTHER MODELS — need more memory</div>`+rest.map(row).join(''):''}
-            ${!list.length?'<div class="qempty" style="padding:16px">No models match.</div>':''}
-          </div>
-          <div class="labload"><h4>LOAD OPTIONS</h4>
-            <div class="lr"><label>Sharding</label><span class="labseg" id="lsshard"><button data-v="pipeline" class="${load.sharding==='pipeline'?'on':''}">Pipeline</button><button data-v="tensor" class="${load.sharding==='tensor'?'on':''}">Tensor</button></span></div>
-            <div class="lr"><label>Interconnect</label><span class="labseg" id="lsinter"><button data-v="tcp" class="${load.interconnect==='tcp'?'on':''}">TCP/IP</button><button data-v="rdma" class="${load.interconnect==='rdma'?'on':''}">RDMA</button></span></div>
-            <div class="lr"><label>Minimum devices: <b style="color:var(--fg)">${load.minDevices}</b></label><input type="range" min="1" max="8" value="${load.minDevices}" id="lsmin"></div>
-          </div>
-        </div></div>`;
-      body.querySelectorAll('[data-fam]').forEach(b=>b.addEventListener('click',()=>{fam=b.dataset.fam;renderModels()}));
-      const mqi=body.querySelector('#labmq');mqi.addEventListener('input',()=>{mq=mqi.value.trim().toLowerCase();clearTimeout(mqi._t);mqi._t=setTimeout(renderModels,250)});
-      body.querySelectorAll('.labmprow').forEach(r=>r.addEventListener('click',async e=>{
-        if(e.target.dataset.dl)return;
-        const id=r.dataset.id;chat.model='exo::'+id;tab='chat';setTab();Toast.show('Model selected — loading on the cluster');
-        Exo.loadModel(id,{sharding:load.sharding,interconnect:load.interconnect,minDevices:load.minDevices});
-      }));
-      body.querySelectorAll('[data-dl]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();Toast.show('Download + load started — '+b.dataset.dl.split('/').pop());try{await Exo.loadModel(b.dataset.dl,{sharding:load.sharding,minDevices:load.minDevices})}catch(_){}}));
-      body.querySelector('#lsshard').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;load.sharding=b.dataset.v;body.querySelectorAll('#lsshard button').forEach(x=>x.classList.toggle('on',x===b))});
-      body.querySelector('#lsinter').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;load.interconnect=b.dataset.v;body.querySelectorAll('#lsinter button').forEach(x=>x.classList.toggle('on',x===b))});
-      body.querySelector('#lsmin').addEventListener('input',e=>{load.minDevices=+e.target.value;body.querySelector('.lr b').textContent=load.minDevices});
-    }
-
-    // ---- CHAT (any model: exo local · API provider · machine) ----
+    // ---- CHAT (any model: API provider · machine) ----
     async function modelOptions(){
       const opts=[];
-      if(exoOn){await ensureCatalog();const rd=Exo.readyModels(st);
-        [...cat].sort((a,b)=>(rd.has(b.id)?1:0)-(rd.has(a.id)?1:0)).slice(0,60)
-          .forEach(m=>opts.push({v:'exo::'+m.id,label:(rd.has(m.id)?'● ':'')+'exo · '+m.name}))}
       if(Bridge.on()){try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>{if((pr.disabledModels||[]).includes(m))return;opts.push({v:pr.id+'::'+m,label:(pr.label||pr.provider)+' · '+m})})})}catch(_){}}
       const inf=Bridge.info&&Bridge.info();if(inf&&inf.model)opts.push({v:'machine',label:'machine · '+inf.model});
-      if(!opts.length)opts.push({v:'',label:'no model — start exo or add one in Settings'});
+      if(!opts.length)opts.push({v:'',label:'no model — add one in Settings'});
       if(!chat.model||!opts.some(o=>o.v===chat.model))chat.model=opts[0].v;
       return opts;
     }
@@ -5794,7 +5512,7 @@ const Panels=(()=>{
       const inftLive=!!Store.get().activeAgent;
       body.innerHTML=`<div class="labchat">
         ${inftLive?inftCard(true):''}
-        <div class="labct" id="labct">${chat.msgs.length?'':'<div class="qempty" style="padding:24px;text-align:center;line-height:1.7">Chat with your loaded model — a local exo model, any API, or your machine.<br>Pick the model below and start.</div>'}</div>
+        <div class="labct" id="labct">${chat.msgs.length?'':'<div class="qempty" style="padding:24px;text-align:center;line-height:1.7">Chat with any model — an API provider or your machine.<br>Pick the model below and start.</div>'}</div>
         <div class="labcbar">
           <select id="labcmodel">${opts.map(o=>`<option value="${esc2(o.v)}" ${o.v===chat.model?'selected':''}>${esc2(o.label)}</option>`).join('')}</select>
           <textarea id="labcin" rows="1" placeholder="Message the model…"></textarea>
@@ -5818,220 +5536,23 @@ const Panels=(()=>{
       chat.streaming=true;chat.ctl=new AbortController();
       const onTok=t=>{bot.content+=t;if(botEl)botEl.innerHTML=MDLite.render(bot.content);if(ct)ct.scrollTop=ct.scrollHeight};
       const hist=chat.msgs.filter(m=>m!==bot).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}));
-      const sys='You are running inside the CLONE FRAME LAB on the owner\'s local exo cluster. Answer helpfully and directly.';
+      const sys='You are running inside the CLONE FRAME LAB. Answer helpfully and directly.';
       try{
         const mv=chat.model||'';
-        if(mv.startsWith('exo::')){
-          const mid=mv.slice(5);
-          await ensureExoReady(mid,t=>{bot.content=t;if(botEl)botEl.innerHTML=MDLite.render(t)},chat.ctl.signal);
-          bot.content='';
-          await Exo.chatStream(hist,onTok,chat.ctl.signal,{model:mid});
-        }
-        else if(mv.includes('::')){const k=mv.indexOf('::');await Bridge.providerChat(mv.slice(0,k),mv.slice(k+2),hist,onTok,chat.ctl.signal,{system:sys})}
+        if(mv.includes('::')){const k=mv.indexOf('::');await Bridge.providerChat(mv.slice(0,k),mv.slice(k+2),hist,onTok,chat.ctl.signal,{system:sys})}
         else if(Bridge.brainReady()){await Bridge.chat(hist,onTok,chat.ctl.signal,{system:sys})}
-        else bot.content='Pick a model — start exo, or add an API in Settings.';
+        else bot.content='Pick a model — add an API in Settings.';
       }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+e.message}
       chat.streaming=false;chat.ctl=null;
       if(tab==='chat')await renderChat();
     }
 
-    // launch (if needed) and wait until the model's instance is READY on the cluster
-    async function ensureExoReady(mid,onStatus,signal){
-      await Exo.state();
-      if(Exo.readyModels().has(mid))return;
-      onStatus('⏳ Loading '+mid.split('/').pop()+' on your cluster — downloads on first use, this can take a few minutes…');
-      const r=await Exo.loadModel(mid,{sharding:load.sharding,minDevices:load.minDevices});
-      if(!r.ok)throw new Error(r.error||'could not launch the model');
-      for(let k=0;k<420;k++){
-        if(signal&&signal.aborted)throw new DOMException('aborted','AbortError');
-        await new Promise(rr=>setTimeout(rr,2000));
-        await Exo.state();
-        if(Exo.readyModels().has(mid))return;
-      }
-      throw new Error('model did not become ready — check the Cluster tab');
-    }
 
-    /* ---- TURBO — the exo production interface: conversations · chat+metrics · topology/instances rail ---- */
-    let tbo={convs:[],active:null,model:localStorage.getItem('cfhub.turbo.model')||'',q:'',streaming:false,ctl:null};
-    try{const o=JSON.parse(localStorage.getItem('cfhub.turbo.v1'));if(o&&Array.isArray(o.convs)){tbo.convs=o.convs;tbo.active=o.active}}catch(_){}
-    const tboSave=()=>{try{localStorage.setItem('cfhub.turbo.v1',JSON.stringify({convs:tbo.convs,active:tbo.active}));localStorage.setItem('cfhub.turbo.model',tbo.model)}catch(_){}};
-    const tboConv=()=>tbo.convs.find(c=>c.id===tbo.active)||null;
-    function tboNew(){const c={id:'t'+Date.now().toString(36),title:'New chat',msgs:[],ts:Date.now()};tbo.convs.unshift(c);tbo.active=c.id;tboSave();return c}
-    const shortName=m=>String(m||'').split('/').pop();
-    const tClock=ts=>new Date(ts||Date.now()).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const tAmPm=ts=>new Date(ts||Date.now()).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-    const TRY=['Explain quantum computing simply','Help me brainstorm ideas for a side project','Write a Python function to sort a list','What makes a great technical interview?'];
-    function tboInstancesHTML(){
-      const inst=Exo.instances(st),n0=Exo.nodes(st)[0];
-      if(!inst.length)return '<div class="qempty" style="padding:10px;font-size:8.5px">No instances — load a model below.</div>';
-      return inst.map(x=>`<div class="tbo-inst ${x.ready?'':'loading'}">
-        <div class="r1"><i></i><b>${esc2(String(x.id).slice(0,8).toUpperCase())}</b><button class="tbo-del" data-del="${esc2(x.id)}" data-m="${esc2(x.model)}">DELETE</button></div>
-        <div class="mdl">${esc2(x.model)}</div>
-        <div class="meta">${esc2(x.sharding)} · ${esc2(x.meta)} ${x.ready?'<span class="rd">READY</span>':'<span style="color:#e8b86d">loading…</span>'}</div>
-        <div class="hf" data-hf="${esc2(x.model)}">Hugging Face ↗</div>
-        ${n0?`<div class="nd">${esc2(n0.name)}</div>`:''}
-        ${x.ready?'<div class="ok">READY<br>Ready to chat!</div>':''}
-      </div>`).join('');
-    }
-    function tboTopoHTML(){
-      const ns=exoOn?Exo.nodes(st):[];
-      if(!ns.length)return '<div class="qempty" style="padding:10px;font-size:8.5px">exo offline</div>';
-      const n=ns[0],pct=n.ramTotal?Math.round(n.ramUsed/n.ramTotal*100):0,gpu=Math.round(n.gpu*100);
-      return `<div class="tbo-dev ds4-visor"><b>${esc2(n.name)}</b>
-        <div class="tgs">${DS.gauge(n.gpu,gpu+'%','GPU',gpu>=90)}${DS.gauge(n.temp/105,Math.round(n.temp)+'°C','TEMP',n.temp>=85)}${DS.gauge(n.watts/40,n.watts.toFixed(0)+'W','PWR',false)}</div>
-        <div class="tram"><span class="ds4-k">RAM ${gb(n.ramUsed/1e9)}/${gb(n.ramTotal/1e9)}</span><span class="ds4-k" style="color:var(--fg)">${pct}%</span></div>
-        ${DS.led(pct/100,pct>=92)}</div>`;
-    }
-    function tboWireRail(){
-      const rail=body.querySelector('#tborail');if(!rail)return;
-      rail.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{
-        b.textContent='…';
-        const r=await Exo.deleteInstance(b.dataset.del);
-        Toast.show(r.ok?('Instance deleted — '+shortName(b.dataset.m)+' unloaded'):'Delete failed');
-        await Exo.state();tboRefreshRail();
-      }));
-      rail.querySelectorAll('[data-hf]').forEach(el=>el.addEventListener('click',()=>window.open('https://huggingface.co/'+el.dataset.hf,'_blank','noopener')));
-    }
-    function tboRefreshRail(){
-      const t=body.querySelector('#tbotopo'),i2=body.querySelector('#tboinst');
-      if(t)t.innerHTML=tboTopoHTML();
-      if(i2){i2.innerHTML=tboInstancesHTML();tboWireRail()}
-      const nn=body.querySelector('#tbonn');if(nn)nn.textContent=(Exo.nodes(st).length||0)+' NODE'+(Exo.nodes(st).length===1?'':'S');
-    }
-    async function renderTurbo(){
-      await ensureCatalog();
-      const ready=Exo.readyModels(st);
-      const availGB=Exo.memAvailGB(st);
-      const conv=tboConv();
-      const convs=tbo.convs.filter(c=>!tbo.q||c.title.toLowerCase().includes(tbo.q));
-      const fits=[...cat].sort((a,b)=>(ready.has(b.id)?1:0)-(ready.has(a.id)?1:0)||(a.gb>availGB?1:0)-(b.gb>availGB?1:0)||a.gb-b.gb);
-      const opts=fits.map(m=>`<option value="${esc2(m.id)}" ${tbo.model===m.id?'selected':''}>${ready.has(m.id)?'● ':(m.gb>availGB?'⚠ ':'')}${esc2(m.name)} · ${m.gb>=1?m.gb.toFixed(1)+'GB':Math.round(m.gb*1024)+'MB'}</option>`).join('');
-      const convCard=c=>{
-        const lastAi=[...c.msgs].reverse().find(m=>m.role==='ai'&&m.ttft);
-        return `<div class="tbo-conv ${c.id===tbo.active?'on':''}" data-id="${c.id}">
-          <div class="t">${esc2(c.title)}</div>
-          <div class="s">${tAmPm(c.ts)}${c.model?' · '+esc2(shortName(c.model)):''}</div>
-          ${lastAi?`<div class="k">TTFT ${lastAi.ttft}ms · ${lastAi.tps} tok/s</div>`:''}
-        </div>`};
-      body.innerHTML=`<div class="tbo">
-        <aside class="tbo-side">
-          <button class="tbo-new" id="tbonew">＋ NEW CHAT</button>
-          <div class="tbo-q"><input id="tboq" placeholder="Search conversations..." value="${esc2(tbo.q)}"></div>
-          <div style="font-size:8px;letter-spacing:.14em;color:var(--ink-faint);padding:2px 10px 5px">CONVERSATIONS</div>
-          <div class="tbo-convs">${convs.length?convs.map(convCard).join(''):`<div class="tbo-cempty">💬<br>NO CONVERSATIONS<br>Start a new chat to begin</div>`}</div>
-          <button class="tbo-delall" id="tbodelall">🗑 DELETE ALL CHATS</button>
-          <div class="tbo-foot">${tbo.convs.length} CONVERSATION${tbo.convs.length===1?'':'S'}</div>
-        </aside>
-        <div class="tbo-main">
-          <div class="tbo-view" id="tboview"></div>
-          <div class="tbo-comp">
-            <div class="tbo-mrow">MODEL:<select id="tbomodel"><option value="">— SELECT MODEL —</option>${opts}</select></div>
-            <div class="tbo-crow"><span style="color:var(--ink-faint);font-size:12px">📎</span><textarea id="tboin" rows="1" placeholder="${tbo.model?'Ask anything':'Choose a model to start chatting'}"></textarea><button class="btn" id="tbosend">${tbo.streaming?'STOP':'SEND'}</button></div>
-          </div>
-        </div>
-        <aside class="tbo-load" id="tborail">
-          <div class="tbo-rh"><span class="d"></span>TOPOLOGY<span class="n" id="tbonn">${Exo.nodes(st).length||0} NODE${Exo.nodes(st).length===1?'':'S'}</span></div>
-          <div id="tbotopo">${tboTopoHTML()}</div>
-          <div class="tbo-sec-gap"></div>
-          <div class="tbo-rh"><span class="d"></span>INSTANCES</div>
-          <div id="tboinst">${tboInstancesHTML()}</div>
-          <div class="tbo-sec-gap"></div>
-          <div class="tbo-lh">◇ LOAD MODEL<span class="n">${cat.length} models</span></div>
-          <select id="tboload"><option value="">— SELECT MODEL —</option>${opts}</select>
-          <div class="tbo-adv">▾ ADVANCED OPTIONS</div>
-          <div class="tbo-lbl">Sharding Strategy:</div>
-          <span class="labseg" id="tboshard"><button data-v="pipeline" class="${load.sharding==='pipeline'?'on':''}">Pipeline</button><button data-v="tensor" class="${load.sharding==='tensor'?'on':''}">Tensor</button></span>
-          <div class="tbo-lbl">Interconnect:</div>
-          <span class="labseg" id="tbointer"><button data-v="tcp" class="${load.interconnect==='tcp'?'on':''}">TCP/IP</button><button data-v="rdma" class="${load.interconnect==='rdma'?'on':''}">RDMA (Fast)</button></span>
-          <div class="tbo-lbl">Minimum Devices: <b style="color:var(--fg)">${load.minDevices}</b></div>
-          <input type="range" min="1" max="8" value="${load.minDevices}" id="tbomin" style="width:100%;accent-color:var(--accent)">
-          <button class="btn tbo-launch" id="tbolaunch">▶ LOAD ON CLUSTER</button>
-          ${tbo.model&&ready.has(tbo.model)?'<div class="tbo-ready"><i></i>MODEL READY</div>':''}
-        </aside>
-      </div>`;
-      const view=body.querySelector('#tboview');
-      if(!conv||!conv.msgs.length){
-        view.innerHTML=`<div class="tbo-hello">
-          <div class="tbo-hint" style="margin-top:0">${tbo.model?'Ready — ask anything below.':'Select a model to get started.'}</div>
-          ${tbo.model?`<div class="tbo-try"><div class="h">TRY ASKING</div><div class="tbo-tryg">${TRY.map((t,k)=>`<div class="tbo-tryc" data-try="${k}">${esc2(t)}</div>`).join('')}</div></div>`:''}
-        </div>`;
-        view.querySelectorAll('[data-try]').forEach(el=>el.addEventListener('click',()=>tboSend(TRY[+el.dataset.try])));
-      }else{
-        view.innerHTML=conv.msgs.map((m,k)=>{
-          if(m.role==='user')return `<div class="tbo-uh">${tClock(m.ts)} QUERY <i></i></div><div class="tbo-msg user">${esc2(m.content)}</div>`;
-          const met=m.ttft?`<span class="m">TTFT ${m.ttft}ms · ${m.tps} tok/s</span>`:'';
-          return `<div class="tbo-ah"><span class="d"></span><b>EXO</b> ${tClock(m.ts)} ${met}</div><div class="tbo-msg ai">${MDLite.render(m.content||'…')}</div>
-            <div class="tbo-acts"><button data-cp="${k}" title="Copy">⧉</button><button data-rg="${k}" title="Regenerate">↺</button><button data-dm="${k}" title="Delete">🗑</button></div>`;
-        }).join('');
-        view.scrollTop=view.scrollHeight;
-        view.querySelectorAll('[data-cp]').forEach(b=>b.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(conv.msgs[+b.dataset.cp].content);Toast.show('Copied')}catch(_){Toast.show('Copy blocked')}}));
-        view.querySelectorAll('[data-dm]').forEach(b=>b.addEventListener('click',()=>{conv.msgs.splice(+b.dataset.dm,1);tboSave();renderTurbo()}));
-        view.querySelectorAll('[data-rg]').forEach(b=>b.addEventListener('click',()=>{conv.msgs.splice(+b.dataset.rg,1);tboSave();tboStream(conv)}));
-      }
-      body.querySelector('#tbonew').addEventListener('click',()=>{tboNew();renderTurbo()});
-      body.querySelector('#tbodelall').addEventListener('click',()=>{if(!tbo.convs.length)return;tbo.convs=[];tbo.active=null;tboSave();Toast.show('All chats deleted');renderTurbo()});
-      body.querySelector('#tboq').addEventListener('input',e=>{tbo.q=e.target.value.trim().toLowerCase();clearTimeout(e.target._t);e.target._t=setTimeout(renderTurbo,250)});
-      body.querySelectorAll('.tbo-conv').forEach(el=>el.addEventListener('click',()=>{tbo.active=el.dataset.id;tboSave();renderTurbo()}));
-      const msel=body.querySelector('#tbomodel'),lsel=body.querySelector('#tboload');
-      const setModel=v=>{tbo.model=v;tboSave();renderTurbo()};
-      msel.addEventListener('change',e=>setModel(e.target.value));
-      lsel.value=tbo.model;lsel.addEventListener('change',e=>setModel(e.target.value));
-      body.querySelector('#tboshard').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;load.sharding=b.dataset.v;renderTurbo()});
-      body.querySelector('#tbointer').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;load.interconnect=b.dataset.v;renderTurbo()});
-      body.querySelector('#tbomin').addEventListener('input',e=>{load.minDevices=+e.target.value});
-      body.querySelector('#tbolaunch').addEventListener('click',async()=>{
-        if(!tbo.model){Toast.show('Select a model first');return}
-        const mc=cat.find(x=>x.id===tbo.model);
-        if(mc&&mc.gb>availGB+0.5){Toast.show('⚠ '+shortName(tbo.model)+' needs '+mc.gb.toFixed(1)+'GB but only '+availGB.toFixed(1)+'GB free — pick a smaller model');return}
-        Toast.show('Loading '+shortName(tbo.model)+' on the cluster…');
-        const r=await Exo.loadModel(tbo.model,{sharding:load.sharding,minDevices:load.minDevices});
-        Toast.show(r.ok?'Launch accepted — watch INSTANCES':'⚠ '+(r.error||'launch failed'));
-        await Exo.state();tboRefreshRail();
-      });
-      tboWireRail();
-      const tin=body.querySelector('#tboin');
-      tin.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();tboSend(tin.value)}});
-      body.querySelector('#tbosend').addEventListener('click',()=>tbo.streaming?(tbo.ctl&&tbo.ctl.abort()):tboSend(body.querySelector('#tboin').value));
-      if(tbo.model)tin.focus();
-    }
-    // stream one completion for the conversation's existing history (used by send + regenerate)
-    async function tboStream(conv){
-      const bot={role:'ai',content:'',ts:Date.now()};conv.msgs.push(bot);tboSave();
-      tbo.streaming=true;tbo.ctl=new AbortController();
-      await renderTurbo();
-      const view=body.querySelector('#tboview');
-      const botEl=view?view.querySelectorAll('.tbo-msg.ai')[view.querySelectorAll('.tbo-msg.ai').length-1]:null;
-      const t0=performance.now();let tFirst=0,nTok=0;
-      const onTok=t=>{if(!tFirst)tFirst=performance.now();nTok++;bot.content+=t;if(botEl)botEl.innerHTML=MDLite.render(bot.content);if(view)view.scrollTop=view.scrollHeight};
-      const hist=conv.msgs.filter(m=>m!==bot).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}));
-      try{
-        await ensureExoReady(tbo.model,t=>{bot.content=t;if(botEl)botEl.innerHTML=MDLite.render(t)},tbo.ctl.signal);
-        bot.content='';
-        await Exo.chatStream(hist,onTok,tbo.ctl.signal,{model:tbo.model});
-        if(tFirst){bot.ttft=Math.round(tFirst-t0);const dur=(performance.now()-tFirst)/1000;bot.tps=dur>0?+(nTok/dur).toFixed(1):nTok}
-      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+e.message}
-      tbo.streaming=false;tbo.ctl=null;tboSave();
-      renderTurbo();
-    }
-    async function tboSend(text){
-      text=(text||'').trim();if(!text||tbo.streaming)return;
-      if(!tbo.model){Toast.show('Choose a model to start chatting');return}
-      let conv=tboConv();if(!conv)conv=tboNew();
-      if(conv.title==='New chat')conv.title=text.slice(0,30)+(text.length>30?'…':'');
-      conv.model=tbo.model;
-      conv.msgs.push({role:'user',content:text,ts:Date.now()});
-      await tboStream(conv);
-    }
 
-    function render(){if(tab==='cluster')renderCluster();else if(tab==='agents')renderAgents();else renderChat()}
-    function setTab(){if(tab!=='cluster'&&tab!=='chat'&&tab!=='agents')tab='cluster';p.querySelectorAll('.labtab').forEach(t=>t.classList.toggle('on',t.dataset.lt===tab));if(tab==='agents'&&!scan.done)scanAgents(false);else render()}
+
+    function render(){if(tab==='agents')renderAgents();else renderChat()}
+    function setTab(){if(tab!=='chat'&&tab!=='agents')tab='chat';p.querySelectorAll('.labtab').forEach(t=>t.classList.toggle('on',t.dataset.lt===tab));if(tab==='agents'&&!scan.done)scanAgents(false);else render()}
     p.querySelectorAll('.labtab').forEach(t=>t.addEventListener('click',()=>{tab=t.dataset.lt;setTab()}));
-    // iNFT section = manage your agent's server: Turbo (local model, exo) | Online Server (droplet)
-    function renderINFT(){
-      const sub=p.querySelector('#labsub');
-      if(sub){sub.style.display='';sub.querySelectorAll('.labsubt').forEach(b=>b.classList.toggle('on',b.dataset.lst===inftSub))}
-      if(inftSub==='online')renderOnlineServer();else renderTurbo();
-    }
     async function renderOnlineServer(){
       body.innerHTML='<div class="qempty" style="padding:16px">loading servers…</div>';
       let sv=[],autos=[];
@@ -6069,7 +5590,7 @@ const Panels=(()=>{
     body.addEventListener('click',e=>{if(e.target.closest('.labinft'))openPanel('agentview')}); // click the iNFT card → full agent view
     Bus.on('wallet',()=>{if(document.body.contains(p))refreshInft()});
     Bus.on('lab:goto',t=>{if(document.body.contains(p)&&t){tab=t;setTab()}}); // deep-link from CLI ECONOMYOS ("Load a model")
-    startPoll();refreshInft();
+    setTab();refreshInft();
   }
   /* ---------- Shared file viewer / editor (used by FOLDERS + TERMINAL) ---------- */
   // Renders a file into `host` with View (syntax-highlighted / markdown) · Diff (git) · Edit (save) modes.
@@ -6449,12 +5970,12 @@ const Panels=(()=>{
     const root=p.querySelector('#intgroot');if(!root)return;
     const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     const TOOLS=[
-      {key:'exolab',name:'EXO LAB',icon:'#i-lab',tag:'local compute',desc:'Run models across your own devices — one exo cluster from all your machines. Opens right here.',state:'ready'},
-      {key:'manaflow',name:'MANAFLOW',icon:'#i-automations',tag:'agent workflows',desc:'Parallel coding agents in isolated workspaces, with diff & one-click PR. Opens right here.',state:'ready'},
-      {key:'tmux',name:'TMUX',icon:'#i-term',tag:'agent crews',desc:'Run a crew of agents in tmux windows that survive disconnects — driven from a native panel right here.',state:'ready'},
+      {key:'exolab',name:'EXO LAB',icon:'#i-lab',tag:'local compute',desc:'Run models across your own devices — one exo cluster from all your machines. Opens right here.',state:'soon'},
+      {key:'manaflow',name:'MANAFLOW',icon:'#i-automations',tag:'agent workflows',desc:'Parallel coding agents in isolated workspaces, with diff & one-click PR. Opens right here.',state:'soon'},
+      {key:'tmux',name:'TMUX',icon:'#i-term',tag:'agent crews',desc:'Run a crew of agents in tmux windows that survive disconnects — driven from a native panel right here.',state:'soon'},
     ];
-    let view='list',pollT=null,exoEmbedded=false,manaEmbedded=false,tmuxBuilt=false,tmuxTermApi=null;
-    const killTmuxTerm=()=>{if(tmuxTermApi){try{tmuxTermApi.dispose()}catch(_){}tmuxTermApi=null}};
+    let view='list',pollT=null;
+    const killTmuxTerm=()=>{};
     const stopPoll=()=>{if(pollT){clearInterval(pollT);pollT=null}killTmuxTerm()};
     const backHead=(name,icon,tag,extra)=>`<div class="intg-dhead"><button class="intg-back" id="intgback">‹ Integrations</button><span class="intg-dic"><svg><use href="${icon}"/></svg></span><b>${esc(name)}</b>${tag?`<span class="intg-tag">${esc(tag)}</span>`:''}${extra||''}</div>`;
     const wireBack=()=>{const b=root.querySelector('#intgback');if(b)b.addEventListener('click',()=>{stopPoll();renderList()})};
@@ -6470,144 +5991,8 @@ const Panels=(()=>{
         <div class="intg-foot">More integrations arrive as CLONE FRAME grows. Want one that isn't here? Ask in <b>CODE</b>.</div>`;
       root.querySelectorAll('.intg-row').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.k)));
     }
-    function openDetail(key){const t=TOOLS.find(x=>x.key===key);if(!t)return;view=key;if(t.state!=='ready')return renderSoon(t);if(key==='exolab')renderExo();else if(key==='manaflow')renderManaflow();else if(key==='tmux')renderTmux()}
+    function openDetail(key){const t=TOOLS.find(x=>x.key===key);if(!t)return;view=key;return renderSoon(t)}
     function renderSoon(t){stopPoll();root.innerHTML=`<div class="intg-detail">${backHead(t.name,t.icon,t.tag)}<div class="os-empty" style="margin:26px auto"><svg><use href="${t.icon}"/></svg><h3>${esc(t.name)} — coming soon</h3><p>${esc(t.desc)}<br>This integration lands in a coming update and opens right here.</p></div></div>`;wireBack()}
-    function renderExo(){
-      stopPoll();exoEmbedded=false;
-      root.innerHTML=`<div class="intg-detail">${backHead('EXO LAB','#i-lab','local compute','<span class="intg-dstat" id="exostat">…</span>')}<div class="intg-dbody" id="exobody"><div class="qempty" style="padding:20px">loading exo…</div></div></div>`;
-      wireBack();paintExo();
-      pollT=setInterval(()=>{if(root.isConnected&&view==='exolab')paintExo();else stopPoll()},4000);
-    }
-    async function paintExo(){
-      const bodyEl=root.querySelector('#exobody'),statEl=root.querySelector('#exostat');if(!bodyEl)return;
-      if(!Bridge.on()){bodyEl.innerHTML='<div class="qempty" style="padding:24px;line-height:1.7">Connect the <b>HUB Bridge</b> in MY MACHINE to run exo inside CLONE FRAME.<br><br><button class="btn" id="exomm">Open MY MACHINE</button></div>';const b=bodyEl.querySelector('#exomm');if(b)b.addEventListener('click',()=>openPanel('machine'));if(statEl){statEl.textContent='needs bridge';statEl.style.color='var(--ink-faint)'}return}
-      let s=null;try{s=await Exo.status()}catch(_){}
-      const reachable=!!(s&&s.reachable);
-      if(statEl){statEl.textContent=reachable?'● online':'○ offline';statEl.style.color=reachable?'#3fd68f':'var(--ink-faint)'}
-      if(reachable){
-        // exo lab lives INSIDE CLONE FRAME: mount exo's own web UI (localhost:52415) in an iframe,
-        // ONCE. The 4s poll must never rebuild it (that would reload the lab and lose its state).
-        if(exoEmbedded&&bodyEl.querySelector('#exoframe'))return;
-        exoEmbedded=true;
-        let nodeCount=0;try{const st=await Exo.state();nodeCount=(Exo.nodes(st)||[]).length}catch(_){}
-        bodyEl.classList.add('exo-embed');
-        bodyEl.innerHTML=`<div class="exo-bar"><span class="d3" style="background:#3fd68f"></span><span class="exo-bar-t">exo running inside CLONE FRAME${nodeCount?` · ${nodeCount} node${nodeCount===1?'':'s'}`:''}</span><code class="exo-bar-ep" title="point any tool at your cluster">localhost:52415/v1</code><button class="btn mini" id="exopop" title="Open exo in the CLONE FRAME browser">⛶ Browser</button><button class="btn mini" id="exostop" title="Stop the cluster">⏻ Stop</button></div><iframe id="exoframe" class="exo-frame" src="http://localhost:52415/" title="exo" allow="clipboard-read; clipboard-write"></iframe>`;
-        const sb=bodyEl.querySelector('#exostop');if(sb)sb.addEventListener('click',async()=>{sb.textContent='…';const r=await Exo.stop();Toast.show(r&&r.ok?'exo stopped':((r&&r.reason)?('exo is '+r.reason+' — stop it where you started it'):'stop failed'));exoEmbedded=false;paintExo()});
-        const pop=bodyEl.querySelector('#exopop');if(pop)pop.addEventListener('click',()=>webOpen('http://localhost:52415/'));
-      } else {
-        exoEmbedded=false;bodyEl.classList.remove('exo-embed');
-        const installed=!!(s&&s.installed);
-        bodyEl.innerHTML=`<div class="qempty" style="padding:22px 18px;line-height:1.7"><div style="font-family:var(--mono);font-size:14px;color:var(--fg)">LOCAL AI CLUSTER</div><div style="margin-top:7px">Pool your devices into a local inference cluster — no cloud, no cost. exo is part of CLONE FRAME.</div><div id="exoctl" style="margin-top:13px"></div><pre id="exolog" style="display:none;margin-top:11px;max-height:170px;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></pre></div>`;
-        const ctl=bodyEl.querySelector('#exoctl'),logEl=bodyEl.querySelector('#exolog');
-        if(installed){ctl.innerHTML=`<button class="btn acc" id="exolaunch">▶ Launch cluster</button> <span class="dim" style="font-size:9px">starts exo — its lab opens right here, inside CLONE FRAME.</span>`;ctl.querySelector('#exolaunch').addEventListener('click',async()=>{ctl.innerHTML='<span class="dim" style="font-size:10px">launching exo…</span>';const r=await Exo.launch({}).catch(()=>null);if(r&&r.reachable){Toast.show('exo online');paintExo()}else{Toast.show('exo launching — give it a moment');setTimeout(paintExo,3500)}});}
-        else{ctl.innerHTML=`<button class="btn acc" id="exoinstall">↓ Install exo</button> <span class="dim" style="font-size:9px">one-time — brings exo (Apache-2.0) into CLONE FRAME.</span>`;ctl.querySelector('#exoinstall').addEventListener('click',ev=>{ev.target.disabled=true;try{Exo.install()}catch(_){}logEl.style.display='';logEl.textContent='starting install…\n';let since=0,ticks=0;const iv=setInterval(async()=>{if(!root.isConnected||view!=='exolab'||++ticks>600){clearInterval(iv);return}try{const r=await Exo.logs({sinceByte:since});if(r&&r.text){logEl.textContent+=r.text;since=r.size;logEl.scrollTop=logEl.scrollHeight}}catch(_){}let s2=null;try{s2=await Exo.status()}catch(_){}if(s2&&s2.reachable){clearInterval(iv);paintExo()}},1500)});}
-      }
-    }
-    function renderManaflow(){
-      stopPoll();manaEmbedded=false;
-      root.innerHTML=`<div class="intg-detail">${backHead('MANAFLOW','#i-automations','agent workflows','<span class="intg-dstat" id="manastat">…</span>')}<div class="intg-dbody" id="manabody"><div class="qempty" style="padding:20px">loading manaflow…</div></div></div>`;
-      wireBack();paintManaflow();
-      pollT=setInterval(()=>{if(root.isConnected&&view==='manaflow')paintManaflow();else stopPoll()},5000);
-    }
-    async function paintManaflow(){
-      const bodyEl=root.querySelector('#manabody'),statEl=root.querySelector('#manastat');if(!bodyEl)return;
-      if(!Bridge.on()){bodyEl.innerHTML='<div class="qempty" style="padding:24px;line-height:1.7">Connect the <b>HUB Bridge</b> in MY MACHINE to run Manaflow inside CLONE FRAME.<br><br><button class="btn" id="manamm">Open MY MACHINE</button></div>';const b=bodyEl.querySelector('#manamm');if(b)b.addEventListener('click',()=>openPanel('machine'));if(statEl){statEl.textContent='needs bridge';statEl.style.color='var(--ink-faint)'}return}
-      let s=null;try{s=await Manaflow.status()}catch(_){}
-      const reachable=!!(s&&s.reachable);
-      if(statEl){statEl.textContent=reachable?'● online':'○ offline';statEl.style.color=reachable?'#3fd68f':'var(--ink-faint)'}
-      if(reachable){
-        // Manaflow's own web client (localhost:5173) mounts INSIDE CLONE FRAME, once.
-        if(manaEmbedded&&bodyEl.querySelector('#manaframe'))return;
-        manaEmbedded=true;bodyEl.classList.add('exo-embed');
-        bodyEl.innerHTML=`<div class="exo-bar"><span class="d3" style="background:#3fd68f"></span><span class="exo-bar-t">manaflow running inside CLONE FRAME</span><code class="exo-bar-ep" title="Manaflow web client">localhost:5173</code><button class="btn mini" id="manapop" title="Open Manaflow in the CLONE FRAME browser (best for sign-in)">⛶ Browser</button><button class="btn mini" id="manastop" title="Stop Manaflow">⏻ Stop</button></div><iframe id="manaframe" class="exo-frame" src="http://localhost:5173/" title="manaflow" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" allow="clipboard-read; clipboard-write"></iframe>`;
-        const sb=bodyEl.querySelector('#manastop');if(sb)sb.addEventListener('click',async()=>{sb.textContent='…';const r=await Manaflow.stop();Toast.show(r&&r.ok?'manaflow stopped':((r&&r.reason)?('manaflow is '+r.reason+' — stop it where you started it'):'stop failed'));manaEmbedded=false;paintManaflow()});
-        const pop=bodyEl.querySelector('#manapop');if(pop)pop.addEventListener('click',()=>webOpen('http://localhost:5173/'));
-      } else {
-        manaEmbedded=false;bodyEl.classList.remove('exo-embed');
-        const installed=!!(s&&s.installed);
-        const chk=(ok,label,hint)=>`<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0"><span style="color:${ok?'#3fd68f':'var(--ink-faint)'};font-family:var(--mono)">${ok?'✓':'○'}</span><span style="color:var(--fg)">${label}</span><span class="dim" style="font-size:9.5px">${hint||''}</span></div>`;
-        const checks=installed?`<div style="margin-top:11px;font-size:11px">`+chk(!!(s&&s.bunOk),'Bun','package manager')+chk(!!(s&&(s.convexOk||s.convexLocal)),'Convex','local backend (no Docker) or a cloud URL')+chk(!!(s&&s.stackOk),'Stack Auth keys','sign-in — free project, keys in src/.env')+chk(!!(s&&s.dockerOk),'Docker','optional — only to run agents in local sandboxes')+`</div>`:'';
-        bodyEl.innerHTML=`<div class="qempty" style="padding:22px 18px;line-height:1.7"><div style="font-family:var(--mono);font-size:14px;color:var(--fg)">AGENT WORKFLOWS</div><div style="margin-top:7px">Parallel coding agents in isolated workspaces, with diff &amp; one-click PR. Runs <b>without Docker</b> — needs Bun + a Convex backend (local) + a free Stack Auth project. Opens right here once running.</div>${checks}<div id="manactl" style="margin-top:13px"></div><pre id="manalog" style="display:none;margin-top:11px;max-height:170px;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></pre></div>`;
-        const ctl=bodyEl.querySelector('#manactl'),logEl=bodyEl.querySelector('#manalog');
-        if(!installed){ctl.innerHTML=`<button class="btn acc" id="manainstall">↓ Install Manaflow</button> <span class="dim" style="font-size:9px">one-time — clones Manaflow (MIT) into its folder (needs Bun).</span>`;ctl.querySelector('#manainstall').addEventListener('click',ev=>{ev.target.disabled=true;try{Manaflow.install()}catch(_){}logEl.style.display='';logEl.textContent='starting install…\n';let since=0,ticks=0;const iv=setInterval(async()=>{if(!root.isConnected||view!=='manaflow'||++ticks>1200){clearInterval(iv);return}try{const r=await Manaflow.logs({sinceByte:since});if(r&&r.text){logEl.textContent+=r.text;since=r.size;logEl.scrollTop=logEl.scrollHeight}}catch(_){}let s2=null;try{s2=await Manaflow.status()}catch(_){}if(s2&&s2.installed){clearInterval(iv);paintManaflow()}},1500)});}
-        else{const setup=!(s&&s.bunOk&&(s.convexOk||s.convexLocal)&&s.stackOk);ctl.innerHTML=`<button class="btn acc" id="manalaunch">▶ Launch (no Docker)</button> <button class="btn mini" id="manaenv">Stack Auth ↗</button> <span class="dim" style="font-size:9px">${setup?'finish setup (Bun + Convex + Stack Auth keys in src/.env) then launch — the UI opens here.':'starts the Manaflow stack without Docker — opens right here.'}</span>`;
-          ctl.querySelector('#manalaunch').addEventListener('click',async()=>{ctl.innerHTML='<span class="dim" style="font-size:10px">launching manaflow — this can take a minute…</span>';logEl.style.display='';let since=0,ticks=0;const iv=setInterval(async()=>{if(!root.isConnected||view!=='manaflow'||++ticks>90){clearInterval(iv);return}try{const r=await Manaflow.logs({sinceByte:since});if(r&&r.text){logEl.textContent+=r.text;since=r.size;logEl.scrollTop=logEl.scrollHeight}}catch(_){}},1500);const r=await Manaflow.launch({}).catch(()=>null);clearInterval(iv);if(r&&r.reachable){Toast.show('manaflow online');paintManaflow()}else{Toast.show('manaflow still booting — check the log');setTimeout(paintManaflow,4000)}});
-          ctl.querySelector('#manaenv').addEventListener('click',()=>webOpen('https://app.stack-auth.com/'));}
-      }
-    }
-    /* ---------- TMUX — native agent-crew control panel (no web UI, no iframe) ---------- */
-    function renderTmux(){
-      stopPoll();tmuxBuilt=false;
-      root.innerHTML=`<div class="intg-detail">${backHead('TMUX','#i-term','agent crews','<span class="intg-dstat" id="tmxstat">…</span>')}<div class="intg-dbody" id="tmxbody"><div class="qempty" style="padding:20px">loading tmux…</div></div></div>`;
-      wireBack();paintTmux();
-      pollT=setInterval(()=>{if(root.isConnected&&view==='tmux')paintTmux({soft:true});else stopPoll()},2800);
-    }
-    async function paintTmux(opts){
-      opts=opts||{};
-      const bodyEl=root.querySelector('#tmxbody'),statEl=root.querySelector('#tmxstat');if(!bodyEl)return;
-      if(!Bridge.on()){tmuxBuilt=false;bodyEl.innerHTML='<div class="qempty" style="padding:24px;line-height:1.7">Connect the <b>HUB Bridge</b> in MY MACHINE to run agent crews inside CLONE FRAME.<br><br><button class="btn" id="tmxmm">Open MY MACHINE</button></div>';const b=bodyEl.querySelector('#tmxmm');if(b)b.addEventListener('click',()=>openPanel('machine'));if(statEl){statEl.textContent='needs bridge';statEl.style.color='var(--ink-faint)'}return}
-      let s=null;try{s=await Tmux.status()}catch(_){}
-      const tmuxOk=!!(s&&s.tmuxOk),installed=!!(s&&s.installed);
-      if(statEl){statEl.textContent=tmuxOk?('● tmux '+String(s.version||'').replace('tmux ','')):'○ no tmux';statEl.style.color=tmuxOk?'#3fd68f':'var(--ink-faint)'}
-      if(!installed){
-        tmuxBuilt=false;
-        bodyEl.innerHTML=`<div class="qempty" style="padding:22px 18px;line-height:1.7"><div style="font-family:var(--mono);font-size:14px;color:var(--fg)">AGENT CREWS</div><div style="margin-top:7px">A crew is a set of agents living in tmux windows that talk to each other and survive disconnects. Bring the Tmux-Orchestrator (MIT) into CLONE FRAME.</div><div id="tmxctl" style="margin-top:13px"></div><pre id="tmxlog" style="display:none;margin-top:11px;max-height:170px;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></pre></div>`;
-        const ctl=bodyEl.querySelector('#tmxctl'),logEl=bodyEl.querySelector('#tmxlog');
-        ctl.innerHTML=`<button class="btn acc" id="tmxinstall">↓ Install</button> <span class="dim" style="font-size:9px">one-time — clones Tmux-Orchestrator (MIT). Needs <b>tmux</b> (brew install tmux).</span>`;
-        ctl.querySelector('#tmxinstall').addEventListener('click',ev=>{ev.target.disabled=true;try{Tmux.install()}catch(_){}logEl.style.display='';logEl.textContent='starting install…\n';let since=0,ticks=0;const iv=setInterval(async()=>{if(!root.isConnected||view!=='tmux'||++ticks>600){clearInterval(iv);return}try{const r=await Tmux.logs({sinceByte:since});if(r&&r.text){logEl.textContent+=r.text;since=r.size;logEl.scrollTop=logEl.scrollHeight}}catch(_){}let s2=null;try{s2=await Tmux.status()}catch(_){}if(s2&&s2.installed){clearInterval(iv);paintTmux()}},1500)});
-        return;
-      }
-      if(!tmuxOk){tmuxBuilt=false;bodyEl.innerHTML='<div class="qempty" style="padding:24px;line-height:1.7"><b>tmux</b> is not installed on this machine.<br>Install it, then reopen: <code style="font-family:var(--mono);color:var(--fg)">brew install tmux</code></div>';return}
-      // ── control panel (built ONCE; polls only refresh the map) ──
-      if(!tmuxBuilt){
-        tmuxBuilt=true;
-        bodyEl.innerHTML=`<div style="font-size:10px;color:var(--ink-dim);background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid var(--line);border-radius:9px;padding:8px 11px;margin-bottom:12px;line-height:1.6">Native control panel — <b>Live</b> opens a real interactive terminal right here (attached to the crew). <b>Crews run real agents on your machine.</b></div>
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px"><b style="font-family:var(--mono);font-size:11px;color:var(--fg)">CREWS</b><span class="dim" style="font-size:9.5px">cf-*</span><button class="btn mini" id="tmxnew" style="margin-left:auto">＋ New crew</button></div>
-          <div id="tmxcrews"><div class="dim" style="font-size:11px">no crews yet — create one.</div></div>
-          <div id="tmxtermwrap" style="display:none;margin-top:12px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-family:var(--mono);font-size:10.5px;color:var(--fg)" id="tmxtermttl">LIVE TERMINAL</b><button class="btn mini" id="tmxtermclose" style="margin-left:auto">✕ Close</button></div><div id="tmxterm" style="height:340px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0b0b0f;padding:6px"></div></div>
-          <div class="labsec" style="margin-top:14px"><b>MESSAGE AN AGENT</b><div style="display:flex;gap:7px;margin-top:7px;align-items:flex-start"><select id="tmxtarget" class="cksel" style="min-width:150px"></select><textarea id="tmxmsg" placeholder="instruction…" style="flex:1;min-height:38px;font-family:var(--font);font-size:12px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);resize:vertical"></textarea><button class="btn acc" id="tmxsend">Send ▸</button></div></div>
-          <div class="labsec" style="margin-top:12px"><b>SCHEDULE CHECK-IN</b><div style="display:flex;gap:7px;margin-top:7px;align-items:center;flex-wrap:wrap"><select id="tmxstgt" class="cksel" style="min-width:150px"></select><input id="tmxmin" type="number" min="1" max="1440" value="30" style="width:64px;font-family:var(--mono);font-size:11px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg)"><span class="dim" style="font-size:10px">min</span><input id="tmxnote" placeholder="note" style="flex:1;min-width:120px;font-size:12px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg)"><button class="btn mini" id="tmxsched">Schedule</button></div><div id="tmxcheckins" style="margin-top:8px"></div></div>
-          <pre id="tmxsnap" style="display:none;margin-top:12px;max-height:220px;overflow:auto;font-family:var(--mono);font-size:10.5px;line-height:1.45;color:var(--ink-dim);background:#0b0b0f;border:1px solid var(--line);border-radius:10px;padding:11px 13px;white-space:pre-wrap"></pre>`;
-        bodyEl.querySelector('#tmxnew').addEventListener('click',async()=>{
-          const name=prompt('Crew name (project):');if(!name)return;
-          const eng=Math.max(1,Math.min(6,parseInt(prompt('How many engineers? (1–6)','2'),10)||2));
-          const r=await Tmux.newCrew(name,'',{engineers:eng}).catch(()=>null);
-          Toast.show(r&&r.ok?('crew '+r.session+' created'):('failed: '+((r&&r.error)||'')));paintTmux();
-        });
-        const sendMsg=async()=>{const t=bodyEl.querySelector('#tmxtarget').value,m=bodyEl.querySelector('#tmxmsg').value.trim();if(!t||!m)return;const r=await Tmux.send(t,m).catch(()=>null);Toast.show(r&&r.ok?('sent → '+t):('send failed: '+((r&&r.error)||'')));if(r&&r.ok)bodyEl.querySelector('#tmxmsg').value='';};
-        bodyEl.querySelector('#tmxsend').addEventListener('click',sendMsg);
-        bodyEl.querySelector('#tmxsched').addEventListener('click',async()=>{const t=bodyEl.querySelector('#tmxstgt').value,min=+bodyEl.querySelector('#tmxmin').value,note=bodyEl.querySelector('#tmxnote').value.trim();if(!t||!min)return;const r=await Tmux.schedule(t,min,note).catch(()=>null);Toast.show(r&&r.ok?('check-in scheduled'):('failed: '+((r&&r.error)||'')));bodyEl.querySelector('#tmxnote').value='';tmuxRefresh(bodyEl)});
-        bodyEl.querySelector('#tmxtermclose').addEventListener('click',()=>{killTmuxTerm();const w=bodyEl.querySelector('#tmxtermwrap');if(w)w.style.display='none'});
-      }
-      await tmuxRefresh(bodyEl);
-    }
-    async function tmuxRefresh(bodyEl){
-      const esc2=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-      let sess=[];try{sess=(await Tmux.sessions())||[]}catch(_){}
-      const crewsEl=bodyEl.querySelector('#tmxcrews'),tsel=bodyEl.querySelector('#tmxtarget'),ssel=bodyEl.querySelector('#tmxstgt');if(!crewsEl)return;
-      const targets=[];
-      if(!sess.length){crewsEl.innerHTML='<div class="dim" style="font-size:11px">no crews yet — create one.</div>';}
-      else{
-        const parts=[];
-        for(const c of sess){
-          let wins=[];try{wins=(await Tmux.windows(c.name))||[]}catch(_){}
-          wins.forEach(w=>targets.push(c.name+':'+w.name));
-          parts.push(`<div style="border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;background:color-mix(in srgb,var(--bg) 45%,transparent)">
-            <div style="display:flex;align-items:center;gap:8px"><span class="d3" style="background:${c.attached?'#3fd68f':'var(--ink-faint)'}"></span><b style="font-family:var(--mono);font-size:11px;color:var(--fg)">${esc2(c.name)}</b><span class="dim" style="font-size:9.5px">${c.windows} win · ${c.attached?'attached':'detached'}</span><button class="btn mini tmxlive" data-s="${esc2(c.name)}" style="margin-left:auto">▸ Live</button><button class="btn mini tmxatt" data-s="${esc2(c.name)}" title="open in native Terminal">Terminal ↗</button><button class="btn mini tmxkill" data-s="${esc2(c.name)}">⏻ Kill</button></div>
-            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:5px">${wins.map(w=>`<button class="btn mini tmxsnapb" data-t="${esc2(c.name+':'+w.name)}" title="snapshot ${esc2(w.name)}" style="font-size:9.5px">${w.active?'●':'○'} ${esc2(w.name)} · ${esc2(w.cmd||'')}</button>`).join('')}</div>
-          </div>`);
-        }
-        crewsEl.innerHTML=parts.join('');
-        crewsEl.querySelectorAll('.tmxkill').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Kill crew '+b.dataset.s+'? Real agents in it stop.'))return;const r=await Tmux.kill(b.dataset.s).catch(()=>null);Toast.show(r&&r.ok?'crew stopped':('failed: '+((r&&r.error)||'')));paintTmux()}));
-        crewsEl.querySelectorAll('.tmxlive').forEach(b=>b.addEventListener('click',()=>{const sname=b.dataset.s;if(!/^cf-[A-Za-z0-9_-]{1,40}$/.test(sname))return;killTmuxTerm();const wrap=bodyEl.querySelector('#tmxtermwrap'),host=bodyEl.querySelector('#tmxterm'),ttl=bodyEl.querySelector('#tmxtermttl');if(ttl)ttl.textContent='LIVE · '+sname;wrap.style.display='';host.innerHTML='';tmuxTermApi=Term(host,{op:'attach',session:sname});try{wrap.scrollIntoView({behavior:'smooth',block:'nearest'})}catch(_){}}));
-        crewsEl.querySelectorAll('.tmxatt').forEach(b=>b.addEventListener('click',()=>{const sname=b.dataset.s;if(!/^cf-[A-Za-z0-9_-]{1,40}$/.test(sname))return;Bridge.shell(`osascript -e 'tell application "Terminal" to do script "tmux attach -t ${sname}"' -e 'tell application "Terminal" to activate'`,()=>{});Toast.show('opening '+sname+' in Terminal…')}));
-        crewsEl.querySelectorAll('.tmxsnapb').forEach(b=>b.addEventListener('click',async()=>{const pre=bodyEl.querySelector('#tmxsnap');pre.style.display='';pre.textContent='capturing '+b.dataset.t+'…';const r=await Tmux.capture(b.dataset.t,{lines:200}).catch(()=>null);pre.textContent=(r&&r.ok)?(r.text.replace(/\x1b\[[0-9;]*m/g,'')||'(empty pane)'):'capture failed';pre.scrollTop=pre.scrollHeight}));
-      }
-      // refresh target selects (preserve selection)
-      [tsel,ssel].forEach(sel=>{if(!sel)return;const prev=sel.value;sel.innerHTML=targets.map(t=>`<option value="${esc2(t)}">${esc2(t)}</option>`).join('')||'<option value="">— no crews —</option>';if(targets.includes(prev))sel.value=prev});
-      // active check-ins
-      const ci=bodyEl.querySelector('#tmxcheckins');if(ci){let list=[];try{list=(await Tmux.listCheckins())||[]}catch(_){}ci.innerHTML=list.length?list.map(c=>`<div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--ink-dim);margin-top:3px"><span class="d3" style="background:var(--accent)"></span>${esc2(c.target)} · ${Math.max(0,Math.round((c.fireAt-Date.now())/60000))}m — "${esc2(c.note||'')}"<button class="btn mini tmxccancel" data-id="${esc2(c.id)}" style="margin-left:auto;font-size:9px">cancel</button></div>`).join(''):'';ci.querySelectorAll('.tmxccancel').forEach(b=>b.addEventListener('click',async()=>{await Tmux.cancelCheckin(b.dataset.id).catch(()=>{});tmuxRefresh(bodyEl)}))}
-    }
     renderList();
   }
 
@@ -6634,7 +6019,6 @@ const Panels=(()=>{
     const shortName=m=>String(m||'').split('/').pop();
     const turboModel=()=>localStorage.getItem('cfhub.turbo.model')||'';
     let exoOn=false,st=null;
-    async function probeExo(){try{st=await Exo.state();exoOn=true}catch(_){exoOn=false;st=null}}
     // agent art at OpenSea-style fidelity (same contract as LAB's artHTML)
     function artHTML(a){
       if(!a)return'<div class="ph">iNFT</div>';
@@ -6646,21 +6030,6 @@ const Panels=(()=>{
       }
       const src=(anim&&/\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(anim))?anim:(a.image||'');
       return src?`<img src="${esc2(src)}" alt="" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=&quot;ph&quot;>iNFT</div>')">`:'<div class="ph">iNFT</div>';
-    }
-    // launch (if needed) and wait until the model's instance is READY on the cluster
-    async function ensureExoReady(mid,onStatus,signal){
-      await Exo.state();
-      if(Exo.readyModels().has(mid))return;
-      onStatus('⏳ Loading '+mid.split('/').pop()+' on your cluster — downloads on first use, this can take a few minutes…');
-      const r=await Exo.loadModel(mid,{sharding:'pipeline',minDevices:1});
-      if(!r.ok)throw new Error(r.error||'could not launch the model');
-      for(let k=0;k<420;k++){
-        if(signal&&signal.aborted)throw new DOMException('aborted','AbortError');
-        await new Promise(rr=>setTimeout(rr,2000));
-        await Exo.state();
-        if(Exo.readyModels().has(mid))return;
-      }
-      throw new Error('model did not become ready — check the Cluster tab');
     }
     /* ============ CLI ECONOMYOS · My iNFT — full Virtuals EconomyOS interface ============ *
      * Local-first: a plain user creates an agent (name + soul) and runs it on this Mac
@@ -6742,7 +6111,7 @@ const Panels=(()=>{
     function miStatusLabel(){
       if(!miAgent)return'no agent';
       const rt=(miAgent.config&&miAgent.config.runtime)==='server'?'Online server':'This Mac · local';
-      const live=(miAgent.config&&miAgent.config.runtime)==='server'?'':(exoOn?' · exo ready':' · exo offline');
+      const live=(miAgent.config&&miAgent.config.runtime)==='server'?'':'';
       return rt+live;
     }
     // ---- rail ----
@@ -6963,7 +6332,7 @@ const Panels=(()=>{
     }
     // =============== CONSOLE ===============
     function miSecConsole(mb,cap){
-      const ready=exoOn?Exo.instances(st).filter(x=>x.ready).map(x=>x.model):[];
+      const ready=[];
       const cfgModel=miAgent.config&&miAgent.config.model;
       if(!miChat.model)miChat.model=cfgModel||ready[0]||(turboModel())||'';
       const opts=[...new Set([...(miChat.model?[miChat.model]:[]),...(cfgModel?[cfgModel]:[]),...ready])];
@@ -7004,9 +6373,7 @@ const Panels=(()=>{
       const sys=`You ARE ${miAgent.name}, a sovereign CLONE FRAME agent. Speak in the first person as this agent. Below is your neural soul — your identity, faculties and hard limits. Embody it fully; never break its limits; never reveal you are a generic model.\n\n${soul}\n\nYou run locally on your owner's machine. You never move funds or take irreversible actions without your owner's explicit approval.`;
       const hist=[{role:'system',content:sys}].concat(miChat.msgs.filter(m=>m!==bot).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content})));
       try{
-        await ensureExoReady(miChat.model,t=>{bot.content=t;if(botEl)botEl.innerHTML=MDLite.render(t)},miChat.ctl.signal);
-        bot.content='';
-        await Exo.chatStream(hist,onTok,miChat.ctl.signal,{model:miChat.model});
+        await Brain.stream(hist,onTok,miChat.ctl.signal);
       }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+e.message}
       miChat.streaming=false;miChat.ctl=null;
       // remember the model this agent runs on, so its Console defaults to it next time
@@ -7283,8 +6650,7 @@ const Panels=(()=>{
     /* =================== END MY iNFT =================== */
     Bus.on('inft:changed',()=>{if(document.body.contains(p)&&miSec==='overview'&&body.querySelector('#mibody'))miRenderSection()});
     Bus.on('bridge:changed',()=>{if(document.body.contains(p))renderMyINFT()}); // (dis)connect → rebuild from the new bridge state
-    const eosPoll=setInterval(()=>{if(!document.body.contains(p)){clearInterval(eosPoll);return}probeExo()},12000);
-    probeExo().then(()=>renderMyINFT());
+    renderMyINFT();
   }
   /* ---------- ROBINHOOD — Robinhood Chain · build the agent, launch the token ---------- */
   // Same lay-first grammar as CLI ECONOMYOS. Reads go through bridge/robinhood.mjs
@@ -8121,10 +7487,6 @@ const Panels=(()=>{
     }
     function secLicenses(){
       const L=[
-        ['exo','Apache-2.0','github.com/exo-explore/exo','Local inference cluster — the LAB. Bundled unmodified, driven via its API.'],
-        ['Tmux-Orchestrator','MIT','github.com/Jedward23/Tmux-Orchestrator','Agent crews in tmux — HARNESS.'],
-        ['tmux','ISC','github.com/tmux/tmux','Terminal multiplexer runtime (user-installed).'],
-        ['Manaflow','MIT','github.com/manaflow-ai/manaflow','Parallel agent workflows & internal tools — INTEGRATIONS.'],
         ['xterm.js + addon-fit','MIT','github.com/xtermjs/xterm.js','In-app interactive terminal renderer.'],
         ['node-pty','MIT','github.com/microsoft/node-pty','Real interactive TTYs, in the HUB bridge.'],
         ['ws','MIT','github.com/websockets/ws','WebSocket transport for live terminals.'],
@@ -8245,7 +7607,7 @@ const Panels=(()=>{
       const capRow=(k,label,sub)=>`<div class="autotoggle"><div><b>${label}</b><div class="sub">${sub}</div></div><div class="sw3 ${CAP[k]?'on':''}" data-cap="${k}"><i></i></div></div>`;
       pane.innerHTML='<div class="sethead">TOOLS</div>'+TOOLS.map(t=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="${t[3]}"/></svg><span style="flex:1;margin-left:4px"><b style="font-size:10.5px;color:var(--fg)">${t[1]}</b> <span class="dim" style="font-size:9px">${t[2]}</span></span><button class="btn mini" data-open="${t[0]}">OPEN</button></div>`).join('')
         +'<div class="sethead">CAPABILITIES — enable only what you use</div>'
-        +capRow('machine','My Machine','local cluster, models, BYOK brain')
+        +capRow('machine','My Machine','real shell + BYOK brain')
         +capRow('agents','My Agents','connect the real iCLONE / VEGETA')
         +capRow('email','Email','connect, write and send email')
         +capRow('automations','Automations','the agent proposes actions (with approval)')
@@ -8324,7 +7686,7 @@ const Panels=(()=>{
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:9.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:9.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:9.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Integrates exo (Apache-2.0), Fabric (MIT), AgentView patterns (MIT); behavior inspired by Odysseus, rebuilt clean-room.</div>';
+        +'<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Integrates Fabric (MIT), AgentView patterns (MIT); behavior inspired by Odysseus, rebuilt clean-room.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -8395,71 +7757,10 @@ const Panels=(()=>{
   }
 
   /* ---- CONSOLE (clean-room of I06 behaviors: streaming, sessions, slash, recall) ---- */
-  /* ---- MY MACHINE (exo Apache-2.0 · hwfit clean-room from I08 · BYOK from I13) ---- */
+  /* ---- MY MACHINE (bridge + BYOK brain from I13) ---- */
   function wireMachine(p){
-    const devs=p.querySelector('#mdevs'),mods=p.querySelector('#mmods'),fitEl=p.querySelector('#mfit'),
-          stat=p.querySelector('#mstat'),brains=p.querySelector('#mbrains');
-    const MOCK_DEVS=[{nm:'Este Mac',meta:'Apple Silicon · Metal',gb:16,used:.42},{nm:'+ connect another device',meta:'exo joins them into a ring',gb:0,used:0}];
-    const MOCK_MODELS=[['llama-3.2-3b','2 GB'],['qwen-2.5-7b','5 GB'],['llama-3.1-8b','5.5 GB'],['qwen-2.5-32b','19 GB']];
-    const FITS=[['Llama 3.2 3B',4],['Qwen 2.5 7B',8],['Llama 3.1 8B',10],['Qwen 2.5 32B',36],['Llama 3.3 70B',75],['DeepSeek R1 671B',720]];
-    let totalGb=Math.max(8,(navigator.deviceMemory||8)*2);
-    function renderDevs(list){
-      devs.innerHTML=list.map(d=>`<div class="dev"><span class="nm">${esc(d.nm)}</span><span class="meta">${esc(d.meta)}</span>${d.gb?`<span class="bar"><i style="width:${Math.min(100,(d.used*100)|0)}%"></i></span><span class="meta">${d.gb} GB</span>`:''}</div>`).join('');
-    }
-    function renderFit(){
-      fitEl.innerHTML=FITS.map(f=>{
-        const st=f[1]<=totalGb*.72?'ok':(f[1]<=totalGb?'warn':'no');
-        const lb={ok:'FITS',warn:'AT THE LIMIT',no:'DOES NOT FIT'}[st];
-        return `<div class="fitrow">${f[0]}<span class="req">~${f[1]} GB</span><span class="chip2 ${st}">${lb}</span></div>`;
-      }).join('')+`<div class="secnote" style="margin-top:6px">current ring ≈ ${totalGb} GB · rule of thumb ~0.6 GB per 10⁹ parameters (4-bit)</div>`;
-    }
-    function renderModels(list){
-      mods.innerHTML=list.map(m=>`<div class="mrow">${esc(m[0])}<span class="sz">${m[1]||''}</span><button class="dl">DOWNLOAD</button></div>`).join('');
-    }
-    mods.addEventListener('click',e=>{
-      const b=e.target.closest('.dl');if(!b)return;
-      const row=b.parentElement;
-      b.remove();
-      const prog=document.createElement('span');prog.className='prog';prog.innerHTML='<i></i>';
-      row.appendChild(prog);
-      const bar=prog.firstChild;let pct=0;
-      const iv=setInterval(()=>{
-        pct+=3+Math.random()*9;
-        if(pct>=100){pct=100;clearInterval(iv);
-          prog.remove();
-          const ok=document.createElement('span');ok.className='chip2 ok';ok.textContent='LOCAL';row.appendChild(ok);
-        }
-        bar.style.width=pct+'%';
-      },260);
-    });
-    async function detect(){
-      stat.textContent='detecting…';
-      const st=await Exo.state();
-      if(st){
-        let list=[],tot=0;
-        try{
-          const nodes=st.nodes||st.topology?.nodes||{};
-          for(const[id,n]of Object.entries(nodes)){
-            const gb=Math.round((n.memory||n.total_memory||n.ram||0)/1e9)||0;
-            tot+=gb;
-            list.push({nm:n.name||n.model||('node '+String(id).slice(0,6)),meta:(n.chip||n.backend||'device')+' · exo ring',gb,used:gb?((n.memory_used||0)/1e9)/gb:0});
-          }
-        }catch(e){}
-        if(list.length){renderDevs(list);if(tot)totalGb=tot;
-          stat.textContent='exo ONLINE · '+list.length+' node(s)'+(tot?' · '+tot+' GB':'')}
-        else stat.textContent='exo ONLINE';
-        const m=await Exo.models();
-        if(m){
-          const arr=Array.isArray(m)?m:(m.data||m.models||[]);
-          if(arr.length)renderModels(arr.slice(0,8).map(x=>[x.id||x.name||String(x),'']));
-        }
-        Brain.detect();
-      }else{
-        stat.textContent='exo not detected — demo mode';
-        renderDevs(MOCK_DEVS);renderModels(MOCK_MODELS);
-      }
-      renderFit();
-    }
+    const brains=p.querySelector('#mbrains');
+
     // BRAIN — BYOK with prefix detection (PROVIDER_PATTERNS pattern, reimplemented)
     const PROV=[['sk-ant-','Anthropic','https://api.anthropic.com/v1'],
                 ['sk-or-','OpenRouter','https://openrouter.ai/api/v1'],
@@ -8470,7 +7771,7 @@ const Panels=(()=>{
                 ['xai-','xAI','https://api.x.ai/v1']];
     function renderBrains(){
       const b=Store.get().brain;
-      const fixed=[['auto','AUTO — exo → key → mock'],['exo','LOCAL EXO'],['mock','MOCK · demo']]
+      const fixed=[['auto','AUTO — key → mock'],['mock','MOCK · demo']]
         .map(r=>`<div class="brainrow ${b.active===r[0]?'on':''}" data-b="${r[0]}">${r[1]}</div>`).join('');
       const provs=b.providers.map(pr=>`<div class="brainrow ${b.active===pr.id?'on':''}" data-b="${pr.id}">${esc(pr.name)}<span class="k">${esc(pr.masked)}${Keys.get(pr.id)?'':' · session expired'}</span><span class="rmk" data-rm="${pr.id}">remove</span></div>`).join('');
       brains.innerHTML=fixed+provs;
@@ -8497,7 +7798,6 @@ const Panels=(()=>{
       Brain.update();renderBrains();
       Toast.show(hit[1]+' connected — the CONSOLE now uses it');
     });
-    p.querySelector('#mdetect').addEventListener('click',detect);
     // ---- HUB BRIDGE ----
     const brStat=p.querySelector('#brstat'),brInfo=p.querySelector('#brinfo'),brEp=p.querySelector('#brep');
     function paintBridge(){
@@ -8523,8 +7823,7 @@ const Panels=(()=>{
     brEp.addEventListener('keydown',e=>{if(e.key==='Enter')connectBridge()});
     Bus.on('bridge:changed',()=>{if(document.body.contains(p))paintBridge()});
     Bridge.refresh().then(paintBridge);paintBridge();
-    renderDevs(MOCK_DEVS);renderModels(MOCK_MODELS);renderFit();renderBrains();
-    detect();
+    renderBrains();
   }
 
   /* ---- COUNCIL (HARNESS_ENGINE backbone — Orchestrator moderates, 4 gates, Safety fail-closed) ---- */
@@ -9551,7 +8850,7 @@ const Panels=(()=>{
     tabs.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.t;tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));render()}));
     function render(){if(tab==='launch')launch();else if(tab==='download')download();else if(tab==='deps')deps();else if(tab==='settings')settings();else recipes()}
 
-    /* — Launch: real local providers (models.mjs) + exo probe — */
+    /* — Launch: real local providers (models.mjs) — */
     async function launch(){
       body.innerHTML=`<div class="ckcard"><div class="ckhead"><b>Serve</b></div><div class="ckcardbody">
           <div class="ckline"><span class="ckpath" id="ckdir">${esc(cfg.modelDirs[0])}</span><a class="cklink" id="ckedit">edit</a></div>
@@ -9565,25 +8864,15 @@ const Panels=(()=>{
       const list=body.querySelector('#ckmdls');let items=[],fil='all',q='';
       let est=null,eready=new Set(),eavail=999;
       if(Bridge.on()){try{(await RPC('models','listProviders')).filter(x=>x.kind==='local').forEach(pr=>(pr.models||[]).forEach(m=>items.push({name:m,id:m,src:pr.label||pr.provider,sub:pr.baseUrl||'',gb:0})))}catch(e){}}
-      try{est=await Exo.state();eready=Exo.readyModels(est);eavail=Exo.memAvailGB(est);const c=await Exo.catalog();c.forEach(x=>items.push({name:x.name,id:x.id,src:'exo',sub:'localhost:52415',gb:x.gb}))}catch(e){}
       function paint(){
         const fc=body.querySelector('#ckfil');if(!fc)return;
         fc.innerHTML=`<span class="tkchip ${fil==='all'?'on':''}" data-f="all">all (${items.length})</span><span class="tkchip ${fil==='llm'?'on':''}" data-f="llm">llm (${items.length})</span>`;
         fc.querySelectorAll('.tkchip').forEach(c=>c.addEventListener('click',()=>{fil=c.dataset.f;paint()}));
-        if(!items.length){if(!Bridge.on()){needBridge(list);return}list.innerHTML='<div class="qempty">No cached models found. Add a local provider (Ollama · llama.cpp · vLLM) in BRAIN, or run exo.</div>';return}
+        if(!items.length){if(!Bridge.on()){needBridge(list);return}list.innerHTML='<div class="qempty">No cached models found. Add a local provider (Ollama · llama.cpp · vLLM) in BRAIN.</div>';return}
         const COL=['#e06c75','#6fb7d9','#3fd68f','#e8b86d','#c678dd'];const ci=s=>COL[[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)%COL.length];
         const ff=items.filter(i=>!q||i.name.toLowerCase().includes(q)).sort((a,b)=>(eready.has(b.id)?1:0)-(eready.has(a.id)?1:0)||(a.gb>eavail?1:0)-(b.gb>eavail?1:0));
         list.innerHTML=ff.length?ff.map(i=>{const rdy=eready.has(i.id),big=i.gb>eavail;const tag=i.src==='exo'?(rdy?'<span class="ckhfb" style="color:#3fd68f">● running</span>':big?'<span class="ckhfb" style="color:#e8b86d">⚠ needs '+i.gb.toFixed(0)+'GB</span>':'<span class="ckhfb" style="color:#3fd68f">fits · '+(i.gb>=1?i.gb.toFixed(1)+'GB':Math.round(i.gb*1024)+'MB')+'</span>'):'<span class="ckhfb">'+esc(i.src)+' ↗</span>';return `<div class="ckmdl"><span class="ckdot" style="background:${ci(i.src)}"></span><div style="flex:1;min-width:0"><span class="ckname" style="color:${ci(i.src)}">${esc(i.name)}</span> ${tag}<div class="cksub">${esc(i.src)} · ${esc(i.sub)}</div></div>${rdy?`<button class="btn mini" data-del="${esc(i.id)}" style="border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">delete</button>`:`<button class="btn mini" data-l="${esc(i.id)}" data-src="${esc(i.src)}" data-gb="${i.gb}">launch</button>`}</div>`}).join(''):'<div class="qempty">No models match.</div>';
-        list.querySelectorAll('[data-l]').forEach(b=>b.addEventListener('click',async()=>{
-          if(b.dataset.src!=='exo'){soon('Launch "'+b.dataset.l+'"');return}
-          if(+b.dataset.gb>eavail+0.5){Toast.show('⚠ needs '+(+b.dataset.gb).toFixed(1)+'GB but only '+eavail.toFixed(1)+'GB free');return}
-          b.textContent='…';Toast.show('Launching '+b.dataset.l.split('/').pop()+' on exo…');
-          const r=await Exo.loadModel(b.dataset.l,{});Toast.show(r.ok?'Launched — it will chat once READY':'⚠ '+(r.error||'failed'));launch();
-        }));
-        list.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{
-          const inst=Exo.instances(est).find(x=>x.model===b.dataset.del);if(!inst){Toast.show('not running');return}
-          b.textContent='…';const r=await Exo.deleteInstance(inst.id);Toast.show(r.ok?'Deleted — memory freed':'delete failed');launch();
-        }));
+        list.querySelectorAll('[data-l]').forEach(b=>b.addEventListener('click',()=>{soon('Launch "'+b.dataset.l+'"')}));
       }
       body.querySelector('#ckq').addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();paint()});
       paint();
@@ -9627,7 +8916,7 @@ const Panels=(()=>{
       paintHw();paintTb();
     }
 
-    /* — Dependencies: real checks (Bridge, exo) + visual catalog — */
+    /* — Dependencies: real checks (Bridge) + visual catalog — */
     function deps(){
       const DEP={app:[
         ['APFEL','Built-in local inference runtime.','LLM',false],
@@ -9655,12 +8944,8 @@ const Panels=(()=>{
       body.querySelectorAll('[data-cv]').forEach(b=>b.addEventListener('click',()=>soon('Engine options')));
       const dot=on=>`<span class="igdot ${on?'connected':''}"></span>`;
       const live=body.querySelector('#cklive');
-      live.innerHTML=`<div class="ckdep">${dot(Bridge.on())}<div style="flex:1;min-width:0"><b style="font-size:11px;color:var(--fg)">HUB Bridge</b><div class="ckdesc">${Bridge.on()?'connected — shell + local RPC available':'not connected — open MY MACHINE to pair'}</div></div><span class="ckcat">System</span><button class="ckst ${Bridge.on()?'on':''}" id="ckbrst">${Bridge.on()?'Online':'Connect'}</button></div>
-        <div class="ckdep" id="ckexo">${dot(false)}<div style="flex:1;min-width:0"><b style="font-size:11px;color:var(--fg)">exo</b><div class="ckdesc">probing localhost:52415…</div></div><span class="ckcat">LLM</span><button class="ckst" id="ckexob">Detect</button></div>`;
+      live.innerHTML=`<div class="ckdep">${dot(Bridge.on())}<div style="flex:1;min-width:0"><b style="font-size:11px;color:var(--fg)">HUB Bridge</b><div class="ckdesc">${Bridge.on()?'connected — shell + local RPC available':'not connected — open MY MACHINE to pair'}</div></div><span class="ckcat">System</span><button class="ckst ${Bridge.on()?'on':''}" id="ckbrst">${Bridge.on()?'Online':'Connect'}</button></div>`;
       live.querySelector('#ckbrst').addEventListener('click',()=>{if(!Bridge.on())openPanel('machine')});
-      async function probeExo(){const r=await Exo.probe();const el=body.querySelector('#ckexo');if(!el)return;el.querySelector('.igdot').className='igdot '+(r.on?'connected':'');el.querySelector('.ckdesc').textContent=r.msg;const b=el.querySelector('#ckexob');b.className='ckst '+(r.on?'on':'');b.textContent=r.on?'Online':'Detect'}
-      live.querySelector('#ckexob').addEventListener('click',probeExo);
-      probeExo();
     }
 
     /* — Settings: persisted in Store.get().cookbook — */
@@ -10733,10 +10018,10 @@ const Guide=(()=>{
     palette:['COMMAND PALETTE',[['↑↓','navigate'],['ENTER','run'],['ESC','close']]],
     'panel-terminal':['CODE',[['TYPE','help · agents · exo · universe'],['DRAG THE HEADER','to the edge = split screen'],['EDGES','resize']]],
     'panel-harness':['HARNESS',[['SPINE','Orchestrator + Safety never collapse'],['SKILLS','signed Fabric patterns'],['DRAG','to the edge for split-screen']]],
-    'panel-lab':['LAB',[['CLUSTER','your exo devices + selected agents, live'],['CHAT','exo local · API · machine'],['AGENTS','pick the iNFTs to run in your cluster']]],
+    'panel-lab':['LAB',[['CHAT','any model — an API provider or your machine'],['AGENTS','your agents — pick the iNFTs to work with']]],
     'panel-economyos':['CLI ECONOMY OS',[['VIRTUALS','build & run your iNFT agent'],['ROBINHOOD','launch its token on Robinhood Chain'],['OKX AI','list it on the OKX marketplace'],['LIST','pick an agent to open it']]],
     'panel-integrate':['INTEGRATIONS',[['EXO LAB','local compute across your devices'],['MANAFLOW','AI agent workflows & internal tools'],['TMUX','terminal multiplexer'],['SOON','connect flow lands next']]],
-    'panel-machine':['MY MACHINE',[['DEVICES','your local exo ring'],['BRAIN','exo · BYOK key · mock'],['WHAT FITS','models vs memory'],['KEYS','this session only, never saved']]],
+    'panel-machine':['MY MACHINE',[['BRIDGE','the real body on your machine'],['BRAIN','BYOK key · mock'],['KEYS','this session only, never saved']]],
     'harness-conselho':['COUNCIL',[['PROPOSAL','write it and DELIBERATE'],['SAFETY','fail-closed veto on everything'],['TREASURY','per-job cap'],['OWNER','the final decision is always yours']]],
     'panel-settings':['SETTINGS',[['BASE','fixed palettes'],['LIVE','themes with animated background'],['MY MACHINE','detects the local exo']]],
   };
@@ -10780,7 +10065,6 @@ const Palette=(()=>{
     {l:'Atalhos de teclado',h:'ajuda',k:'atalhos teclado keys shortcuts ?',i:'#i-frame',run:()=>Shortcuts.toggle(true)},
     {l:'Desbloquear / bloquear zoom',h:'universo',k:'zoom navegar triangulo',i:'#i-cosmos',run:()=>Camera.setNav(!Camera.isNav())},
     {l:'Enquadrar',h:'universo',k:'enquadrar reset fit centro',i:'#i-fit',run:()=>Camera.fit()},
-    {l:'Detect exo (My Machine)',h:'compute',k:'exo compute local mymachine',i:'#i-gear',run:async()=>{const r=await Exo.probe();Toast.show(r.msg)}},
     {l:'Reset grid layout',h:'layout',k:'repor reset grelha limpar',i:'#i-frame',run:()=>{Grid.reset();Toast.show('Layout reset')}},
     {l:'Show / hide guide',h:'ajuda',k:'guia ajuda rodape instrucoes',i:'#i-frame',run:()=>document.getElementById('guidetab').click()},
     ...Object.keys(Themes.T).map(n=>({l:'Theme: '+n.toUpperCase(),h:Themes.T[n].live?'live':'base',k:'theme '+n,i:'#i-gear',run:()=>Themes.apply(n)})),

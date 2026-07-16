@@ -2,12 +2,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # CLONE FRAME — install every bundled integration into its own folder.
 # Run once after download (or as a release-build step) so CLONE FRAME ships
-# self-contained: EXO LAB and every integration installed in integrations/<name>/.
+# self-contained: every bundled integration installed in integrations/<name>/.
 # Idempotent — safe to re-run; each integration's install.sh no-ops if present.
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 DIR="${0:A:h}"
-ORDER=(runtime exo tmux-orchestrator manaflow)   # framer needs no install (extension files ship as-is)
+ORDER=(runtime)   # framer needs no install (extension files ship as-is)
 
 echo "CLONE FRAME · installing integrations into their folders"
 for INT in $ORDER; do
