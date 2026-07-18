@@ -46,6 +46,22 @@ function loadToken() {
 }
 const TOKEN = loadToken();
 
+// ── agent field guide → the root of iT (~/.clone-frame-hub/AGENTS.md) ─────────
+// The bundle ships context/AGENTS.md; mirror it into the iT runtime root so any
+// iT shell (and `it context`) finds it, and so it travels with a downloaded app.
+function ensureContext() {
+  try {
+    const src = path.join(HUB_ROOT, 'context', 'AGENTS.md');
+    if (!fs.existsSync(src)) return;
+    const dst = path.join(CONFIG_DIR, 'AGENTS.md');
+    const s = fs.statSync(src);
+    let stale = true;
+    try { stale = fs.statSync(dst).mtimeMs < s.mtimeMs; } catch {}
+    if (stale) fs.copyFileSync(src, dst);
+  } catch {}
+}
+ensureContext();
+
 // ── Anthropic key: env first, then ~/.env.local (never printed, never logged) ─
 function loadKey() {
   if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY.trim();
@@ -348,14 +364,14 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  pty: './pty.mjs' };
+  pty: './pty.mjs', it: './it.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  pty: 'Pty' };
+  pty: 'Pty', it: 'It' };
 const _modCache = {};
 async function getMod(name) {
   if (_modCache[name]) return _modCache[name];
@@ -504,12 +520,76 @@ server.on('upgrade', (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => dispatchStream(ws, url));
   } catch { try { socket.destroy(); } catch {} }
 });
+// zsh shell integration (generated once): a ZDOTDIR whose startup files source the
+// user's own dotfiles untouched, then add a chpwd/precmd hook that emits OSC 7 —
+// so the app's file tree can follow the live terminal's cwd. Fail-soft: if anything
+// here can't be written, the terminal still opens as a plain login shell.
+let _zdotDir = null;
+function ensureZdot() {
+  if (_zdotDir !== null) return _zdotDir;
+  if (process.env.ZDOTDIR) { _zdotDir = ''; return ''; }     // user runs a custom ZDOTDIR setup — leave it alone
+  try {
+    const dir = path.join(CONFIG_DIR, 'zdot');
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    // the `it` CLI, on PATH only inside iT shells (like cmux's in-terminal-only CLI)
+    const bin = path.join(CONFIG_DIR, 'bin');
+    fs.mkdirSync(bin, { recursive: true, mode: 0o700 });
+    const cli = path.join(path.dirname(new URL(import.meta.url).pathname), 'it-cli.mjs');
+    fs.writeFileSync(path.join(bin, 'it'), `#!/bin/sh\nexec node ${JSON.stringify(cli)} "$@"\n`, { mode: 0o755 });
+    const hook = [
+      '# CLONE FRAME HUB shell integration (generated — safe to delete; recreated on demand).',
+      '# Emits OSC 7 on every prompt/cd so the in-app file tree follows this shell.',
+      '__cfhub_osc7(){ printf \'\\e]7;file://%s%s\\e\\\\\' "$HOST" "$PWD" }',
+      'typeset -ag precmd_functions chpwd_functions preexec_functions',
+      'precmd_functions+=(__cfhub_osc7)',
+      'chpwd_functions+=(__cfhub_osc7)',
+      '# Long-command notifier: any command taking 15s+ raises an OSC 777 notification',
+      '# when it finishes — iT surfaces it (dot + toast + the ⌘I panel) even when you',
+      '# are on another workspace. Works for every agent/build/deploy, no wrappers.',
+      'zmodload zsh/datetime 2>/dev/null',
+      '__cfhub_preexec(){ __cfhub_t0=${EPOCHREALTIME%.*}; __cfhub_cmd="$1" }',
+      '__cfhub_done(){ local rc=$?; [ -n "$__cfhub_t0" ] || return 0; local dt=$(( ${EPOCHREALTIME%.*} - __cfhub_t0 )); __cfhub_t0=""; if [ "$dt" -ge 15 ]; then printf \'\\e]777;notify;%s;%s\\e\\\\\' "finished in ${dt}s · exit ${rc}" "${__cfhub_cmd[1,80]}"; fi }',
+      'preexec_functions+=(__cfhub_preexec)',
+      'precmd_functions+=(__cfhub_done)',
+      '# the iT command line (`it` — cmux-compatible commands)',
+      'export PATH="' + bin + ':$PATH"',
+    ].join('\n');
+    const src = (f) => `[ -f "$HOME/${f}" ] && . "$HOME/${f}"`;
+    fs.writeFileSync(path.join(dir, '.zshenv'),   `export ZDOTDIR="$HOME"\n${src('.zshenv')}\nexport ZDOTDIR=${JSON.stringify(dir)}\n`, { mode: 0o600 });
+    fs.writeFileSync(path.join(dir, '.zprofile'), `${src('.zprofile')}\n`, { mode: 0o600 });
+    fs.writeFileSync(path.join(dir, '.zshrc'),    `${src('.zshrc')}\n${hook}\n`, { mode: 0o600 });
+    fs.writeFileSync(path.join(dir, '.zlogin'),   `${src('.zlogin')}\n`, { mode: 0o600 });
+    _zdotDir = dir;
+  } catch { _zdotDir = ''; }
+  return _zdotDir;
+}
 async function dispatchStream(ws, url) {
-  let Pty; try { Pty = await getMod('pty'); } catch { try { ws.close(1011, 'pty unavailable'); } catch {} return; }
   const op = url.searchParams.get('op') || 'shell';
+  // iT control plane — no PTY: the iT window parks one socket here and the `it` CLI's
+  // commands are ferried over it. Same host/token gates as every stream (upgrade handler).
+  if (op === 'it') { try { (await getMod('it')).attachCtl(ws); } catch { try { ws.close(1011, 'it unavailable'); } catch {} } return; }
+  let Pty; try { Pty = await getMod('pty'); } catch { try { ws.close(1011, 'pty unavailable'); } catch {} return; }
   const cols = Math.max(1, Math.min(1000, Number(url.searchParams.get('cols')) || 80));
   const rows = Math.max(1, Math.min(1000, Number(url.searchParams.get('rows')) || 24));
-  const hello = { cmd: process.env.SHELL || 'zsh', args: ['-l'], cwd: url.searchParams.get('cwd') || undefined, cols, rows };
+  const cwd = url.searchParams.get('cwd') || undefined;
+  let hello;
+  if (op === 'attach') {
+    // attach to a tmux session — the substrate for agent crews running side-by-side
+    const session = String(url.searchParams.get('session') || '');
+    if (!/^[\w.-]{1,64}$/.test(session)) { try { ws.close(1008, 'bad session name'); } catch {} return; }
+    hello = { cmd: 'tmux', args: ['attach-session', '-t', session], cwd, cols, rows };
+  } else {
+    const shell = process.env.SHELL || 'zsh';
+    hello = { cmd: shell, args: ['-l'], cwd, cols, rows };
+    if (/\bzsh$/.test(shell)) { const zd = ensureZdot(); if (zd) hello.env = { ZDOTDIR: zd }; }
+    // iT identity for the `it` CLI (like cmux's CMUX_WORKSPACE_ID/CMUX_SURFACE_ID):
+    // plain ids, no secrets — the CLI reads the token from disk, never from env.
+    const wsId = String(url.searchParams.get('ws') || ''), surfId = String(url.searchParams.get('surf') || '');
+    hello.env = hello.env || {};
+    if (/^[\w-]{1,64}$/.test(wsId)) hello.env.CFHUB_IT_WORKSPACE = wsId;
+    if (/^[\w-]{1,64}$/.test(surfId)) hello.env.CFHUB_IT_SURFACE = surfId;
+    hello.env.CFHUB_BRIDGE = `http://${HOST}:${PORT}`;
+  }
   Pty.attach(ws, hello);
 }
 

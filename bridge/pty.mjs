@@ -29,7 +29,7 @@ try { ({ spawn: ptySpawn } = await import('node-pty')); } catch { ptySpawn = nul
 
 const NOT_INSTALLED = 'node-pty not installed — run `npm install` in bridge/ (needs prebuilt binary or Xcode CLT)';
 
-const MAX_SESSIONS = 12;                       // concurrent interactive TTYs
+const MAX_SESSIONS = 24;                       // concurrent interactive TTYs (iT: workspaces × split panes)
 const MAX_DIM = 1000;                          // clamp absurd cols/rows
 const IDLE_MS = 30 * 60 * 1000;                // no I/O for 30 min → reap
 const LIFETIME_MS = 12 * 60 * 60 * 1000;       // hard cap: 12 h per session
