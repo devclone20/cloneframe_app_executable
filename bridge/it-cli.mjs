@@ -72,6 +72,7 @@ Commands:
   hooks <setup|status|remove> [claude|codex]  wire coding agents → iT notifications (⌘I)
   feedback [--body <text>]                  record a bug report locally
   open </absolute/path>                     folder → new workspace · file → the viewer
+  edit [folder]                             code editor split (⌘⇧E) — file tree + view/edit/save
   diff                                      diff viewer split (⌃⌘⇧D) — git diff, colored
   list-workspaces
   current-workspace
@@ -99,7 +100,7 @@ Commands:
   group <new|collapse|dissolve|list>        collapsible workspace groups (⌃⌘G)
   find-in-directory                         file find / content search (⌘⇧F)
   new-browser                               browser split beside the terminal (⌘⇧L)
-  new-surface [--cwd <path>] [--type <terminal|smart|browser>] [--url <url>]
+  new-surface [--cwd <path>] [--type <terminal|smart|browser|code>] [--url <url>]
   close-surface
   rename-tab <title>
   next-tab | previous-tab

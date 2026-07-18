@@ -1786,6 +1786,25 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-webin:focus{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
 .it-webif{flex:1;min-height:0;width:100%;border:0;background:#fff;display:block}
 .sh-pane.web{background:var(--bg)}
+/* iT code editor surface — open a FOLDER: file tree (left) + view/edit/save (right) */
+.sh-pane.code{background:var(--bg);display:flex;flex-direction:row;align-items:stretch;min-height:0}
+.it-codetree{width:190px;flex:none;height:100%;display:flex;flex-direction:column;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:color-mix(in srgb,var(--bg) 30%,transparent)}
+.it-codehd{display:flex;align-items:center;gap:5px;padding:7px 9px;border-bottom:1px solid var(--line);font-size:9px;letter-spacing:.12em;color:var(--ink-dim);white-space:nowrap;overflow:hidden}
+.it-codehd b{color:var(--fg);overflow:hidden;text-overflow:ellipsis}
+.it-codehd .up{margin-left:auto;cursor:pointer;color:var(--ink-faint)}
+.it-codehd .up:hover{color:var(--fg)}
+.it-codelist{flex:1;overflow:auto;padding:5px}
+.it-crow{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:6px;cursor:pointer;font-size:11px;color:var(--ink-dim);white-space:nowrap;overflow:hidden}
+.it-crow:hover{background:color-mix(in srgb,var(--fg) 7%,transparent);color:var(--fg)}
+.it-crow.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--fg)}
+.it-crow.dir{color:var(--fg)}
+.it-crow .chev{width:9px;font-size:8px;color:var(--ink-faint);flex:none}
+.it-crow svg{width:13px;height:13px;flex:none}
+.it-crow.dir svg{color:var(--accent)}
+.it-crow .nm{overflow:hidden;text-overflow:ellipsis}
+.it-codeed{flex:1;min-width:0;height:100%;min-height:0;position:relative;display:flex;flex-direction:column;overflow:hidden}
+.it-codeed .fv{height:100%}
+.it-codeblank{flex:1;display:grid;place-items:center;color:var(--ink-faint);font-size:11px;padding:20px;text-align:center;line-height:1.6}
 /* iT Phase 3.1 — workspace colors (cmux "left rail" indicator) · status pills · progress */
 .it-wsrow.tinted::before{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--wsc)}
 .it-wsrow.on.tinted::before{background:var(--wsc)}
@@ -6088,6 +6107,7 @@ const Panels=(()=>{
     ['split-down','cmd+shift+d','Split down'],
     ['new-browser','cmd+shift+l','New browser split'],
     ['open-diff','ctrl+cmd+shift+d','Diff viewer split'],
+    ['open-code-editor','cmd+shift+e','Code editor for a folder'],
     ['toggle-canvas','ctrl+cmd+c','Canvas mode on/off'],
     ['tidy-canvas','ctrl+cmd+t','Tidy canvas panes'],
     ['find-in-directory','cmd+shift+f','Find in directory'],
@@ -6233,7 +6253,7 @@ const Panels=(()=>{
     const paneCur=()=>{const w=wsCur();return w?(w.panes.find(x=>x.id===w.focus)||w.panes[0]||null):null};
     const activeTab=()=>{const pn=paneCur();return pn?pn.surfaces[pn.active]:null};
     const leaves=n=>n.sp?[...leaves(n.a),...leaves(n.b)]:[n];
-    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.attach)return 'tmux:'+t.attach;if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
+    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.attach)return 'tmux:'+t.attach;if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
     function wsLabel(w){return (w&&(w.name||w.autoName||base(w.cwd)))||'~'}
     function curCwd(){const t=activeTab();return (t&&t.cwd)||(wsCur()&&wsCur().cwd)||homeAbs}
     // a surface is "seen" when its window is visible, its workspace is active and it is its pane's front tab
@@ -6353,6 +6373,40 @@ const Panels=(()=>{
         t.refreshDiff=render;
         pane.querySelector('[data-da="re"]').addEventListener('click',()=>render());
         render();
+      }else if(t.kind==='code'){
+        // code editor surface — open a FOLDER: file tree (left) + view/edit/save (right).
+        // Unlike cmux (which only opens a single file), this opens the whole folder to browse.
+        const root=t.cwd&&t.cwd!=='~'?t.cwd:homeAbs;t.cwd=root;
+        t._copen=t._copen||new Set();t._ckids=t._ckids||new Map();
+        pane.innerHTML='<div class="it-codetree"><div class="it-codehd"><b>'+esc(base(root)||root)+'</b><span class="up" title="Up one level">↑</span></div><div class="it-codelist"></div></div><div class="it-codeed"><div class="it-codeblank">Pick a file on the left to view or edit it.<br>Save writes straight to disk.</div></div>';
+        t.el={list:pane.querySelector('.it-codelist'),ed:pane.querySelector('.it-codeed'),hd:pane.querySelector('.it-codehd b')};
+        const clist=async dir=>{
+          if(t._ckids.has(dir))return t._ckids.get(dir);
+          let entries=[];try{const r=await RPC('files','list',dir);if(r&&r.ok)entries=(r.entries||[]).filter(e=>!e.name.startsWith('.'))}catch(_){}
+          entries.sort((a,b)=>((a.type==='dir')===(b.type==='dir'))?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));
+          t._ckids.set(dir,entries);return entries;
+        };
+        const drawInto=async(container,dir,depth)=>{
+          for(const e of await clist(dir)){
+            const full=join(dir,e.name),isDir=e.type==='dir';
+            const row=document.createElement('div');
+            row.className='it-crow '+(isDir?'dir':'file')+(t._cfile===full?' on':'');
+            row.style.paddingLeft=(7+depth*13)+'px';
+            row.innerHTML=`<span class="chev">${isDir?(t._copen.has(full)?'▾':'▸'):''}</span><svg><use href="${isDir?'#i-folder':'#i-file'}"/></svg><span class="nm">${esc(e.name)}</span>`;
+            container.appendChild(row);
+            if(isDir){
+              row.addEventListener('click',()=>{if(t._copen.has(full))t._copen.delete(full);else t._copen.add(full);drawCode()});
+              if(t._copen.has(full))await drawInto(container,full,depth+1);
+            }else{
+              row.addEventListener('click',()=>openCodeFile(t,full));
+            }
+          }
+        };
+        const drawCode=async()=>{t.el.list.textContent='';await drawInto(t.el.list,t.cwd,0)};
+        t.refreshCode=drawCode;
+        pane.querySelector('.it-codehd .up').addEventListener('click',()=>{const pr=parent(t.cwd);if(pr&&pr!==t.cwd){t.cwd=pr;t._ckids.clear();t._copen.clear();t.el.hd.textContent=base(pr)||pr;drawCode();saveState()}});
+        drawCode();
+        if(t._cfile)openCodeFile(t,t._cfile);
       }else{
         pane.innerHTML=`<div class="sh-out"></div>
           <div class="sh-inrow"><span class="sh-prompt" title="${esc(t.cwd)}">${promptHTML(t)}</span><span class="sh-inwrap"><span class="sh-ghost"><span class="g-typed"></span><span class="g-rest"></span></span><input class="sh-in" placeholder="type a command — Tab / → completes · ⌘T new tab" autocomplete="off" spellcheck="false"></span></div>`;
@@ -6705,6 +6759,7 @@ const Panels=(()=>{
       if(t.kind==='tty'){if(t.termApi)setTimeout(()=>t.termApi.focus(),10)}
       else if(t.kind==='web'){if(t.el&&t.el.in&&!t.url)setTimeout(()=>{try{t.el.in.focus()}catch(_){}},10)}
       else if(t.kind==='diff'){if(t.refreshDiff)t.refreshDiff(true)} // refresh quietly on every visit
+      else if(t.kind==='code'){/* the tree + editor manage their own focus */}
       else{updatePrompt(t);if(t.el){t.el.out.scrollTop=t.el.out.scrollHeight;setTimeout(()=>t.el.in.focus(),10)}}
     }
     function renderAll(){schedule();syncPanes();markHere()}
@@ -6835,6 +6890,7 @@ const Panels=(()=>{
         ['toggle-right-sidebar',K('toggle-right-sidebar'),toggleTree],
         ['find-in-directory',K('find-in-directory'),findInDirectory],
         ['open-diff',K('open-diff'),openDiffSplit],
+        ['open-code-editor',K('open-code-editor'),()=>openCodeEditor()],
         ['attach-tmux','⌗',()=>{const b=p.querySelector('[data-act="tmux"]');if(b)tmuxMenu(b)}],
         ['jump-to-unread',K('jump-to-unread'),jumpUnread],
         ['mark-all-read',K('mark-all-read'),markAllRead],
@@ -6896,7 +6952,7 @@ const Panels=(()=>{
     function helpOverlay(){
       closeOverlays();
       const K=keyLabel;
-      const rows=[[K('toggle-left-sidebar'),'Toggle left sidebar'],[K('toggle-right-sidebar'),'Toggle right sidebar'],[K('split-right'),'Split right'],[K('split-down'),'Split down'],[K('new-browser'),'New browser split'],[K('open-diff'),'Diff viewer split'],[K('toggle-canvas'),'Canvas mode'],[K('canvas-overview'),'Canvas overview'],[K('canvas-reveal'),'Canvas reveal'],[K('tidy-canvas'),'Tidy canvas'],[K('find-in-directory'),'Find in directory'],['⌥⌘←→↑↓','Focus pane'],['⌃⌘←→↑↓','Move tab across panes'],[K('break-pane'),'Break tab into a pane'],[K('new-group'),'Group workspace'],[K('toggle-group'),'Collapse group'],[K('toggle-split-zoom'),'Zoom pane'],[K('equalize-splits'),'Equalize splits'],[K('new-surface'),'New tab'],[K('go-to-workspace'),'Go to workspace'],[K('notifications'),'Notifications'],[K('next-tab')+' '+K('previous-tab'),'Next / previous tab'],['⌃1…9','Go to tab'],['⌘1…9','Go to workspace'],[K('rename-tab'),'Rename tab'],[K('rename-workspace'),'Rename workspace'],[K('command-palette'),'Command palette'],[K('jump-to-unread'),'Jump to latest unread'],[K('mark-all-read'),'Mark all read'],[K('clear-terminal'),'Clear terminal']];
+      const rows=[[K('toggle-left-sidebar'),'Toggle left sidebar'],[K('toggle-right-sidebar'),'Toggle right sidebar'],[K('split-right'),'Split right'],[K('split-down'),'Split down'],[K('new-browser'),'New browser split'],[K('open-diff'),'Diff viewer split'],[K('open-code-editor'),'Code editor (a folder)'],[K('toggle-canvas'),'Canvas mode'],[K('canvas-overview'),'Canvas overview'],[K('canvas-reveal'),'Canvas reveal'],[K('tidy-canvas'),'Tidy canvas'],[K('find-in-directory'),'Find in directory'],['⌥⌘←→↑↓','Focus pane'],['⌃⌘←→↑↓','Move tab across panes'],[K('break-pane'),'Break tab into a pane'],[K('new-group'),'Group workspace'],[K('toggle-group'),'Collapse group'],[K('toggle-split-zoom'),'Zoom pane'],[K('equalize-splits'),'Equalize splits'],[K('new-surface'),'New tab'],[K('go-to-workspace'),'Go to workspace'],[K('notifications'),'Notifications'],[K('next-tab')+' '+K('previous-tab'),'Next / previous tab'],['⌃1…9','Go to tab'],['⌘1…9','Go to workspace'],[K('rename-tab'),'Rename tab'],[K('rename-workspace'),'Rename workspace'],[K('command-palette'),'Command palette'],[K('jump-to-unread'),'Jump to latest unread'],[K('mark-all-read'),'Mark all read'],[K('clear-terminal'),'Clear terminal']];
       const ov=document.createElement('div');ov.className='it-help';
       ov.innerHTML='<div class="it-helpbox"><div class="hd">iT — KEYBOARD</div><div class="cols">'+rows.map(r=>`<div class="row"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('')+'</div><div class="ft">iT speaks the keyboard & command language of the open-source <b>cmux</b> — clean-room, no cmux code inside. tmux sessions attach with ⌗. The <b>it</b> CLI is live — run <b>it</b> in any iT shell.<br>CLONE FRAME · cloneframe.io</div></div>';
       p.appendChild(ov);
@@ -6917,6 +6973,7 @@ const Panels=(()=>{
       'split-down':()=>{const pn=paneCur();if(pn)splitPane(pn,'v')},
       'new-browser':()=>newBrowserSplit(),
       'open-diff':()=>openDiffSplit(),
+      'open-code-editor':()=>openCodeEditor(),
       'toggle-canvas':()=>toggleCanvas(),
       'tidy-canvas':()=>tidyCanvas(),
       'find-in-directory':()=>findInDirectory(),
@@ -7048,10 +7105,11 @@ const Panels=(()=>{
         case 'break-pane':breakPane();return okOut('broke tab into a pane');
         case 'move-surface':{const d=f._[0];if(!/^(left|right|up|down)$/.test(d||''))return{ok:false,error:'usage: it move-surface <left|right|up|down>'};moveSurfaceDir(d);return okOut('moved '+d)}
         case 'new-surface':{const pn=tpane();if(!pn)return{ok:false,error:'no pane'};
-          const kind=f.type==='smart'?'smart':(f.type==='browser'||f.type==='web')?'web':undefined;
+          const kind=f.type==='smart'?'smart':(f.type==='browser'||f.type==='web')?'web':(f.type==='code'||f.type==='editor')?'code':undefined;
           const seed=kind==='web'?((f.url&&f.url!=='true')?f.url:''):((f.cwd&&f.cwd!=='true')?f.cwd:curCwd());
           const t=newSurface(pn,seed,kind);return okOut('tab · '+tabLabel(t))}
         case 'new-browser':newBrowserSplit();return okOut('browser split');
+        case 'edit':{const d=(f._[0]&&f._[0]!=='true')?f._[0]:curCwd();openCodeEditor(d);return okOut('code editor · '+base(d))}
         case 'close-surface':{const pn=tpane();if(!pn)return{ok:false,error:'no pane'};closeSurface(pn,pn.active);return okOut('closed')}
         case 'rename-tab':{const t=target();if(!t)return{ok:false,error:'no tab'};const v=f._.join(' ').trim();if(!v)return{ok:false,error:'usage: it rename-tab <title>'};t.ptitle=v.slice(0,40);t.named=true;schedule();saveState();return okOut('renamed → '+v.slice(0,40))}
         case 'next-tab':cycleSurf(1);return okOut('next tab');
@@ -7186,6 +7244,21 @@ const Panels=(()=>{
       const ov=document.createElement('div');ov.className='sh-viewov';mainEl.appendChild(ov);
       openFileView(ov,full,{cwd:(activeTab()&&activeTab().cwd)||homeAbs,onBack:()=>{ov.remove();syncPanes()}});
     }
+    // code editor surface: load a file into the pane's editor (view/edit/save, in place)
+    function openCodeFile(t,full){
+      t._cfile=full;
+      if(t.refreshCode)t.refreshCode(); // repaint tree so the open file highlights
+      openFileView(t.el.ed,full,{cwd:t.cwd});
+      saveState();
+    }
+    // ⌘⇧E / `it edit` — open a folder in a code editor surface (split beside the current pane)
+    function openCodeEditor(dir){
+      const pn=paneCur();if(!pn)return;
+      const seed=dir||curCwd();
+      const npn=spawnPane(pn,'h',false);if(!npn){newSurface(pn,seed,'code');renderAll();return}
+      newSurface(npn,seed,'code',null,true);pn.w.focus=npn.id;
+      renderGrid(pn.w);renderAll();saveState();
+    }
     async function lsDir(dir){
       if(tree.kids.has(dir))return tree.kids.get(dir);
       let entries=[];try{const r=await RPC('files','list',dir);if(r&&r.ok)entries=(r.entries||[]).filter(e=>!e.name.startsWith('.'))}catch(_){}
@@ -7198,11 +7271,12 @@ const Panels=(()=>{
     }
     async function renderTree(){
       if(!tree.root)tree.root=homeAbs;
-      treeEl.innerHTML=`<div class="sh-thead"><b>FILES · ${esc(base(tree.root)||tree.root)}</b><span class="sh-thome" id="shup" title="Up one level">↑</span><span class="sh-thome" id="shreveal" title="Reveal in Finder">⤢</span><span class="sh-thome" id="shhome" title="Home">⌂</span><span class="sh-thome" id="shhide" title="Hide files (⌥⌘B)">✕</span></div><div class="it-findrow"><input class="it-tfind" id="shfind" placeholder="${tree.grep?'search in files — Enter runs':'find — filter files'}" spellcheck="false"><button class="it-fmode${tree.grep?' grep':''}" id="shfmode" title="Filter file NAMES ↔ search file CONTENTS (⌘⇧F)">${tree.grep?'.*':'Aa'}</button></div><div class="sh-tlist" id="shtl"></div>`;
+      treeEl.innerHTML=`<div class="sh-thead"><b>FILES · ${esc(base(tree.root)||tree.root)}</b><span class="sh-thome" id="shup" title="Up one level">↑</span><span class="sh-thome" id="shcode" title="Open this folder in a code editor (⌘⇧E)">⌸</span><span class="sh-thome" id="shreveal" title="Reveal in Finder">⤢</span><span class="sh-thome" id="shhome" title="Home">⌂</span><span class="sh-thome" id="shhide" title="Hide files (⌥⌘B)">✕</span></div><div class="it-findrow"><input class="it-tfind" id="shfind" placeholder="${tree.grep?'search in files — Enter runs':'find — filter files'}" spellcheck="false"><button class="it-fmode${tree.grep?' grep':''}" id="shfmode" title="Filter file NAMES ↔ search file CONTENTS (⌘⇧F)">${tree.grep?'.*':'Aa'}</button></div><div class="sh-tlist" id="shtl"></div>`;
       treeEl.querySelector('#shup').addEventListener('click',()=>{const pr=parent(tree.root);if(pr&&pr!==tree.root){tree.root=pr;renderTree()}});
       treeEl.querySelector('#shhome').addEventListener('click',()=>{tree.root=homeAbs;renderTree()});
       treeEl.querySelector('#shhide').addEventListener('click',toggleTree);
       treeEl.querySelector('#shreveal').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+qpath(tree.root),()=>{});Toast.show('Opening '+base(tree.root)+' in Finder — drop files there and they appear here')});
+      treeEl.querySelector('#shcode').addEventListener('click',()=>openCodeEditor(tree.root));
       const fi=treeEl.querySelector('#shfind'),tl=treeEl.querySelector('#shtl');
       fi.value=tree.grep?(tree.gq||''):(tree.filter||'');
       treeEl.querySelector('#shfmode').addEventListener('click',()=>{tree.grep=!tree.grep;if(!tree.grep){tree.gres=null;tree.gq=''}renderTree().then(()=>{const f2=treeEl.querySelector('#shfind');if(f2)f2.focus()})});
