@@ -589,6 +589,10 @@ async function dispatchStream(ws, url) {
     if (/^[\w-]{1,64}$/.test(wsId)) hello.env.CFHUB_IT_WORKSPACE = wsId;
     if (/^[\w-]{1,64}$/.test(surfId)) hello.env.CFHUB_IT_SURFACE = surfId;
     hello.env.CFHUB_BRIDGE = `http://${HOST}:${PORT}`;
+    // Phase 4 — persistent sessions: a client-supplied stable id + persist flag let the
+    // pty survive a reload (reattach + scrollback replay) instead of being reaped.
+    const sid = String(url.searchParams.get('sid') || '');
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(sid)) { hello.id = sid; hello.persist = url.searchParams.get('persist') === '1'; }
   }
   Pty.attach(ws, hello);
 }

@@ -31,8 +31,10 @@ const NOT_INSTALLED = 'node-pty not installed — run `npm install` in bridge/ (
 
 const MAX_SESSIONS = 24;                       // concurrent interactive TTYs (iT: workspaces × split panes)
 const MAX_DIM = 1000;                          // clamp absurd cols/rows
-const IDLE_MS = 30 * 60 * 1000;                // no I/O for 30 min → reap
-const LIFETIME_MS = 12 * 60 * 60 * 1000;       // hard cap: 12 h per session
+const IDLE_MS = 30 * 60 * 1000;                // no I/O for 30 min while ATTACHED → reap
+const DETACH_MS = 60 * 60 * 1000;              // detached (window closed) with no reattach for 60 min → reap
+const LIFETIME_MS = 12 * 60 * 60 * 1000;       // hard cap: 12 h per session (the one backstop across attach⇄detach)
+const RING_CAP = 256 * 1024;                   // scrollback replayed on reattach (bytes)
 const HIGH_WATER = 4 * 1024 * 1024;            // ws buffered > 4 MiB → pause pty
 const LOW_WATER = 1 * 1024 * 1024;             // drained < 1 MiB → resume pty
 const WS_CONNECTING = 0, WS_OPEN = 1;
@@ -42,8 +44,61 @@ const VALID_SIGNALS = new Set([
   'SIGTSTP', 'SIGCONT', 'SIGWINCH', 'SIGUSR1', 'SIGUSR2',
 ]);
 
-// { id, pty, cmd, cols, rows, startedAt, alive }
+// session (Phase 4 — the SESSION owns the lifecycle, a ws is just a temporary attach):
+// { id, pty, cmd, cols, rows, startedAt, alive, ws, persist, ring[], ringBytes,
+//   idleTimer, detachTimer, lifeTimer, drainTimer, paused, dataSub }
 const sessions = new Map();
+
+// ── session lifecycle helpers ───────────────────────────────────────────────
+function clearTimers(s) {
+  for (const k of ['idleTimer', 'detachTimer', 'lifeTimer']) { if (s[k]) { clearTimeout(s[k]); s[k] = null; } }
+  if (s.drainTimer) { clearInterval(s.drainTimer); s.drainTimer = null; }
+}
+
+// Scrollback ring: keep the last ~RING_CAP bytes as WHOLE onData chunks (never slice a
+// chunk — a cut multibyte/escape byte would corrupt the top of the replayed screen).
+function pushRing(s, chunk) {
+  const bytes = Buffer.byteLength(chunk);
+  if (bytes >= RING_CAP) { const tail = chunk.length > RING_CAP ? chunk.slice(-RING_CAP) : chunk; s.ring = [tail]; s.ringBytes = Buffer.byteLength(tail); return; }
+  s.ring.push(chunk); s.ringBytes += bytes;
+  while (s.ringBytes > RING_CAP && s.ring.length > 1) s.ringBytes -= Buffer.byteLength(s.ring.shift());
+}
+
+// idle clock only runs while ATTACHED; a detached session is capped by detachTimer + lifeTimer.
+function armIdle(s) {
+  if (!s.ws) return;
+  if (s.idleTimer) clearTimeout(s.idleTimer);
+  s.idleTimer = setTimeout(() => endSession(s, 'idle timeout'), IDLE_MS);
+  s.idleTimer.unref?.();
+}
+
+// backpressure lives on the session (only one ws attaches at a time). Critically, a
+// detached session must NOT stay paused — else onData stops and the ring goes stale.
+function resumeIfDrained(s) {
+  if (s.drainTimer) return;
+  s.drainTimer = setInterval(() => {
+    if (!s.ws || (s.ws.bufferedAmount || 0) <= LOW_WATER) {
+      clearInterval(s.drainTimer); s.drainTimer = null;
+      if (s.paused) { s.paused = false; try { s.pty.resume?.(); } catch {} }
+    }
+  }, 50);
+  s.drainTimer.unref?.();
+}
+function maybePause(s) {
+  if (s.paused || !s.ws) return;
+  if ((s.ws.bufferedAmount || 0) > HIGH_WATER) { s.paused = true; try { s.pty.pause?.(); } catch {} resumeIfDrained(s); }
+}
+
+// The one true teardown: clear timers, reap the child, drop from the map, close the ws.
+function endSession(s, reason) {
+  if (!s || !sessions.has(s.id)) return;
+  clearTimers(s);
+  try { s.dataSub && s.dataSub.dispose && s.dataSub.dispose(); } catch {}
+  reap(s.pty);
+  s.alive = false;
+  sessions.delete(s.id);
+  if (s.ws) { try { if (s.ws.readyState === WS_OPEN || s.ws.readyState === WS_CONNECTING) s.ws.close(1000, String(reason || 'closed').slice(0, 120)); } catch {} }
+}
 
 // ── guards / normalisers ────────────────────────────────────────────────────
 
@@ -98,12 +153,18 @@ function reap(pty) {
 
 // ── control plane ───────────────────────────────────────────────────────────
 
-function open({ cmd, args = [], cwd, cols = 80, rows = 24, env } = {}) {
+function open({ cmd, args = [], cwd, cols = 80, rows = 24, env, id } = {}) {
   if (!ptySpawn) return { ok: false, error: NOT_INSTALLED };
   if (typeof cmd !== 'string' || !cmd.trim()) return { ok: false, error: 'cmd required' };
   if (!Array.isArray(args)) return { ok: false, error: 'args must be an array' };
   if (!args.every(a => typeof a === 'string' && a.length <= 4000 && !a.includes('\0'))) return { ok: false, error: 'bad args' };
-  if (sessions.size >= MAX_SESSIONS) return { ok: false, error: `session cap reached (${MAX_SESSIONS})` };
+  if (sessions.size >= MAX_SESSIONS) {
+    // free a slot by reaping the oldest DETACHED session before hard-failing (a wall of
+    // detached zombies must never starve new terminals).
+    const victim = [...sessions.values()].filter(s => !s.ws).sort((a, b) => a.startedAt - b.startedAt)[0];
+    if (victim) endSession(victim, 'evicted — session cap');
+    if (sessions.size >= MAX_SESSIONS) return { ok: false, error: `session cap reached (${MAX_SESSIONS})` };
+  }
 
   const line = [cmd, ...args].join(' ');
   if (isDestructive(line)) return { ok: false, error: 'refused: catastrophic pattern blocked for safety' };
@@ -116,11 +177,24 @@ function open({ cmd, args = [], cwd, cols = 80, rows = 24, env } = {}) {
     return { ok: false, error: 'spawn failed: ' + (e && e.message || String(e)) };
   }
 
-  const id = randomBytes(9).toString('hex');
-  const sess = { id, pty, cmd: line.slice(0, 200), cols: c, rows: r, startedAt: Date.now(), alive: true };
-  try { pty.onExit(() => { sess.alive = false; }); } catch {}
-  sessions.set(id, sess);
-  return { ok: true, id };
+  // a client may supply a stable id (Phase 4 reattach); else mint an unguessable one.
+  const sid = (typeof id === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(id) && !sessions.has(id)) ? id : randomBytes(9).toString('hex');
+  const sess = {
+    id: sid, pty, cmd: line.slice(0, 200), cols: c, rows: r, startedAt: Date.now(), alive: true,
+    ws: null, persist: false, ring: [], ringBytes: 0,
+    idleTimer: null, detachTimer: null, lifeTimer: null, drainTimer: null, paused: false, dataSub: null,
+  };
+  sessions.set(sid, sess);
+  // ONE central onData: fill the scrollback ring ALWAYS, forward to the attached ws when
+  // present, and keep the idle clock alive. This runs whether attached or detached.
+  try { sess.dataSub = pty.onData(d => { pushRing(sess, d); armIdle(sess); if (sess.ws && sess.ws.readyState === WS_OPEN) { try { sess.ws.send(d); } catch {} maybePause(sess); } }); } catch {}
+  try { pty.onExit(() => endSession(sess, 'process exited')); } catch {}
+  // lifeTimer is the sole backstop across attach⇄detach cycles — armed exactly ONCE here,
+  // never re-armed or cleared by attach/reattach, and it reaps even while detached.
+  sess.lifeTimer = setTimeout(() => endSession(sess, 'lifetime cap'), LIFETIME_MS);
+  sess.lifeTimer.unref?.();
+  armIdle(sess);
+  return { ok: true, id: sid };
 }
 
 function write(id, data) {
@@ -146,18 +220,16 @@ function signal(id, sig) {
 }
 
 function kill(id) {
-  const key = String(id);
-  const s = sessions.get(key);
+  const s = sessions.get(String(id));
   if (!s) return { ok: false, error: 'no such session' };
-  reap(s.pty);
-  s.alive = false;
-  sessions.delete(key);
+  endSession(s, 'killed');
   return { ok: true };
 }
 
 function list() {
   return [...sessions.values()].map(s => ({
     id: s.id, cmd: s.cmd, cols: s.cols, rows: s.rows, alive: !!s.alive, startedAt: s.startedAt,
+    attached: !!s.ws, persist: !!s.persist,
   }));
 }
 
@@ -171,63 +243,52 @@ function list() {
 //   ws close   → kill(id)           (tab closed → reap the child process group)
 // plus an idle timeout and a hard lifetime cap. Never throws: on any setup failure
 // it closes the socket with a status code and returns a friendly error.
+// The ws leaving: DETACH (keep the pty alive for a later reattach) when the session is
+// persistent and still running, else KILL. Guarded so a superseded socket can't reap the
+// live session.
+function onWsGone(s) {
+  s.ws = null;
+  // a detached pty must keep flowing into the ring — never leave it paused.
+  if (s.drainTimer) { clearInterval(s.drainTimer); s.drainTimer = null; }
+  if (s.paused) { s.paused = false; try { s.pty.resume?.(); } catch {} }
+  if (s.persist && s.alive && sessions.has(s.id)) {
+    if (s.idleTimer) { clearTimeout(s.idleTimer); s.idleTimer = null; } // idle only runs while attached
+    if (!s.detachTimer) { s.detachTimer = setTimeout(() => endSession(s, 'detach timeout'), DETACH_MS); s.detachTimer.unref?.(); }
+  } else {
+    endSession(s, 'closed');
+  }
+}
+
 function attach(ws, hello = {}) {
   if (!ws || typeof ws.send !== 'function' || typeof ws.on !== 'function') return { ok: false, error: 'invalid ws' };
   if (!ptySpawn) { try { ws.close(1011, 'node-pty not installed'); } catch {} return { ok: false, error: NOT_INSTALLED }; }
 
+  // reattach only to a session that is still alive; a dead-but-not-yet-swept id opens fresh.
   let sess = (hello && hello.id && sessions.has(String(hello.id))) ? sessions.get(String(hello.id)) : null;
+  if (sess && !sess.alive) sess = null;
   if (!sess) {
     const cmd = (typeof hello.cmd === 'string' && hello.cmd.trim()) ? hello.cmd : (process.env.SHELL || 'zsh');
-    const opened = open({ cmd, args: hello.args, cwd: hello.cwd, cols: hello.cols, rows: hello.rows, env: hello.env });
+    const opened = open({ cmd, args: hello.args, cwd: hello.cwd, cols: hello.cols, rows: hello.rows, env: hello.env, id: hello.id });
     if (!opened.ok) { try { ws.close(1011, String(opened.error || 'open failed').slice(0, 120)); } catch {} return opened; }
     sess = sessions.get(opened.id);
   }
 
-  const id = sess.id;
-  const pty = sess.pty;
-  let closed = false, paused = false, idleTimer = null, drainTimer = null, lifeTimer = null, dataSub = null, exitSub = null;
+  // last-writer-wins: kick any socket already attached to this session (e.g. an old window).
+  if (sess.ws && sess.ws !== ws) { try { sess.ws.close(4000, 'replaced by a newer attach'); } catch {} }
+  sess.ws = ws;
+  sess.persist = !!hello.persist;
+  if (sess.detachTimer) { clearTimeout(sess.detachTimer); sess.detachTimer = null; }
+  armIdle(sess);
+  const thisWs = ws, id = sess.id, pty = sess.pty;
 
-  const teardown = (reason) => {
-    if (closed) return;
-    closed = true;
-    if (idleTimer) clearTimeout(idleTimer);
-    if (lifeTimer) clearTimeout(lifeTimer);
-    if (drainTimer) { clearInterval(drainTimer); drainTimer = null; }
-    try { dataSub && dataSub.dispose && dataSub.dispose(); } catch {}
-    try { exitSub && exitSub.dispose && exitSub.dispose(); } catch {}
-    kill(id);
-    try { if (ws.readyState === WS_OPEN || ws.readyState === WS_CONNECTING) ws.close(1000, String(reason || 'closed').slice(0, 120)); } catch {}
-  };
-
-  const bumpIdle = () => {
-    if (closed) return;
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => teardown('idle timeout'), IDLE_MS);
-    idleTimer.unref?.();
-  };
-
-  // backpressure: if the socket's send buffer grows, pause the PTY until it drains.
-  const resumeIfDrained = () => {
-    if (drainTimer) return;
-    drainTimer = setInterval(() => {
-      if (closed || (ws.bufferedAmount || 0) <= LOW_WATER) {
-        clearInterval(drainTimer); drainTimer = null;
-        if (paused && !closed) { paused = false; try { pty.resume?.(); } catch {} }
-      }
-    }, 50);
-    drainTimer.unref?.();
-  };
-  const maybePause = () => {
-    if (paused || closed) return;
-    if ((ws.bufferedAmount || 0) > HIGH_WATER) { paused = true; try { pty.pause?.(); } catch {} resumeIfDrained(); }
-  };
-
-  try { dataSub = pty.onData(d => { if (closed) return; bumpIdle(); try { if (ws.readyState === WS_OPEN) ws.send(d); } catch {} maybePause(); }); } catch {}
-  try { exitSub = pty.onExit(() => teardown('process exited')); } catch {}
+  // REPLAY the scrollback SYNCHRONOUSLY (no await before it finishes, or a live onData
+  // would interleave ahead of the old buffer), THEN resize — SIGWINCH repaints TUIs on top.
+  if (sess.ring.length) { try { for (const chunk of sess.ring) { if (ws.readyState === WS_OPEN) ws.send(chunk); } } catch {} }
+  resize(id, hello.cols, hello.rows);
 
   ws.on('message', (raw, isBinary) => {
-    if (closed) return;
-    bumpIdle();
+    if (sess.ws !== thisWs || !sessions.has(id)) return; // stale socket after a takeover
+    armIdle(sess);
     if (!isBinary) {
       const str = typeof raw === 'string' ? raw : raw.toString('utf8');
       if (str.length && str[0] === '{') {
@@ -235,6 +296,7 @@ function attach(ws, hello = {}) {
         if (ctrl && typeof ctrl === 'object') {
           if (ctrl.resize && typeof ctrl.resize === 'object') { resize(id, ctrl.resize.cols, ctrl.resize.rows); return; }
           if (typeof ctrl.signal === 'string') { signal(id, ctrl.signal); return; }
+          if (ctrl.kill === true) { endSession(sess, 'closed by client'); return; } // tab/pane closed on purpose
         }
         // parseable-but-unrecognized or invalid JSON → treat as literal keystrokes
       }
@@ -243,12 +305,8 @@ function attach(ws, hello = {}) {
     }
     try { pty.write(raw.toString('utf8')); } catch {}
   });
-  ws.on('close', () => teardown('ws closed'));
-  ws.on('error', () => teardown('ws error'));
-
-  lifeTimer = setTimeout(() => teardown('lifetime cap'), LIFETIME_MS);
-  lifeTimer.unref?.();
-  bumpIdle();
+  ws.on('close', () => { if (sess.ws === thisWs) onWsGone(sess); });
+  ws.on('error', () => { if (sess.ws === thisWs) onWsGone(sess); });
 
   return { ok: true, id };
 }

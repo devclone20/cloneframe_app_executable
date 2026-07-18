@@ -3669,6 +3669,9 @@ function Term(hostEl,opts){
     const q=new URLSearchParams({op:opts.op||'shell',cols:String(term.cols||80),rows:String(term.rows||24)});
     if(opts.session)q.set('session',opts.session);if(opts.cwd)q.set('cwd',opts.cwd);
     if(opts.ids){if(opts.ids.ws)q.set('ws',opts.ids.ws);if(opts.ids.surf)q.set('surf',opts.ids.surf);} // iT identity → CFHUB_IT_* env in the shell (for the `it` CLI)
+    // Phase 4 — persistent sessions: a stable session id lets the bridge reattach to a
+    // still-live pty after a reload and replay its scrollback, instead of killing it.
+    if(opts.sid)q.set('sid',opts.sid);if(opts.persist)q.set('persist','1');
     let ws;try{ws=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?'+q.toString(),['cfhub','cfhub.bearer.'+b.token])}catch(e){term.write('\r\n[connect failed]\r\n');return}
     ws.binaryType='arraybuffer';
     ws.onopen=()=>{try{term.focus()}catch(_){}};
@@ -3696,7 +3699,10 @@ function Term(hostEl,opts){
       for(let i=last-n+1;i<=last;i++){const l=buf.getLine(i);out.push(l?l.translateToString(true):'')}
       return out.join('\n');
     }catch(_){return ''}};
-    api.dispose=()=>{disposed=true;try{ro.disconnect()}catch(_){}try{ws.close()}catch(_){}try{term.dispose()}catch(_){}};
+    // dispose(kill): kill=true (tab/pane closed on purpose) tells the bridge to reap the
+    // pty; kill=false/undefined (reload, window close) just drops the socket → the bridge
+    // DETACHES and keeps the pty alive for a reattach (Phase 4).
+    api.dispose=(kill)=>{disposed=true;try{ro.disconnect()}catch(_){}try{if(kill&&ws.readyState===1)ws.send(JSON.stringify({kill:true}))}catch(_){}try{ws.close()}catch(_){}try{term.dispose()}catch(_){}};
   }).catch(()=>{try{hostEl.textContent='could not load the terminal (vendor/xterm)'}catch(_){}});
   return api;
 }
@@ -6201,6 +6207,9 @@ const Panels=(()=>{
     let workspaces=[],wsActive=0,wsSeq=0,seq=0,homeAbs='~',canTTY=false;
     let leftHidden=false,treeHidden=false,unreadStamp=0;
     let wsGroups=[],grpSeq=0; // workspace groups (cmux): {id,name,color,collapsed}
+    // Phase 4 — persistent sessions: stable per-shell id + the opt-in toggle (default ON)
+    const newPsid=()=>{try{if(crypto&&crypto.randomUUID)return crypto.randomUUID().replace(/-/g,'')}catch(_){}return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)};
+    const itPersist=()=>localStorage.getItem('cfhub.it.persist')!=='0';
     const tree={root:'',open:new Set(),kids:new Map(),here:''};
 
     // ---- Oh My Zsh prompt themes ----
@@ -6278,7 +6287,7 @@ const Panels=(()=>{
     function hydrate(spec,w){ // rebuild a saved split tree; each tty surface reopens a fresh shell at its cwd
       if(spec&&spec.sp)return{sp:spec.sp,ratio:spec.ratio||.5,a:hydrate(spec.a,w),b:hydrate(spec.b,w)};
       const pn=makePane(w);
-      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,s.attach||null,true));
+      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,s.attach||null,true,s.psid));
       if(!pn.surfaces.length)newSurface(pn,w.cwd,undefined,null,true);
       pn.active=Math.max(0,Math.min((spec&&spec.active)||0,pn.surfaces.length-1));
       return{pane:pn};
@@ -6292,9 +6301,13 @@ const Panels=(()=>{
       wireCanvasPane(w,pn);
       w.panes.push(pn);return pn;
     }
-    function newSurface(pn,cwd,kind,attach,quiet){
+    function newSurface(pn,cwd,kind,attach,quiet,psid){
       kind=kind||((canTTY&&Bridge.on()&&localStorage.getItem('cfhub.it.deftab')!=='smart')?'tty':'smart');
       const t={id:'sh'+(++seq),kind,attach:attach||null,cwd:cwd||homeAbs,ptitle:'',named:false,dead:false,unread:0,out:'',hist:[],hi:-1,busy:false,ctl:null,termApi:null,el:null,pane:null,pn};
+      // Phase 4: a shell tab (not a tmux attach) gets a stable session id so its pty can
+      // survive a reload — reattach + scrollback replay instead of being killed. On restore
+      // we keep the SAVED id so the reattach finds the still-live pty.
+      if(kind==='tty'&&!attach)t.psid=psid||newPsid();
       if(kind==='web'){t.url=String(cwd||'');t.cwd=homeAbs} // web surfaces carry a URL, not a cwd
       pn.surfaces.push(t);pn.active=pn.surfaces.length-1;
       buildSurface(pn,t);
@@ -6307,6 +6320,7 @@ const Panels=(()=>{
       if(t.kind==='tty'){
         t.termApi=Term(pane,{
           op:t.attach?'attach':'shell',session:t.attach||undefined,cwd:t.cwd,ids:{ws:pn.w.id,surf:t.id},
+          sid:t.attach?undefined:t.psid,persist:t.attach?false:itPersist(), // Phase 4: survive reloads
           onCwd:dir=>{t.cwd=dir;t.hasCwd=true;const w=pn.w;if(isWsLead(t)){w.cwd=dir;refreshWsGit(w)}schedule();markHere();saveState()},
           onTitle:s=>{const v=String(s||'').trim();if(v&&!t.attach&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
           onExit:()=>{t.dead=true;schedule()},
@@ -6417,14 +6431,16 @@ const Panels=(()=>{
         refreshGit(t);
       }
     }
-    function disposeSurf(t){
+    // kill=true → reap the pty (the user closed this tab/pane on purpose); kill=false →
+    // just drop the socket so the bridge detaches and keeps it alive for a reattach.
+    function disposeSurf(t,kill){
       if(t.ctl){try{t.ctl.abort()}catch(_){}}
-      if(t.termApi){try{t.termApi.dispose()}catch(_){}}
+      if(t.termApi){try{t.termApi.dispose(kill)}catch(_){}}
       if(t.pane){try{t.pane.remove()}catch(_){}}
     }
     function closeSurface(pn,i){
       const t=pn.surfaces[i];if(!t)return;
-      disposeSurf(t);pn.surfaces.splice(i,1);
+      disposeSurf(t,true);pn.surfaces.splice(i,1);
       if(!pn.surfaces.length){closePane(pn);return}
       if(pn.active>=pn.surfaces.length)pn.active=pn.surfaces.length-1;
       renderAll();saveState();
@@ -6485,7 +6501,7 @@ const Panels=(()=>{
     }
     function closePane(pn){
       const w=pn.w;
-      pn.surfaces.forEach(disposeSurf);pn.surfaces=[];
+      pn.surfaces.forEach(t=>disposeSurf(t,true));pn.surfaces=[]; // closing a pane reaps its shells
       try{pn.el.remove()}catch(_){}
       w.panes=w.panes.filter(x=>x!==pn);
       const leaf=leafOf(w.layout,pn),par=leaf?parentOf(w.layout,leaf):null;
@@ -6654,7 +6670,7 @@ const Panels=(()=>{
     }
     function showWs(){workspaces.forEach((w,i)=>{if(w.grid)w.grid.classList.toggle('on',i===wsActive)})}
     function closeWorkspace(w){
-      (w.panes||[]).forEach(pn=>{pn.surfaces.forEach(disposeSurf);pn.surfaces=[]});
+      (w.panes||[]).forEach(pn=>{pn.surfaces.forEach(t=>disposeSurf(t,true));pn.surfaces=[]}); // closing a workspace reaps its shells
       try{w.grid&&w.grid.remove()}catch(_){}
       const i=workspaces.indexOf(w);if(i>=0)workspaces.splice(i,1);
       if(!workspaces.length){newWorkspace(homeAbs);return}
@@ -7037,7 +7053,7 @@ const Panels=(()=>{
     p.addEventListener('keydown',e=>{if(hotkey(e)){e.preventDefault();e.stopPropagation()}},true);
 
     // ---- layout persistence — workspaces + splits survive a reload (shells reopen at their cwds) ----
-    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,attach:t.attach||null,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
+    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,attach:t.attach||null,psid:(t.kind==='tty'&&!t.attach)?t.psid:undefined,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
     let saveT=null;
     function saveState(){
       if(!primary)return;
@@ -8847,6 +8863,7 @@ const Panels=(()=>{
       const theme=localStorage.getItem('cfhub.shell.omz')||'robbyrussell';
       const deftab=localStorage.getItem('cfhub.it.deftab')||'tty';
       const restore=localStorage.getItem('cfhub.it.restore')!=='0';
+      const persist=localStorage.getItem('cfhub.it.persist')!=='0';
       const autoname=localStorage.getItem('cfhub.it.autoname')!=='0';
       const selStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)';
       pane.innerHTML='<div class="sethead">iT — TERMINAL</div>'
@@ -8854,6 +8871,7 @@ const Panels=(()=>{
         +'<div class="setline">Default new tab<span style="margin-left:auto"><select id="itdeftab" style="'+selStyle+'"><option value="tty">Live terminal (tty)</option><option value="smart">Smart shell</option></select></span></div>'
         +'<div class="setline">Prompt theme — smart tabs (Oh My Zsh)<span style="margin-left:auto"><select id="itomz" style="'+selStyle+'"><option>robbyrussell</option><option>agnoster</option><option>powerlevel</option></select></span></div>'
         +'<div class="autotoggle"><div><b>Restore workspaces &amp; splits on launch</b><div class="sub">the layout comes back after a reload — each shell reopens at its folder</div></div><div class="sw3 '+(restore?'on':'')+'" id="itrestore"><i></i></div></div>'
+        +'<div class="autotoggle"><div><b>Keep sessions alive across reloads</b><div class="sub">a reload reattaches to the SAME live shells (running commands survive) and replays their scrollback — tmux-style. Closing a tab still ends it. Detached shells are reaped after 60 min.</div></div><div class="sw3 '+(persist?'on':'')+'" id="itpersist"><i></i></div></div>'
         +'<div class="autotoggle"><div><b>Workspace auto-naming</b><div class="sub">unnamed workspaces take their git repo\'s name — deterministic, no LLM; a manual rename pins it</div></div><div class="sw3 '+(autoname?'on':'')+'" id="itautoname"><i></i></div></div>'
         +'<div class="setline">Live sessions<span style="margin-left:auto" class="dim" id="itcap">— · cap 24</span></div>'
         +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Notifications: commands taking 15s+ raise one when they finish (any agent, build or deploy — visible from other workspaces). Terminals can also send OSC 9/777, and <span class="path">it notify</span> works from scripts. <b>⌘I</b> opens the list.</div>'
@@ -8867,6 +8885,7 @@ const Panels=(()=>{
       const dt=pane.querySelector('#itdeftab');dt.value=deftab;dt.addEventListener('change',()=>localStorage.setItem('cfhub.it.deftab',dt.value));
       const om=pane.querySelector('#itomz');om.value=theme;om.addEventListener('change',()=>{localStorage.setItem('cfhub.shell.omz',om.value);Toast.show('Prompt theme: '+om.value)});
       const rs=pane.querySelector('#itrestore');rs.addEventListener('click',()=>{const on=!rs.classList.contains('on');rs.classList.toggle('on',on);localStorage.setItem('cfhub.it.restore',on?'1':'0')});
+      const ps=pane.querySelector('#itpersist');ps.addEventListener('click',()=>{const on=!ps.classList.contains('on');ps.classList.toggle('on',on);localStorage.setItem('cfhub.it.persist',on?'1':'0');Toast.show(on?'Sessions will survive reloads':'Sessions end on reload')});
       const an=pane.querySelector('#itautoname');an.addEventListener('click',()=>{const on=!an.classList.contains('on');an.classList.toggle('on',on);localStorage.setItem('cfhub.it.autoname',on?'1':'0')});
       (async()=>{try{const l=await RPC('pty','list');const el=pane.querySelector('#itcap');if(el&&Array.isArray(l))el.textContent=l.filter(s=>s&&s.alive).length+' live · cap 24'}catch(_){}})();
       (async()=>{const el=pane.querySelector('#ithooks');if(!el)return;
