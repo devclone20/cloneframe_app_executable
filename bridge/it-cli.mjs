@@ -92,7 +92,11 @@ Commands:
   focus-pane <index>
   equalize-splits
   toggle-split-zoom
+  break-pane                                the active tab becomes its own pane
+  move-surface <left|right|up|down>         send the active tab to a neighbour pane
   toggle-canvas · tidy-canvas               free-floating panes (⌃⌘C · ⌃⌘T)
+  canvas-zoom <in|out|reset|0.25..3> · canvas-overview · canvas-reveal
+  group <new|collapse|dissolve|list>        collapsible workspace groups (⌃⌘G)
   find-in-directory                         file find / content search (⌘⇧F)
   new-browser                               browser split beside the terminal (⌘⇧L)
   new-surface [--cwd <path>] [--type <terminal|smart|browser>] [--url <url>]

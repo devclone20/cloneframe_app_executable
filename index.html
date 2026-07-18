@@ -1734,6 +1734,18 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-wsrow .meta .br{color:#98c379}
 .it-wsrow .meta .pth{overflow:hidden;text-overflow:ellipsis}
 .it-wsfoot{padding:7px 10px;border-top:1px solid var(--line);font-size:8px;letter-spacing:.08em;color:var(--ink-faint)}
+/* workspace groups — collapsible sidebar sections */
+.it-grphd{display:flex;align-items:center;gap:5px;padding:5px 7px 4px;margin:5px 2px 1px;border-radius:6px;cursor:pointer;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim)}
+.it-grphd:hover{background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.it-grphd .chev{font-size:8px;width:9px;color:var(--ink-faint)}
+.it-grphd .gdot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--gc,color-mix(in srgb,var(--fg) 30%,transparent));cursor:pointer}
+.it-grphd .gnm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.it-grphd .gct{font-family:var(--mono);font-size:8px;color:var(--ink-faint)}
+.it-grphd .gx{opacity:0;font-size:9px;color:var(--ink-dim)}
+.it-grphd:hover .gx{opacity:.7}
+.it-grphd .gx:hover{opacity:1;color:var(--accent)}
+.it-wsrow.grp{margin-left:10px}
+.it-wsrow.grp::after{content:"";position:absolute;left:-6px;top:0;bottom:0;width:1px;background:color-mix(in srgb,var(--line) 70%,transparent)}
 .it-ud{width:6px;height:6px;border-radius:50%;background:#5aa0e6;box-shadow:0 0 6px color-mix(in srgb,#5aa0e6 70%,transparent);flex:none}
 .it-main{flex:1;min-width:0;position:relative;display:flex;min-height:0}
 .it-grid{position:absolute;inset:0;display:none}
@@ -1811,7 +1823,14 @@ body[data-density="comfy"]{--ui-scale:1.1}
 /* iT Phase 3.1 — canvas mode (⌃⌘C): free-floating panes, drag by grab bar, resize by grip */
 .it-grid.canvas{display:none;position:absolute;inset:0;overflow:hidden}
 .it-grid.canvas.on{display:block}
-.it-grid.canvas .it-pane{position:absolute;margin:0;box-shadow:0 14px 40px -18px rgba(0,0,0,.7)}
+.it-cspace{position:absolute;inset:0;transform-origin:0 0;cursor:grab}
+.it-cspace:active{cursor:grabbing}
+.it-grid.canvas .it-pane{position:absolute;margin:0;box-shadow:0 14px 40px -18px rgba(0,0,0,.7);cursor:default}
+.it-ctools{position:absolute;right:10px;bottom:10px;z-index:30;display:flex;align-items:center;gap:1px;padding:3px;border-radius:10px;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--border);box-shadow:0 10px 30px -14px rgba(0,0,0,.7)}
+.it-ctools button{all:unset;cursor:pointer;min-width:24px;height:24px;padding:0 6px;display:grid;place-items:center;border-radius:7px;color:var(--ink-dim);font-size:12px;font-family:var(--mono)}
+.it-ctools button:hover{background:color-mix(in srgb,var(--fg) 10%,transparent);color:var(--fg)}
+.it-ctools .it-czlbl{font-size:9px;min-width:34px}
+.it-ctools .sep{width:1px;height:15px;background:var(--line);margin:0 2px}
 .it-cgrab{flex:none;display:none;height:11px;cursor:grab;align-items:center;justify-content:center;color:var(--ink-faint);font-size:7px;letter-spacing:2px;border-bottom:1px solid var(--line);user-select:none}
 .it-grid.canvas .it-cgrab{display:flex}
 .it-cgrab:active{cursor:grabbing;color:var(--fg)}
@@ -5146,7 +5165,7 @@ const Panels=(()=>{
         : ' MODE = CHAT: answer conversationally, but the moment the owner asks you to DO something (open an app or tab, run a command, change a setting, create a file, browse, operate a server), actually DO it with your tools — never just explain how.';
       let h='';
       if(cur&&cur.harness&&cur.harness.name){const hd=harnesses.find(x=>x.id===cur.harness.id);h='\nActive HARNESS: '+cur.harness.name+(hd&&hd.roles?' — roles: '+hd.roles.map(r=>r.name).join(', '):'')+'. Respect the gates (SAFETY fail-closed veto, OWNER approves the irreversible).'}
-      return `You are the model the owner connected to CLONE FRAME, running INSIDE their app with a REAL body on this machine through the HUB Bridge.${inftContext()} You are NOT a text-only assistant — you have TOOLS and you CAN act on the app, the machine, and the owner's online servers. To act, emit ONE json block per action, exactly like this:\n\`\`\`tool\n{"name":"open_app","args":{"app":"Calculator"}}\n\`\`\`\nTOOLS: open_panel{panel} (open a HUB tab — one of: ${AGENT_PANELS}); open_settings{section} (open Settings at a section: agent · models · appearance · folders · servers · account); open_terminal{cwd?,newWindow?} (open a live terminal in the app; newWindow:true opens a SEPARATE terminal window — e.g. one per agent, side by side); open_app{app} (open ANY macOS app by name); open_path{path} (reveal ANY file/folder in Finder); open_url{url}; applescript{script} (automate macOS & control apps); run_shell{cmd} (REAL zsh — install, build, move files, anything); web_search{q}; browse{url,newTab?,newWindow?} (opens a live rendered web tab AND returns the page text; newTab:true adds a tab, newWindow:true opens a SEPARATE browser window on the canvas — use several newWindow calls to research side-by-side); read_file{path}; write_file{path,content}; send_email{to,subject,body}; server_list{}; server_run{id,cmd} (run a command on an online server/droplet over SSH); server_automation{id,key} (one-click preset: status·start_agent·stop_agent·restart_agent·agent_logs·update·reboot); server_deploy{id,name} (send an agent to the server); server_provision{name,region,size} (create a NEW droplet in the owner's DigitalOcean account); list_harnesses{}; create_harness{name,description,roles:[{name,desc,gate}]} (build a crew of agents); update_harness{id,name,description,roles}; use_harness{id} (activate a harness for this CODE session). HARNESS ENGINE pattern — a harness is a crew: one ORCHESTRATOR that delegates, the non-collapsible GATES (SAFETY/HACKER, EVALUATOR, TREASURY, OWNER — set gate:true) that nothing irreversible passes without, and the specialist agents the task needs (gate:false, e.g. RESEARCH, ANALYST, DELIVERY). When the owner asks you to create/build a harness, design that crew and call create_harness; then tell them it's in the HARNESS tab and the CODE picker.${capLine}${needLine}${modeLine} Your full field guide — every tool, panel, the iT `it` CLI, how to edit the frame, how to contribute upstream — lives at ~/.clone-frame-hub/AGENTS.md; read_file it (or run `it context` in an iT shell) when you need depth. Rules: emit the tools you need, then STOP and wait for the RESULTS (I send them back); only then continue or give the final answer WITHOUT tool blocks. NEVER say you can't act or that you're just a text model — you have a body here. If a tool returns REFUSED, name the exact toggle that unlocks it and offer to open_settings for the owner. Never invent results. Owner permissions (raw JSON): ${JSON.stringify(perms)}.${h}`;
+      return `You are the model the owner connected to CLONE FRAME, running INSIDE their app with a REAL body on this machine through the HUB Bridge.${inftContext()} You are NOT a text-only assistant — you have TOOLS and you CAN act on the app, the machine, and the owner's online servers. To act, emit ONE json block per action, exactly like this:\n\`\`\`tool\n{"name":"open_app","args":{"app":"Calculator"}}\n\`\`\`\nTOOLS: open_panel{panel} (open a HUB tab — one of: ${AGENT_PANELS}); open_settings{section} (open Settings at a section: agent · models · appearance · folders · servers · account); open_terminal{cwd?,newWindow?} (open a live terminal in the app; newWindow:true opens a SEPARATE terminal window — e.g. one per agent, side by side); open_app{app} (open ANY macOS app by name); open_path{path} (reveal ANY file/folder in Finder); open_url{url}; applescript{script} (automate macOS & control apps); run_shell{cmd} (REAL zsh — install, build, move files, anything); web_search{q}; browse{url,newTab?,newWindow?} (opens a live rendered web tab AND returns the page text; newTab:true adds a tab, newWindow:true opens a SEPARATE browser window on the canvas — use several newWindow calls to research side-by-side); read_file{path}; write_file{path,content}; send_email{to,subject,body}; server_list{}; server_run{id,cmd} (run a command on an online server/droplet over SSH); server_automation{id,key} (one-click preset: status·start_agent·stop_agent·restart_agent·agent_logs·update·reboot); server_deploy{id,name} (send an agent to the server); server_provision{name,region,size} (create a NEW droplet in the owner's DigitalOcean account); list_harnesses{}; create_harness{name,description,roles:[{name,desc,gate}]} (build a crew of agents); update_harness{id,name,description,roles}; use_harness{id} (activate a harness for this CODE session). HARNESS ENGINE pattern — a harness is a crew: one ORCHESTRATOR that delegates, the non-collapsible GATES (SAFETY/HACKER, EVALUATOR, TREASURY, OWNER — set gate:true) that nothing irreversible passes without, and the specialist agents the task needs (gate:false, e.g. RESEARCH, ANALYST, DELIVERY). When the owner asks you to create/build a harness, design that crew and call create_harness; then tell them it's in the HARNESS tab and the CODE picker.${capLine}${needLine}${modeLine} Your full field guide — every tool, panel, the iT 'it' CLI, how to edit the frame, how to contribute upstream — lives at ~/.clone-frame-hub/AGENTS.md; read_file it (or run 'it context' in an iT shell) when you need depth. Rules: emit the tools you need, then STOP and wait for the RESULTS (I send them back); only then continue or give the final answer WITHOUT tool blocks. NEVER say you can't act or that you're just a text model — you have a body here. If a tool returns REFUSED, name the exact toggle that unlocks it and offer to open_settings for the owner. Never invent results. Owner permissions (raw JSON): ${JSON.stringify(perms)}.${h}`;
     }
     async function execTool(c,perms){
       const a=c.args||{};
@@ -5872,7 +5891,10 @@ const Panels=(()=>{
     const head=extra=>`<div class="fv-head">${opts.onBack?'<button class="fv-back" id="fvback" title="Back">‹</button>':''}<span class="fv-name">${fesc(name)}</span>${extra||''}${(opts.onClose&&!opts.onBack)?'<button class="fv-back" id="fvclose" title="Close">✕</button>':''}</div>`;
     function bindHead(){const b=host.querySelector('#fvback');if(b&&opts.onBack)b.addEventListener('click',opts.onBack);const c=host.querySelector('#fvclose');if(c&&opts.onClose)c.addEventListener('click',opts.onClose)}
     host.innerHTML=`<div class="fv">${head('')}<div class="fv-note">Loading ${fesc(name)}…</div></div>`;bindHead();
-    const r=await RPC('files','read',filePath,{maxKB:512}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
+    // 6MB ceiling (was 512KB) so real source files — the 1MB index.html included — open.
+    // Above HEAVY_BYTES we skip syntax highlighting: it is O(n) and would freeze the DOM.
+    const HEAVY_BYTES=260*1024;
+    const r=await RPC('files','read',filePath,{maxKB:6144}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
     if(!r||!r.ok){host.querySelector('.fv').innerHTML=head('')+`<div class="fv-note">${fesc((r&&r.error)||'could not open this file')}${/large|too/i.test((r&&r.error)||'')?'':' — it may be a binary file. Reveal it in Finder or open it in the terminal instead.'}</div>`;bindHead();return}
     text=orig=r.text;
     if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" status --porcelain -- "'+String(filePath).replace(/"/g,'')+'" 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}
@@ -5882,8 +5904,11 @@ const Panels=(()=>{
       if(mode==='diff'){let patch='';try{await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" diff -- "'+String(filePath).replace(/"/g,'')+'"',t=>{patch+=t})}catch(_){}
         if(!patch.trim())return `<div class="fv-note">No tracked changes for this file.</div>`;
         return '<div class="fv-code">'+patch.split('\n').map(l=>{const c=(l[0]==='+'&&!l.startsWith('+++'))?'add':((l[0]==='-'&&!l.startsWith('---'))?'del':(l.startsWith('@@')?'hunk':''));return `<div class="cl ${c}"><span class="ln"></span><span class="cd">${fesc(l)}</span></div>`}).join('')+'</div>';}
-      if(isMd)return `<div class="fv-md">${MDLite.render(text)}</div>`;
-      return `<div class="fv-code"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;padding:2px 12px"><code>${MDLite.highlight(text,lang)}</code></pre></div>`;
+      const heavy=text.length>HEAVY_BYTES;
+      if(isMd&&!heavy)return `<div class="fv-md">${MDLite.render(text)}</div>`;
+      // large files → plain escaped text, no highlighter (keeps the viewer responsive)
+      const code=heavy?fesc(text):MDLite.highlight(text,lang);
+      return `<div class="fv-code">${heavy?`<div class="fv-note" style="padding:6px 12px">Large file (${Math.round(text.length/1024)}KB) — shown as plain text. Edit works; syntax colors are off to stay fast.</div>`:''}<pre style="margin:0;white-space:pre-wrap;word-break:break-word;padding:2px 12px"><code>${code}</code></pre></div>`;
     }
     async function render(){
       const fv=host.querySelector('.fv');fv.innerHTML=head(seg())+`<div class="fv-body" id="fvbody"></div>`;bindHead();
@@ -6084,6 +6109,18 @@ const Panels=(()=>{
     ['focus-up','alt+cmd+up','Focus pane up'],
     ['focus-down','alt+cmd+down','Focus pane down'],
     ['equalize-splits','ctrl+cmd+=','Equalize splits'],
+    ['break-pane','cmd+shift+b','Break tab into a new pane'],
+    ['move-surface-left','ctrl+cmd+left','Move tab to the left pane'],
+    ['move-surface-right','ctrl+cmd+right','Move tab to the right pane'],
+    ['move-surface-up','ctrl+cmd+up','Move tab to the pane above'],
+    ['move-surface-down','ctrl+cmd+down','Move tab to the pane below'],
+    ['canvas-zoom-in','alt+cmd+=','Canvas zoom in'],
+    ['canvas-zoom-out','alt+cmd+-','Canvas zoom out'],
+    ['canvas-zoom-reset','cmd+0','Canvas zoom reset'],
+    ['canvas-overview','ctrl+cmd+o','Canvas overview (fit all)'],
+    ['canvas-reveal','ctrl+cmd+r','Canvas reveal focused pane'],
+    ['new-group','ctrl+cmd+g','Group current workspace'],
+    ['toggle-group','ctrl+cmd+.','Collapse / expand group'],
   ];
   const itKeymap=(()=>{
     const MODS=['ctrl','alt','shift','cmd'];
@@ -6143,6 +6180,7 @@ const Panels=(()=>{
     // window quietly falls back to smart so it never dead-ends.
     let workspaces=[],wsActive=0,wsSeq=0,seq=0,homeAbs='~',canTTY=false;
     let leftHidden=false,treeHidden=false,unreadStamp=0;
+    let wsGroups=[],grpSeq=0; // workspace groups (cmux): {id,name,color,collapsed}
     const tree={root:'',open:new Set(),kids:new Map(),here:''};
 
     // ---- Oh My Zsh prompt themes ----
@@ -6204,7 +6242,7 @@ const Panels=(()=>{
 
     function newWorkspace(cwd,opts){
       opts=opts||{};
-      const w={id:'w'+(++wsSeq),name:opts.name||'',autoName:'',color:opts.color||'',status:{},progress:null,cwd:cwd||homeAbs,git:null,layout:null,panes:[],focus:'',grid:null,spec:opts.spec||null,canvasOn:!!opts.canvasOn,canvasRects:opts.canvasRects||null};
+      const w={id:'w'+(++wsSeq),name:opts.name||'',autoName:'',color:opts.color||'',group:opts.group||null,status:{},progress:null,cwd:cwd||homeAbs,git:null,layout:null,panes:[],focus:'',grid:null,spec:opts.spec||null,canvasOn:!!opts.canvasOn,canvasRects:opts.canvasRects||null,canvasZoom:opts.canvasZoom||1,canvasPan:opts.canvasPan||{x:0,y:0}};
       workspaces.push(w);
       if(!opts.background){wsActive=workspaces.length-1;mountWs(w);showWs()}
       renderAll();refreshWsGit(w);saveState();return w;
@@ -6349,16 +6387,47 @@ const Panels=(()=>{
     // ---- split tree (binary, cmux-style: ⌘D right · ⌘⇧D down) ----
     function leafOf(n,pn){if(!n)return null;if(!n.sp)return n.pane===pn?n:null;return leafOf(n.a,pn)||leafOf(n.b,pn)}
     function parentOf(n,child){if(!n||!n.sp)return null;if(n.a===child||n.b===child)return n;return parentOf(n.a,child)||parentOf(n.b,child)}
-    function splitPane(pn,dir,before,kind){ // dir 'h'|'v' · before=true → new pane lands left/up · kind 'web' = browser split (⌘⇧L)
-      const w=pn.w,leaf=leafOf(w.layout,pn);if(!leaf)return;
-      const cur=pn.surfaces[pn.active];
+    // insert an EMPTY pane beside pn in the split tree; returns it (caller fills it)
+    function spawnPane(pn,dir,before){
+      const w=pn.w,leaf=leafOf(w.layout,pn);if(!leaf)return null;
       const npn=makePane(w);
       const rep=before?{sp:dir,ratio:.5,a:{pane:npn},b:leaf}:{sp:dir,ratio:.5,a:leaf,b:{pane:npn}};
       const par=parentOf(w.layout,leaf);
       if(!par)w.layout=rep;else if(par.a===leaf)par.a=rep;else par.b=rep;
-      newSurface(npn,kind==='web'?'':((cur&&cur.cwd)||w.cwd),kind,null,true);
-      w.focus=npn.id;
-      renderGrid(w);renderAll();saveState();
+      return npn;
+    }
+    function splitPane(pn,dir,before,kind){ // dir 'h'|'v' · before=true → new pane lands left/up · kind 'web' = browser split (⌘⇧L)
+      const cur=pn.surfaces[pn.active];
+      const npn=spawnPane(pn,dir,before);if(!npn)return;
+      newSurface(npn,kind==='web'?'':((cur&&cur.cwd)||pn.w.cwd),kind,null,true);
+      pn.w.focus=npn.id;
+      renderGrid(pn.w);renderAll();saveState();
+    }
+    // move a live surface between panes — the DOM (xterm) survives an appendChild move
+    function relocateSurface(fromPn,i,toPn){
+      const t=fromPn.surfaces[i];if(!t||fromPn===toPn)return;
+      fromPn.surfaces.splice(i,1);
+      if(fromPn.active>=fromPn.surfaces.length)fromPn.active=Math.max(0,fromPn.surfaces.length-1);
+      t.pn=toPn;toPn.body.appendChild(t.pane);
+      toPn.surfaces.push(t);toPn.active=toPn.surfaces.length-1;
+      toPn.w.focus=toPn.id;
+      if(!fromPn.surfaces.length)closePane(fromPn);else{renderGrid(toPn.w);renderAll();saveState()}
+    }
+    // break-pane (cmux): the active tab leaves its pane for a fresh split
+    function breakPane(){
+      const pn=paneCur();if(!pn||pn.surfaces.length<2)return; // a lone tab already owns its pane
+      const npn=spawnPane(pn,'h',false);if(!npn)return;
+      relocateSurface(pn,pn.active,npn);
+    }
+    // move-surface: send the active tab to the neighbouring pane in a direction
+    function moveSurfaceDir(dir){
+      const w=wsCur(),fp=paneCur();if(!w||!fp||w.panes.length<2)return;
+      const r0=fp.el.getBoundingClientRect(),cx=r0.left+r0.width/2,cy=r0.top+r0.height/2;
+      let best=null,bd=1e9;
+      w.panes.forEach(pn=>{if(pn===fp)return;const r=pn.el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+        const ok=dir==='left'?x<cx-4:dir==='right'?x>cx+4:dir==='up'?y<cy-4:y>cy+4;if(!ok)return;
+        const d=Math.abs(x-cx)+Math.abs(y-cy);if(d<bd){bd=d;best=pn}});
+      if(best)relocateSurface(fp,fp.active,best);
     }
     function closePane(pn){
       const w=pn.w;
@@ -6382,7 +6451,8 @@ const Panels=(()=>{
       w.grid.textContent='';
       if(w.canvasOn)renderCanvas(w);
       else{
-        w.panes.forEach(pn=>{const s=pn.el.style;s.left=s.top=s.width=s.height=s.zIndex=''}); // shed canvas placement
+        w.grid.onwheel=null; // drop the canvas zoom/pan wheel handler when leaving canvas
+        w.panes.forEach(pn=>{const s=pn.el.style;s.left=s.top=s.width=s.height=s.zIndex=s.transform=''}); // shed canvas placement
         w.grid.appendChild(buildNode(w.layout));
       }
       syncFocus();
@@ -6402,46 +6472,116 @@ const Panels=(()=>{
       return box;
     }
 
-    // ---- canvas mode (⌃⌘C, cmux) — panes float free; rects are FRACTIONS of the grid so a
-    // window resize scales the whole arrangement. The split tree stays intact underneath:
-    // canvas is presentation only, so toggling back restores the exact tiling.
-    let canvasZ=1;
+    // ---- canvas mode (⌃⌘C, cmux) — panes float free on a zoom/pan space. Rects are
+    // FRACTIONS of the space; a `.it-cspace` wrapper carries translate()+scale(), so the
+    // whole board zooms and pans without touching any pane. The split tree stays intact
+    // underneath (canvas is presentation only) — toggling back restores the exact tiling.
+    const CZMIN=.25,CZMAX=3;
+    let canvasZ=1; // per-pane stacking counter (which floats on top), not the zoom
+    const clampN=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
     function defaultRect(i){const o=(i%5)*.05;return{x:.05+o,y:.05+o,w:.46,h:.52}}
+    function cspaceOf(w){return w.grid&&w.grid.querySelector('.it-cspace')}
+    function applyCanvasXform(w){
+      const sp=cspaceOf(w);if(!sp)return;
+      const z=w.canvasZoom||1,p=w.canvasPan||{x:0,y:0};
+      sp.style.transform=`translate(${p.x||0}px,${p.y||0}px) scale(${z})`;
+      const lbl=w.grid.querySelector('.it-czlbl');if(lbl)lbl.textContent=Math.round(z*100)+'%';
+    }
     function placeCanvasPane(w,pn){
       const s=pn.el.style;
-      if(pn.zoom){s.left=s.top=s.width=s.height='';s.zIndex=20;return}
+      if(pn.zoom){s.left=s.top=s.width=s.height=s.transform='';s.zIndex=20;return} // zoomed pane escapes the space (see renderCanvas)
       const r=pn.crect;s.left=(r.x*100)+'%';s.top=(r.y*100)+'%';s.width=(r.w*100)+'%';s.height=(r.h*100)+'%';s.zIndex=pn.cz||1;
     }
     function renderCanvas(w){
       const ls=w.layout?leaves(w.layout):[];
       if(w.canvasRects){ls.forEach((l,i)=>{const r=w.canvasRects[i];if(r)l.pane.crect=r});w.canvasRects=null}
-      ls.forEach((l,i)=>{const pn=l.pane;if(!pn.crect)pn.crect=defaultRect(i);placeCanvasPane(w,pn);w.grid.appendChild(pn.el)});
+      const sp=document.createElement('div');sp.className='it-cspace';
+      // pan by dragging the empty space (or two-finger scroll); ⌘/ctrl+wheel zooms at the cursor
+      sp.addEventListener('pointerdown',e=>{
+        if(e.target.closest('.it-pane'))return;
+        e.preventDefault();const p0={...(w.canvasPan||{x:0,y:0})},x0=e.clientX,y0=e.clientY;
+        const mm=ev=>{w.canvasPan={x:p0.x+(ev.clientX-x0),y:p0.y+(ev.clientY-y0)};applyCanvasXform(w)};
+        const mu=()=>{removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);saveState()};
+        addEventListener('pointermove',mm);addEventListener('pointerup',mu);
+      });
+      w.grid.appendChild(sp);
+      ls.forEach((l,i)=>{const pn=l.pane;if(!pn.crect)pn.crect=defaultRect(i);placeCanvasPane(w,pn);(pn.zoom?w.grid:sp).appendChild(pn.el)});
+      // toolbar (fixed, not zoomed): − % + · overview · reveal · tidy
+      const tb=document.createElement('div');tb.className='it-ctools';
+      tb.innerHTML='<button data-cz="out" title="Zoom out (⌥⌘-)">−</button><button class="it-czlbl" data-cz="reset" title="Reset zoom (⌘0)">100%</button><button data-cz="in" title="Zoom in (⌥⌘=)">+</button><span class="sep"></span><button data-cz="over" title="Overview — fit all (⌃⌘O)">⊡</button><button data-cz="reveal" title="Reveal focused pane (⌃⌘R)">◎</button><button data-cz="tidy" title="Tidy into a grid (⌃⌘T)">▦</button>';
+      const cz={out:()=>canvasZoomBy(1/1.2),in:()=>canvasZoomBy(1.2),reset:canvasZoomReset,over:canvasOverview,reveal:canvasReveal,tidy:tidyCanvas};
+      tb.querySelectorAll('[data-cz]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();(cz[b.dataset.cz]||(()=>{}))()}));
+      w.grid.appendChild(tb);
+      w.grid.onwheel=e=>{
+        if(!w.canvasOn)return;e.preventDefault();
+        if(e.metaKey||e.ctrlKey){const g=w.grid.getBoundingClientRect();canvasZoomBy(e.deltaY<0?1.1:1/1.1,e.clientX-g.left,e.clientY-g.top)}
+        else{const p=w.canvasPan||{x:0,y:0};w.canvasPan={x:p.x-e.deltaX,y:p.y-e.deltaY};applyCanvasXform(w)}
+      };
+      applyCanvasXform(w);
     }
     function canvasRectsOf(w){
       if(!w.grid||!w.layout)return w.canvasRects||null;
       return leaves(w.layout).map(l=>l.pane.crect?{x:+l.pane.crect.x.toFixed(3),y:+l.pane.crect.y.toFixed(3),w:+l.pane.crect.w.toFixed(3),h:+l.pane.crect.h.toFixed(3)}:null);
     }
     function wireCanvasPane(w,pn){
-      const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-      const track=(el,apply)=>{
+      const track=(el,apply,doSnap)=>{
         el.addEventListener('pointerdown',e=>{
           if(!w.canvasOn||pn.zoom)return;
           e.preventDefault();e.stopPropagation();
           pn.cz=++canvasZ;pn.el.style.zIndex=pn.cz;
-          const g=w.grid.getBoundingClientRect(),r0={...pn.crect},x0=e.clientX,y0=e.clientY;
-          const mm=ev=>{apply(r0,(ev.clientX-x0)/g.width,(ev.clientY-y0)/g.height,g);placeCanvasPane(w,pn)};
-          const mu=()=>{removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);saveState()};
+          const g=w.grid.getBoundingClientRect(),z=w.canvasZoom||1,r0={...pn.crect},x0=e.clientX,y0=e.clientY;
+          const mm=ev=>{apply(r0,(ev.clientX-x0)/(g.width*z),(ev.clientY-y0)/(g.height*z),g);placeCanvasPane(w,pn)};
+          const mu=()=>{removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);if(doSnap)snapPane(w,pn);placeCanvasPane(w,pn);saveState()};
           addEventListener('pointermove',mm);addEventListener('pointerup',mu);
         });
       };
-      track(pn.el.querySelector('.it-cgrab'),(r0,dx,dy)=>{pn.crect={...pn.crect,x:clamp(r0.x+dx,0,1-pn.crect.w),y:clamp(r0.y+dy,0,1-pn.crect.h)}});
-      track(pn.el.querySelector('.it-cgrip'),(r0,dx,dy,g)=>{const mw=220/g.width,mh=150/g.height;pn.crect={...pn.crect,w:clamp(r0.w+dx,mw,1-pn.crect.x),h:clamp(r0.h+dy,mh,1-pn.crect.y)}});
+      track(pn.el.querySelector('.it-cgrab'),(r0,dx,dy)=>{pn.crect={...pn.crect,x:clampN(r0.x+dx,-.4,1),y:clampN(r0.y+dy,-.4,1)}},true);
+      track(pn.el.querySelector('.it-cgrip'),(r0,dx,dy,g)=>{const mw=220/g.width,mh=150/g.height;pn.crect={...pn.crect,w:clampN(r0.w+dx,mw,2),h:clampN(r0.h+dy,mh,2)}},true);
+    }
+    // snap a dragged pane's edges to nearby neighbours / the space border (within ~1.4%)
+    function snapPane(w,pn){
+      const T=.014,r=pn.crect,edgesX=[0,1],edgesY=[0,1];
+      leaves(w.layout).forEach(l=>{if(l.pane===pn||!l.pane.crect)return;const o=l.pane.crect;edgesX.push(o.x,o.x+o.w);edgesY.push(o.y,o.y+o.h)});
+      const near=(v,arr)=>{let b=null,bd=T;arr.forEach(e=>{const d=Math.abs(v-e);if(d<bd){bd=d;b=e}});return b};
+      const l=near(r.x,edgesX),rt=near(r.x+r.w,edgesX),t=near(r.y,edgesY),b=near(r.y+r.h,edgesY);
+      if(l!=null)r.x=l;else if(rt!=null)r.x=rt-r.w;
+      if(t!=null)r.y=t;else if(b!=null)r.y=b-r.h;
+    }
+    function canvasZoomBy(f,cx,cy){
+      const w=wsCur();if(!w||!w.canvasOn)return;
+      const g=w.grid.getBoundingClientRect();if(cx==null){cx=g.width/2;cy=g.height/2}
+      const z0=w.canvasZoom||1,z=clampN(z0*f,CZMIN,CZMAX),p=w.canvasPan||{x:0,y:0};
+      // keep the point under the cursor fixed while zooming
+      w.canvasPan={x:cx-(cx-p.x)*(z/z0),y:cy-(cy-p.y)*(z/z0)};
+      w.canvasZoom=z;applyCanvasXform(w);saveState();
+    }
+    function canvasZoomReset(){const w=wsCur();if(!w)return;w.canvasZoom=1;w.canvasPan={x:0,y:0};applyCanvasXform(w);saveState()}
+    function canvasBBox(w){
+      const ls=leaves(w.layout);if(!ls.length)return null;
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+      ls.forEach(l=>{const r=l.pane.crect||defaultRect(0);x0=Math.min(x0,r.x);y0=Math.min(y0,r.y);x1=Math.max(x1,r.x+r.w);y1=Math.max(y1,r.y+r.h)});
+      return{x0,y0,x1,y1};
+    }
+    function canvasOverview(){
+      const w=wsCur();if(!w||!w.canvasOn)return;
+      const g=w.grid.getBoundingClientRect(),bb=canvasBBox(w);if(!bb)return;
+      const bw=(bb.x1-bb.x0)*g.width,bh=(bb.y1-bb.y0)*g.height;
+      const z=clampN(Math.min(g.width/(bw||1),g.height/(bh||1))*.88,CZMIN,CZMAX);
+      const cwx=(bb.x0+bb.x1)/2*g.width,cwy=(bb.y0+bb.y1)/2*g.height;
+      w.canvasZoom=z;w.canvasPan={x:g.width/2-cwx*z,y:g.height/2-cwy*z};applyCanvasXform(w);saveState();
+    }
+    function canvasReveal(){
+      const w=wsCur(),fp=paneCur();if(!w||!w.canvasOn||!fp||!fp.crect)return;
+      const g=w.grid.getBoundingClientRect(),z=Math.max(w.canvasZoom||1,1),r=fp.crect;
+      const cwx=(r.x+r.w/2)*g.width,cwy=(r.y+r.h/2)*g.height;
+      w.canvasZoom=z;w.canvasPan={x:g.width/2-cwx*z,y:g.height/2-cwy*z};applyCanvasXform(w);saveState();
     }
     function toggleCanvas(){
       const w=wsCur();if(!w)return;
       w.canvasOn=!w.canvasOn;
+      if(w.canvasOn&&w.canvasZoom==null){w.canvasZoom=1;w.canvasPan={x:0,y:0}}
       renderGrid(w);renderAll();saveState();
-      Toast.show(w.canvasOn?'Canvas mode — drag the top bars, resize by the corner · ⌃⌘T tidies':'Tiled splits restored');
+      Toast.show(w.canvasOn?'Canvas — drag bars to move, corner to resize · scroll to pan, ⌘-scroll to zoom · ⌃⌘O fits all':'Tiled splits restored');
     }
     function tidyCanvas(){ // ⌃⌘T — pack the floating panes back into a regular grid (16px-ish gap)
       const w=wsCur();if(!w||!w.canvasOn||!w.layout)return;
@@ -6449,7 +6589,7 @@ const Panels=(()=>{
       ls.forEach((l,i)=>{const c=i%cols,r=Math.floor(i/cols);
         l.pane.crect={x:gap+c*(1-gap)/cols,y:gap+r*(1-gap)/rows,w:(1-gap)/cols-gap,h:(1-gap)/rows-gap};
         placeCanvasPane(w,l.pane)});
-      saveState();
+      w.canvasZoom=1;w.canvasPan={x:0,y:0};applyCanvasXform(w);saveState();
     }
 
     // ---- workspace sidebar + selection ----
@@ -6481,24 +6621,53 @@ const Panels=(()=>{
       w.color=(n<0||n>=WS_COLORS.length)?'':WS_COLORS[n][1];
       schedule();saveState();
     }
+    // ---- workspace groups (cmux): collapsible sections in the sidebar ----
+    function groupOf(w){return w&&w.group?wsGroups.find(g=>g.id===w.group):null}
+    function newGroup(){
+      const w=wsCur();
+      const g={id:'g'+(++grpSeq),name:'Group '+(wsGroups.length+1),color:w?w.color:'',collapsed:false};
+      wsGroups.push(g);if(w)w.group=g.id;
+      schedule();saveState();
+      textPrompt('Name the group',g.name,v=>{g.name=v.slice(0,32);schedule();saveState()});
+    }
+    function toggleGroupCollapsed(gid){const g=wsGroups.find(x=>x.id===gid)||groupOf(wsCur());if(!g)return;g.collapsed=!g.collapsed;schedule();saveState()}
+    function dissolveGroup(gid){workspaces.forEach(w=>{if(w.group===gid)w.group=null});wsGroups=wsGroups.filter(g=>g.id!==gid);schedule();saveState()}
+    function moveWsToGroup(w,gid){if(!w)return;w.group=gid||null;schedule();saveState()}
+    function wsRowHTML(w,i,inGroup){
+      const un=(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread));
+      const git=w.git&&w.git.branch?`<span class="br">⎇ ${esc(w.git.branch)}${w.git.dirty?'*':''}</span>`:'';
+      const st=Object.entries(w.status||{}).sort((a,b)=>((b[1].priority||0)-(a[1].priority||0)));
+      const pills=st.length?`<span class="it-wspills">${st.map(([k,s])=>`<span class="it-pill" style="--pc:${esc(s.color||'#5aa0e6')}" title="${esc(k)}">${s.icon?esc(s.icon)+' ':''}${esc(s.value)}</span>`).join('')}</span>`:'';
+      const prog=w.progress?`<span class="it-wsprog"><i style="width:${Math.round(Math.max(0,Math.min(1,w.progress.v))*100)}%"></i>${w.progress.label?`<span>${esc(w.progress.label)}</span>`:''}</span>`:'';
+      return `<div class="it-wsrow ${i===wsActive?'on':''}${w.color?' tinted':''}${inGroup?' grp':''}" data-w="${i}" title="${esc(w.cwd)}"${w.color?` style="--wsc:${esc(w.color)}"`:''}><span class="nm"><span class="it-wsdot" data-cdot="${i}" title="Workspace color — click cycles · ⌥-click clears"${w.color?` style="--wsc:${esc(w.color)}"`:''}></span>${un?'<span class="it-ud"></span>':''}<span style="overflow:hidden;text-overflow:ellipsis">${esc(wsLabel(w))}</span><span class="x" data-cw="${i}" title="Close workspace">✕</span></span><span class="meta">${git}<span class="pth">${esc(contract(w.cwd))}</span></span>${pills}${prog}</div>`;
+    }
     function renderWs(){
-      const rows=workspaces.map((w,i)=>{
-        const un=(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))||(!w.grid&&false);
-        const git=w.git&&w.git.branch?`<span class="br">⎇ ${esc(w.git.branch)}${w.git.dirty?'*':''}</span>`:'';
-        const st=Object.entries(w.status||{}).sort((a,b)=>((b[1].priority||0)-(a[1].priority||0)));
-        const pills=st.length?`<span class="it-wspills">${st.map(([k,s])=>`<span class="it-pill" style="--pc:${esc(s.color||'#5aa0e6')}" title="${esc(k)}">${s.icon?esc(s.icon)+' ':''}${esc(s.value)}</span>`).join('')}</span>`:'';
-        const prog=w.progress?`<span class="it-wsprog"><i style="width:${Math.round(Math.max(0,Math.min(1,w.progress.v))*100)}%"></i>${w.progress.label?`<span>${esc(w.progress.label)}</span>`:''}</span>`:'';
-        return `<div class="it-wsrow ${i===wsActive?'on':''}${w.color?' tinted':''}" data-w="${i}" title="${esc(w.cwd)}"${w.color?` style="--wsc:${esc(w.color)}"`:''}><span class="nm"><span class="it-wsdot" data-cdot="${i}" title="Workspace color — click cycles · ⌥-click clears"${w.color?` style="--wsc:${esc(w.color)}"`:''}></span>${un?'<span class="it-ud"></span>':''}<span style="overflow:hidden;text-overflow:ellipsis">${esc(wsLabel(w))}</span><span class="x" data-cw="${i}" title="Close workspace">✕</span></span><span class="meta">${git}<span class="pth">${esc(contract(w.cwd))}</span></span>${pills}${prog}</div>`;
-      }).join('');
-      wsEl.innerHTML=`<div class="it-wshd"><b>iT</b><span class="it-wsbtns"><button data-act="nw" title="New workspace (⌘N)">＋</button><button data-act="win" title="New iT window — work side by side">⧉</button><button data-act="tree" title="Show / hide files (⌥⌘B)">▤</button><button data-act="help" title="Keyboard & help">?</button></span></div><div class="it-wslist">${rows}</div><div class="it-wsfoot">CMUX-COMPATIBLE KEYS · ⌘⇧P</div>`;
+      const idx=workspaces.map((w,i)=>({w,i}));
+      const inG=id=>idx.filter(x=>x.w.group===id);
+      const validGid=new Set(wsGroups.map(g=>g.id));
+      let rows='';
+      wsGroups.forEach(g=>{
+        const items=inG(g.id);
+        rows+=`<div class="it-grphd${g.collapsed?' col':''}" data-g="${esc(g.id)}"${g.color?` style="--gc:${esc(g.color)}"`:''}><span class="chev">${g.collapsed?'▸':'▾'}</span><span class="gdot" data-gdot="${esc(g.id)}" title="Group color"></span><span class="gnm">${esc(g.name)}</span><span class="gct">${items.length}</span><span class="gx" data-gx="${esc(g.id)}" title="Dissolve group">✕</span></div>`;
+        if(!g.collapsed)rows+=items.map(x=>wsRowHTML(x.w,x.i,true)).join('');
+      });
+      rows+=idx.filter(x=>!x.w.group||!validGid.has(x.w.group)).map(x=>wsRowHTML(x.w,x.i,false)).join('');
+      wsEl.innerHTML=`<div class="it-wshd"><b>iT</b><span class="it-wsbtns"><button data-act="nw" title="New workspace (⌘N)">＋</button><button data-act="grp" title="Group current workspace (⌃⌘G)">▤▾</button><button data-act="win" title="New iT window — work side by side">⧉</button><button data-act="tree" title="Show / hide files (⌥⌘B)">▤</button><button data-act="help" title="Keyboard & help">?</button></span></div><div class="it-wslist">${rows}</div><div class="it-wsfoot">CMUX-COMPATIBLE KEYS · ⌘⇧P</div>`;
       wsEl.querySelectorAll('.it-wsrow').forEach(r=>{
-        r.addEventListener('click',e=>{if(e.target.dataset.cw!=null)return;selectWs(+r.dataset.w)});
+        r.addEventListener('click',e=>{if(e.target.dataset.cw!=null||e.target.dataset.cdot!=null)return;selectWs(+r.dataset.w)});
         r.addEventListener('dblclick',()=>{selectWs(+r.dataset.w);renameWs()});
       });
       wsEl.querySelectorAll('[data-cw]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const w=workspaces[+b.dataset.cw];if(w)closeWorkspace(w)}));
       wsEl.querySelectorAll('[data-cdot]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const w=workspaces[+b.dataset.cdot];if(!w)return;if(e.altKey)setWsColor(w,'none');else cycleWsColor(w,e.shiftKey)}));
+      wsEl.querySelectorAll('.it-grphd').forEach(h=>{
+        h.addEventListener('click',e=>{if(e.target.dataset.gx!=null||e.target.dataset.gdot!=null)return;toggleGroupCollapsed(h.dataset.g)});
+        h.addEventListener('dblclick',()=>{const g=wsGroups.find(x=>x.id===h.dataset.g);if(g)textPrompt('Rename group',g.name,v=>{g.name=v.slice(0,32);schedule();saveState()})});
+      });
+      wsEl.querySelectorAll('[data-gx]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();dissolveGroup(b.dataset.gx)}));
+      wsEl.querySelectorAll('[data-gdot]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const g=wsGroups.find(x=>x.id===b.dataset.gdot);if(!g)return;const i=WS_COLORS.findIndex(c=>c[1]===g.color);g.color=e.altKey?'':(WS_COLORS[(i+1)%WS_COLORS.length][1]);schedule();saveState()}));
       const act=(k,fn)=>{const b=wsEl.querySelector('[data-act="'+k+'"]');if(b)b.addEventListener('click',fn)};
       act('nw',()=>newWorkspace(homeAbs));
+      act('grp',newGroup);
       act('win',()=>openPanel('shell',{newInstance:true}));
       act('tree',toggleTree);
       act('help',helpOverlay);
@@ -6652,8 +6821,16 @@ const Panels=(()=>{
         ['focus-down',K('focus-down'),()=>focusDir('down')],
         ['toggle-split-zoom',K('toggle-split-zoom'),toggleZoom],
         ['equalize-splits',K('equalize-splits'),equalize],
+        ['break-pane',K('break-pane'),breakPane],
+        ['move-surface-left',K('move-surface-left'),()=>moveSurfaceDir('left')],
+        ['move-surface-right',K('move-surface-right'),()=>moveSurfaceDir('right')],
         ['toggle-canvas',K('toggle-canvas'),toggleCanvas],
         ['tidy-canvas',K('tidy-canvas'),tidyCanvas],
+        ['canvas-overview',K('canvas-overview'),canvasOverview],
+        ['canvas-reveal',K('canvas-reveal'),canvasReveal],
+        ['canvas-zoom-reset',K('canvas-zoom-reset'),canvasZoomReset],
+        ['new-group',K('new-group'),newGroup],
+        ['toggle-group',K('toggle-group'),()=>toggleGroupCollapsed()],
         ['toggle-left-sidebar',K('toggle-left-sidebar'),toggleLeft],
         ['toggle-right-sidebar',K('toggle-right-sidebar'),toggleTree],
         ['find-in-directory',K('find-in-directory'),findInDirectory],
@@ -6719,7 +6896,7 @@ const Panels=(()=>{
     function helpOverlay(){
       closeOverlays();
       const K=keyLabel;
-      const rows=[[K('toggle-left-sidebar'),'Toggle left sidebar'],[K('toggle-right-sidebar'),'Toggle right sidebar'],[K('split-right'),'Split right'],[K('split-down'),'Split down'],[K('new-browser'),'New browser split'],[K('open-diff'),'Diff viewer split'],[K('toggle-canvas'),'Canvas mode'],[K('tidy-canvas'),'Tidy canvas'],[K('find-in-directory'),'Find in directory'],['⌥⌘←→↑↓','Focus pane'],[K('toggle-split-zoom'),'Zoom pane'],[K('equalize-splits'),'Equalize splits'],[K('new-surface'),'New tab'],[K('go-to-workspace'),'Go to workspace'],[K('notifications'),'Notifications'],[K('next-tab')+' '+K('previous-tab'),'Next / previous tab'],['⌃1…9','Go to tab'],['⌘1…9','Go to workspace'],[K('rename-tab'),'Rename tab'],[K('rename-workspace'),'Rename workspace'],[K('command-palette'),'Command palette'],[K('jump-to-unread'),'Jump to latest unread'],[K('mark-all-read'),'Mark all read'],[K('clear-terminal'),'Clear terminal']];
+      const rows=[[K('toggle-left-sidebar'),'Toggle left sidebar'],[K('toggle-right-sidebar'),'Toggle right sidebar'],[K('split-right'),'Split right'],[K('split-down'),'Split down'],[K('new-browser'),'New browser split'],[K('open-diff'),'Diff viewer split'],[K('toggle-canvas'),'Canvas mode'],[K('canvas-overview'),'Canvas overview'],[K('canvas-reveal'),'Canvas reveal'],[K('tidy-canvas'),'Tidy canvas'],[K('find-in-directory'),'Find in directory'],['⌥⌘←→↑↓','Focus pane'],['⌃⌘←→↑↓','Move tab across panes'],[K('break-pane'),'Break tab into a pane'],[K('new-group'),'Group workspace'],[K('toggle-group'),'Collapse group'],[K('toggle-split-zoom'),'Zoom pane'],[K('equalize-splits'),'Equalize splits'],[K('new-surface'),'New tab'],[K('go-to-workspace'),'Go to workspace'],[K('notifications'),'Notifications'],[K('next-tab')+' '+K('previous-tab'),'Next / previous tab'],['⌃1…9','Go to tab'],['⌘1…9','Go to workspace'],[K('rename-tab'),'Rename tab'],[K('rename-workspace'),'Rename workspace'],[K('command-palette'),'Command palette'],[K('jump-to-unread'),'Jump to latest unread'],[K('mark-all-read'),'Mark all read'],[K('clear-terminal'),'Clear terminal']];
       const ov=document.createElement('div');ov.className='it-help';
       ov.innerHTML='<div class="it-helpbox"><div class="hd">iT — KEYBOARD</div><div class="cols">'+rows.map(r=>`<div class="row"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('')+'</div><div class="ft">iT speaks the keyboard & command language of the open-source <b>cmux</b> — clean-room, no cmux code inside. tmux sessions attach with ⌗. The <b>it</b> CLI is live — run <b>it</b> in any iT shell.<br>CLONE FRAME · cloneframe.io</div></div>';
       p.appendChild(ov);
@@ -6761,6 +6938,18 @@ const Panels=(()=>{
       'focus-up':()=>focusDir('up'),
       'focus-down':()=>focusDir('down'),
       'equalize-splits':()=>equalize(),
+      'break-pane':()=>breakPane(),
+      'move-surface-left':()=>moveSurfaceDir('left'),
+      'move-surface-right':()=>moveSurfaceDir('right'),
+      'move-surface-up':()=>moveSurfaceDir('up'),
+      'move-surface-down':()=>moveSurfaceDir('down'),
+      'canvas-zoom-in':()=>canvasZoomBy(1.2),
+      'canvas-zoom-out':()=>canvasZoomBy(1/1.2),
+      'canvas-zoom-reset':()=>canvasZoomReset(),
+      'canvas-overview':()=>canvasOverview(),
+      'canvas-reveal':()=>canvasReveal(),
+      'new-group':()=>newGroup(),
+      'toggle-group':()=>toggleGroupCollapsed(),
     };
     let keyOver=itKeymap.load();
     Bus.on('it:keys',()=>{if(!document.body.contains(p))return;keyOver=itKeymap.load();schedule()}); // rebinds land live
@@ -6773,7 +6962,7 @@ const Panels=(()=>{
       const k0=(e.key||'').toLowerCase(),code=e.code||'';
       if(itKeymap.isMod(k0))return null;
       let k=itKeymap.alias[k0]||k0;
-      if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';
+      if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';else if(code==='Minus')k='-';else if(code==='Period')k='.';
       else if(e.altKey&&/^Key[A-Z]$/.test(code))k=code.slice(3).toLowerCase(); // ⌥ mutates e.key on macOS
       const mods=[];if(e.ctrlKey)mods.push('ctrl');if(e.altKey)mods.push('alt');if(e.shiftKey)mods.push('shift');if(e.metaKey)mods.push('cmd');
       return mods.length?mods.concat(k).join('+'):null;
@@ -6796,7 +6985,7 @@ const Panels=(()=>{
     function saveState(){
       if(!primary)return;
       clearTimeout(saveT);saveT=setTimeout(()=>{try{
-        localStorage.setItem('cfhub.it.v1',JSON.stringify({wsActive,left:leftHidden,right:treeHidden,ws:workspaces.map(w=>({name:w.name,cwd:w.cwd,color:w.color||'',canvasOn:!!w.canvasOn,canvasRects:w.canvasOn||w.canvasRects?canvasRectsOf(w):null,spec:w.grid?serNode(w.layout):w.spec}))}));
+        localStorage.setItem('cfhub.it.v1',JSON.stringify({wsActive,left:leftHidden,right:treeHidden,groups:wsGroups.map(g=>({id:g.id,name:g.name,color:g.color||'',collapsed:!!g.collapsed})),ws:workspaces.map(w=>({name:w.name,cwd:w.cwd,color:w.color||'',group:w.group||null,canvasOn:!!w.canvasOn,canvasZoom:w.canvasZoom||1,canvasPan:w.canvasPan||{x:0,y:0},canvasRects:w.canvasOn||w.canvasRects?canvasRectsOf(w):null,spec:w.grid?serNode(w.layout):w.spec}))}));
       }catch(_){}},300);
     }
     function loadState(){try{const j=JSON.parse(localStorage.getItem('cfhub.it.v1')||'null');return (j&&Array.isArray(j.ws)&&j.ws.length)?j:null}catch(_){return null}}
@@ -6856,6 +7045,8 @@ const Panels=(()=>{
         case 'focus-pane':{const w=wsCur(),n=+String(f._[0]||'').replace(/^pane:/,'');if(!(n>=1&&n<=w.panes.length))return{ok:false,error:'no such pane (1–'+w.panes.length+')'};w.focus=w.panes[n-1].id;syncPanes();schedule();return okOut('pane '+n)}
         case 'equalize-splits':equalize();return okOut('equalized');
         case 'toggle-split-zoom':toggleZoom();return okOut('zoom toggled');
+        case 'break-pane':breakPane();return okOut('broke tab into a pane');
+        case 'move-surface':{const d=f._[0];if(!/^(left|right|up|down)$/.test(d||''))return{ok:false,error:'usage: it move-surface <left|right|up|down>'};moveSurfaceDir(d);return okOut('moved '+d)}
         case 'new-surface':{const pn=tpane();if(!pn)return{ok:false,error:'no pane'};
           const kind=f.type==='smart'?'smart':(f.type==='browser'||f.type==='web')?'web':undefined;
           const seed=kind==='web'?((f.url&&f.url!=='true')?f.url:''):((f.cwd&&f.cwd!=='true')?f.cwd:curCwd());
@@ -6893,6 +7084,17 @@ const Panels=(()=>{
         case 'diff':openDiffSplit();return okOut('diff split');
         case 'toggle-canvas':toggleCanvas();return okOut('canvas '+(wsCur()&&wsCur().canvasOn?'on':'off'));
         case 'tidy-canvas':tidyCanvas();return okOut('tidied');
+        case 'canvas-zoom':{const d=f._[0]||'';if(d==='reset'){canvasZoomReset();return okOut('zoom 100%')}if(d==='in'||d==='out'){canvasZoomBy(d==='in'?1.2:1/1.2);return okOut('zoom '+Math.round((wsCur().canvasZoom||1)*100)+'%')}const n=parseFloat(d);if(n>0){const w=wsCur();if(w){w.canvasZoom=Math.max(.25,Math.min(3,n));applyCanvasXform(w);saveState()}return okOut('zoom '+Math.round((wsCur().canvasZoom||1)*100)+'%')}return{ok:false,error:'usage: it canvas-zoom <in|out|reset|0.25..3>'}}
+        case 'canvas-overview':canvasOverview();return okOut('overview');
+        case 'canvas-reveal':canvasReveal();return okOut('revealed focused pane');
+        case 'new-group':case 'group':{const sub=cmd==='group'?(f._[0]||'new'):'new';
+          if(sub==='new'){newGroup();return okOut('grouped current workspace')}
+          if(sub==='collapse'||sub==='toggle'){toggleGroupCollapsed();return okOut('group toggled')}
+          if(sub==='dissolve'){const g=groupOf(wsCur());if(!g)return{ok:false,error:'current workspace is not in a group'};dissolveGroup(g.id);return okOut('group dissolved')}
+          if(sub==='add'){const ref=f._.slice(1).join(' ').trim();if(!ref)return{ok:false,error:'usage: it group add <group name or index>'};const gi=/^\d+$/.test(ref)?(+ref-1):wsGroups.findIndex(g=>g.name.toLowerCase()===ref.toLowerCase());const g=wsGroups[gi];if(!g)return{ok:false,error:'no such group: '+ref};moveWsToGroup(wsCur(),g.id);return okOut('added to '+g.name)}
+          if(sub==='remove'){moveWsToGroup(wsCur(),null);return okOut('removed from group')}
+          if(sub==='list')return{ok:true,rows:wsGroups.map((g,i)=>({'#':i+1,name:g.name,members:workspaces.filter(w=>w.group===g.id).length,collapsed:g.collapsed?'▸':''}))};
+          return{ok:false,error:'usage: it group <new|add <ref>|remove|collapse|dissolve|list>'}}
         case 'find-in-directory':findInDirectory();return okOut('find open');
         case 'set-workspace-color':{const i=twsi();if(i<0)return{ok:false,error:'no such workspace'};const v=f._[0]||'';if(!setWsColor(workspaces[i],v))return{ok:false,error:'unknown color — one of: '+WS_COLORS.map(c=>c[0]).join(' ')+' · #hex · none'};return okOut('color '+(v||'none'))}
         case 'set-status':{const i=twsi();if(i<0)return{ok:false,error:'no such workspace'};const w=workspaces[i],key=String(f._[0]||'').slice(0,24),val=f._.slice(1).join(' ').slice(0,40);
@@ -7091,7 +7293,9 @@ const Panels=(()=>{
       const saved=(primary&&localStorage.getItem('cfhub.it.restore')!=='0')?loadState():null;
       if(saved){
         leftHidden=!!saved.left;treeHidden=!!saved.right;
-        saved.ws.slice(0,8).forEach(sw=>newWorkspace((sw.cwd&&sw.cwd!=='~')?sw.cwd:homeAbs,{name:sw.name||'',color:sw.color||'',canvasOn:!!sw.canvasOn,canvasRects:sw.canvasRects||null,spec:sw.spec||null,background:true}));
+        if(Array.isArray(saved.groups)){wsGroups=saved.groups.map(g=>({id:g.id||('g'+(++grpSeq)),name:g.name||'Group',color:g.color||'',collapsed:!!g.collapsed}));grpSeq=Math.max(grpSeq,wsGroups.length)}
+        const gids=new Set(wsGroups.map(g=>g.id));
+        saved.ws.slice(0,8).forEach(sw=>newWorkspace((sw.cwd&&sw.cwd!=='~')?sw.cwd:homeAbs,{name:sw.name||'',color:sw.color||'',group:gids.has(sw.group)?sw.group:null,canvasOn:!!sw.canvasOn,canvasZoom:sw.canvasZoom||1,canvasPan:sw.canvasPan||{x:0,y:0},canvasRects:sw.canvasRects||null,spec:sw.spec||null,background:true}));
         if(workspaces.length)selectWs(Math.min(saved.wsActive||0,workspaces.length-1));
         if(pcwd)newWorkspace(pcwd); // opened at an explicit folder → its own workspace
       }
@@ -8600,7 +8804,7 @@ const Panels=(()=>{
         const k0=(e.key||'').toLowerCase(),code=e.code||'';
         if(itKeymap.isMod(k0))return null;
         let k=itKeymap.alias[k0]||k0;
-        if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';
+        if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';else if(code==='Minus')k='-';else if(code==='Period')k='.';
         else if(e.altKey&&/^Key[A-Z]$/.test(code))k=code.slice(3).toLowerCase();
         const mods=[];if(e.ctrlKey)mods.push('ctrl');if(e.altKey)mods.push('alt');if(e.shiftKey)mods.push('shift');if(e.metaKey)mods.push('cmd');
         return mods.length?mods.concat(k).join('+'):null;
