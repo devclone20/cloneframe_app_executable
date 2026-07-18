@@ -7047,6 +7047,10 @@ const Panels=(()=>{
       if(e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey&&dig>=1&&dig<=9){selectWs(dig-1);return true}
       if(e.ctrlKey&&!e.metaKey&&!e.altKey&&dig>=1&&dig<=9){const pn=paneCur();if(pn&&pn.surfaces[dig-1]!=null){pn.active=dig-1;syncPanes();schedule();markHere()}return true}
       const combo=comboFromEvent(e);if(!combo)return false;
+      // Under the Electron shell, let ⌘R/⌘⇧R fall through to the native Reload menu — a page
+      // reload no longer loses shells (Phase 4 reattaches them), so shielding it isn't needed.
+      // In the browser/chrome shell the iT still claims ⌘R (rename tab) to block an accidental reload.
+      if(window.cfhubNative&&(combo==='cmd+r'||combo==='cmd+shift+r'))return false;
       for(const a of IT_ACTIONS)if(comboOf(a[0])===combo){const h=KEY_HANDLERS[a[0]];if(h){h();return true}}
       return false;
     }
@@ -7406,6 +7410,12 @@ const Panels=(()=>{
     // a docked terminal tile opened while an iT window is up → new WORKSPACE at its folder
     // (top-most window only — with several iT windows open, exactly one answers)
     Bus.on('shell:addcwd',dir=>{if(!document.body.contains(p)||p!==topInstanceOf('shell'))return;if(dir){newWorkspace(dir);markHere();pendingShellCwd=null}});
+    // native menu (Electron) actions — only the top iT window acts, same functions as the keys
+    Bus.on('it:menu',name=>{
+      if(!document.body.contains(p)||p!==topInstanceOf('shell'))return;
+      const A={'new-workspace':()=>newWorkspace(homeAbs),'new-surface':()=>{const pn=paneCur();if(pn)newSurface(pn,curCwd())},'split-right':()=>{const pn=paneCur();if(pn)splitPane(pn,'h')},'split-down':()=>{const pn=paneCur();if(pn)splitPane(pn,'v')},'command-palette':palette,'go-to-workspace':wsPicker,'notifications':notesOverlay};
+      (A[name]||(()=>{}))();
+    });
     Bus.on('bridge:changed',()=>{if(document.body.contains(p))ctlConnect()}); // (re)join the `it` control channel once paired
   }
 
@@ -11892,6 +11902,21 @@ const Shortcuts=(()=>{
     Toast.show(b.dataset.dev+' — in development. Coming soon to the HUB.');
   });
   document.getElementById('gear').addEventListener('click',()=>Panels.openPanel('settings'));
+
+  // Native menu (Electron shell) → iT. The menu items forward an action; we route it to the
+  // iT window when it's the FRONT panel (so ⌘-style items only act in iT context), and open
+  // a fresh iT for the "new" actions when none is up. In-window shortcuts still work as before.
+  if(window.cfhubNative&&typeof cfhubNative.onMenu==='function'){
+    const itOpen=()=>[...document.querySelectorAll('.panel')].some(el=>el.dataset.type==='shell'&&!el.dataset.docked);
+    cfhubNative.onMenu(action=>{
+      if(action==='new-window'){Panels.openPanel('shell',{newInstance:true});return}
+      if(!itOpen()){ // clicking an iT menu item with no iT up opens one; the rest need iT context
+        if(action==='new-workspace'||action==='new-surface')Panels.openPanel('shell');
+        return;
+      }
+      Bus.emit('it:menu',action); // the top iT window runs it (new-surface / split / palette / …)
+    });
+  }
 
   // logo = universe-zoom toggle (fast path — no need to open the triangle)
   const brandEl=document.querySelector('#topbar .brand');

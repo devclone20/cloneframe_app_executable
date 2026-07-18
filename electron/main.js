@@ -22,7 +22,8 @@
 // never spawned as OS windows — the zero-escape rule holds.
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
-const { app, BrowserWindow, WebContentsView, session, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, session, ipcMain, shell, Menu } = require('electron');
+app.setName('CLONE FRAME HUB'); // the macOS app-menu title + About panel name (not "Electron")
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -269,6 +270,58 @@ ipcMain.handle('cfhub:open-external', (_e, { url }) => {
 });
 
 // ── window ───────────────────────────────────────────────────────────────────
+// Native application menu — brand title + the roles Chromium's --app window can't give us:
+// working copy/paste for the terminal, a Reload that ignores cache (the renderer got stuck
+// on a cached bundle before), and the iT keyboard actions Chromium reserves (⌘N/⌘T/⌘P…).
+// The iT items forward to the renderer, which routes them to the focused iT instance.
+function buildMenu() {
+  const isMac = process.platform === 'darwin';
+  const send = (action) => () => { try { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('cfhub:menu', action); } catch (_) {} };
+  const reloadFresh = () => { try { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.reloadIgnoringCache(); } catch (_) {} };
+  const template = [
+    ...(isMac ? [{ role: 'appMenu' }] : []),
+    {
+      // The iT keyboard shortcuts already work in Electron — the iT window captures them
+      // when it's focused (Chromium doesn't reserve ⌘T/⌘D/⌘N/⌘P/⌘I here). So these menu
+      // items are clickable discovery aids WITHOUT accelerators (adding one would steal the
+      // key from the in-window handler and fire globally, e.g. ⌘T while the browser is
+      // focused). Only "New iT Window" gets an accelerator — ⌘⇧N is otherwise unused.
+      label: 'iT',
+      submenu: [
+        { label: 'New Workspace  ⌘N', click: send('new-workspace') },
+        { label: 'New Tab  ⌘T', click: send('new-surface') },
+        { label: 'New iT Window', accelerator: 'CmdOrCtrl+Shift+N', click: send('new-window') },
+        { type: 'separator' },
+        { label: 'Split Right  ⌘D', click: send('split-right') },
+        { label: 'Split Down  ⌘⇧D', click: send('split-down') },
+        { type: 'separator' },
+        { label: 'Command Palette  ⌘⇧P', click: send('command-palette') },
+        { label: 'Go to Workspace  ⌘P', click: send('go-to-workspace') },
+        { label: 'Notifications  ⌘I', click: send('notifications') },
+      ],
+    },
+    { role: 'editMenu' }, // undo/redo/cut/copy/paste/selectAll — vital for the real terminal + inputs
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: reloadFresh },
+        { label: 'Force Reload', accelerator: 'CmdOrCtrl+Shift+R', click: reloadFresh },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' }, // minimize (⌘M), close (⌘W), zoom, front — the native window roles
+    {
+      role: 'help',
+      submenu: [{ label: 'CLONE FRAME', click: () => { try { shell.openExternal('https://cloneframe.io'); } catch (_) {} } }],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 async function createWindow() {
   mainWin = new BrowserWindow({
     width: 1480, height: 940, minWidth: 900, minHeight: 600,
@@ -293,6 +346,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  buildMenu();
   const up = await ensureBridge();
   if (!up) { /* still open the window — it shows the "connect bridge" state */ }
   await createWindow();
