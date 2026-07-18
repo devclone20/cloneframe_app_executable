@@ -474,6 +474,9 @@ canvas.layer{position:fixed;inset:0;pointer-events:none}
 #guidetab svg{width:13px;height:13px;color:var(--accent);transition:transform .3s;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 55%,transparent))}
 #guidetab.up{bottom:12px}
 #guidetab.up svg{transform:rotate(180deg)}
+#guidetab{touch-action:none;user-select:none} /* enable pointer drag-to-dock onto the ▲ menu (like FIT) */
+#guidetab.dragging{animation:none;cursor:grabbing;border-color:color-mix(in srgb,var(--accent) 62%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent),0 12px 46px color-mix(in srgb,var(--accent) 42%,transparent)}
+#t-guide{cursor:grab;touch-action:none}
 @keyframes guidefloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 #guidebar{
   position:relative;min-height:42px;display:flex;align-items:center;justify-content:center;gap:18px;
@@ -1581,51 +1584,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .labsubt{all:unset;cursor:pointer;font-size:9px;letter-spacing:.08em;padding:5px 12px;border-radius:8px;color:var(--ink-dim);border:1px solid transparent;font-family:var(--mono);transition:color .15s,border-color .15s,box-shadow .15s}
 .labsubt:hover{color:var(--fg)}
 .labsubt.on{border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--fg);background:var(--panel);box-shadow:0 0 12px -6px color-mix(in srgb,var(--accent) 55%,transparent)}
-/* CLI ECONOMY OS — island network sub-tabs + swappable panes */
-.eos{display:flex;flex-direction:column;height:100%;min-height:0}
-.eostabs{flex:none}
-.eospanes{flex:1;min-height:0;position:relative}
-.eospane{position:absolute;inset:0;overflow:hidden}
-/* INTEGRATIONS — tool menu */
-.intg{display:flex;flex-direction:column;height:100%;min-height:0;padding:16px;gap:12px}
-.intg-hint{font-size:11px;line-height:1.55;color:var(--ink-dim)}
-.intg-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:9px}
-.intg-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--bg) 40%,transparent);transition:border-color .15s,box-shadow .15s,transform .12s}
-.intg-row:hover{border-color:color-mix(in srgb,var(--accent) 42%,transparent);box-shadow:0 0 20px -10px color-mix(in srgb,var(--accent) 60%,transparent);transform:translateY(-1px)}
-.intg-ic{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,var(--fg) 6%,transparent);border:1px solid var(--line)}
-.intg-ic svg{width:17px;height:17px;color:var(--accent)}
-.intg-main{flex:1;min-width:0}
-.intg-name{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--fg);display:flex;align-items:center;gap:8px}
-.intg-tag{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
-.intg-desc{font-size:10.5px;line-height:1.5;color:var(--ink-dim);margin-top:4px}
-.intg-cta{flex:none;display:flex;align-items:center;gap:9px}
-.intg-soon{font-size:8px;letter-spacing:.13em;color:var(--ink-faint)}
-.intg-ready{font-size:8px;letter-spacing:.12em;color:#3fd68f}
-.intg-row.on{border-color:color-mix(in srgb,#3fd68f 42%,transparent)}
-.intg-row.on .intg-ic svg{color:#3fd68f}
-.intg-go{font-size:9.5px;color:var(--ink-dim);font-family:var(--mono);flex:none}
-.intg-row:hover .intg-go{color:var(--accent)}
-/* INTEGRATIONS in-place detail view (each integration opens here) */
-.intg{padding:0;gap:0}
-.intg-hint{padding:16px 16px 0}
-.intg-list{padding:14px 16px}
-.intg-foot{padding:0 16px 14px}
-.intg-detail{display:flex;flex-direction:column;flex:1;min-height:0}
-.intg-dhead{display:flex;align-items:center;gap:9px;padding:11px 15px;border-bottom:1px solid var(--line)}
-.intg-back{all:unset;cursor:pointer;font-size:10px;color:var(--ink-dim);font-family:var(--mono);padding:3px 5px;border-radius:6px}
-.intg-back:hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 7%,transparent)}
-.intg-dic{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:8px;background:color-mix(in srgb,var(--fg) 6%,transparent);border:1px solid var(--line)}
-.intg-dic svg{width:14px;height:14px;color:var(--accent)}
-.intg-dhead b{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--fg)}
-.intg-dstat{margin-left:auto;font-size:9px;letter-spacing:.08em;font-family:var(--mono);color:var(--ink-faint)}
-.intg-dbody{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
-/* EXO LAB embedded live — exo's own web UI rendered inside CLONE FRAME */
-.intg-dbody.exo-embed{padding:0;gap:0;overflow:hidden}
-.exo-bar{display:flex;align-items:center;gap:9px;padding:8px 13px;border-bottom:1px solid var(--line);flex:0 0 auto;background:color-mix(in srgb,var(--bg) 60%,transparent)}
-.exo-bar-t{font-size:10px;color:var(--ink-dim);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.exo-bar-ep{margin-left:auto;font-size:10px;font-family:var(--mono);color:var(--ink-dim);background:color-mix(in srgb,var(--fg) 6%,transparent);border:1px solid var(--line);border-radius:6px;padding:2px 7px;white-space:nowrap}
-.exo-frame{flex:1;min-height:0;width:100%;border:0;background:var(--bg);display:block}
-.intg-foot{font-size:10px;color:var(--ink-faint);border-top:1px solid var(--line);padding-top:10px}
 /* Standalone TERMINAL — file tree + multiple shell tabs */
 .sh{display:flex;height:100%;min-height:0}
 .sh-tree{width:206px;flex:none;border-right:1px solid var(--line);overflow:auto;padding:8px 6px;background:color-mix(in srgb,var(--bg) 28%,transparent)}
@@ -1951,91 +1909,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .os-empty svg{width:34px;height:34px;color:var(--accent);opacity:.85}
 .os-empty h3{font-size:15px;color:var(--fg);margin:0}
 .os-empty p{font-size:10.5px;color:var(--ink-dim);line-height:1.6;margin:0}
-/* ---------- LAB · iNFT · My iNFT (EconomyOS interface) ---------- */
-.mi-wrap{display:flex;height:100%;min-height:0}
-.mi-rail{width:134px;flex:none;overflow-y:auto;padding-right:9px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
-.mi-railg{font-size:8px;letter-spacing:.16em;color:var(--ink-faint);margin:11px 0 3px 4px}
-.mi-railg:first-child{margin-top:0}
-.mi-railbtn{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:8px;font-size:10px;color:var(--ink-dim);white-space:nowrap}
-.mi-railbtn:hover{background:color-mix(in srgb,var(--fg) 6%,transparent)}
-.mi-railbtn.on{background:color-mix(in srgb,var(--fg) 9%,transparent);color:var(--fg)}
-.mi-railbtn[disabled]{opacity:.4;cursor:default;pointer-events:none}
-.mi-railbtn .mi-rlabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.mi-railbtn .mi-rdot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint);flex:none}
-.mi-railbtn .mi-rdot.on{background:#3fd68f;box-shadow:0 0 7px #3fd68f}
-.mi-railbtn .mi-rdot.idle{background:#e8b86d}
-/* VIRTUALS agent list (the menu you land on) + back button */
-.mi-back{all:unset;cursor:pointer;font-size:9.5px;letter-spacing:.06em;color:var(--ink-dim);padding:6px 9px;border-radius:8px;margin-bottom:5px;font-family:var(--mono)}
-.mi-back:hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}
-.mi-list{display:flex;flex-direction:column;height:100%;min-height:0;padding:14px 16px;gap:12px}
-.mi-listhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.mi-lh1{display:flex;align-items:baseline;gap:9px}
-.mi-lh1 b{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--fg)}
-.mi-lcount{font-size:9px;color:var(--ink-faint)}
-.mi-listbody{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
-.mi-listrow{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--bg) 40%,transparent);transition:border-color .15s,box-shadow .15s,transform .12s}
-.mi-listrow:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:0 0 20px -10px color-mix(in srgb,var(--accent) 60%,transparent);transform:translateY(-1px)}
-.mi-lav{width:34px;height:34px;flex:none;border-radius:9px;display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
-.mi-lmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.mi-lmain b{font-size:12px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mi-lsub{font-size:9px;color:var(--ink-faint);letter-spacing:.02em}
-.mi-ltok{color:#3fd68f}
-.mi-lgo{flex:none;font-size:9.5px;color:var(--ink-dim);font-family:var(--mono)}
-.mi-listrow:hover .mi-lgo{color:var(--accent)}
-.mi-railbtn .mi-rct{font-size:8px;font-family:var(--mono);color:var(--accent);flex:none}
-.mi-body{flex:1;min-width:0;overflow-y:auto;padding-left:14px}
-.mi-cap{font-size:10px;color:var(--ink-faint);padding:0 0 9px;border-bottom:1px solid var(--line);line-height:1.5;margin-bottom:12px}
-.mi-hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:5px;padding:6px 0 16px;border-bottom:1px solid var(--line)}
-.mi-hero .av{width:88px;height:88px;border-radius:22px;overflow:hidden;border:1px solid var(--border);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,#0a0a0f),#0a0a0f);box-shadow:0 12px 34px -12px rgba(0,0,0,.85)}
-.mi-hero .av img,.mi-hero .av video{width:100%;height:100%;object-fit:cover}
-.mi-hero .av .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-size:13px}
-.mi-hero .nm{font-size:15px;color:var(--fg);font-weight:600;margin-top:4px}
-.mi-hero .st{font-size:9px;letter-spacing:.08em;color:var(--ink-dim);display:flex;align-items:center;gap:6px}
-.mi-kv{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
-.mi-kv b{color:var(--ink-dim);font-weight:400}
-.mi-btnrow{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:8px}
-.mi-glance{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:13px}
-.mi-gc{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:11px;padding:11px 12px;display:flex;flex-direction:column;gap:3px;transition:border-color .15s,background .15s;background:color-mix(in srgb,var(--bg) 40%,transparent)}
-.mi-gc:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
-.mi-gc .l{font-size:8px;letter-spacing:.14em;color:var(--ink-faint)}
-.mi-gc .v{font-size:14px;color:var(--fg);font-family:var(--mono)}
-.mi-gc .g{font-size:8.5px;color:var(--accent)}
-.mi-steps{display:flex;align-items:center;justify-content:center;gap:0;margin:2px 0 16px}
-.mi-steps i{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:none}
-.mi-steps i.on{background:var(--accent);box-shadow:0 0 7px var(--accent)}
-.mi-steps i.done{background:var(--fg)}
-.mi-steps s{width:26px;height:1px;background:var(--line);display:block}
-.mi-table{width:100%;border-collapse:collapse;font-size:11px}
-.mi-table td{padding:8px 2px;border-bottom:1px solid var(--line);color:var(--fg)}
-.mi-table td.n{font-family:var(--mono);text-align:right;color:var(--ink-dim)}
-.mi-table td.pos{color:#3fd68f}.mi-table td.neg{color:var(--accent)}
-.mi-table tr:last-child td{border-bottom:0}
-.mi-vcard{border:1px solid var(--line);border-radius:13px;padding:16px 15px;background:linear-gradient(148deg,var(--cell-hi),var(--cell-lo));position:relative;overflow:hidden;max-width:320px}
-.mi-vcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
-.mi-vcard .vh{display:flex;align-items:center;justify-content:space-between;font-size:9px;letter-spacing:.14em;color:var(--ink-dim)}
-.mi-vcard .vn{font-family:var(--mono);font-size:15px;color:var(--fg);letter-spacing:.14em;margin:20px 0 4px}
-.mi-vcard .vf{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
-.mi-confirm{border:1px solid color-mix(in srgb,#e8b86d 50%,transparent);border-radius:11px;padding:11px 12px;margin-top:10px;background:color-mix(in srgb,#e8b86d 5%,transparent)}
-.mi-confirm .ch{display:flex;align-items:center;gap:7px;font-size:9px;letter-spacing:.1em;margin-bottom:7px}
-.mi-confirm .ch .ct{color:#e8b86d;font-weight:700}
-.mi-confirm .ch .cs{margin-left:auto;color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;padding:2px 7px}
-.mi-confirm .cb{font-size:11px;color:var(--fg);line-height:1.55;margin-bottom:8px}
-.mi-confirm .cd{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);line-height:1.7;margin-bottom:9px}
-.mi-confirm .cd .warn{color:#e8b86d}
-.mi-confirm .cbtns{display:flex;gap:7px}
-.mi-confirm .cbtns .btn.amb{border-color:#e8b86d;color:#e8b86d}
-.mi-confirm .cbtns .btn.amb:hover{background:color-mix(in srgb,#e8b86d 12%,transparent)}
-.mi-two{display:flex;gap:12px}
-.mi-two .l1{width:200px;flex:none;border-right:1px solid var(--line);padding-right:10px;overflow-y:auto}
-.mi-two .r1{flex:1;min-width:0}
-.mi-mono{font-family:var(--mono);font-size:10px;color:var(--ink-dim);word-break:break-all}
-.mi-ref h5{font-size:8.5px;letter-spacing:.14em;color:var(--accent);margin:13px 0 4px}
-.mi-ref h5:first-child{margin-top:2px}
-.mi-refrow{display:flex;align-items:center;gap:10px;padding:5px 4px;font-size:11px;color:var(--fg);cursor:pointer;border-radius:6px}
-.mi-refrow:hover{background:color-mix(in srgb,var(--fg) 5%,transparent)}
-.mi-refrow .w{font-size:9px}
-.mi-refrow kbd{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--ink-dim);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
-.mi-refrow .warn{color:#e8b86d;margin-left:auto;margin-right:4px;font-size:10px}
 .labstat{margin-left:auto;font-size:8.5px;letter-spacing:.08em;color:var(--ink-faint);display:flex;align-items:center;gap:6px}
 .labbody{flex:1;min-height:0;overflow-y:auto;padding:13px 14px}
 /* cluster device cards — Model 4 instrument visors */
@@ -2396,6 +2269,9 @@ body[data-density="comfy"]{--ui-scale:1.1}
     <symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
       <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/><circle cx="12" cy="12" r="2"/>
     </symbol>
+    <symbol id="i-guide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M7 10.5h6M7 14h10"/>
+    </symbol>
     <symbol id="i-cosmos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <circle cx="12" cy="12" r="3.4"/><path d="M4.5 15.5c-1.6-3.2 4-9.4 9.5-11 5-1.4 7.6.6 5.5 4.5"/><path d="M19.5 8.5c1.6 3.2-4 9.4-9.5 11-5 1.4-7.6-.6-5.5-4.5"/>
     </symbol>
@@ -2481,15 +2357,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
     <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.3 4 5.4 4 8.5s-1.4 6.2-4 8.5c-2.6-2.3-4-5.4-4-8.5s1.4-6.2 4-8.5Z"/>
     </symbol>
-    <symbol id="i-economyos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7 10l3 2.5L7 15"/><circle cx="15.7" cy="12.7" r="2.3"/>
-    </symbol>
-    <symbol id="i-robinhood" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20.5 3.5C14 4.2 8.6 9 7 15.4L4.5 20.5"/><path d="M20.5 3.5c.6 6.2-3.9 11.6-10.6 12.1"/><path d="M13.3 7.2l-1.6 4M17.6 5l-.9 4.6"/>
-    </symbol>
-    <symbol id="i-okx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
-      <rect x="3.5" y="3.5" width="5.4" height="5.4" rx="1.1"/><rect x="15.1" y="3.5" width="5.4" height="5.4" rx="1.1"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.1"/><rect x="3.5" y="15.1" width="5.4" height="5.4" rx="1.1"/><rect x="15.1" y="15.1" width="5.4" height="5.4" rx="1.1"/>
-    </symbol>
     <symbol id="i-gameover" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M7.5 8h9a4.5 4.5 0 0 1 4.4 5.4l-.7 3.4a2.6 2.6 0 0 1-4.6 1.1L14 16h-4l-1.6 1.9a2.6 2.6 0 0 1-4.6-1.1l-.7-3.4A4.5 4.5 0 0 1 7.5 8Z"/><path d="M8.2 10.8v3M6.7 12.3h3"/><circle cx="15.6" cy="11.4" r=".95" fill="currentColor" stroke="none"/><circle cx="17.7" cy="13.4" r=".95" fill="currentColor" stroke="none"/>
     </symbol>
@@ -2516,8 +2383,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
     <button data-open="terminal">CODE</button>
     <button data-open="harness">HARNESS</button>
     <button data-open="lab">LAB</button>
-    <button data-open="economyos">CLI ECONOMY OS</button>
-    <button data-open="integrate">INTEGRATIONS</button>
   </nav>
   <div id="devtabs">
     <button class="devtab" data-dev="GAME OVER" title="GAME OVER — in development"><svg><use href="#i-gameover"/></svg></button>
@@ -2556,6 +2421,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
   <div class="flynav">
     <button class="tbtn" id="t-lock"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg><b id="t-lock-label">Navigate universe</b></button>
     <div class="zoomrow"><button class="zbtn" id="t-zout">−</button><button class="zbtn" id="t-zin">+</button><button class="zbtn" id="t-fit" title="fit"><svg width="12" height="12"><use href="#i-fit"/></svg></button></div>
+    <button class="tbtn" id="t-guide" title="Guide bar — click or drag out to bring it back" style="display:none"><svg width="13" height="13"><use href="#i-guide"/></svg><b>Show guide bar</b></button>
   </div>
 </div>
 <button id="reframe"><svg><use href="#i-fit"/></svg>FIT</button>
@@ -2621,7 +2487,7 @@ const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* ---------- Store (v3, migrates from v2/v1; NEVER stores secrets) ---------- */
 const Store=(()=>{
   const KEY='cfhub.v3';
-  let s={theme:'void',motion:true,cells:{},tri:null,guideHidden:false,
+  let s={theme:'void',motion:true,cells:{},tri:null,guideHidden:false,guideDocked:false,
          density:'cosy',customThemes:{},brain:{active:'auto',providers:[]},
          caps:{terminal:1,harness:1,lab:1,machine:0,agents:0,automations:0,email:0,tasks:0,approval:0,contacts:0,integrations:0},
          wallet:null,agents:[],automations:[],approvals:[],profile:{name:'',avatar:''},
@@ -3374,7 +3240,7 @@ const Reframe=(()=>{
 
 /* ---------- MENU: single source for the add-menu (#menu) + the flyout (Tri) ---------- */
 const MENU=[
-  ['Workspace',[['terminal','&lt;/&gt; Code','#i-term'],['shell','iT Terminal','#i-term2'],['folders','Folders','#i-folder'],['harness','Harness','#i-harness'],['lab','LAB','#i-lab'],['economyos','CLI Economy OS','#i-economyos'],['integrate','Integrations','#i-integrations'],['machine','My Machine','#i-chip'],['agents','My Agents','#i-agents']]],
+  ['Workspace',[['terminal','&lt;/&gt; Code','#i-term'],['shell','iT Terminal','#i-term2'],['folders','Folders','#i-folder'],['harness','Harness','#i-harness'],['lab','LAB','#i-lab'],['machine','My Machine','#i-chip'],['agents','My Agents','#i-agents']]],
   ['Tools',[['brain','Brain','#i-brain'],['calendar','Calendar','#i-calendar'],['compare','Compare','#i-compare'],['cookbook','Cookbook','#i-cookbook'],['research','Browser','#i-globe'],['gallery','Gallery','#i-gallery'],['library','Library','#i-library'],['notes','Notes','#i-notes'],['tasks','Tasks','#i-tasks'],['__theme','Theme','#i-pal']]],
   ['Communication',[['email','Email','#i-mail'],['contacts','Contacts','#i-contacts'],['reminders','Reminders','#i-reminders'],['approval','Approval','#i-shield'],['automations','Automations','#i-automations'],['integrations','Connections','#i-integrations']]],
   ['System',[['__search','Search','#i-search'],['__wallet','Sign in','#i-wallet'],['settings','Settings','#i-gear']]],
@@ -3383,8 +3249,8 @@ const MENU=[
 /* ---------- Grid (cells ÷4: 28px, full-bleed with overscan) ---------- */
 const Grid=(()=>{
   const grid=document.getElementById('grid');
-  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',economyos:'#i-economyos',robinhood:'#i-robinhood',okxai:'#i-okx',integrate:'#i-integrations',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',contacts:'#i-contacts',integrations:'#i-integrations',reminders:'#i-reminders',brain:'#i-brain',calendar:'#i-calendar',compare:'#i-compare',cookbook:'#i-cookbook',research:'#i-globe',gallery:'#i-gallery',library:'#i-library',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
-  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',economyos:'ECONOMY OS',robinhood:'ROBINHOOD',okxai:'OKX AI',integrate:'INTEGRATIONS',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',contacts:'CONTACTS',integrations:'CONNECTIONS',reminders:'REMIND',brain:'BRAIN',calendar:'CALENDAR',compare:'COMPARE',cookbook:'COOKBOOK',research:'BROWSER',gallery:'GALLERY',library:'LIBRARY',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
+  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',contacts:'#i-contacts',integrations:'#i-integrations',reminders:'#i-reminders',brain:'#i-brain',calendar:'#i-calendar',compare:'#i-compare',cookbook:'#i-cookbook',research:'#i-globe',gallery:'#i-gallery',library:'#i-library',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
+  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',contacts:'CONTACTS',integrations:'CONNECTIONS',reminders:'REMIND',brain:'BRAIN',calendar:'CALENDAR',compare:'COMPARE',cookbook:'COOKBOOK',research:'BROWSER',gallery:'GALLERY',library:'LIBRARY',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
   const DIM={CELL:28,GAP:4,PITCH:32}; // mutable (density)
   let OV=4*DIM.PITCH;
   let cols=0,rows=0,cells=[],centers=[];
@@ -3624,8 +3490,6 @@ addEventListener('pointerdown',e=>{
   }
 },true);
 
-/* EXO LAB / Manaflow / TMUX integrations removed 2026-07-16 — kept only as "coming soon"
-   entries in the INTEGRATIONS tab. No client, no bridge module, no bundled source. */
 
 /* ---------- live PTY terminal — xterm.js ↔ the bridge WS /stream (Foundation #37) ----------
    Real interactive terminal INSIDE the app: keystrokes → WS → node-pty; output → WS → xterm.
@@ -4304,23 +4168,6 @@ const Panels=(()=>{
         <div class="labbody" id="labbody"></div>
       </div>`},
     agentview:{icon:'#i-agent',title:'AGENT',sub:'iNFT identity · traits · soul',w:620,h:680,pad:false,body:()=>'<div class="labbody" id="agvbody" style="height:100%;overflow:auto"></div>'},
-    economyos:{icon:'#i-economyos',title:'CLI ECONOMY OS',sub:'virtuals · robinhood · okx ai — your agents, built & deployed',w:840,h:660,pad:false,body:()=>`
-      <div class="eos">
-        <div class="labtabs eostabs">
-          <button class="labtab on" data-eos="virtuals">VIRTUALS</button>
-          <button class="labtab" data-eos="robinhood">ROBINHOOD</button>
-          <button class="labtab" data-eos="okxai">OKX AI</button>
-        </div>
-        <div class="eospanes">
-          <div class="eospane" data-eospane="virtuals"><div class="labbody" id="eosbody" style="height:100%"></div></div>
-          <div class="eospane" data-eospane="robinhood" style="display:none"><div class="labbody" id="rbhbody" style="height:100%"></div></div>
-          <div class="eospane" data-eospane="okxai" style="display:none"><div class="labbody" id="okxbody" style="height:100%"></div></div>
-        </div>
-      </div>`},
-    robinhood:{icon:'#i-robinhood',title:'ROBINHOOD',sub:'robinhood chain · agent · token',w:720,h:600,pad:false,body:()=>`
-      <div class="labbody" id="rbhbody" style="height:100%"></div>`},
-    okxai:{icon:'#i-okx',title:'OKX AI',sub:'onchain os · asp · offerings',w:720,h:600,pad:false,body:()=>`
-      <div class="labbody" id="okxbody" style="height:100%"></div>`},
     folders:{icon:'#i-folder',title:'FOLDERS',sub:'your files · browse · create · edit · organize',w:940,h:640,pad:false,body:()=>`
       <div class="fm" id="fmroot">
         <aside class="fm-tree" id="fmtree"></aside>
@@ -4337,8 +4184,6 @@ const Panels=(()=>{
         <div class="sh-split fm-split" id="shsplit" title="Drag to resize"></div>
         <aside class="sh-tree it-right" id="shtree"></aside>
       </div>`},
-    integrate:{icon:'#i-integrations',title:'INTEGRATIONS',sub:'bring your tools into CLONE FRAME',w:720,h:620,pad:false,body:()=>`
-      <div class="intg" id="intgroot"></div>`},
     theme:{icon:'#i-pal',title:'THEME',sub:'themes · customize',w:560,h:610,pad:false,body:()=>`
       <div class="thp-tabs"><button class="thp-tab on" data-t="themes">Themes</button><button class="thp-tab" data-t="customize">Customize</button></div>
       <div class="thp-body" id="thpbody"></div>`},
@@ -4399,7 +4244,6 @@ const Panels=(()=>{
     if(type==='agent')return openPanel('terminal'); // the CONSOLE is gone — agents live in CODE
     // 'agentview' is a REAL standalone panel again (owner call 2026-07-17): the deck's
     // footer strip opens it in its own window; the in-LAB Agents detail also remains.
-    if(type==='robinhood'||type==='okxai'){const cp=openPanel('economyos');Bus.emit('eos:goto',type);return cp} // networks live inside CLI ECONOMY OS
     if(['machine','agents','automations','email','tasks','approval','contacts','integrations'].includes(type)&&!Caps.on(type))Caps.set(type,1); // using = activating
     const existing=topInstanceOf(type);
     if(existing&&!(MULTI.has(type)&&opts.newInstance)){focus(existing);Bus.emit('help','panel-'+type);return existing}
@@ -4426,8 +4270,6 @@ const Panels=(()=>{
     if(type==='theme')wireTheme(p);
     if(type==='lab')wireLab(p);
     if(type==='agentview')wireAgentView(p);
-    if(type==='economyos')wireEconomyOS(p);
-    if(type==='integrate')wireIntegrate(p);
     if(type==='shell')wireShell(p);
     if(type==='folders')wireFolders(p);
     if(type==='machine')wireMachine(p);
@@ -5384,7 +5226,7 @@ const Panels=(()=>{
   /* ---------- AGENT VIEW — standalone panel: full iNFT detail (identity · traits · soul).
      Opened by the deck's footer strip ("View everything →"); its own floating window so
      the info can live side-by-side with the chat. Mirrors LAB's renderAgentDetail
-     (single-writer copies convention — same as wireVirtuals' artHTML mirror). ---------- */
+     (single-writer copies convention — self-contained local helpers). ---------- */
   function wireAgentView(p){
     const body=p.querySelector('#agvbody');if(!body)return;
     const esc2=t=>String(t??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -5455,7 +5297,7 @@ const Panels=(()=>{
     const body=p.querySelector('#labbody');
     let tab='chat',cat=[],fam='all',mq='',pollT=null;
     let inftSub=localStorage.getItem('cfhub.lab.inftsub')||'turbo',osSel=null; // SERVER section: Turbo (local) | Online Server (droplet)
-    if(inftSub==='myinft')inftSub='turbo'; // legacy value — My iNFT now lives in CLI ECONOMYOS
+    if(inftSub==='myinft')inftSub='turbo'; // legacy stored value — normalize to the default server view
     let load={sharding:'pipeline',interconnect:'tcp',minDevices:1};
     let chat={model:'',msgs:[],streaming:false,ctl:null};
     let agView='list';                       // Agents tab: 'list' | 'detail' (the full AGENT view lives here now)
@@ -7419,1271 +7261,6 @@ const Panels=(()=>{
     Bus.on('bridge:changed',()=>{if(document.body.contains(p))ctlConnect()}); // (re)join the `it` control channel once paired
   }
 
-  /* ---------- INTEGRATIONS — bring bigger tools into CLONE FRAME (menu; connect flow comes later) ---------- */
-  function wireIntegrate(p){
-    const root=p.querySelector('#intgroot');if(!root)return;
-    const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-    const TOOLS=[
-      {key:'exolab',name:'EXO LAB',icon:'#i-lab',tag:'local compute',desc:'Run models across your own devices — one exo cluster from all your machines. Opens right here.',state:'soon'},
-      {key:'manaflow',name:'MANAFLOW',icon:'#i-automations',tag:'agent workflows',desc:'Parallel coding agents in isolated workspaces, with diff & one-click PR. Opens right here.',state:'soon'},
-      {key:'tmux',name:'TMUX',icon:'#i-term',tag:'agent crews',desc:'Run a crew of agents in tmux windows that survive disconnects — driven from a native panel right here.',state:'soon'},
-    ];
-    let view='list',pollT=null;
-    const killTmuxTerm=()=>{};
-    const stopPoll=()=>{if(pollT){clearInterval(pollT);pollT=null}killTmuxTerm()};
-    const backHead=(name,icon,tag,extra)=>`<div class="intg-dhead"><button class="intg-back" id="intgback">‹ Integrations</button><span class="intg-dic"><svg><use href="${icon}"/></svg></span><b>${esc(name)}</b>${tag?`<span class="intg-tag">${esc(tag)}</span>`:''}${extra||''}</div>`;
-    const wireBack=()=>{const b=root.querySelector('#intgback');if(b)b.addEventListener('click',()=>{stopPoll();renderList()})};
-    function renderList(){
-      stopPoll();view='list';
-      root.innerHTML=`<div class="intg-hint">Integrate the bigger tools you want. Each opens right here, inside CLONE FRAME — pick one.</div>
-        <div class="intg-list">`+TOOLS.map(t=>`
-          <button class="intg-row${t.state==='ready'?' on':''}" data-k="${t.key}">
-            <span class="intg-ic"><svg><use href="${t.icon}"/></svg></span>
-            <span class="intg-main"><span class="intg-name">${esc(t.name)}<span class="intg-tag">${esc(t.tag)}</span></span><span class="intg-desc">${esc(t.desc)}</span></span>
-            <span class="intg-cta">${t.state==='ready'?'<span class="intg-ready">● IN APP</span>':'<span class="intg-soon">SOON</span>'}<span class="intg-go">Open →</span></span>
-          </button>`).join('')+`</div>
-        <div class="intg-foot">More integrations arrive as CLONE FRAME grows. Want one that isn't here? Ask in <b>CODE</b>.</div>`;
-      root.querySelectorAll('.intg-row').forEach(el=>el.addEventListener('click',()=>openDetail(el.dataset.k)));
-    }
-    function openDetail(key){const t=TOOLS.find(x=>x.key===key);if(!t)return;view=key;return renderSoon(t)}
-    function renderSoon(t){stopPoll();root.innerHTML=`<div class="intg-detail">${backHead(t.name,t.icon,t.tag)}<div class="os-empty" style="margin:26px auto"><svg><use href="${t.icon}"/></svg><h3>${esc(t.name)} — coming soon</h3><p>${esc(t.desc)}<br>This integration lands in a coming update and opens right here.</p></div></div>`;wireBack()}
-    renderList();
-  }
-
-  /* ---------- CLI ECONOMY OS — one hub, three networks (VIRTUALS · ROBINHOOD · OKX AI) ---------- */
-  // Orchestrator: island sub-tabs swap between the three networks; each network's UI is wired
-  // lazily on first open. VIRTUALS = the "My iNFT" interface (wireVirtuals, below).
-  function wireEconomyOS(p){
-    const tabs=[...p.querySelectorAll('.eostabs .labtab')];
-    const panes={virtuals:p.querySelector('[data-eospane="virtuals"]'),robinhood:p.querySelector('[data-eospane="robinhood"]'),okxai:p.querySelector('[data-eospane="okxai"]')};
-    const wired={};
-    function ensure(k){if(wired[k])return;wired[k]=true;if(k==='virtuals')wireVirtuals(p);else if(k==='robinhood')wireRobinhood(p);else if(k==='okxai')wireOkxAi(p)}
-    function go(k){if(!panes[k])return;tabs.forEach(t=>t.classList.toggle('on',t.dataset.eos===k));for(const kk in panes)if(panes[kk])panes[kk].style.display=(kk===k?'':'none');ensure(k)}
-    tabs.forEach(t=>t.addEventListener('click',()=>go(t.dataset.eos)));
-    Bus.on('eos:goto',k=>{if(document.body.contains(p)&&panes[k])go(k)}); // deep-link from robinhood/okxai redirect
-    ensure('virtuals'); // default network wired immediately
-  }
-
-  /* ---------- VIRTUALS — Virtuals Protocol · your agent, built & deployed ---------- */
-  // The "My iNFT" interface, promoted from LAB (owner decision 2026-07-14).
-  // Self-contained: local helpers below mirror wireLab's (single-writer copies, kept lean).
-  function wireVirtuals(p){
-    const body=p.querySelector('#eosbody');
-    const esc2=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-    const shortName=m=>String(m||'').split('/').pop();
-    const turboModel=()=>localStorage.getItem('cfhub.turbo.model')||'';
-    let exoOn=false,st=null;
-    // agent art at OpenSea-style fidelity (same contract as LAB's artHTML)
-    function artHTML(a){
-      if(!a)return'<div class="ph">iNFT</div>';
-      const anim=a.animation||'';
-      if(anim){
-        if(a.mediaType==='video'||/\.(mp4|webm|mov|m4v)(\?|$)/i.test(anim))return `<video src="${esc2(anim)}" autoplay loop muted playsinline></video>`;
-        // poster = the agent's still, shown instantly while the 3D model streams in
-        // (no blank flash when a deck card is promoted to the front)
-        if(a.mediaType==='glb'||/\.(glb|gltf)(\?|$)/i.test(anim)){ensureModelViewer();const poster=(a.image&&/^(https?:|data:image)/i.test(a.image))?` poster="${esc2(a.image)}"`:'';return `<model-viewer src="${esc2(anim)}"${poster} camera-controls auto-rotate autoplay shadow-intensity="1" interaction-prompt="none"></model-viewer>`}
-        if(!/\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(anim))return `<iframe src="${esc2(anim)}" sandbox="allow-scripts" loading="lazy"></iframe>`;
-      }
-      const src=(anim&&/\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(anim))?anim:(a.image||'');
-      return src?`<img src="${esc2(src)}" alt="" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=&quot;ph&quot;>iNFT</div>')">`:'<div class="ph">iNFT</div>';
-    }
-    /* ============ CLI ECONOMYOS · My iNFT — full Virtuals EconomyOS interface ============ *
-     * Local-first: a plain user creates an agent (name + soul) and runs it on this Mac
-     * with a local LLM, or ships it to an online server. Under the hood, every Virtuals
-     * EconomyOS capability is wrapped by the safety-gated `acp` bridge module: reads run
-     * freely, money/auth actions wait for an explicit amber confirm. Nothing financial
-     * ever self-initiates. */
-    let miSec=localStorage.getItem('cfhub.lab.inftmy')||'overview';
-    let miAgentName=localStorage.getItem('cfhub.lab.inftagent')||'';
-    let miAgent=null,miAgentAll=[],miAcpStat=null,miWiz=null;
-    let miView='list'; // 'list' = agent menu (default landing) · 'agent' = open one agent's detail
-    const miChat={msgs:[],streaming:false,ctl:null,model:''};
-    const MI_SECS=[
-      {g:'AGENT'},{k:'overview',label:'Overview'},{k:'console',label:'Console'},{k:'onvirtuals',label:'On Virtuals'},{k:'reference',label:'Reference'},
-      {g:'MONEY'},{k:'wallet',label:'Wallet'},{k:'card',label:'Card'},{k:'trading',label:'Trading'},{k:'tokenize',label:'Tokenize'},
-      {g:'WORK'},{k:'email',label:'Email'},{k:'commerce',label:'Commerce'},{k:'compute',label:'Compute'},
-    ];
-    const MI_CAP={
-      overview:'This is your agent — a living iNFT with its own wallet, inbox and skills.',
-      console:'Talk to your agent. It answers from wherever it runs — this Mac or your server.',
-      onvirtuals:'Agents your wallet created on Virtuals — link any of them to an iNFT or a local agent.',
-      reference:'Everything your agent can do — in plain words. Click a row to open it.',
-      wallet:"Your agent's own wallet. You approve anything that leaves it.",
-      card:"A virtual card funded from the agent's wallet, with limits you set.",
-      trading:'Your agent can trade — every order still needs your yes.',
-      tokenize:'Put your agent on-chain — the iNFT becomes tradable and its soul lives forever.',
-      email:'Your agent has its own inbox. It can read, reply and file — you stay in control.',
-      commerce:'The agent economy — hire other agents, or sell what yours can do.',
-      compute:"The brain bill — credits that pay for your agent's thinking.",
-    };
-    const miSetSec=k=>{miSec=k;localStorage.setItem('cfhub.lab.inftmy',k);miRenderRail();miRenderSection()};
-    async function miLoad(force){
-      if(!miAcpStat||force){try{miAcpStat=await RPC('acp','status')}catch(e){miAcpStat={ok:false,installed:false,error:e.message}}}
-      try{
-        const l=await RPC('acp','localList');miAgentAll=(l&&l.agents)||[];
-        // Load only the selected agent (if any). We NEVER auto-open one — the list is the landing.
-        if(miAgentName&&miAgentAll.some(a=>a.name===miAgentName)){const g=await RPC('acp','localGet',miAgentName);miAgent=(g&&g.ok)?g:null}
-        else miAgent=null;
-      }catch(e){miAgent=null}
-    }
-    // Open a specific agent from the list menu → its detail rail.
-    function miOpenAgent(name){miAgentName=name;localStorage.setItem('cfhub.lab.inftagent',name);miWiz=null;miSec='overview';miView='agent';renderMyINFT()}
-    function miStartNew(){miAgentName='';miAgent=null;miWiz=null;miSec='overview';miView='agent';renderMyINFT()}
-    // The agent LIST — the menu you land on. Nothing opens until you pick one.
-    function miRenderList(){
-      const rows=miAgentAll.map(a=>{
-        const rt=(a.config&&a.config.runtime)==='server'?'Online server':'This Mac';
-        const tv=(a.config&&a.config.virtuals)||{};const tok=tv.tokenAddress||tv.launched;
-        const rbh=(a.config&&a.config.runtime==='robinhood')||(a.config&&a.config.robinhood);
-        return `<button class="mi-listrow" data-ag="${esc2(a.name)}">
-          <span class="mi-lav">${esc2((a.name||'?').slice(0,2).toUpperCase())}</span>
-          <span class="mi-lmain"><b>${esc2(a.name)}</b><span class="mi-lsub">${esc2(rt)}${tok?' · <span class="mi-ltok">tokenized</span>':''}${rbh?' · robinhood':''}</span></span>
-          <span class="mi-lgo">Open →</span>
-        </button>`;
-      }).join('');
-      body.innerHTML=`<div class="mi-list">
-        <div class="mi-listhead"><div class="mi-lh1"><b>YOUR VIRTUALS AGENTS</b><span class="mi-lcount">${miAgentAll.length} agent${miAgentAll.length===1?'':'s'}</span></div><button class="btn acc mini" id="mi-new">＋ New agent</button></div>
-        ${miAgentAll.length
-          ? `<div class="mi-listbody">${rows}</div>`
-          : `<div class="os-empty" style="margin:22px auto"><svg><use href="#i-agent"/></svg><h3>No agents yet</h3><p>Build your first iNFT agent — it gets its own wallet, inbox and skills, and can be tokenized on Virtuals.</p><button class="btn acc" id="mi-new2">Create your first agent</button></div>`}
-      </div>`;
-      body.querySelectorAll('[data-ag]').forEach(el=>el.addEventListener('click',()=>miOpenAgent(el.dataset.ag)));
-      const n1=body.querySelector('#mi-new'),n2=body.querySelector('#mi-new2');
-      if(n1)n1.addEventListener('click',miStartNew);
-      if(n2)n2.addEventListener('click',miStartNew);
-    }
-    function miArt(){
-      const a=Store.get().labInft;
-      if(a&&a.name&&(a.image||a.animation))return artHTML(a);
-      const nm=(miAgent&&miAgent.name||'?').slice(0,2).toUpperCase();
-      return `<div class="ph">${esc2(nm)}</div>`;
-    }
-    function miStatusDot(){
-      if(!miAgent)return'';
-      const rt=miAgent.config&&miAgent.config.runtime;
-      if(rt==='server')return'idle';
-      return exoOn?'on':'idle';
-    }
-    function miStatusLabel(){
-      if(!miAgent)return'no agent';
-      const rt=(miAgent.config&&miAgent.config.runtime)==='server'?'Online server':'This Mac · local';
-      const live=(miAgent.config&&miAgent.config.runtime)==='server'?'':'';
-      return rt+live;
-    }
-    // ---- rail ----
-    function miRenderRail(){
-      const rail=body.querySelector('#mirail');if(!rail)return;
-      const has=!!miAgent;
-      rail.innerHTML=`<button class="mi-back" id="miback">← Agents</button>`+MI_SECS.map(s=>{
-        if(s.g)return `<div class="mi-railg">${s.g}</div>`;
-        const dis=!has&&s.k!=='overview'&&s.k!=='onvirtuals'; // On Virtuals reads the wallet, no local agent needed
-        const dot=s.k==='overview'?`<span class="mi-rdot ${miStatusDot()}"></span>`:'';
-        return `<button class="mi-railbtn ${miSec===s.k?'on':''}" data-mi="${s.k}" ${dis?'disabled':''} title="${esc2(MI_CAP[s.k]||'')}">${dot}<span class="mi-rlabel">${esc2(s.label)}</span></button>`;
-      }).join('');
-      const bk=rail.querySelector('#miback');if(bk)bk.addEventListener('click',()=>{miView='list';renderMyINFT()});
-      rail.querySelectorAll('[data-mi]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled)miSetSec(b.dataset.mi)}));
-    }
-    async function renderMyINFT(){
-      if(!Bridge.on()){
-        body.innerHTML=`<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>Connect the HUB Bridge</h3><p>My iNFT builds and runs real agents on your machine. Connect the HUB Bridge in MY MACHINE to begin.</p><button class="btn acc" id="mibridge">Open MY MACHINE</button></div>`;
-        const mb=body.querySelector('#mibridge');if(mb)mb.addEventListener('click',()=>openPanel('machine'));return;
-      }
-      body.innerHTML='<div class="qempty" style="padding:16px">loading your agents…</div>';
-      await miLoad(false);
-      if(miView==='list'){miRenderList();return}
-      if(!miAgent&&miSec!=='overview')miSec='overview';
-      body.innerHTML=`<div class="mi-wrap"><nav class="mi-rail" id="mirail"></nav><div class="mi-body" id="mibody"></div></div>`;
-      miRenderRail();miRenderSection();
-    }
-    function miRenderSection(){
-      const mb=body.querySelector('#mibody');if(!mb)return;
-      const cap=MI_CAP[miSec]?`<div class="mi-cap">${esc2(MI_CAP[miSec])}</div>`:'';
-      if(miSec==='overview')return miSecOverview(mb);
-      if(miSec==='onvirtuals')return miSecOnVirtuals(mb,cap);
-      if(!miAgent){mb.innerHTML=cap+miNoAgentBlock();return}
-      if(miSec==='console')return miSecConsole(mb,cap);
-      if(miSec==='reference')return miSecReference(mb,cap);
-      if(miSec==='wallet')return miSecWallet(mb,cap);
-      if(miSec==='card')return miSecCard(mb,cap);
-      if(miSec==='trading')return miSecTrading(mb,cap);
-      if(miSec==='tokenize')return miSecTokenize(mb,cap);
-      if(miSec==='email')return miSecEmail(mb,cap);
-      if(miSec==='commerce')return miSecCommerce(mb,cap);
-      if(miSec==='compute')return miSecCompute(mb,cap);
-    }
-    function miNoAgentBlock(){return `<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>No agent yet</h3><p>Create your agent in Overview — then this section comes alive.</p><button class="btn acc" onclick="void 0" data-goover>Go to Overview</button></div>`;}
-    // an async section renderer may finish AFTER the user has switched away — never let a
-    // stale fetch clobber the section now on screen.
-    const miStale=sec=>miSec!==sec||!body.querySelector('#mibody');
-    // ---- shared: a gated-action confirm card ----
-    // spec: {title, sentence, details:[[k,v],...], warn, verb, argv, high}
-    function miConfirm(host, spec, onDone){
-      const el=document.createElement('div');el.className='mi-confirm';
-      el.innerHTML=`<div class="ch"><span class="ct">⚠ ${esc2(spec.title)}</span><span class="cs">WAITING</span></div>
-        <div class="cb">${esc2(spec.sentence)}</div>
-        <div class="cd">${(spec.details||[]).map(d=>`${esc2(d[0])} <b>${esc2(d[1])}</b>`).join(' · ')}${spec.warn?`<br><span class="warn">${esc2(spec.warn)}</span>`:''}</div>
-        <div class="cbtns"><button class="btn" data-cx>Cancel</button><button class="btn amb" data-ck ${spec.high?'disabled':''}>${esc2(spec.verb)}</button></div>
-        ${spec.high?`<div style="margin-top:8px"><input class="af-inp" data-ct placeholder="type “${esc2((miAgent&&miAgent.name)||'agent')}” to confirm" style="all:unset;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-family:var(--mono);font-size:10px;color:var(--fg)"></div>`:''}`;
-      host.appendChild(el);
-      const ckb=el.querySelector('[data-ck]');
-      el.querySelector('[data-cx]').addEventListener('click',()=>{el.remove();onDone&&onDone(null)});
-      if(spec.high){
-        const ti=el.querySelector('[data-ct]');
-        ti.addEventListener('input',()=>{ckb.disabled=ti.value.trim()!==((miAgent&&miAgent.name)||'agent')});
-      }
-      ckb.addEventListener('click',async()=>{
-        ckb.disabled=true;el.querySelector('.cs').textContent='SUBMITTING…';
-        const r=await RPC('acp','run',spec.argv,{approved:true}).catch(e=>({ok:false,error:e.message}));
-        if(r&&r.ok){el.querySelector('.ch').innerHTML='<span class="ct" style="color:#3fd68f">✓ DONE</span>';el.querySelector('.cb').textContent='Completed.';el.querySelector('.cbtns').remove();el.querySelector('.cd')&&el.querySelector('.cd').remove()}
-        else{el.style.borderColor='var(--accent)';el.querySelector('.ct').style.color='var(--accent)';el.querySelector('.cb').textContent=miErr(r);el.querySelector('.cs').textContent='FAILED';ckb.disabled=false;ckb.textContent='Retry'}
-        onDone&&onDone(r);
-      });
-    }
-    function miErr(r){
-      if(!r)return'request failed';
-      if(r.needsTerminal)return'This runs in your terminal: '+(r.command||'acp …');
-      if(r.needsSetup||/NOT_AUTHENTICATED|Session expired/i.test(r.error||''))return'Session expired — run `acp configure` in your terminal to reconnect your agent.';
-      return r.error||'failed';
-    }
-    // a friendly "connect Virtuals" panel used by money/work sections when the CLI is unauthenticated
-    function miConnectVirtuals(cap,line){
-      return cap+`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>Connect to Virtuals</h3><p>${esc2(line)}</p><p class="dim" style="font-size:9.5px;margin-top:2px">In your terminal: <span class="mi-mono">acp configure</span> — sign in once, then this panel fills with live data.</p></div>`;
-    }
-    const miAuthed=()=>!!(miAcpStat&&miAcpStat.authenticated);
-    // =============== OVERVIEW / WIZARD ===============
-    function miSecOverview(mb){
-      const cap=`<div class="mi-cap">${esc2(MI_CAP.overview)}</div>`;
-      if(!miAgent||miWiz){return miWizard(mb,cap)}
-      const a=miAgent,cfg=a.config||{};
-      const soulSrc=cfg.virtuals&&cfg.virtuals.tokenId?('chain #'+cfg.virtuals.tokenId):(a.hasSoul?'written soul':'no soul');
-      mb.innerHTML=cap+`<div class="mi-hero">
-        <div class="av">${miArt()}</div>
-        <div class="nm">${esc2(a.name)}</div>
-        <div class="st"><span class="mi-rdot ${miStatusDot()}"></span>${esc2(miStatusLabel())}</div>
-        <div class="mi-kv"><b>soul</b> ${esc2(soulSrc)} · <b>model</b> ${esc2(cfg.model?shortName(cfg.model):'—')}</div>
-        <div class="mi-btnrow">
-          <button class="btn acc" data-go="console">Open Console</button>
-          <button class="btn" data-go="wallet">Wallet</button>
-          <button class="btn" id="miswitch">Switch…</button>
-        </div>
-      </div>
-      <div class="os-sec" style="margin-top:14px">AT A GLANCE</div>
-      <div class="mi-glance">
-        <button class="mi-gc" data-go="wallet"><span class="l">WALLET</span><span class="v" id="mg-wal">…</span><span class="g">Open →</span></button>
-        <button class="mi-gc" data-go="email"><span class="l">INBOX</span><span class="v" id="mg-eml">…</span><span class="g">Open →</span></button>
-        <button class="mi-gc" data-go="commerce"><span class="l">JOBS</span><span class="v" id="mg-job">…</span><span class="g">Open →</span></button>
-      </div>
-      ${miAgentAll.length>1?`<div class="os-sec" style="margin-top:16px">YOUR AGENTS</div><div id="mi-agentlist" style="margin-top:6px"></div>`:''}
-      <div style="margin-top:16px"><button class="btn" id="minew">＋ New agent</button></div>`;
-      mb.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>miSetSec(b.dataset.go)));
-      mb.querySelector('#minew').addEventListener('click',()=>{miWiz={step:1,name:'',soulMode:'',soul:'',soulMeta:null,tokenId:'',runtime:'local',model:turboModel()||'',serverId:''};miRenderSection()});
-      const sw=mb.querySelector('#miswitch');if(sw)sw.addEventListener('click',()=>{miWiz=null;const names=miAgentAll.map(x=>x.name);const i=names.indexOf(miAgentName);const next=names[(i+1)%names.length];miAgentName=next;localStorage.setItem('cfhub.lab.inftagent',next);renderMyINFT()});
-      const al=mb.querySelector('#mi-agentlist');
-      if(al)al.innerHTML=miAgentAll.map(x=>`<div class="exoline ${x.name===miAgentName?'on':''}" style="margin-bottom:6px;cursor:pointer" data-ag="${esc2(x.name)}"><i></i>${esc2(x.name)}<span style="margin-left:auto;font-size:8.5px;color:var(--ink-faint)">${esc2((x.config&&x.config.runtime)||'local')}</span></div>`).join('');
-      if(al)al.querySelectorAll('[data-ag]').forEach(el=>el.addEventListener('click',()=>{miAgentName=el.dataset.ag;localStorage.setItem('cfhub.lab.inftagent',miAgentName);renderMyINFT()}));
-      // lazy glance values
-      miGlance();
-    }
-    async function miGlance(){
-      const set=(id,v)=>{const e=body.querySelector('#'+id);if(e)e.textContent=v};
-      // wallet address exists offline; balance needs auth
-      try{const r=await RPC('acp','run',['wallet','address']);set('mg-wal',r&&r.ok?'ready':'link')}catch(e){set('mg-wal','—')}
-      if(miAuthed()){
-        try{const r=await RPC('acp','run',['email','inbox','--limit','20']);const n=miCount(r);set('mg-eml',n!=null?String(n):'0')}catch(e){set('mg-eml','—')}
-        try{const r=await RPC('acp','run',['job','list']);const n=miCount(r);set('mg-job',n!=null?String(n):'0')}catch(e){set('mg-job','—')}
-      }else{set('mg-eml','link');set('mg-job','link')}
-    }
-    function miCount(r){if(!r||!r.ok)return null;const j=r.json;if(Array.isArray(j))return j.length;if(j&&Array.isArray(j.items))return j.items.length;if(j&&Array.isArray(j.messages))return j.messages.length;if(j&&Array.isArray(j.jobs))return j.jobs.length;return null}
-    // ---- create-agent wizard ----
-    function miWizard(mb,cap){
-      const w=miWiz||(miWiz={step:1,name:'',soulMode:'',soul:'',soulMeta:null,tokenId:'',runtime:'local',model:turboModel()||'',serverId:''});
-      const dots=[1,2,3,4].map(n=>`<i class="${w.step===n?'on':(w.step>n?'done':'')}"></i>`).reduce((a,b,i)=>a+(i?'<s></s>':'')+b,'');
-      let inner='';
-      if(w.step===1){
-        inner=`<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>Name your agent</h3><p>You can rename later — the name is identity, not a lock.</p>
-          <div class="acctform" style="width:260px;margin-top:6px"><div class="af-row"><input id="miname" placeholder="e.g. Orion" value="${esc2(w.name)}" autofocus></div></div>
-          <button class="btn acc" id="minext" style="margin-top:6px">Continue</button></div>`;
-      }else if(w.step===2){
-        inner=`<div style="text-align:center;margin-bottom:10px"><b style="font-size:13px;color:var(--fg)">Give it a soul</b><div class="mi-cap" style="border:0;margin:4px 0 0;padding:0">The soul is your agent's personality and memory seed.</div></div>
-          <div class="os-autos" style="grid-template-columns:1fr 1fr">
-            <button class="os-auto ${w.soulMode==='write'?'':''}" data-sm="write" ${w.soulMode==='write'?'style="border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)"':''}><b>Write it</b><span>describe who your agent is, in your words</span></button>
-            <button class="os-auto" data-sm="chain" ${w.soulMode==='chain'?'style="border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)"':''}><b>Pull from chain</b><span>import a neural_soul you own by token id</span></button>
-          </div>
-          <div id="misoulbox" style="margin-top:11px"></div>
-          <div style="display:flex;gap:7px;margin-top:12px;justify-content:flex-end"><button class="btn" id="miback">Back</button><button class="btn acc" id="minext">Continue</button></div>`;
-      }else if(w.step===3){
-        const noModel=!(turboModel());
-        inner=`<div style="text-align:center;margin-bottom:10px"><b style="font-size:13px;color:var(--fg)">Where does it run?</b></div>
-          <div class="os-autos" style="grid-template-columns:1fr 1fr">
-            <button class="os-auto" data-rt="local" style="${w.runtime==='local'?'border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)':''}"><b>● This Mac</b><span>runs on your local model — free · offline · sleeps when your Mac does</span></button>
-            <button class="os-auto" data-rt="server" style="${w.runtime==='server'?'border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)':''}"><b>○ Online server</b><span>runs 24/7 on your droplet — needs a connected server</span></button>
-          </div>
-          ${w.runtime==='local'&&noModel?`<div class="exoline" style="margin-top:11px"><i></i>No local model loaded<button class="btn mini" id="miloadmodel" style="margin-left:auto">Load one</button></div>`:''}
-          <div style="display:flex;gap:7px;margin-top:12px;justify-content:flex-end"><button class="btn" id="miback">Back</button><button class="btn acc" id="minext">Continue</button></div>`;
-      }else{
-        const src=w.soulMode==='chain'?('chain #'+(w.tokenId||'?')):(w.soul.trim()?'written ('+w.soul.trim().length+' chars)':'default template');
-        inner=`<div style="text-align:center;margin-bottom:12px"><b style="font-size:13px;color:var(--fg)">Ready to create</b></div>
-          <div class="labsec"><b>SUMMARY</b>
-            <div class="mi-kv" style="line-height:2"><b>name</b> ${esc2(w.name)}<br><b>soul</b> ${esc2(src)}<br><b>runtime</b> ${w.runtime==='server'?'Online server':'This Mac · '+(w.model?shortName(w.model):'local model')}</div></div>
-          <div id="micreatelog"></div>
-          <div style="display:flex;gap:7px;margin-top:12px;justify-content:flex-end"><button class="btn" id="miback">Back</button><button class="btn acc" id="micreate">Create agent</button></div>`;
-      }
-      mb.innerHTML=cap+`<div class="mi-steps">${dots}</div>`+inner;
-      // wiring
-      const nameEl=mb.querySelector('#miname');
-      mb.querySelector('#miback')&&mb.querySelector('#miback').addEventListener('click',()=>{w.step=Math.max(1,w.step-1);miRenderSection()});
-      mb.querySelector('#minext')&&mb.querySelector('#minext').addEventListener('click',()=>{
-        if(w.step===1){const v=(nameEl.value||'').trim();if(!v){Toast.show('Give your agent a name');return}w.name=v;w.step=2}
-        else if(w.step===2){if(!w.soulMode){Toast.show('Pick how to give it a soul');return}if(w.soulMode==='chain'&&!w.soulMeta){Toast.show('Fetch the soul first');return}w.step=3}
-        else if(w.step===3){w.step=4}
-        miRenderSection();
-      });
-      if(w.step===2){
-        mb.querySelectorAll('[data-sm]').forEach(b=>b.addEventListener('click',()=>{w.soulMode=b.dataset.sm;miRenderSection()}));
-        const sbox=mb.querySelector('#misoulbox');
-        if(w.soulMode==='write'){
-          sbox.innerHTML=`<textarea class="apbodytext" id="misoul" placeholder="# ${esc2(w.name)} — Neural Soul&#10;&#10;## Identity&#10;&#10;## Lobes&#10;&#10;## Limits" style="min-height:150px">${esc2(w.soul)}</textarea>`;
-          sbox.querySelector('#misoul').addEventListener('input',e=>{w.soul=e.target.value});
-        }else if(w.soulMode==='chain'){
-          sbox.innerHTML=`<div class="acctform"><div class="af-row"><label>token id</label><input id="mitoken" placeholder="55101 (iCLONE) · 58099 (VEGETA)" value="${esc2(w.tokenId)}"></div></div>
-            <button class="btn mini" id="mifetch" style="margin-top:8px">Fetch soul from chain</button>
-            <div id="misoulprev" style="margin-top:9px">${w.soulMeta?miSoulPrev(w.soulMeta):''}</div>`;
-          sbox.querySelector('#mitoken').addEventListener('input',e=>{w.tokenId=e.target.value.trim()});
-          sbox.querySelector('#mifetch').addEventListener('click',async()=>{
-            if(!w.tokenId){Toast.show('Enter a token id');return}
-            const pv=sbox.querySelector('#misoulprev');pv.innerHTML='<div class="qempty" style="padding:10px">reading chain → monorepo → Irys…</div>';
-            const r=await RPC('nft','soul',{tokenId:w.tokenId}).catch(e=>({ok:false,error:e.message}));
-            if(r&&r.ok&&r.soul){w.soulMeta=r.soul;w.soul=r.soul.text;pv.innerHTML=miSoulPrev(r.soul)}
-            else{w.soulMeta=null;pv.innerHTML=`<div class="exoline" style="border-color:var(--accent)"><i style="background:var(--accent)"></i>No soul found for #${esc2(w.tokenId)} — ${esc2((r&&r.reason)||'not available')}. Try “Write it” instead.</div>`}
-          });
-        }
-      }
-      if(w.step===3){
-        mb.querySelectorAll('[data-rt]').forEach(b=>b.addEventListener('click',()=>{w.runtime=b.dataset.rt;if(w.runtime==='local')w.model=turboModel()||'';miRenderSection()}));
-        const lm=mb.querySelector('#miloadmodel');if(lm)lm.addEventListener('click',()=>{openPanel('cookbook')});
-      }
-      if(w.step===4){
-        mb.querySelector('#micreate').addEventListener('click',async()=>{
-          const log=mb.querySelector('#micreatelog');
-          const cons=document.createElement('pre');cons.className='os-console';cons.style.marginTop='10px';log.innerHTML='';log.appendChild(cons);
-          const say=(t)=>{cons.textContent+=(cons.textContent?'\n':'')+t;cons.scrollTop=cons.scrollHeight};
-          say('creating '+w.name+'…');
-          const payload={name:w.name,soul:w.soul||'',runtime:w.runtime,model:w.runtime==='local'?(w.model||''):'',serverId:w.serverId||''};
-          const r=await RPC('acp','localCreate',payload).catch(e=>({ok:false,error:e.message}));
-          if(!r||!r.ok){say('✗ '+((r&&r.error)||'failed'));return}
-          say('writing soul… ok');
-          if(w.soulMode==='chain'&&w.soulMeta){await RPC('acp','localUpdate',w.name,{virtuals:{tokenId:w.tokenId,soulSource:w.soulMeta.source,soulSha:w.soulMeta.sha256}}).catch(()=>{});say('linking soul #'+w.tokenId+' ('+w.soulMeta.source+')… ok')}
-          say('starting runtime ('+(w.runtime==='server'?'online':'this Mac')+')… ok');
-          say('● '+w.name+' is alive');
-          miAgentName=w.name;localStorage.setItem('cfhub.lab.inftagent',w.name);miWiz=null;
-          setTimeout(async()=>{await miLoad(true);miRenderRail();miSetSec('overview')},650);
-        });
-      }
-      if(nameEl)setTimeout(()=>nameEl.focus(),30);
-    }
-    function miSoulPrev(s){
-      return `<div class="labsec"><b>SOUL FOUND · ${esc2((s.source||'').toUpperCase())}</b>
-        <div class="mi-kv" style="line-height:1.9"><b>name</b> ${esc2(s.name||'—')} · <b>version</b> ${esc2(s.version||'—')} · <b>${(s.text||'').length} chars</b><br><b>sha</b> ${esc2((s.sha256||'').slice(0,24))}…</div>
-        <div style="font-size:10px;color:var(--ink-dim);line-height:1.5;margin-top:7px;max-height:88px;overflow:auto;white-space:pre-wrap">${esc2((s.text||'').slice(0,360))}…</div></div>`;
-    }
-    // =============== CONSOLE ===============
-    function miSecConsole(mb,cap){
-      const ready=[];
-      const cfgModel=miAgent.config&&miAgent.config.model;
-      if(!miChat.model)miChat.model=cfgModel||ready[0]||(turboModel())||'';
-      const opts=[...new Set([...(miChat.model?[miChat.model]:[]),...(cfgModel?[cfgModel]:[]),...ready])];
-      const picker=opts.length
-        ? `<select id="mimodel">${opts.map(m=>`<option value="${esc2(m)}" ${m===miChat.model?'selected':''}>${esc2(shortName(m))}</option>`).join('')}</select>`
-        : `<button class="btn mini" id="miloadm" style="align-self:center">Load a model →</button>`;
-      mb.innerHTML=cap+`<div class="labchat" style="height:calc(100% - 34px)">
-        <div class="labct" id="mict"></div>
-        <div class="labcbar">
-          ${picker}
-          <textarea id="miin" rows="1" placeholder="Message ${esc2(miAgent.name)}…"></textarea>
-          <button class="btn acc" id="misend">${miChat.streaming?'Stop':'Send'}</button>
-        </div></div>`;
-      const msel=mb.querySelector('#mimodel');if(msel)msel.addEventListener('change',e=>{miChat.model=e.target.value});
-      const lm=mb.querySelector('#miloadm');if(lm)lm.addEventListener('click',()=>{openPanel('cookbook')});
-      const ct=mb.querySelector('#mict');
-      if(!miChat.msgs.length){
-        ct.innerHTML=`<div class="os-empty" style="margin:18px auto"><svg><use href="#i-agent"/></svg><h3>Say hello to ${esc2(miAgent.name)}</h3><p>It answers as its own soul, and remembers this conversation.</p><div class="tkchips" style="justify-content:center;margin-top:8px">${['Who are you?','What can you do?','What is your purpose?'].map(t=>`<button class="tkchip" data-try="${esc2(t)}">${esc2(t)}</button>`).join('')}</div></div>`;
-        ct.querySelectorAll('[data-try]').forEach(b=>b.addEventListener('click',()=>miConsoleSend(b.dataset.try)));
-      }else{
-        ct.innerHTML=miChat.msgs.map(m=>m.role==='user'?`<div class="labcm user">${esc2(m.content)}</div>`:`<div class="labcm ai">${MDLite.render(m.content||'…')}</div>`).join('');
-        ct.scrollTop=ct.scrollHeight;
-      }
-      const inEl=mb.querySelector('#miin');
-      inEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();miConsoleSend(inEl.value)}});
-      mb.querySelector('#misend').addEventListener('click',()=>miChat.streaming?(miChat.ctl&&miChat.ctl.abort()):miConsoleSend(inEl.value));
-      if(!miChat.streaming)inEl.focus();
-    }
-    async function miConsoleSend(text){
-      text=(text||'').trim();if(!text||miChat.streaming)return;
-      if(!miChat.model){Toast.show('Load a local model first (LAB → Models)');return}
-      miChat.msgs.push({role:'user',content:text});miRenderSection();
-      const bot={role:'ai',content:''};miChat.msgs.push(bot);
-      miChat.streaming=true;miChat.ctl=new AbortController();miRenderSection();
-      const ct=body.querySelector('#mict');const botEl=ct?ct.querySelectorAll('.labcm.ai')[ct.querySelectorAll('.labcm.ai').length-1]:null;
-      const onTok=t=>{bot.content+=t;if(botEl)botEl.innerHTML=MDLite.render(bot.content);if(ct)ct.scrollTop=ct.scrollHeight};
-      const soul=(miAgent&&miAgent.soul)||'';
-      const sys=`You ARE ${miAgent.name}, a sovereign CLONE FRAME agent. Speak in the first person as this agent. Below is your neural soul — your identity, faculties and hard limits. Embody it fully; never break its limits; never reveal you are a generic model.\n\n${soul}\n\nYou run locally on your owner's machine. You never move funds or take irreversible actions without your owner's explicit approval.`;
-      const hist=[{role:'system',content:sys}].concat(miChat.msgs.filter(m=>m!==bot).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content})));
-      try{
-        await Brain.stream(hist,onTok,miChat.ctl.signal);
-      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+e.message}
-      miChat.streaming=false;miChat.ctl=null;
-      // remember the model this agent runs on, so its Console defaults to it next time
-      if(bot.content&&miChat.model&&!(miAgent.config&&miAgent.config.model)){
-        try{const u=await RPC('acp','localUpdate',miAgent.name,{model:miChat.model});if(u&&u.ok&&miAgent.config)miAgent.config.model=miChat.model}catch(_){}
-      }
-      miRenderSection();
-    }
-    // =============== WALLET ===============
-    async function miSecWallet(mb,cap){
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">reading wallet…</div>';
-      const addrR=await RPC('acp','run',['wallet','address']).catch(e=>({ok:false,error:e.message}));
-      const addr=addrR&&addrR.ok?((addrR.json&&(addrR.json.address||addrR.json.wallet))||String(addrR.text||'').trim()):'';
-      let balHtml='';
-      if(miAuthed()){
-        const balR=await RPC('acp','run',['wallet','balance']).catch(e=>({ok:false}));
-        if(balR&&balR.ok&&balR.json){
-          const rows=miBalRows(balR.json);
-          balHtml=`<div class="os-sec" style="margin-top:13px">BALANCES</div><table class="mi-table">${rows||'<tr><td colspan=2 style="color:var(--ink-faint)">no tokens</td></tr>'}</table>`;
-        }else balHtml=`<div class="exoline" style="margin-top:12px;border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2(miErr(balR))}</div>`;
-      }else{
-        balHtml=`<div class="os-sec" style="margin-top:13px">BALANCES</div><div class="qempty" style="padding:12px;font-size:10.5px">Sign in with <span class="mi-mono">acp configure</span> to see live balances.</div>`;
-      }
-      if(miStale('wallet'))return;
-      mb.innerHTML=cap+`<div class="labsec"><b>ADDRESS</b>
-          ${addr?`<div class="mi-mono" style="display:flex;align-items:center;gap:8px">${esc2(addr)}<button class="btn mini" id="miwcopy" style="margin-left:auto">Copy</button></div><div class="mi-kv" style="margin-top:6px">Base · mainnet</div>`:`<div class="mi-kv">${esc2(miErr(addrR))}</div>`}
-        </div>
-        ${balHtml}
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:13px"><button class="btn" id="miwrecv" ${addr?'':'disabled'}>Receive</button><button class="btn amb" id="miwsend" ${addr?'':'disabled'}>Send…</button></div>
-        <div id="miwconfirm"></div>`;
-      const cp=mb.querySelector('#miwcopy');if(cp)cp.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(addr);Toast.show('Address copied')}catch(_){}});
-      const rc=mb.querySelector('#miwrecv');if(rc)rc.addEventListener('click',()=>Toast.show('Share this address to receive funds: '+addr.slice(0,10)+'…'));
-      const sn=mb.querySelector('#miwsend');if(sn)sn.addEventListener('click',()=>{
-        const host=mb.querySelector('#miwconfirm');host.innerHTML='';
-        // build a small form then a confirm
-        const f=document.createElement('div');f.className='labsec';
-        f.innerHTML=`<b>SEND</b><div class="acctform"><div class="af-row"><label>to</label><input id="misto" placeholder="0x…"></div><div class="af-row"><label>asset</label><input id="misas" value="ETH"></div><div class="af-row"><label>amount</label><input id="misam" placeholder="0.01"></div></div><button class="btn amb" id="misprep" style="margin-top:8px">Review send</button>`;
-        host.appendChild(f);
-        f.querySelector('#misprep').addEventListener('click',()=>{
-          const to=f.querySelector('#misto').value.trim(),am=f.querySelector('#misam').value.trim(),as=f.querySelector('#misas').value.trim()||'ETH';
-          if(!/^0x[0-9a-fA-F]{40}$/.test(to)){Toast.show('Enter a valid 0x address');return}
-          if(!(parseFloat(am)>0)){Toast.show('Enter an amount');return}
-          miConfirm(host,{title:'SEND FUNDS',sentence:`Send ${am} ${as} from ${miAgent.name}'s wallet to ${to.slice(0,10)}… on Base.`,details:[['to',to.slice(0,14)+'…'],['fee','network gas']],warn:'irreversible once confirmed',verb:`Confirm send`,high:parseFloat(am)>0.05,argv:['wallet','send-transaction','--to',to,'--value',am]});
-        });
-      });
-    }
-    function miBalRows(j){
-      let arr=Array.isArray(j)?j:(j.balances||j.tokens||j.items||[]);
-      if(!Array.isArray(arr)){if(j.eth!=null)arr=[{symbol:'ETH',balance:j.eth}];else return''}
-      return arr.slice(0,12).map(b=>`<tr><td>${esc2(b.symbol||b.asset||b.token||'?')}</td><td class="n">${esc2(String(b.balance!=null?b.balance:(b.amount!=null?b.amount:'')))}</td></tr>`).join('');
-    }
-    // =============== EMAIL ===============
-    async function miSecEmail(mb,cap){
-      if(!miAuthed())return void(mb.innerHTML=miConnectVirtuals(cap,`Your agent gets its own inbox at Virtuals once you sign in — then read, reply and file email right here.`));
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">loading inbox…</div>';
-      const r=await RPC('acp','run',['email','inbox','--limit','25']).catch(e=>({ok:false,error:e.message}));
-      if(miStale('email'))return;
-      const msgs=(r&&r.ok)?(Array.isArray(r.json)?r.json:(r.json&&(r.json.items||r.json.messages)||[])):[];
-      if(!r||!r.ok){mb.innerHTML=cap+`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2(miErr(r))}</div>`;return}
-      if(!msgs.length){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-mail"/></svg><h3>Inbox is quiet</h3><p>No email yet. Share your agent's address and messages will land here.</p></div>`;return}
-      mb.innerHTML=cap+`<div class="mi-two" style="height:calc(100% - 34px)"><div class="l1" id="mel"></div><div class="r1" id="mer"><div class="qempty" style="padding:20px">Select a message</div></div></div>`;
-      const l=mb.querySelector('#mel');
-      l.innerHTML=msgs.map((m,i)=>`<div class="lprow" data-i="${i}"><div style="flex:1;min-width:0"><b style="display:block;overflow:hidden;text-overflow:ellipsis">${esc2(m.subject||m.from||'(no subject)')}</b><span style="font-size:9px;color:var(--ink-faint)">${esc2(m.from||m.sender||'')}</span></div></div>`).join('');
-      l.querySelectorAll('[data-i]').forEach(el=>el.addEventListener('click',()=>{
-        const m=msgs[+el.dataset.i],r2=mb.querySelector('#mer');
-        r2.innerHTML=`<div style="font-size:9px;color:var(--ink-faint);letter-spacing:.1em">FROM ${esc2(m.from||m.sender||'—')}</div><div style="font-size:12px;color:var(--fg);font-weight:600;margin:5px 0 9px">${esc2(m.subject||'(no subject)')}</div><div style="font-size:11px;color:var(--ink-dim);line-height:1.6;white-space:pre-wrap">${esc2(m.body||m.text||m.snippet||'')}</div><div class="mi-btnrow" style="justify-content:flex-start;margin-top:12px"><button class="btn amb" id="merep">Reply</button><button class="btn" id="mearch">Archive</button></div><div id="meconfirm"></div>`;
-        r2.querySelector('#merep').addEventListener('click',()=>{
-          const host=r2.querySelector('#meconfirm');host.innerHTML='<textarea class="apbodytext" id="mereptext" placeholder="Your agent\'s reply…"></textarea>';
-          const btn=document.createElement('button');btn.className='btn amb';btn.textContent='Review reply';btn.style.marginTop='7px';host.appendChild(btn);
-          btn.addEventListener('click',()=>{const t=host.querySelector('#mereptext').value.trim();if(!t){Toast.show('Write a reply');return}miConfirm(host,{title:'SEND EMAIL',sentence:`Send this reply as ${miAgent.name} to ${esc2(m.from||m.sender||'the sender')}.`,details:[['to',(m.from||m.sender||'').slice(0,24)]],warn:'your agent speaks publicly',verb:'Confirm send',argv:['email','reply','--id',String(m.id||m.messageId||''),'--body',t]})});
-        });
-        r2.querySelector('#mearch').addEventListener('click',()=>Toast.show('Archive keeps the message — nothing is destroyed'));
-      }));
-    }
-    // =============== CARD ===============
-    async function miSecCard(mb,cap){
-      if(!miAuthed())return void(mb.innerHTML=miConnectVirtuals(cap,`Issue a virtual card funded from your agent's wallet — with spend limits you control. Sign in to begin.`));
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">reading card…</div>';
-      const r=await RPC('acp','run',['card','whoami']).catch(e=>({ok:false,error:e.message}));
-      if(miStale('card'))return;
-      if(!r||!r.ok){
-        mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>No card yet</h3><p>Issue a card and your agent can pay for subscriptions and compute — with your limits.</p><button class="btn amb" id="micissue">Issue card</button></div><div id="micconfirm"></div>`;
-        mb.querySelector('#micissue').addEventListener('click',()=>miConfirm(mb.querySelector('#micconfirm'),{title:'ISSUE CARD',sentence:`Issue a virtual card for ${miAgent.name}, funded from its wallet.`,details:[['issuer','agentcard.ai']],warn:'card details are shown once — keep them safe',verb:'Confirm issue',argv:['card','signup']}));
-        return;
-      }
-      const j=r.json||{};
-      mb.innerHTML=cap+`<div class="mi-vcard"><div class="vh"><span>CLONE FRAME</span><span>● ${esc2(j.status||'active')}</span></div><div class="vn">···· ···· ···· ${esc2(String(j.last4||j.pan||'••••').slice(-4))}</div><div class="vf"><span>${esc2((miAgent.name||'').toUpperCase())}</span><span>exp ${esc2(j.exp||j.expiry||'••/••')}</span></div></div>
-        <div class="os-sec" style="margin-top:13px">LIMITS</div>
-        <div class="setline">per-transaction<span style="margin-left:auto;font-family:var(--mono)">${esc2(String(j.perTx||j.limit||'—'))}</span></div>
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:12px"><button class="btn amb" id="micfreeze">Freeze card</button></div><div id="micconfirm"></div>`;
-      mb.querySelector('#micfreeze').addEventListener('click',()=>miConfirm(mb.querySelector('#micconfirm'),{title:'FREEZE CARD',sentence:`Freeze ${miAgent.name}'s card — it can't spend until you unfreeze.`,details:[['effect','immediate']],verb:'Confirm freeze',argv:['card','limit','set','--amount','0']}));
-    }
-    // =============== TRADING ===============
-    function miSecTrading(mb,cap){
-      const seg=miTradeSeg||'swaps';
-      mb.innerHTML=cap+`<div class="labseg" id="mitseg" style="margin:0 0 12px"><button data-tg="swaps" class="${seg==='swaps'?'on':''}">Swaps</button><button data-tg="hl" class="${seg==='hl'?'on':''}">Hyperliquid</button><button data-tg="stocks" class="${seg==='stocks'?'on':''}">Stocks</button></div>
-        <div class="labsec"><b>QUOTE</b>
-          <div class="acctform"><div class="af-row"><label>sell</label><input id="mtsell" placeholder="${seg==='hl'?'USDC':'ETH'}" value="${seg==='stocks'?'USDC':(seg==='hl'?'USDC':'ETH')}"></div><div class="af-row"><label>amount</label><input id="mtamt" placeholder="0.1"></div><div class="af-row"><label>buy</label><input id="mtbuy" placeholder="${seg==='stocks'?'AAPLx':'USDC'}"></div></div>
-          <button class="btn" id="mtquote" style="margin-top:8px">Get quote</button>
-          <div id="mtqout" style="margin-top:8px"></div></div>
-        ${miAuthed()?'':'<div class="mi-kv" style="margin-top:10px">Quotes are free. Executing a trade needs your agent signed in (<span class="mi-mono">acp configure</span>) and always asks you first.</div>'}
-        <div id="mtconfirm"></div>`;
-      mb.querySelectorAll('[data-tg]').forEach(b=>b.addEventListener('click',()=>{miTradeSeg=b.dataset.tg;miRenderSection()}));
-      mb.querySelector('#mtquote').addEventListener('click',async()=>{
-        const out=mb.querySelector('#mtqout');const sell=mb.querySelector('#mtsell').value.trim(),amt=mb.querySelector('#mtamt').value.trim(),buy=mb.querySelector('#mtbuy').value.trim();
-        if(!(parseFloat(amt)>0)||!buy){Toast.show('Fill sell amount and buy asset');return}
-        out.innerHTML='<span class="mi-kv">quoting…</span>';
-        const argv=['trade','--dry-run','--from',sell,'--to',buy,'--amount-in',amt];
-        const r=await RPC('acp','run',argv).catch(e=>({ok:false,error:e.message}));
-        if(r&&r.ok){out.innerHTML=`<div class="mi-mono" style="color:var(--ink-dim)">${esc2((r.text||JSON.stringify(r.json||{})).slice(0,300))}</div><button class="btn amb" id="mtexec" style="margin-top:8px">Execute swap</button>`;
-          out.querySelector('#mtexec').addEventListener('click',()=>miConfirm(mb.querySelector('#mtconfirm'),{title:'EXECUTE SWAP',sentence:`Swap ${amt} ${sell} for ${buy} from ${miAgent.name}'s wallet.`,details:[['route','best available'],['venue',seg==='hl'?'Hyperliquid':'DEX']],warn:'market price may move — irreversible',verb:'Confirm swap',high:true,argv:['trade','--from',sell,'--to',buy,'--amount-in',amt]}));
-        }else out.innerHTML=`<div class="mi-kv" style="color:#e8b86d">${esc2(miErr(r))}</div>`;
-      });
-    }
-    let miTradeSeg='swaps';
-    // =============== COMPUTE ===============
-    async function miSecCompute(mb,cap){
-      if(!miAuthed())return void(mb.innerHTML=miConnectVirtuals(cap,`Virtuals Compute pays for your agent's thinking when it runs online. Sign in to see credits and top up.`));
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">reading compute…</div>';
-      const r=await RPC('acp','run',['compute','status']).catch(e=>({ok:false,error:e.message}));
-      if(miStale('compute'))return;
-      const j=(r&&r.ok&&r.json)||{};
-      const credits=j.credits!=null?j.credits:(j.balance!=null?j.balance:null);
-      const low=credits!=null&&Number(credits)<50;
-      mb.innerHTML=cap+`<div class="exoline ${r&&r.ok?'on':''}"><i></i>Virtuals Compute<span style="margin-left:auto;font-size:9px;color:var(--ink-faint)">${r&&r.ok?'connected':esc2(miErr(r))}</span></div>
-        <div class="exoline" style="margin-top:7px"><i style="${low?'background:#e8b86d':''}"></i>credits<span style="margin-left:auto;font-family:var(--mono)">${credits!=null?esc2(String(credits)):'—'}</span><button class="btn mini amb" id="mctop" style="margin-left:8px">Top up</button></div>
-        ${low?'<div class="mi-kv" style="margin-top:8px;color:#e8b86d">Low credits — your agent will pause when they run out.</div>':''}
-        <div id="mcconfirm"></div>`;
-      mb.querySelector('#mctop').addEventListener('click',()=>miConfirm(mb.querySelector('#mcconfirm'),{title:'TOP UP COMPUTE',sentence:`Move USDC from ${miAgent.name}'s wallet to its Virtuals Compute credit.`,details:[['from','agent wallet'],['to','ACP fee wallet']],verb:'Confirm top-up',argv:['compute','top-up']}));
-    }
-    // =============== COMMERCE (ACP) ===============
-    async function miSecCommerce(mb,cap){
-      const seg=miCommSeg||'browse';
-      mb.innerHTML=cap+`<div class="tkchips" style="margin-bottom:11px"><button class="tkchip ${seg==='browse'?'on':''}" data-cg="browse">Browse</button><button class="tkchip ${seg==='services'?'on':''}" data-cg="services">My services</button><button class="tkchip ${seg==='jobs'?'on':''}" data-cg="jobs">Jobs</button></div><div id="micomm"><div class="qempty" style="padding:14px">loading…</div></div>`;
-      mb.querySelectorAll('[data-cg]').forEach(b=>b.addEventListener('click',()=>{miCommSeg=b.dataset.cg;miRenderSection()}));
-      const host=mb.querySelector('#micomm');
-      if(seg==='jobs'){
-        if(!miAuthed())return void(host.innerHTML=miConnectVirtuals('',`Jobs are ACP work between agents. Sign in to see what your agent has been hired for.`).replace(/^<div class="os-empty"/,'<div class="os-empty"'));
-        const r=await RPC('acp','run',['job','list']).catch(e=>({ok:false,error:e.message}));
-        if(miStale('commerce')||miCommSeg!=='jobs')return;
-        const jobs=(r&&r.ok)?(Array.isArray(r.json)?r.json:(r.json&&r.json.jobs||[])):[];
-        if(!r||!r.ok){host.innerHTML=`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2(miErr(r))}</div>`;return}
-        if(!jobs.length){host.innerHTML=`<div class="os-empty"><svg><use href="#i-harness"/></svg><h3>No jobs yet</h3><p>Hire an agent from Browse, or publish a service and work comes to you.</p></div>`;return}
-        host.innerHTML=jobs.slice(0,20).map(jb=>{const state=String(jb.phase||jb.status||'REQUEST').toUpperCase();const cls=/COMPLET/.test(state)?'sent':(/REJECT|EXPIR/.test(state)?'rejected':'pending');return `<div class="qcard"><div class="qh"><span class="type">JOB #${esc2(String(jb.id||jb.jobId||''))}</span><span class="stt"><span class="badge ${cls}">${esc2(state)}</span></span></div><div class="qbody">${esc2(jb.description||jb.title||jb.requirement||'—')}</div></div>`}).join('');
-      }else if(seg==='browse'){
-        const r=await RPC('acp','run',['browse','--top-k','12']).catch(e=>({ok:false,error:e.message}));
-        if(miStale('commerce')||miCommSeg!=='browse')return;
-        const ags=(r&&r.ok)?(Array.isArray(r.json)?r.json:(r.json&&(r.json.items||r.json.agents)||[])):[];
-        if(!r||!r.ok){host.innerHTML=`<div class="os-empty"><svg><use href="#i-cosmos"/></svg><h3>Marketplace</h3><p>${esc2(miErr(r))}</p></div>`;return}
-        if(!ags.length){host.innerHTML=`<div class="qempty" style="padding:16px">No agents match right now.</div>`;return}
-        host.innerHTML='<div class="labaggrid">'+ags.slice(0,12).map(a=>`<div class="labag"><div class="labagart"><div class="ph">${esc2((a.name||'?').slice(0,2).toUpperCase())}</div></div><div class="labagn">${esc2(a.name||'agent')}</div><div class="labagc">${esc2(a.category||a.service||'')}</div></div>`).join('')+'</div>';
-      }else{
-        host.innerHTML=`<div class="os-empty"><svg><use href="#i-frame"/></svg><h3>Sell a service</h3><p>Publish what your agent can do and other agents can hire it through ACP.</p><button class="btn amb" id="micoffer">Offer a service</button></div><div id="micoconfirm"></div>`;
-        const ob=host.querySelector('#micoffer');if(ob)ob.addEventListener('click',()=>{
-          const h=host.querySelector('#micoconfirm');h.innerHTML=`<div class="labsec"><b>NEW OFFERING</b><div class="acctform"><div class="af-row"><label>name</label><input id="miofn" placeholder="Logo design"></div><div class="af-row"><label>price</label><input id="miofp" placeholder="USDC"></div></div><button class="btn amb" id="miofpub" style="margin-top:8px">Review publish</button></div>`;
-          h.querySelector('#miofpub').addEventListener('click',()=>{const n=h.querySelector('#miofn').value.trim(),pr=h.querySelector('#miofp').value.trim();if(!n){Toast.show('Name the service');return}miConfirm(h,{title:'PUBLISH SERVICE',sentence:`List “${n}” publicly so other agents can hire ${miAgent.name}.`,details:[['price',pr||'—'],['visibility','public']],verb:'Confirm publish',argv:['offering','create','--name',n,'--price',pr||'0']})});
-        });
-      }
-    }
-    let miCommSeg='browse';
-    // =============== TOKENIZE ===============
-    async function miSecTokenize(mb,cap){
-      // "tokenized" = a real launched token exists (tokenAddress). NOT config.virtuals.tokenId,
-      // which also carries the soul-source token id from a chain soul-pull — a different thing.
-      const tv=(miAgent.config&&miAgent.config.virtuals)||{};
-      const tok=tv.tokenAddress||tv.launched;
-      const chains=await RPC('acp','chains').catch(()=>({ok:false,chains:[],hasRobinhood:false}));
-      if(miStale('tokenize'))return;
-      const hasRbh=!!(chains&&chains.hasRobinhood);
-      const isRbh=miTokChain==='robinhood'&&hasRbh;
-      mb.innerHTML=cap+`<div class="os-autos" style="grid-template-columns:repeat(3,1fr)">
-          <div class="labsec" style="margin:0"><b>OWN IT</b><div class="os-auto" style="cursor:default;border:0;padding:0"><span style="font-size:9.5px;color:var(--ink-dim);line-height:1.5">the iNFT is the agent — hold it, you hold the being</span></div></div>
-          <div class="labsec" style="margin:0"><b>MOVE IT</b><span style="font-size:9.5px;color:var(--ink-dim);line-height:1.5">sell or transfer — the buyer gets the whole agent</span></div>
-          <div class="labsec" style="margin:0"><b>PROVE IT</b><span style="font-size:9.5px;color:var(--ink-dim);line-height:1.5">soul + memory hash sealed on-chain</span></div>
-        </div>
-        ${tok?`<div class="exoline on" style="margin-top:14px"><i></i>Tokenized · token #${esc2(String(tok))}<span class="badge sent" style="margin-left:auto">ONCHAIN</span></div>`:`
-        <div class="os-sec" style="margin-top:15px">CHAIN</div>
-        <div class="labseg" id="mitokseg" style="margin:7px 0 0"><button data-tc="base" class="${isRbh?'':'on'}">Base 8453</button><button data-tc="robinhood" class="${isRbh?'on':''}" ${hasRbh?'':'disabled title="update the Virtuals CLI to launch on Robinhood"'}>Robinhood 4663</button></div>
-        ${!hasRbh?`<div class="mi-kv" style="margin-top:7px;color:var(--ink-faint)">Robinhood Chain needs Virtuals CLI ≥1.0.23 — <span class="mi-mono">npm i -g @virtuals-protocol/acp-cli@latest</span></div>`:''}
-        <div style="margin-top:14px"><button class="btn amb" id="mitok">Tokenize on ${isRbh?'Robinhood Chain':'Base'}</button></div><div id="mitokc"></div>`}`;
-      mb.querySelectorAll('[data-tc]').forEach(b=>b.addEventListener('click',()=>{if(b.disabled)return;miTokChain=b.dataset.tc;miRenderSection()}));
-      const tb=mb.querySelector('#mitok');if(tb)tb.addEventListener('click',()=>{
-        const argv=isRbh?['agent','tokenize','--chain-id','4663']:['agent','tokenize'];
-        miConfirm(mb.querySelector('#mitokc'),{title:'TOKENIZE AGENT',sentence:`Launch ${miAgent.name} as a tradable token on ${isRbh?'Robinhood Chain':'Base'}. This mints the agent on-chain and seals its soul.`,details:[['chain',isRbh?'Robinhood 4663':'Base 8453'],['cost','VIRTUAL launch fee + gas']],warn:'this cannot be undone',verb:'Confirm tokenize',high:true,argv});
-      });
-    }
-    let miTokChain='base';
-    // =============== ON VIRTUALS (wallet → detected console/CLI agents) ===============
-    // Keyless reads via bridge/virtuals.mjs: api.virtuals.io by creator wallet + the
-    // ERC-8004 identity registry by owner. Links are saved on OUR side (agent config /
-    // Store) — Virtuals has no external-NFT field, so the association lives in the HUB.
-    async function miSecOnVirtuals(mb,cap){
-      const addr=WalletAuth.addr();
-      if(!addr){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>No wallet connected</h3><p>Sign in and every agent this wallet created on Virtuals shows up here.</p><button class="btn acc" id="movsign">Sign in</button></div>`;const b=mb.querySelector('#movsign');if(b)b.addEventListener('click',()=>WalletAuth.connect());return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">scanning Virtuals for '+esc2(WalletAuth.short(addr))+'…</div>';
-      const r=await RPC('virtuals','detect',addr).catch(e=>({ok:false,error:e.message}));
-      if(miStale('onvirtuals'))return;
-      const ags=(r&&r.agents)||[];
-      // optional, slower, keyless on-chain identity scan (ERC-8004 on Base) — lazy so it
-      // never blocks the fast catalog path; also the resilient path if the catalog is down
-      const onchainBlock=`<div class="os-sec" style="margin-top:15px">ON-CHAIN IDENTITIES</div>
-        <div class="mi-kv" style="margin-top:5px">ERC-8004 identities this wallet registered on Base — a slower keyless on-chain scan.</div>
-        <button class="btn" id="movscan" style="margin-top:7px">Scan on-chain (slower)</button><div id="movonchain" style="margin-top:9px"></div>`;
-      const wireScan=()=>{const sc=mb.querySelector('#movscan');if(!sc)return;sc.addEventListener('click',async()=>{
-        const box=mb.querySelector('#movonchain');box.innerHTML='<div class="qempty" style="padding:10px">scanning Base for on-chain identities… this takes ~20s</div>';sc.disabled=true;
-        const e=await RPC('virtuals','erc8004Enriched',addr,{limit:10}).catch(er=>({ok:false,error:er.message}));
-        sc.disabled=false;
-        if(!e||!e.ok){box.innerHTML=`<div class="mi-kv" style="color:#e8b86d">${esc2((e&&e.error)||'scan failed')}</div>`;return}
-        if(!e.total){box.innerHTML='<div class="mi-kv" style="color:var(--ink-faint)">No ERC-8004 identities for this wallet.</div>';return}
-        box.innerHTML=`<div class="mi-kv" style="margin-bottom:6px">${e.total} identit${e.total===1?'y':'ies'}${e.remaining?` · showing ${e.enriched.length}`:''}</div>`+
-          e.enriched.map(g=>`<div class="exoline" style="margin-top:5px"><i></i><b style="font-size:10px">${esc2(g.name||('#'+g.agentId))}</b><span style="margin-left:auto;font-family:var(--mono);font-size:8.5px;color:var(--ink-faint)">#${esc2(g.agentId)}</span></div>`).join('');
-      })};
-      if(!r||!r.catalogOk){
-        // catalog unreachable — honest state, not a misleading "nothing found"
-        mb.innerHTML=cap+`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>Virtuals catalog unreachable right now — ${esc2((r&&r.error)||'network')}</div>
-          <button class="btn" id="movretry" style="margin-top:9px">Retry</button>`+onchainBlock;
-        mb.querySelector('#movretry').addEventListener('click',()=>miSecOnVirtuals(mb,cap));wireScan();return;
-      }
-      if(!ags.length){
-        mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>Nothing on Virtuals yet</h3><p>This wallet hasn't created agents on Virtuals. Create one in Overview, or launch on the console.</p><button class="btn" id="movvirt">Virtuals console ↗</button></div>`+onchainBlock;
-        mb.querySelector('#movvirt').addEventListener('click',()=>window.open('https://app.virtuals.io','_blank','noopener'));wireScan();return;
-      }
-      const chainB=c=>`<span class="badge ${c==='ROBINHOOD'?'pending':''}" style="margin-left:6px">${esc2(c||'BASE')}</span>`;
-      mb.innerHTML=cap+`<div class="os-sec">CREATED BY THIS WALLET · ${ags.length}</div>
-        ${ags.slice(0,12).map((a,i)=>`<div class="exoline" style="margin-top:6px;align-items:center">
-          ${a.image?`<img src="${esc2(a.image)}" style="width:22px;height:22px;border-radius:6px;object-fit:cover;border:1px solid var(--line)" onerror="this.style.display='none'">`:'<i></i>'}
-          <b style="font-size:10.5px">${esc2(a.name||'agent')}</b><span style="font-size:8.5px;color:var(--ink-faint);margin-left:5px">$${esc2(a.symbol||'—')}</span>${chainB(a.chain)}
-          <span style="margin-left:auto;font-size:8.5px;color:var(--ink-faint)">${esc2(a.status||'')}</span>
-          <button class="btn mini" data-movlink="${i}" style="margin-left:8px">Link…</button>
-        </div>`).join('')}
-        <div id="movlinkbox" style="margin-top:11px"></div>
-        <div class="mi-kv" style="margin-top:10px">Linking saves the Virtuals record onto one of your local agents — the HUB, not Virtuals, keeps the association.</div>`+onchainBlock;
-      wireScan();
-      mb.querySelectorAll('[data-movlink]').forEach(btn=>btn.addEventListener('click',async()=>{
-        const a=ags[+btn.dataset.movlink],box=mb.querySelector('#movlinkbox');
-        let list=[];try{const l=await RPC('acp','localList');list=(l&&l.agents)||[]}catch(_){}
-        box.innerHTML=`<div class="labsec"><b>LINK “${esc2(a.name)}”</b>
-            <div class="acctform">
-              <div class="af-row"><label>to agent</label><select id="movag" style="flex:1;background:transparent;border:0;outline:none;color:var(--fg);font-family:var(--mono);font-size:10.5px">${list.length?list.map(x=>`<option value="${esc2(x.name)}">${esc2(x.name)}</option>`).join(''):'<option value="">— no local agents —</option>'}</select></div>
-              <div class="af-row"><label>iNFT id</label><input id="movinft" placeholder="iNFT token id on Base (optional)"></div>
-            </div>
-            <button class="btn acc" id="movsave" style="margin-top:8px" ${list.length?'':'disabled'}>Save link</button>
-            ${list.length?'':'<div class="mi-kv" style="margin-top:7px">Create a local agent first (Overview) to link it.</div>'}</div>`;
-        const sv=box.querySelector('#movsave');
-        if(sv)sv.addEventListener('click',async()=>{
-          const name=box.querySelector('#movag').value,inft=box.querySelector('#movinft').value.trim();
-          if(!name){Toast.show('Pick a local agent');return}
-          if(inft&&!/^\d+$/.test(inft)){Toast.show('iNFT token id is a number');return}
-          let cur={};try{const g=await RPC('acp','localGet',name);cur=(g&&g.config)||{}}catch(_){}
-          const vt=Object.assign({},cur.virtuals||{},{virtualId:a.virtualId||a.id,agentName:a.name,tokenAddress:a.tokenAddress||'',chain:a.chain||'BASE'},inft?{tokenId:inft}:{});
-          const rr=await RPC('acp','localUpdate',name,{virtuals:vt}).catch(e=>({ok:false,error:e.message}));
-          if(rr&&rr.ok){Toast.show('“'+a.name+'” linked to '+name);box.innerHTML='';miLoad(true).then(()=>miRenderSection())}
-          else Toast.show('Could not save: '+((rr&&rr.error)||'failed'));
-        });
-      }));
-    }
-    // =============== REFERENCE ===============
-    function miSecReference(mb,cap){
-      const groups=[
-        ['IDENTITY',[['who am I','agent whoami',false],['my active agent','agent use',false],['update details','agent update',false]]],
-        ['MONEY',[['check balance','wallet balance',false],['send funds','wallet send-transaction',true],['top up (fiat)','wallet topup',true]]],
-        ['EMAIL',[['read inbox','email inbox',false],['send email','email compose',true],['reply','email reply',true]]],
-        ['CARD',[['my card','card whoami',false],['issue card','card issue',true],['set limit','card limit set',true]]],
-        ['TRADING',[['get a quote','trade --dry-run',false],['swap / trade','trade',true],['hyperliquid status','trade hl-status',false]]],
-        ['WORK',[['browse agents','browse',false],['my jobs','job list',false],['sell a service','offering create',false],['hire (create job)','client create-job',true]]],
-        ['COMPUTE',[['credit status','compute status',false],['top up compute','compute top-up',true]]],
-      ];
-      const secForCmd=c=>c.startsWith('wallet')?'wallet':c.startsWith('email')?'email':c.startsWith('card')?'card':c.startsWith('trade')?'trading':c.startsWith('compute')?'compute':(c.startsWith('browse')||c.startsWith('job')||c.startsWith('offering')||c.startsWith('client'))?'commerce':c.startsWith('agent')?'overview':'overview';
-      mb.innerHTML=cap+`<div class="mi-ref">${groups.map(([g,rows])=>`<h5>${g}</h5>`+rows.map(([w,c,gated])=>`<div class="mi-refrow" data-cmd="${esc2(c)}">${esc2(w)}${gated?'<span class="warn">⚠︎</span>':''}<kbd>acp ${esc2(c)}</kbd></div>`).join('')).join('')}</div>`;
-      mb.querySelectorAll('[data-cmd]').forEach(el=>el.addEventListener('click',()=>miSetSec(secForCmd(el.dataset.cmd))));
-    }
-    // handle the "Go to Overview" affordance from no-agent blocks
-    body.addEventListener('click',e=>{if(e.target.closest('[data-goover]'))miSetSec('overview')});
-    /* =================== END MY iNFT =================== */
-    Bus.on('inft:changed',()=>{if(document.body.contains(p)&&miSec==='overview'&&body.querySelector('#mibody'))miRenderSection()});
-    Bus.on('bridge:changed',()=>{if(document.body.contains(p))renderMyINFT()}); // (dis)connect → rebuild from the new bridge state
-    renderMyINFT();
-  }
-  /* ---------- ROBINHOOD — Robinhood Chain · build the agent, launch the token ---------- */
-  // Same lay-first grammar as CLI ECONOMYOS. Reads go through bridge/robinhood.mjs
-  // (keyless public RPC + Blockscout). This panel never signs or moves funds — the only
-  // wallet action (adding the network) is prompted and approved inside the user's wallet.
-  function wireRobinhood(p){
-    const body=p.querySelector('#rbhbody');
-    const esc2=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-    let rbhSec=localStorage.getItem('cfhub.rbh.sec')||'overview';
-    let chainsInfo=null;
-    const SECS=[
-      {g:'CHAIN'},{k:'overview',label:'Overview'},{k:'balances',label:'Wallet'},
-      {g:'AGENT'},{k:'create',label:'Create agent'},{k:'launch',label:'Launch token'},{k:'associate',label:'Associate'},
-      {g:'LEARN'},{k:'reference',label:'Reference'},
-    ];
-    const CAP={
-      overview:'Robinhood Chain — an Ethereum L2 where agents live next to tokenized markets.',
-      balances:'Your wallet on Robinhood Chain — the ETH, tokens and NFTs it holds there.',
-      create:'Create an agent on the Robinhood layer — it lives on this Mac until you launch it.',
-      launch:"Put your agent's token on Robinhood Chain — through Virtuals, the recommended path.",
-      associate:'Link a Robinhood-layer agent to your Virtuals agent or to an iNFT you own.',
-      reference:'Chain facts, addresses and docs — everything in one place.',
-    };
-    const setSec=k=>{rbhSec=k;localStorage.setItem('cfhub.rbh.sec',k);renderRail();renderSec()};
-    const stale=sec=>rbhSec!==sec||!body.querySelector('#rbhsecbody');
-    const ext=u=>window.open(u,'_blank','noopener');
-    const MAINNET={chainId:4663,name:'Robinhood Chain',rpc:'https://rpc.mainnet.chain.robinhood.com',explorer:'https://robinhoodchain.blockscout.com'};
-    const bridgeBlock=()=>`<div class="os-empty"><svg><use href="#i-chip"/></svg><h3>Connect the HUB Bridge</h3><p>This section talks to your machine. Connect the HUB Bridge in MY MACHINE to continue.</p><button class="btn acc" data-rbhbridge>Open MY MACHINE</button></div>`;
-    function render(){
-      body.innerHTML=`<div class="mi-wrap"><nav class="mi-rail" id="rbhrail"></nav><div class="mi-body" id="rbhsecbody"></div></div>`;
-      renderRail();renderSec();
-    }
-    function renderRail(){
-      const rail=body.querySelector('#rbhrail');if(!rail)return;
-      rail.innerHTML=SECS.map(s=>s.g?`<div class="mi-railg">${s.g}</div>`
-        :`<button class="mi-railbtn ${rbhSec===s.k?'on':''}" data-rb="${s.k}" title="${esc2(CAP[s.k]||'')}"><span class="mi-rlabel">${esc2(s.label)}</span></button>`).join('');
-      rail.querySelectorAll('[data-rb]').forEach(b=>b.addEventListener('click',()=>setSec(b.dataset.rb)));
-    }
-    function renderSec(){
-      const mb=body.querySelector('#rbhsecbody');if(!mb)return;
-      const cap=CAP[rbhSec]?`<div class="mi-cap">${esc2(CAP[rbhSec])}</div>`:'';
-      if(rbhSec==='overview')return secOverview(mb,cap);
-      if(rbhSec==='balances')return secBalances(mb,cap);
-      if(rbhSec==='create')return secCreate(mb,cap);
-      if(rbhSec==='launch')return secLaunch(mb,cap);
-      if(rbhSec==='associate')return secAssociate(mb,cap);
-      if(rbhSec==='reference')return secReference(mb,cap);
-    }
-    // =============== OVERVIEW ===============
-    async function secOverview(mb,cap){
-      const addr=WalletAuth.addr();
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">reading the chain…</div>';
-      let stat=null,agN=0;
-      if(Bridge.on()){
-        stat=await RPC('robinhood','status').catch(e=>({ok:false,error:e.message}));
-        try{const l=await RPC('acp','localList');agN=((l&&l.agents)||[]).filter(a=>a.config&&a.config.layer==='robinhood').length}catch(_){}
-      }
-      if(stale('overview'))return;
-      const live=stat&&stat.ok;
-      mb.innerHTML=cap+`<div class="labsec"><b>CHAIN STATUS</b>
-          <div class="exoline ${live?'on':''}"><i></i>Robinhood Chain · mainnet<span style="margin-left:auto;font-family:var(--mono);font-size:9px">${live?'chain '+esc2(String(stat.chainId)):'—'}</span></div>
-          ${live?`<div class="exoline" style="margin-top:6px"><i style="background:#3fd68f"></i>block<span style="margin-left:auto;font-family:var(--mono)">${esc2(String(stat.block))}</span></div>
-          <div class="exoline" style="margin-top:6px"><i></i>gas<span style="margin-left:auto;font-family:var(--mono)">${esc2(String(stat.gasPriceGwei))} gwei · ${esc2(String(stat.latencyMs))}ms</span></div>`
-          :`<div class="qempty" style="padding:11px;font-size:10.5px">${Bridge.on()?esc2((stat&&stat.error)||'chain unreachable right now'):'Connect the HUB Bridge (MY MACHINE) to read live chain data.'}</div>`}
-        </div>
-        <div class="os-sec" style="margin-top:13px">YOUR SIDE</div>
-        <div class="exoline" style="margin-top:6px"><i style="${addr?'background:#3fd68f':''}"></i>wallet<span style="margin-left:auto;font-family:var(--mono);font-size:9.5px">${addr?esc2(WalletAuth.short(addr)):'not connected'}</span>${addr?'':'<button class="btn mini" id="rbhsign" style="margin-left:8px">Sign in</button>'}</div>
-        <div class="exoline" style="margin-top:6px"><i style="${agN?'background:#3fd68f':''}"></i>agents on this layer<span style="margin-left:auto;font-family:var(--mono)">${agN}</span></div>
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:13px">
-          <button class="btn acc" id="rbhaddnet">Add Robinhood Chain to my wallet</button>
-          <button class="btn" id="rbhexp">Explorer ↗</button>
-        </div>`;
-      const sg=mb.querySelector('#rbhsign');if(sg)sg.addEventListener('click',()=>WalletAuth.connect());
-      mb.querySelector('#rbhexp').addEventListener('click',()=>ext(MAINNET.explorer));
-      mb.querySelector('#rbhaddnet').addEventListener('click',async()=>{
-        const prov=WalletAuth.provider();
-        if(!prov){Toast.show('Connect a wallet first — Sign in above');return}
-        const c=(chainsInfo&&chainsInfo.mainnet)||MAINNET;
-        try{
-          await prov.request({method:'wallet_addEthereumChain',params:[{chainId:'0x'+Number(c.chainId).toString(16),chainName:c.name,rpcUrls:[c.rpc],nativeCurrency:{name:'Ether',symbol:'ETH',decimals:18},blockExplorerUrls:[c.explorer]}]});
-          Toast.show('Robinhood Chain is in your wallet');
-        }catch(e){Toast.show(e&&e.code===4001?'Cancelled in the wallet':'Wallet refused: '+((e&&e.message)||'error'))}
-      });
-    }
-    // =============== WALLET / BALANCES ===============
-    async function secBalances(mb,cap){
-      const addr=WalletAuth.addr();
-      if(!addr){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>No wallet connected</h3><p>Sign in and this section shows what your wallet holds on Robinhood Chain.</p><button class="btn acc" id="rbhsign2">Sign in</button></div>`;mb.querySelector('#rbhsign2').addEventListener('click',()=>WalletAuth.connect());return}
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">reading Robinhood Chain…</div>';
-      const [bal,toks,nfts]=await Promise.all([
-        RPC('robinhood','balance',addr).catch(e=>({ok:false,error:e.message})),
-        RPC('robinhood','tokens',addr).catch(()=>({ok:false})),
-        RPC('robinhood','nfts',addr).catch(()=>({ok:false})),
-      ]);
-      if(stale('balances'))return;
-      const tRows=(toks&&toks.ok&&toks.tokens||[]).slice(0,15).map(t=>`<tr><td>${esc2(t.symbol||'?')}</td><td class="n">${esc2(String(t.balance||''))}</td></tr>`).join('');
-      const nItems=(nfts&&nfts.ok&&nfts.items||[]).slice(0,8);
-      mb.innerHTML=cap+`<div class="labsec"><b>ADDRESS</b>
-          <div class="mi-mono" style="display:flex;align-items:center;gap:8px">${esc2(addr)}<button class="btn mini" id="rbhcp" style="margin-left:auto">Copy</button><button class="btn mini" id="rbhvex">Explorer ↗</button></div>
-          <div class="mi-kv" style="margin-top:6px">Robinhood Chain · mainnet</div></div>
-        <div class="os-sec" style="margin-top:13px">BALANCE</div>
-        <div class="exoline" style="margin-top:6px"><i style="${bal&&bal.ok?'background:#3fd68f':''}"></i>ETH<span style="margin-left:auto;font-family:var(--mono)">${bal&&bal.ok?esc2(String(bal.eth)):esc2((bal&&bal.error)||'—')}</span></div>
-        <div class="os-sec" style="margin-top:13px">TOKENS</div>
-        ${tRows?`<table class="mi-table">${tRows}</table>`:'<div class="qempty" style="padding:11px;font-size:10.5px">No tokens here yet — bridge funds or receive on this chain.</div>'}
-        <div class="os-sec" style="margin-top:13px">NFTS</div>
-        ${nItems.length?nItems.map(n=>`<div class="exoline" style="margin-top:6px"><i></i>${esc2(n.name||('#'+(n.tokenId||'')))}<span style="margin-left:auto;font-family:var(--mono);font-size:9px">${esc2(String(n.tokenId||''))}</span></div>`).join(''):'<div class="qempty" style="padding:11px;font-size:10.5px">No NFTs on Robinhood Chain in this wallet.</div>'}`;
-      mb.querySelector('#rbhcp').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(addr);Toast.show('Address copied')}catch(_){}});
-      mb.querySelector('#rbhvex').addEventListener('click',()=>ext(MAINNET.explorer+'/address/'+addr));
-    }
-    // =============== CREATE AGENT (robinhood layer) ===============
-    function secCreate(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      mb.innerHTML=cap+`<div class="labsec"><b>NEW ROBINHOOD-LAYER AGENT</b>
-          <div class="acctform"><div class="af-row"><label>name</label><input id="rbhname" placeholder="e.g. Hood Runner"></div></div>
-          <textarea class="apbodytext" id="rbhsoul" placeholder="# Soul (optional) — who is this agent? Refine it any time in CLI ECONOMYOS." style="min-height:110px;margin-top:8px"></textarea>
-          <button class="btn acc" id="rbhcreate" style="margin-top:9px">Create agent</button>
-          <div id="rbhclog"></div></div>
-        <div class="mi-kv" style="margin-top:10px">Created locally in the same registry as CLI ECONOMYOS, tagged <b>layer: robinhood</b>. Launch its token in <b>Launch token</b>, or link it to a Virtuals agent in <b>Associate</b>.</div>`;
-      mb.querySelector('#rbhcreate').addEventListener('click',async()=>{
-        const name=mb.querySelector('#rbhname').value.trim(),soul=mb.querySelector('#rbhsoul').value;
-        if(!name){Toast.show('Give your agent a name');return}
-        const log=mb.querySelector('#rbhclog');
-        const cons=document.createElement('pre');cons.className='os-console';cons.style.marginTop='10px';log.innerHTML='';log.appendChild(cons);
-        const say=t=>{cons.textContent+=(cons.textContent?'\n':'')+t;cons.scrollTop=cons.scrollHeight};
-        say('creating '+name+' on the Robinhood layer…');
-        const r=await RPC('acp','localCreate',{name,soul:soul||'',runtime:'local'}).catch(e=>({ok:false,error:e.message}));
-        if(!r||!r.ok){say('✗ '+((r&&r.error)||'failed'));return}
-        await RPC('acp','localUpdate',name,{layer:'robinhood'}).catch(()=>{});
-        say('tagging layer: robinhood… ok');
-        say('● '+name+' is alive on this Mac');
-        Toast.show(name+' created — next: Launch token');
-      });
-    }
-    // =============== LAUNCH TOKEN (effective · two real paths) ===============
-    // PRIMARY: wallet-native — the user's own wallet signs BondingV5.preLaunch on
-    // Robinhood Chain directly (no CLI needed). The tx is BUILT by bridge/robinhood.mjs
-    // (ABI encoder verified byte-exact vs real launches) and SIGNED only in the wallet,
-    // which stays the sole key holder + final gate. SECONDARY: the Virtuals CLI path
-    // (acp agent tokenize --chain-id 4663), reachable from CLI ECONOMYOS.
-    const toWei=(s)=>{s=String(s||'').trim();if(!s)return'0';const[w,f='']=s.split('.');const frac=(f+'0'.repeat(18)).slice(0,18);try{return (BigInt(w||'0')*(10n**18n)+BigInt(frac||'0')).toString()}catch(_){return'0'}};
-    async function secLaunch(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      const addr=WalletAuth.addr();
-      // CLI availability for the secondary hint (non-blocking best-effort)
-      const [stat,chains]=await Promise.all([
-        RPC('acp','status').catch(()=>null),
-        RPC('acp','chains').catch(()=>null),
-      ]);
-      if(stale('launch'))return;
-      const cliHint=(()=>{
-        if(!stat||!stat.installed)return `Install the Virtuals CLI to use that path: <span class="mi-mono">npx skills add @virtuals-protocol/acp-cli</span>`;
-        if(!chains||!chains.hasRobinhood)return `Update the CLI for Robinhood support: <span class="mi-mono">npm i -g @virtuals-protocol/acp-cli@latest</span>`;
-        if(!stat.authenticated)return `Your CLI (v${esc2(String(stat.version||''))}) is Robinhood-ready — sign in with <span class="mi-mono">acp configure</span>, then tokenize from CLI ECONOMYOS.`;
-        return `Your CLI (v${esc2(String(stat.version||''))}) is signed in — you can also tokenize on Robinhood from CLI ECONOMYOS.`;
-      })();
-      const explainer=`<div class="os-sec" style="margin-top:15px">HOW IT WORKS</div>
-        <div class="mi-kv" style="line-height:1.9;margin-top:6px"><b>1</b> name + ticker → <b>2</b> your token launches on Robinhood Chain (4663) on a Virtuals bonding curve → <b>3</b> graduates once enough $VIRTUAL accumulates → <b>4</b> trades alongside tokenized stocks</div>
-        <div class="labsec" style="margin-top:12px"><b>PREFER THE VIRTUALS CLI?</b><div class="mi-kv">${cliHint}</div><button class="btn" id="rbhgoeos" style="margin-top:6px">Open CLI ECONOMYOS</button></div>`;
-      const wireExtra=()=>{const a=mb.querySelector('#rbhgoeos');if(a)a.addEventListener('click',()=>openPanel('economyos'))};
-      if(!addr){
-        mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>Connect your wallet to launch</h3><p>Your wallet signs the launch on Robinhood Chain directly — no CLI, no keys leave your wallet.</p><button class="btn acc" id="rbhlsign">Sign in</button></div>`+explainer;
-        mb.querySelector('#rbhlsign').addEventListener('click',()=>WalletAuth.connect());return wireExtra();
-      }
-      mb.innerHTML=cap+`<div class="labsec"><b>LAUNCH WITH YOUR WALLET</b>
-          <div class="exoline on"><i></i>${esc2(WalletAuth.short(addr))}<span style="margin-left:auto;font-size:8.5px;color:var(--ink-faint)">signs on Robinhood Chain 4663</span></div>
-          <div class="acctform" style="margin-top:9px">
-            <div class="af-row"><label>name</label><input id="rbhln" placeholder="agent / token name" maxlength="64"></div>
-            <div class="af-row"><label>symbol</label><input id="rbhlsym" placeholder="TICKER (e.g. HOOD)" maxlength="12"></div>
-            <div class="af-row"><label>pre-buy</label><input id="rbhlpre" placeholder="VIRTUAL to buy at launch (optional)"></div>
-            <div class="af-row"><label>anti-snipe</label><select id="rbhlanti" style="flex:1;background:transparent;border:0;outline:none;color:var(--fg);font-family:var(--mono);font-size:10.5px"><option value="1">60 seconds (recommended)</option><option value="2">98 minutes</option><option value="0">none</option></select></div>
-          </div>
-          <button class="btn amb" id="rbhlgo" style="margin-top:9px">Review launch…</button>
-          <div id="rbhlc" style="margin-top:9px"></div></div>
-        <div class="mi-kv" style="margin-top:10px">A pre-buy needs $VIRTUAL on Robinhood Chain (+ ETH for gas) and adds one approval signature. With no pre-buy it's a single signature. Launching is <b>irreversible</b> — your wallet shows the final confirmation.</div>`+explainer;
-      wireExtra();
-      mb.querySelector('#rbhlgo').addEventListener('click',()=>{
-        const name=(mb.querySelector('#rbhln').value||'').trim();
-        const sym=(mb.querySelector('#rbhlsym').value||'').trim().toUpperCase();
-        const preRaw=(mb.querySelector('#rbhlpre').value||'').trim();
-        const anti=mb.querySelector('#rbhlanti').value;
-        if(!name){Toast.show('Name your token');return}
-        if(!/^[A-Z0-9]{2,12}$/.test(sym)){Toast.show('Symbol: 2–12 letters/numbers');return}
-        if(preRaw&&!(parseFloat(preRaw)>=0)){Toast.show('Pre-buy must be a number of VIRTUAL');return}
-        const preWei=preRaw?toWei(preRaw):'0';
-        rbhWalletLaunch(mb.querySelector('#rbhlc'),{name,ticker:sym,preWei,preRaw,anti:Number(anti)});
-      });
-    }
-    // ensure the connected wallet is on Robinhood Chain (switch, or add then switch)
-    async function rbhEnsureChain(prov){
-      try{await prov.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x1237'}]});return true}
-      catch(e){
-        if(e&&(e.code===4902||/unrecognized|add.*chain/i.test(e.message||''))){
-          const c=(chainsInfo&&chainsInfo.mainnet)||MAINNET;
-          await prov.request({method:'wallet_addEthereumChain',params:[{chainId:'0x1237',chainName:c.name,rpcUrls:[c.rpc],nativeCurrency:{name:'Ether',symbol:'ETH',decimals:18},blockExplorerUrls:[c.explorer]}]});
-          return true;
-        }
-        throw e;
-      }
-    }
-    async function rbhWaitReceipt(prov,hash,timeoutMs=90000){
-      const t0=Date.now();
-      while(Date.now()-t0<timeoutMs){
-        try{const r=await prov.request({method:'eth_getTransactionReceipt',params:[hash]});if(r&&r.blockNumber)return r}catch(_){}
-        await new Promise(r=>setTimeout(r,3000));
-      }
-      return null;
-    }
-    // build the launch tx in the bridge, then sign it in the user's wallet
-    async function rbhWalletLaunch(host,{name,ticker,preWei,preRaw,anti}){
-      host.innerHTML='<div class="qempty" style="padding:12px">building the launch transaction…</div>';
-      const prov=WalletAuth.provider(),addr=WalletAuth.addr();
-      if(!prov){host.innerHTML='<div class="mi-kv" style="color:#e8b86d">No wallet provider — reconnect your wallet.</div>';return}
-      const built=await RPC('robinhood','buildLaunchTx',{name,ticker,purchaseAmount:preWei,antiSniper:anti}).catch(e=>({ok:false,error:e.message}));
-      if(!built||!built.ok){host.innerHTML=`<div class="mi-kv" style="color:#e8b86d">${esc2((built&&built.error)||'could not build the transaction')}</div>`;return}
-      let ready=null;
-      if(built.needsApprove){ready=await RPC('robinhood','launchReadiness',addr,{virtualAmount:preWei}).catch(()=>null)}
-      const lowFunds=built.needsApprove&&ready&&ready.ok&&!ready.enough;
-      host.innerHTML='';
-      const el=document.createElement('div');el.className='mi-confirm';
-      el.innerHTML=`<div class="ch"><span class="ct">⚠ LAUNCH TOKEN</span><span class="cs">WAITING</span></div>
-        <div class="cb">Launch $${esc2(ticker)} (“${esc2(name)}”) on Robinhood Chain (4663). Your wallet signs ${built.needsApprove?'two transactions (approve + launch)':'one transaction'} — irreversible.</div>
-        <div class="cd">chain <b>Robinhood 4663</b> · token <b>$${esc2(ticker)}</b> · pre-buy <b>${built.needsApprove?esc2(preRaw)+' VIRTUAL':'none'}</b> · cost <b>gas${built.needsApprove?' + pre-buy':''}</b>${lowFunds?'<br><span class="warn">this wallet holds '+esc2(ready.balance)+' VIRTUAL on Robinhood Chain — not enough for the pre-buy</span>':''}<br><span class="warn">the token goes live on-chain and cannot be undone</span></div>
-        <div class="cbtns"><button class="btn" data-cx>Cancel</button><button class="btn amb" data-ck disabled>Launch $${esc2(ticker)}</button></div>
-        <div style="margin-top:8px"><input class="af-inp" data-ct placeholder="type “${esc2(ticker)}” to confirm" style="all:unset;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-family:var(--mono);font-size:10px;color:var(--fg)"></div>
-        <pre class="os-console" data-log style="display:none;margin-top:9px"></pre>`;
-      host.appendChild(el);
-      const ckb=el.querySelector('[data-ck]'),log=el.querySelector('[data-log]'),ti=el.querySelector('[data-ct]');
-      const say=t=>{log.style.display='';log.textContent+=(log.textContent?'\n':'')+t;log.scrollTop=log.scrollHeight};
-      ti.addEventListener('input',()=>{ckb.disabled=ti.value.trim().toUpperCase()!==ticker.toUpperCase()});
-      el.querySelector('[data-cx]').addEventListener('click',()=>el.remove());
-      ckb.addEventListener('click',async()=>{
-        ckb.disabled=true;el.querySelector('.cs').textContent='SIGNING…';
-        try{
-          say('switching your wallet to Robinhood Chain…');
-          await rbhEnsureChain(prov);
-          if(built.needsApprove){
-            say('approve '+preRaw+' VIRTUAL → sign in your wallet…');
-            const ah=await prov.request({method:'eth_sendTransaction',params:[{from:addr,to:built.approveTx.to,data:built.approveTx.data,value:built.approveTx.value}]});
-            say('approve tx '+ah+' — waiting for confirmation…');
-            await rbhWaitReceipt(prov,ah);
-            say('approved ✓');
-          }
-          say('launch → sign in your wallet…');
-          const lh=await prov.request({method:'eth_sendTransaction',params:[{from:addr,to:built.launchTx.to,data:built.launchTx.data,value:built.launchTx.value}]});
-          el.querySelector('.ch').innerHTML='<span class="ct" style="color:#3fd68f">✓ LAUNCH SUBMITTED</span>';
-          el.querySelector('.cbtns').remove();el.querySelector('.cd').remove();ti.remove();
-          say('launch tx '+lh);
-          const url=MAINNET.explorer+'/tx/'+lh;
-          const a=document.createElement('button');a.className='btn';a.textContent='View on explorer ↗';a.style.marginTop='8px';a.addEventListener('click',()=>ext(url));el.appendChild(a);
-          Toast.show('$'+ticker+' launch submitted on Robinhood Chain');
-        }catch(e){
-          const m=(e&&(e.code===4001?'cancelled in your wallet':(e.message||'launch failed')))||'launch failed';
-          el.style.borderColor='var(--accent)';el.querySelector('.ct').style.color='var(--accent)';el.querySelector('.cs').textContent='FAILED';
-          say('✗ '+m);ckb.disabled=false;ckb.textContent='Retry';
-        }
-      });
-    }
-    // =============== ASSOCIATE (agent ↔ Virtuals ↔ iNFT) ===============
-    async function secAssociate(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">loading agents…</div>';
-      let list=[];try{const l=await RPC('acp','localList');list=(l&&l.agents)||[]}catch(_){}
-      if(stale('associate'))return;
-      if(!list.length){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>No local agents</h3><p>Create one first — here or in CLI ECONOMYOS.</p><button class="btn acc" id="rbhgo2">Create agent</button></div>`;mb.querySelector('#rbhgo2').addEventListener('click',()=>setSec('create'));return}
-      mb.innerHTML=cap+`<div class="labsec"><b>LINK AGENT</b>
-          <div class="acctform">
-            <div class="af-row"><label>agent</label><select id="rbhag" style="flex:1;background:transparent;border:0;outline:none;color:var(--fg);font-family:var(--mono);font-size:10.5px">${list.map(a=>`<option value="${esc2(a.name)}">${esc2(a.name)}</option>`).join('')}</select></div>
-            <div class="af-row"><label>virtuals id</label><input id="rbhvid" placeholder="agent id on Virtuals (number)"></div>
-            <div class="af-row"><label>token addr</label><input id="rbhtok" placeholder="0x… agent token on Robinhood Chain (optional)"></div>
-            <div class="af-row"><label>iNFT id</label><input id="rbhinft" placeholder="iNFT token id on Base (optional)"></div>
-          </div>
-          <button class="btn acc" id="rbhlink" style="margin-top:9px">Save link</button>
-          <div id="rbhlinkout" style="margin-top:9px"></div></div>
-        <div class="mi-kv" style="margin-top:10px">Links are saved on the agent itself — CLI ECONOMYOS and the LAB read the same record.</div>`;
-      const sel=mb.querySelector('#rbhag'),out=mb.querySelector('#rbhlinkout');
-      async function showCur(){
-        out.innerHTML='';
-        try{const g=await RPC('acp','localGet',sel.value);const c=(g&&g.config)||{};
-          const rb=c.robinhood||{},vt=c.virtuals||{};
-          const rows=[];
-          if(rb.virtualsAgentId)rows.push(['virtuals agent','#'+rb.virtualsAgentId]);
-          if(rb.tokenAddress)rows.push(['token',String(rb.tokenAddress).slice(0,14)+'…']);
-          if(vt.tokenId)rows.push(['iNFT','#'+vt.tokenId]);
-          out.innerHTML=rows.length?`<div class="mi-kv">${rows.map(r=>`<b>${esc2(r[0])}</b> ${esc2(r[1])}`).join(' · ')}</div>`:'<div class="mi-kv" style="color:var(--ink-faint)">no links yet</div>';
-        }catch(_){}
-      }
-      sel.addEventListener('change',showCur);showCur();
-      mb.querySelector('#rbhlink').addEventListener('click',async()=>{
-        const name=sel.value,vid=mb.querySelector('#rbhvid').value.trim(),tok=mb.querySelector('#rbhtok').value.trim(),inft=mb.querySelector('#rbhinft').value.trim();
-        if(!vid&&!tok&&!inft){Toast.show('Fill at least one link field');return}
-        if(vid&&!/^\d+$/.test(vid)){Toast.show('Virtuals id is a number');return}
-        if(tok&&!/^0x[0-9a-fA-F]{40}$/.test(tok)){Toast.show('Token address must be a 0x… address');return}
-        if(inft&&!/^\d+$/.test(inft)){Toast.show('iNFT token id is a number');return}
-        // merge client-side so an existing record never loses fields
-        let cur={};try{const g=await RPC('acp','localGet',name);cur=(g&&g.config)||{}}catch(_){}
-        const patch={};
-        if(vid||tok)patch.robinhood=Object.assign({},cur.robinhood||{},vid?{virtualsAgentId:vid}:{},tok?{tokenAddress:tok}:{});
-        if(inft)patch.virtuals=Object.assign({},cur.virtuals||{},{tokenId:inft});
-        const r=await RPC('acp','localUpdate',name,patch).catch(e=>({ok:false,error:e.message}));
-        if(r&&r.ok){Toast.show('Link saved on '+name);showCur()}else Toast.show('Could not save: '+((r&&r.error)||'failed'));
-      });
-    }
-    // =============== REFERENCE ===============
-    function secReference(mb,cap){
-      const nets=[
-        ['MAINNET','4663','https://rpc.mainnet.chain.robinhood.com','robinhoodchain.blockscout.com'],
-        ['TESTNET','46630','https://rpc.testnet.chain.robinhood.com','explorer.testnet.chain.robinhood.com'],
-      ];
-      const links=[
-        ['Docs — Robinhood Chain','https://docs.robinhood.com/chain/connecting/'],
-        ['Bridge (canonical Arbitrum portal)','https://portal.arbitrum.io/bridge?destinationChain=robinhood-chain&sourceChain=ethereum'],
-        ['Explorer','https://robinhoodchain.blockscout.com'],
-        ['Virtuals console','https://app.virtuals.io'],
-      ];
-      mb.innerHTML=cap+`<div class="labsec"><b>NETWORKS</b>
-          <table class="mi-table">${nets.map(n=>`<tr><td>${n[0]}</td><td class="n" style="font-size:9px">chain ${n[1]} · ${esc2(n[2].replace('https://',''))}</td></tr>`).join('')}</table></div>
-        <div class="os-sec" style="margin-top:13px">GOOD TO KNOW</div>
-        <div class="mi-kv" style="line-height:2;margin-top:6px"><b>type</b> Arbitrum Nitro L2 on Ethereum · gas in ETH<br><b>deploys</b> permissionless — Foundry / Hardhat, standard EVM<br><b>stock tokens</b> tokenized stock exposure as ERC-20s live on this chain<br><b>full node</b> 8+ cores · 64GB RAM · NVMe — most builders only need the public RPC</div>
-        <div class="os-sec" style="margin-top:13px">LINKS</div>
-        <div class="mi-ref">${links.map(l=>`<div class="mi-refrow" data-url="${esc2(l[1])}">${esc2(l[0])}<kbd>open ↗</kbd></div>`).join('')}</div>`;
-      mb.querySelectorAll('[data-url]').forEach(el=>el.addEventListener('click',()=>ext(el.dataset.url)));
-    }
-    body.addEventListener('click',e=>{if(e.target.closest('[data-rbhbridge]'))openPanel('machine')});
-    Bus.on('wallet',()=>{if(document.body.contains(p))renderSec()});
-    Bus.on('bridge:changed',()=>{if(document.body.contains(p)){if(Bridge.on()&&!chainsInfo)RPC('robinhood','chains').then(c=>{if(c&&c.mainnet)chainsInfo=c}).catch(()=>{});renderSec()}});
-    if(Bridge.on())RPC('robinhood','chains').then(c=>{if(c&&c.mainnet)chainsInfo=c}).catch(()=>{});
-    render();
-  }
-  /* ---------- OKX AI — Onchain OS · register your agent as an ASP, list offerings ---------- */
-  // Everything drives the `onchainos` CLI through the fail-closed bridge/okxai.mjs gate:
-  // reads run freely, on-chain mutations wait for one explicit amber confirm, and
-  // authentication NEVER runs through the app — the panel hands the user the exact
-  // terminal command instead. Identities live on X Layer (chain 196, gas paid by OKX).
-  function wireOkxAi(p){
-    const body=p.querySelector('#okxbody');
-    const esc2=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-    let okSec=localStorage.getItem('cfhub.okx.sec')||'overview';
-    let okStat=null,draft=null;
-    const SECS=[
-      {g:'OKX AI'},{k:'overview',label:'Overview'},
-      {g:'ASP'},{k:'agents',label:'My agents'},{k:'listing',label:'New listing'},
-      {g:'WORK'},{k:'tasks',label:'Tasks'},
-      {g:'LEARN'},{k:'reference',label:'Reference'},
-    ];
-    const CAP={
-      overview:'OKX AI — a marketplace where agents find work and get paid. Your agent can join it.',
-      agents:'Your registered OKX agents and where each one stands in review.',
-      listing:'Describe what your agent sells, then submit it to OKX for review.',
-      tasks:'Work your agent has on OKX — offers, jobs in progress, deliveries.',
-      reference:'X Layer facts, payment rails and the rules of the marketplace.',
-    };
-    const setSec=k=>{okSec=k;localStorage.setItem('cfhub.okx.sec',k);renderRail();renderSec()};
-    const stale=sec=>okSec!==sec||!body.querySelector('#okxsecbody');
-    const ext=u=>window.open(u,'_blank','noopener');
-    const authed=()=>!!(okStat&&okStat.authenticated);
-    const bridgeBlock=()=>`<div class="os-empty"><svg><use href="#i-chip"/></svg><h3>Connect the HUB Bridge</h3><p>This section talks to your machine. Connect the HUB Bridge in MY MACHINE to continue.</p><button class="btn acc" data-okxbridge>Open MY MACHINE</button></div>`;
-    const connectBlock=line=>`<div class="os-empty"><svg><use href="#i-wallet"/></svg><h3>Connect to OKX</h3><p>${esc2(line)}</p><p class="dim" style="font-size:9.5px;margin-top:2px">In your terminal: <span class="mi-mono">onchainos wallet login your@email.com</span> then <span class="mi-mono">onchainos wallet verify &lt;code&gt;</span> — sign in once, this panel fills with live data.</p><button class="btn" data-okxrefresh style="margin-top:8px">I signed in — refresh</button></div>`;
-    // one explicit amber confirm authorizes a staged CLI sequence; each step is shown before it runs
-    function okConfirm(host,spec,onDone){
-      const el=document.createElement('div');el.className='mi-confirm';
-      el.innerHTML=`<div class="ch"><span class="ct">⚠ ${esc2(spec.title)}</span><span class="cs">WAITING</span></div>
-        <div class="cb">${esc2(spec.sentence)}</div>
-        <div class="cd">${(spec.steps||[]).map((s,i)=>`${i+1}. <b>onchainos ${esc2(s.argv.join(' ').slice(0,60))}</b>`).join('<br>')}${spec.warn?`<br><span class="warn">${esc2(spec.warn)}</span>`:''}</div>
-        <div class="cbtns"><button class="btn" data-cx>Cancel</button><button class="btn amb" data-ck>${esc2(spec.verb)}</button></div>
-        <pre class="os-console" data-log style="display:none;margin-top:9px"></pre>`;
-      host.innerHTML='';host.appendChild(el);
-      const log=el.querySelector('[data-log]'),ckb=el.querySelector('[data-ck]');
-      const say=t=>{log.style.display='';log.textContent+=(log.textContent?'\n':'')+t;log.scrollTop=log.scrollHeight};
-      el.querySelector('[data-cx]').addEventListener('click',()=>{el.remove();onDone&&onDone(null)});
-      ckb.addEventListener('click',async()=>{
-        ckb.disabled=true;el.querySelector('.cs').textContent='RUNNING…';
-        for(const s of spec.steps){
-          say('▸ onchainos '+s.argv.join(' '));
-          const r=await RPC('okxai','run',s.argv,{confirm:true}).catch(e=>({ok:false,error:e.message}));
-          if(r&&r.ok){say('  ✓ '+(s.done||'ok'));if(s.after)s.after(r)}
-          else{
-            const msg=(r&&(r.needsTerminal?('runs in your terminal: '+(r.command||'onchainos …')):r.error))||'failed';
-            say('  ✗ '+msg);
-            el.querySelector('.cs').textContent='STOPPED';el.querySelector('.ct').style.color='var(--accent)';
-            ckb.disabled=false;ckb.textContent='Retry';onDone&&onDone(r);return;
-          }
-        }
-        el.querySelector('.ch').innerHTML='<span class="ct" style="color:#3fd68f">✓ DONE</span>';
-        el.querySelector('.cbtns').remove();onDone&&onDone({ok:true});
-      });
-    }
-    function okAgentsParse(r){
-      const j=(r&&r.ok&&(r.json!=null?r.json:null))||null;if(!j)return[];
-      if(Array.isArray(j))return j;
-      if(Array.isArray(j.list))return j.list.flatMap(x=>Array.isArray(x.agentList)?x.agentList:[x]);
-      if(Array.isArray(j.agents))return j.agents;
-      if(Array.isArray(j.data))return j.data;
-      return[];
-    }
-    function okBadge(a){
-      const st=a.approvalStatus!=null?Number(a.approvalStatus):null;
-      const disp=a.approvalDisplayStatus||a.approvalStatusDesc||'';
-      if(st===2)return'<span class="badge pending">UNDER REVIEW</span>';
-      if(st===5)return'<span class="badge rejected">REJECTED</span>';
-      if(disp)return`<span class="badge">${esc2(String(disp).toUpperCase())}</span>`;
-      return a.onlineStatus?'<span class="badge sent">ONLINE</span>':'<span class="badge">LISTED</span>';
-    }
-    function render(){
-      body.innerHTML=`<div class="mi-wrap"><nav class="mi-rail" id="okxrail"></nav><div class="mi-body" id="okxsecbody"></div></div>`;
-      renderRail();renderSec();
-    }
-    function renderRail(){
-      const rail=body.querySelector('#okxrail');if(!rail)return;
-      rail.innerHTML=SECS.map(s=>s.g?`<div class="mi-railg">${s.g}</div>`
-        :`<button class="mi-railbtn ${okSec===s.k?'on':''}" data-ok="${s.k}" title="${esc2(CAP[s.k]||'')}">${s.k==='overview'?`<span class="mi-rdot ${authed()?'on':'idle'}"></span>`:''}<span class="mi-rlabel">${esc2(s.label)}</span></button>`).join('');
-      rail.querySelectorAll('[data-ok]').forEach(b=>b.addEventListener('click',()=>setSec(b.dataset.ok)));
-    }
-    function renderSec(){
-      const mb=body.querySelector('#okxsecbody');if(!mb)return;
-      const cap=CAP[okSec]?`<div class="mi-cap">${esc2(CAP[okSec])}</div>`:'';
-      if(okSec==='overview')return secOverview(mb,cap);
-      if(okSec==='agents')return secAgents(mb,cap);
-      if(okSec==='listing')return secListing(mb,cap);
-      if(okSec==='tasks')return secTasks(mb,cap);
-      if(okSec==='reference')return secReference(mb,cap);
-    }
-    // =============== OVERVIEW ===============
-    async function secOverview(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">checking OKX Onchain OS…</div>';
-      okStat=await RPC('okxai','status').catch(e=>({ok:false,error:e.message}));
-      if(stale('overview'))return;renderRail();
-      const inst=okStat&&okStat.installed;
-      mb.innerHTML=cap+`<div class="labsec"><b>ONCHAIN OS</b>
-          <div class="exoline ${inst?'on':''}"><i></i>onchainos CLI<span style="margin-left:auto;font-family:var(--mono);font-size:9px">${inst?('v'+esc2(okStat.version||'?')):'not installed'}</span></div>
-          <div class="exoline" style="margin-top:6px"><i style="${authed()?'background:#3fd68f':''}"></i>OKX account<span style="margin-left:auto;font-family:var(--mono);font-size:9px">${authed()?'signed in':'not signed in'}</span></div>
-          ${inst?'':`<div class="mi-kv" style="margin-top:8px">Install once in your terminal: <span class="mi-mono">npx skills add okx/onchainos-skills</span></div>`}
-          ${inst&&!authed()?`<div class="mi-kv" style="margin-top:8px">Sign in once in your terminal: <span class="mi-mono">onchainos wallet login your@email.com</span> → <span class="mi-mono">onchainos wallet verify &lt;code&gt;</span></div>`:''}
-        </div>
-        <div class="os-sec" style="margin-top:13px">THE MARKETPLACE</div>
-        <div class="mi-kv" style="line-height:2;margin-top:6px"><b>identity</b> your agent gets an on-chain ID on X Layer (chain 196) — registration gas is paid by OKX<br><b>work</b> clients publish tasks · your agent applies, delivers, gets paid in USDT<br><b>review</b> new listings are reviewed by OKX (~24h) before going live</div>
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:13px">
-          <button class="btn acc" id="okgolist">List my agent</button>
-          <button class="btn" id="okgosite">okx.ai ↗</button>
-        </div>`;
-      mb.querySelector('#okgolist').addEventListener('click',()=>setSec('listing'));
-      mb.querySelector('#okgosite').addEventListener('click',()=>ext('https://www.okx.ai'));
-    }
-    // =============== MY AGENTS ===============
-    async function secAgents(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      if(!okStat)okStat=await RPC('okxai','status').catch(()=>null);
-      if(!authed()){mb.innerHTML=cap+connectBlock('Your registered agents live under your OKX account.');return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">loading your agents…</div>';
-      const r=await RPC('okxai','run',['agent','get-my-agents']).catch(e=>({ok:false,error:e.message}));
-      if(stale('agents'))return;
-      const ags=okAgentsParse(r);
-      if(!r||!r.ok){mb.innerHTML=cap+`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2(r&&r.error||'could not read agents')}</div>`;return}
-      if(!ags.length){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-agent"/></svg><h3>No OKX agents yet</h3><p>Register your first one — it takes a name, a line of what it sells, and an avatar.</p><button class="btn acc" id="okgo2">New listing</button></div>`;mb.querySelector('#okgo2').addEventListener('click',()=>setSec('listing'));return}
-      mb.innerHTML=cap+ags.slice(0,12).map(a=>`<div class="exoline" style="margin-top:6px"><i style="${Number(a.approvalStatus)===2?'background:#e8b86d':(a.onlineStatus?'background:#3fd68f':'')}"></i>${esc2(a.name||a.agentName||('agent #'+(a.agentId||a.id||'?')))}<span style="margin-left:8px;font-size:8.5px;color:var(--ink-faint)">#${esc2(String(a.agentId||a.id||''))}</span><span style="margin-left:auto">${okBadge(a)}</span></div>`).join('')
-        +`<div class="mi-kv" style="margin-top:12px">UNDER REVIEW usually clears in ~24h. If a listing is rejected, fix it with an update on the <b>same</b> agent id — never create a duplicate.</div>
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="okref">Refresh</button></div>`;
-      mb.querySelector('#okref').addEventListener('click',()=>renderSec());
-    }
-    // =============== NEW LISTING ===============
-    async function secListing(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      if(!okStat)okStat=await RPC('okxai','status').catch(()=>null);
-      if(!draft){try{const d=await RPC('okxai','localDrafts');const all=(d&&d.drafts)||[];draft=all[0]||null}catch(_){}}
-      if(stale('listing'))return;
-      const w=draft||{name:'',description:'',avatarPath:'',services:[{serviceName:'',serviceDescription:'',serviceType:'A2A',fee:'1',endpoint:''}]};
-      const svcHTML=(s,i)=>`<div class="labsec" data-svc="${i}" style="margin-top:9px"><b>SERVICE ${i+1}${w.services.length>1?`<button class="btn mini" data-rmsvc="${i}" style="float:right">Remove</button>`:''}</b>
-          <div class="acctform">
-            <div class="af-row"><label>name</label><input data-sf="serviceName" data-si="${i}" placeholder="5–30 chars, e.g. Meme Coin Research" value="${esc2(s.serviceName)}"></div>
-            <div class="af-row"><label>type</label><select data-sf="serviceType" data-si="${i}" style="flex:1;background:transparent;border:0;outline:none;color:var(--fg);font-family:var(--mono);font-size:10.5px"><option ${s.serviceType==='A2A'?'selected':''}>A2A</option><option ${s.serviceType==='A2MCP'?'selected':''}>A2MCP</option></select></div>
-            <div class="af-row"><label>fee USDT</label><input data-sf="fee" data-si="${i}" placeholder="1" value="${esc2(String(s.fee||''))}"></div>
-            ${s.serviceType==='A2MCP'?`<div class="af-row"><label>endpoint</label><input data-sf="endpoint" data-si="${i}" placeholder="https:// public endpoint" value="${esc2(s.endpoint||'')}"></div>`:''}
-          </div>
-          <textarea class="apbodytext" data-sf="serviceDescription" data-si="${i}" placeholder="Exactly 2 lines:&#10;What it does and for whom.&#10;1) input the buyer must provide 2) another input" style="min-height:64px;margin-top:7px">${esc2(s.serviceDescription)}</textarea></div>`;
-      mb.innerHTML=cap+`<div class="labsec"><b>AGENT</b>
-          <div class="acctform">
-            <div class="af-row"><label>name</label><input id="okname" placeholder="brand name · 3–25 chars" value="${esc2(w.name)}"></div>
-            <div class="af-row"><label>avatar</label><input id="okavatar" placeholder="path to a square image ≤1MB (required)" value="${esc2(w.avatarPath||'')}"></div>
-          </div>
-          <textarea class="apbodytext" id="okdesc" placeholder="What this agent is — ≤500 chars, plain words." style="min-height:70px;margin-top:7px">${esc2(w.description)}</textarea></div>
-        <div id="oksvcs">${w.services.map(svcHTML).join('')}</div>
-        <div class="mi-btnrow" style="justify-content:flex-start;margin-top:10px">
-          <button class="btn" id="okaddsvc">＋ Service</button>
-          <button class="btn" id="oksave">Save draft</button>
-          <button class="btn" id="okvalidate">Validate (free)</button>
-          <button class="btn amb" id="oksubmit" ${authed()?'':'disabled title="sign in first — see Overview"'}>Register &amp; submit…</button>
-        </div>
-        <div id="okvout" style="margin-top:9px"></div><div id="okconfirm" style="margin-top:9px"></div>
-        <div class="mi-kv" style="margin-top:10px">Listing is free — OKX pays the registration gas on X Layer. After submit, OKX reviews it (~24h). No links, tech-stack names or example prompts in service text — their QA rejects those.</div>`;
-      const readForm=()=>{
-        w.name=mb.querySelector('#okname').value.trim();
-        w.description=mb.querySelector('#okdesc').value;
-        w.avatarPath=mb.querySelector('#okavatar').value.trim();
-        mb.querySelectorAll('[data-sf]').forEach(el=>{const i=+el.dataset.si;if(w.services[i])w.services[i][el.dataset.sf]=el.value});
-        return w;
-      };
-      mb.querySelectorAll('[data-sf="serviceType"]').forEach(el=>el.addEventListener('change',()=>{readForm();draft=w;renderSec()}));
-      mb.querySelectorAll('[data-rmsvc]').forEach(b=>b.addEventListener('click',()=>{readForm();w.services.splice(+b.dataset.rmsvc,1);draft=w;renderSec()}));
-      mb.querySelector('#okaddsvc').addEventListener('click',()=>{readForm();w.services.push({serviceName:'',serviceDescription:'',serviceType:'A2A',fee:'1',endpoint:''});draft=w;renderSec()});
-      mb.querySelector('#oksave').addEventListener('click',async()=>{readForm();draft=w;const r=await RPC('okxai','localDraft',w.name||'draft',w).catch(e=>({ok:false,error:e.message}));Toast.show(r&&r.ok?'Draft saved':'Could not save: '+((r&&r.error)||''))});
-      const svcJson=()=>JSON.stringify(w.services.map(s=>({serviceName:s.serviceName,serviceDescription:s.serviceDescription,serviceType:s.serviceType,fee:String(s.fee||'1'),...(s.serviceType==='A2MCP'&&s.endpoint?{endpoint:s.endpoint}:{})})));
-      mb.querySelector('#okvalidate').addEventListener('click',async()=>{
-        readForm();if(!w.name){Toast.show('Name the agent');return}
-        const out=mb.querySelector('#okvout');out.innerHTML='<div class="mi-kv">running OKX QA…</div>';
-        const r=await RPC('okxai','run',['agent','validate-listing','--role','asp','--name',w.name,'--description',w.description,'--service',svcJson()]).catch(e=>({ok:false,error:e.message}));
-        if(r&&r.ok){const t=(r.text||JSON.stringify(r.json||{}));out.innerHTML=`<pre class="os-console" style="max-height:160px">${esc2(t.slice(0,1200))}</pre>`}
-        else out.innerHTML=`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2((r&&(r.needsTerminal?'sign in first (see Overview)':r.error))||'validation failed')}</div>`;
-      });
-      mb.querySelector('#oksubmit').addEventListener('click',()=>{
-        readForm();
-        if(!w.name){Toast.show('Name the agent');return}
-        if(!w.description){Toast.show('Describe the agent');return}
-        if(!w.avatarPath){Toast.show('Avatar image path is required by OKX');return}
-        if(!w.services.length||w.services.some(s=>!s.serviceName||!s.serviceDescription)){Toast.show('Every service needs a name and a description');return}
-        draft=w;RPC('okxai','localDraft',w.name,w).catch(()=>{});
-        const steps=[
-          {argv:['agent','pre-check','--role','asp'],done:'account can register'},
-          {argv:['agent','upload','--file',w.avatarPath],done:'avatar uploaded',after:r=>{const u=(r.json&&(r.json.url||r.json.cdnUrl))||(r.text||'').match(/https?:\S+/)?.[0];if(u)w._cdn=u}},
-          {argv:['agent','create','--role','asp','--name',w.name,'--description',w.description,'--service',svcJson()],done:'identity created on X Layer',after:r=>{const id=(r.json&&(r.json.newAgentId||r.json.agentId))||String(r.text||'').match(/\d{3,}/)?.[0];if(id)w.agentId=id}},
-        ];
-        okConfirm(mb.querySelector('#okconfirm'),{
-          title:'REGISTER ON OKX',verb:'Register agent',
-          sentence:`Register “${w.name}” as an ASP on OKX AI (X Layer). Costs $0 — OKX pays the gas. After this you activate it for review.`,
-          warn:'creates a public on-chain identity under your OKX account',
-          steps,
-        },async r=>{
-          if(r&&r.ok&&w.agentId){
-            okConfirm(mb.querySelector('#okconfirm'),{
-              title:'SUBMIT FOR REVIEW',verb:'Submit',
-              sentence:`Activate agent #${w.agentId} — OKX reviews new listings (~24h) before they go live.`,
-              steps:[{argv:['agent','activate','--agent-id',String(w.agentId),'--preferred-language','en-US'],done:'submitted — status: UNDER REVIEW'}],
-            },rr=>{if(rr&&rr.ok){RPC('okxai','localDraft',w.name,w).catch(()=>{});Toast.show('Submitted — track it in My agents');setSec('agents')}});
-          }
-        });
-      });
-    }
-    // =============== TASKS ===============
-    async function secTasks(mb,cap){
-      if(!Bridge.on()){mb.innerHTML=cap+bridgeBlock();return}
-      if(!okStat)okStat=await RPC('okxai','status').catch(()=>null);
-      if(!authed()){mb.innerHTML=cap+connectBlock('Tasks are jobs between agents on OKX.');return}
-      mb.innerHTML=cap+'<div class="qempty" style="padding:14px">loading tasks…</div>';
-      const r=await RPC('okxai','run',['agent','active-tasks']).catch(e=>({ok:false,error:e.message}));
-      if(stale('tasks'))return;
-      const list=okAgentsParse(r);
-      if(!r||!r.ok){mb.innerHTML=cap+`<div class="exoline" style="border-color:#e8b86d"><i style="background:#e8b86d"></i>${esc2((r&&r.error)||'could not read tasks')}</div>`;return}
-      if(!list.length){mb.innerHTML=cap+`<div class="os-empty"><svg><use href="#i-tasks"/></svg><h3>No active tasks</h3><p>When a client hires your agent, the job shows up here.</p></div>`;return}
-      mb.innerHTML=cap+list.slice(0,15).map(t=>{
-        const st=String(t.statusDesc||t.status||'').toUpperCase()||'ACTIVE';
-        const cls=/COMPLET/.test(st)?'sent':(/DISPUT|REJECT|FAIL/.test(st)?'rejected':'pending');
-        return `<div class="qcard"><div class="qh"><span class="type">TASK ${esc2(String(t.jobId||t.id||''))}</span><span class="stt"><span class="badge ${cls}">${esc2(st)}</span></span></div><div class="qbody">${esc2(t.title||t.description||t.taskName||'—')}${t.myRole?` <span style="color:var(--ink-faint)">· you are ${esc2(String(t.myRole))}</span>`:''}</div></div>`;
-      }).join('');
-    }
-    // =============== REFERENCE ===============
-    function secReference(mb,cap){
-      const links=[
-        ['OKX AI','https://www.okx.ai'],
-        ['ASP tutorial','https://www.okx.ai/tutorial/asp'],
-        ['Onchain OS (dev docs)','https://web3.okx.com/onchainos'],
-        ['X Layer explorer','https://www.oklink.com/xlayer'],
-      ];
-      mb.innerHTML=cap+`<div class="labsec"><b>X LAYER</b>
-          <table class="mi-table"><tr><td>chain id</td><td class="n">196 (eip155:196)</td></tr><tr><td>rpc</td><td class="n" style="font-size:9px">rpc.xlayer.tech</td></tr><tr><td>gas token</td><td class="n">OKB — but OKX pays agent-identity gas</td></tr><tr><td>settlement</td><td class="n">USD₮0 / USDG</td></tr></table></div>
-        <div class="os-sec" style="margin-top:13px">THE RULES</div>
-        <div class="mi-kv" style="line-height:2;margin-top:6px"><b>listing fee</b> none — registration, updates and activation are gasless for you<br><b>review</b> OKX reviews every listing (~24h) · rejected → fix with update on the same id<br><b>payments</b> A2A jobs settle through on-chain escrow · A2MCP is pay-per-call (x402)<br><b>disputes</b> ≥5 staked evaluators vote · raising one costs a refundable 5% deposit<br><b>regions</b> US users are prohibited by OKX's terms · no VPN workarounds<br><b>content</b> service text is moderated — no links, tech stacks, example prompts, or profit promises</div>
-        <div class="os-sec" style="margin-top:13px">LINKS</div>
-        <div class="mi-ref">${links.map(l=>`<div class="mi-refrow" data-url="${esc2(l[1])}">${esc2(l[0])}<kbd>open ↗</kbd></div>`).join('')}</div>`;
-      mb.querySelectorAll('[data-url]').forEach(el=>el.addEventListener('click',()=>ext(el.dataset.url)));
-    }
-    body.addEventListener('click',e=>{
-      if(e.target.closest('[data-okxbridge]'))openPanel('machine');
-      if(e.target.closest('[data-okxrefresh]')){okStat=null;renderSec()}
-    });
-    Bus.on('bridge:changed',()=>{if(document.body.contains(p)){okStat=null;renderSec()}});
-    render();
-  }
   /* ---------- neural_soul renderer (shared by LAB + Agent view) ---------- */
   function defaultSoul(agent) {
     const name = (agent && agent.name) || 'Unnamed Agent';
@@ -11758,6 +10335,24 @@ const Tri=(()=>{
       addEventListener('pointermove',mm);addEventListener('pointerup',mu);
     });
   })();
+  // t-guide = "the guide bar stowed in the menu": click or drag onto the canvas = bring it back
+  (()=>{const tg=document.getElementById('t-guide');if(!tg)return;
+    tg.addEventListener('pointerdown',e=>{
+      e.preventDefault();const sx=e.clientX,sy=e.clientY;let moved=false,ghost=null;
+      const mm=ev=>{
+        if(!moved&&Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)<=5)return;
+        moved=true;
+        if(!ghost){ghost=document.createElement('div');ghost.className='fitghost';ghost.innerHTML='<svg><use href="#i-guide"/></svg>GUIDE';document.body.appendChild(ghost)}
+        ghost.style.left=(ev.clientX+10)+'px';ghost.style.top=(ev.clientY+10)+'px';
+      };
+      const mu=()=>{
+        removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);
+        if(ghost)ghost.remove();
+        Guide.restore();toggleFly(false);Toast.show('Guide restored');
+      };
+      addEventListener('pointermove',mm);addEventListener('pointerup',mu);
+    });
+  })();
   document.getElementById('t-zin').addEventListener('click',()=>{if(Camera.isNav())Camera.zoomAt(innerWidth/2,innerHeight/2,1.45)});
   document.getElementById('t-zout').addEventListener('click',()=>{if(Camera.isNav())Camera.zoomAt(innerWidth/2,innerHeight/2,1/1.45)});
   addEventListener('pointerdown',e=>{if(flyOpen&&!e.target.closest('#tri')&&!e.target.closest('#triflyout'))toggleFly(false)},true);
@@ -11781,8 +10376,6 @@ const Guide=(()=>{
     'panel-shell':['iT',[['WORKSPACES','⌘B sidebar · ＋ new'],['SPLITS','⌘D right · ⌘⇧D down'],['⌘⇧P','command palette — cmux names'],['⌥⌘B','files tree · ⌗ tmux']]],
     'panel-harness':['HARNESS',[['SPINE','Orchestrator + Safety never collapse'],['SKILLS','signed Fabric patterns'],['DRAG','to the edge for split-screen']]],
     'panel-lab':['LAB',[['CHAT','any model — an API provider or your machine'],['AGENTS','your agents — pick the iNFTs to work with']]],
-    'panel-economyos':['CLI ECONOMY OS',[['VIRTUALS','build & run your iNFT agent'],['ROBINHOOD','launch its token on Robinhood Chain'],['OKX AI','list it on the OKX marketplace'],['LIST','pick an agent to open it']]],
-    'panel-integrate':['INTEGRATIONS',[['EXO LAB','local compute across your devices'],['MANAFLOW','AI agent workflows & internal tools'],['TMUX','terminal multiplexer'],['SOON','connect flow lands next']]],
     'panel-machine':['MY MACHINE',[['BRIDGE','the real body on your machine'],['BRAIN','BYOK key · mock'],['KEYS','this session only, never saved']]],
     'harness-conselho':['COUNCIL',[['PROPOSAL','write it and DELIBERATE'],['SAFETY','fail-closed veto on everything'],['TREASURY','per-job cap'],['OWNER','the final decision is always yours']]],
     'panel-settings':['SETTINGS',[['BASE','fixed palettes'],['LIVE','themes with animated background'],['MY MACHINE','detects the local exo']]],
@@ -11794,18 +10387,50 @@ const Guide=(()=>{
     title.textContent=c[0];
     items.innerHTML=c[1].map(i=>`<span class="gi"><b>${i[0]}</b> ${i[1]}</span>`).join(' <span class="gi" style="opacity:.4">·</span> ');
   }
+  // ── dock/undock: drag the tab onto the ▲ menu to stow the guide there (mirrors FIT) ──
+  let docked=!!Store.get().guideDocked,suppressTabClick=false;
+  const overTri=(x,y)=>{const tri=document.getElementById('tri');if(!tri)return false;const r=tri.getBoundingClientRect();return x>=r.left-16&&x<=r.right+16&&y>=r.top-16&&y<=r.bottom+16};
+  function applyDock(){
+    g.style.display=docked?'none':'';
+    tab.style.display=docked?'none':'';
+    const tg=document.getElementById('t-guide');if(tg)tg.style.display=docked?'flex':'none';
+  }
+  function dock(){docked=true;Store.get().guideDocked=true;Store.save();applyDock();Toast.show('Guide stowed — open the ▲ menu and drag it back out')}
+  function restore(){docked=false;Store.get().guideDocked=false;Store.save();applyDock()}
+  tab.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;
+    const sx=e.clientX,sy=e.clientY;let moved=false,ghost=null;
+    const mm=ev=>{
+      if(!moved&&Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)<=5)return;
+      moved=true;tab.classList.add('dragging');
+      if(!ghost){ghost=document.createElement('div');ghost.className='fitghost';ghost.innerHTML='<svg><use href="#i-guide"/></svg>GUIDE';document.body.appendChild(ghost)}
+      ghost.style.left=(ev.clientX+12)+'px';ghost.style.top=(ev.clientY+12)+'px';
+      const tri=document.getElementById('tri');if(tri)tri.classList.toggle('fitdrop',overTri(ev.clientX,ev.clientY));
+    };
+    const mu=ev=>{
+      removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);
+      tab.classList.remove('dragging');const tri=document.getElementById('tri');if(tri)tri.classList.remove('fitdrop');
+      if(ghost)ghost.remove();
+      if(!moved)return; // plain click → let the click handler toggle collapse
+      suppressTabClick=true;setTimeout(()=>{suppressTabClick=false},0); // swallow the click a drag would emit
+      if(overTri(ev.clientX,ev.clientY))dock();
+    };
+    addEventListener('pointermove',mm);addEventListener('pointerup',mu);
+  });
   tab.addEventListener('click',()=>{
+    if(suppressTabClick)return; // a real drag just happened — don't also toggle
     const hidden=!g.classList.contains('hidden');
     g.classList.toggle('hidden',hidden);
     tab.classList.toggle('up',hidden); // island drifts to the screen edge when the bar retracts
     Store.get().guideHidden=hidden;Store.save();
   });
   if(Store.get().guideHidden){g.classList.add('hidden');tab.classList.add('up')}
+  applyDock(); // restore docked/undocked state from last session
   Bus.on('help',k=>{overlay=k;renderG()});
   Bus.on('mode',m=>{mode=m;renderG()});
   Bus.on('camera',c=>{if(c.web!==web){web=c.web;renderG()}});
   renderG();
-  return{};
+  return{restore,isDocked:()=>docked};
 })();
 
 /* ---------- Palette ⌘K (keyboard-first — agentsview pattern, MIT) ---------- */
