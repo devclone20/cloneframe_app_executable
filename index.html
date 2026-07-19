@@ -2254,7 +2254,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 /* ---------- /panel:agentview ---------- */
 
 /* ---------- panel:matrix — distributed AI cluster (our EXO lab) ---------- */
-.mx{--mx-ok:#41d491;--mx-warn:#e0b04b;--mx-err:#ef5f6b;position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;font-family:var(--mono);background:radial-gradient(ellipse at 50% 36%,color-mix(in srgb,var(--accent) 5%,transparent),transparent 64%),var(--bg)}
+.mx{--mx-ok:#41d491;--mx-warn:#e0b04b;--mx-err:#ef5f6b;position:relative;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;font-family:var(--mono);background:radial-gradient(ellipse at 50% 36%,color-mix(in srgb,var(--accent) 5%,transparent),transparent 64%),var(--bg)}
 .mx *{font-variant-numeric:tabular-nums}
 .mx-top{position:relative;display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);flex:none;background:color-mix(in srgb,var(--panel) 40%,transparent)}
 .mx-burger{all:unset;cursor:pointer;width:24px;height:24px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:5px;color:var(--accent);font-size:11px;transition:background .15s}
@@ -2304,6 +2304,18 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-status i{width:6px;height:6px;border-radius:50%;background:var(--mx-ok);box-shadow:0 0 8px var(--mx-ok)}
 .mx-status.off i{background:var(--ink-faint);box-shadow:none}
 .mx-status .hint{color:var(--ink-faint);letter-spacing:.04em;text-transform:none}
+.mx-engbtn{all:unset;cursor:pointer;margin-left:10px;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.14em;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);border-radius:5px;padding:4px 10px;transition:background .15s}
+.mx-engbtn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.mx-engbtn.stop{color:var(--mx-err);border-color:color-mix(in srgb,var(--mx-err) 50%,transparent)}
+.mx-engbtn.stop:hover{background:color-mix(in srgb,var(--mx-err) 10%,transparent)}
+.mx-provcard{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:8px;padding:12px 14px;margin:0 0 16px}
+.mx-provcard .t{font-size:8px;font-weight:700;letter-spacing:.16em;color:var(--accent);margin-bottom:5px}
+.mx-provcard .d{font-size:9.5px;color:var(--ink-dim);line-height:1.5;margin-bottom:10px}
+.mx-provcard .row{display:flex;align-items:center;gap:10px}
+.mx-provbtn{all:unset;cursor:pointer;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);border-radius:6px;padding:7px 13px;transition:background .15s}
+.mx-provbtn:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.mx-provcard .st{font-size:8.5px;color:var(--ink-dim);letter-spacing:.05em}
+.mx-provcard .st b{color:var(--mx-ok)}
 .mx-hintline{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:9.5px;letter-spacing:.05em;color:var(--ink-dim)}
 .mx-node text{font-family:var(--mono)}
 .mx-link{stroke:color-mix(in srgb,var(--fg) 38%,transparent);stroke-width:1;stroke-dasharray:4 4;animation:mxflow .75s linear infinite}
@@ -2332,8 +2344,21 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-cstats{margin-left:auto;display:flex;gap:12px;color:var(--ink-dim);letter-spacing:.06em;white-space:nowrap}
 .mx-cstats b{color:var(--fg);font-weight:600}
 .mx-crow2{display:flex;align-items:flex-end;gap:9px;padding:9px 12px}
-.mx-attach{all:unset;cursor:pointer;width:20px;height:20px;display:grid;place-items:center;color:var(--ink-faint);flex:none}
+.mx-attach{all:unset;cursor:pointer;width:18px;height:18px;display:grid;place-items:center;color:var(--ink-faint);flex:none;border-radius:4px}
+.mx-attach svg{width:11px;height:11px} /* unsized inline svg defaults to 300×150 — never again */
 .mx-attach:hover{color:var(--fg)}
+.mx-chipsrow{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 7px}
+.mx-fchip{display:flex;align-items:center;gap:5px;font-size:8.5px;color:var(--fg);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:5px;padding:3px 7px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.mx-fchip .sz{color:var(--ink-faint)}
+.mx-fchip .rm{all:unset;cursor:pointer;color:var(--ink-faint);font-size:8px;padding:0 1px}
+.mx-fchip .rm:hover{color:var(--mx-err)}
+.mx-dropov{position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 60%,transparent);backdrop-filter:blur(2px);border:2px dashed color-mix(in srgb,var(--accent) 60%,transparent);border-radius:8px;pointer-events:none}
+.mx.dropping .mx-dropov{display:flex}
+.mx-dropov b{font-size:11px;letter-spacing:.24em;color:var(--accent)}
+.mx-dlattach{all:unset;cursor:pointer;margin-left:auto;display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--ink-dim);border:1px solid var(--line);border-radius:5px;padding:4px 9px;transition:all .15s}
+.mx-dlattach:hover{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.mx-dlattach svg{width:10px;height:10px}
+.mx-dlhead{display:flex;align-items:center;gap:10px}
 .mx-caret{color:var(--accent);font-size:10px;flex:none;padding-bottom:3px}
 .mx-input{flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--fg);max-height:150px;padding:2px 0}
 .mx-input::placeholder{color:var(--ink-faint);letter-spacing:.04em}
@@ -6279,8 +6304,8 @@ const Panels=(()=>{
     const mb2gb=mb=>{const g=mb/1024;return (g>=100?Math.round(g):g.toFixed(1))+'GB'};
     const CONVKEY='cfhub.matrix.convs.v1';
     const loadConvs=()=>{try{const j=JSON.parse(localStorage.getItem(CONVKEY)||'[]');return Array.isArray(j)?j.map(c=>({...c,msgs:(c.msgs||[]).map(m=>({...m,done:true}))})):[]}catch(_){return []}};
-    const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null}))}))))}catch(_){}};
-    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null};
+    const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null,files:m.files||null}))}))))}catch(_){}};
+    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[]};
     const DEMO={
       nodes:[{id:'demo1',name:'MATRIX NODE 01',chip:'Apple M5',used:11.8*1073741824,total:16*1073741824},
              {id:'demo2',name:'MATRIX NODE 02',chip:'Apple M3 Ultra',used:64*1073741824,total:192*1073741824}],
@@ -6308,7 +6333,7 @@ const Panels=(()=>{
         <div class="mx-main">
           <div class="mx-view mx-vhome on">
             <div class="mx-canvas"><svg data-mx="toposvg"></svg><div class="mx-scan"></div>
-              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span></div>
+              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span><button class="mx-engbtn" data-mx="engine" style="display:none"></button></div>
               <div class="mx-hintline" data-mx="hint">Select a model to get started.</div>
             </div>
           </div>
@@ -6321,16 +6346,19 @@ const Panels=(()=>{
               <button class="mx-modelbtn" data-mx="modelbtn"><em data-mx="modellbl">— SELECT MODEL —</em><span>▾</span></button>
               <div class="mx-cstats" data-mx="cstats"></div>
             </div>
+            <div class="mx-chipsrow" data-mx="chips" style="display:none"></div>
             <div class="mx-crow2">
-              <button class="mx-attach" title="Attach file (next phase)" data-mx="attach"><svg><use href="#i-file"/></svg></button>
+              <button class="mx-attach" title="Attach file — or drop one anywhere on MATRIX" data-mx="attach"><svg><use href="#i-file"/></svg></button>
               <span class="mx-caret">▶</span>
               <textarea class="mx-input" rows="1" data-mx="input" placeholder="Choose a model to start chatting"></textarea>
               <button class="mx-send" data-mx="send">SEND</button>
             </div>
           </div>
+          <input type="file" multiple data-mx="fileinput" style="display:none">
         </div>
         <div class="mx-aside" data-mx="aside"></div>
       </div>
+      <div class="mx-dropov"><b>DROP TO ATTACH</b></div>
       <div class="mx-picker" data-mx="picker">
         <div class="mx-pbox">
           <div class="mx-phead">
@@ -6350,7 +6378,32 @@ const Panels=(()=>{
     const E={status:el('status'),statustxt:el('statustxt'),hint:el('hint'),topo:el('toposvg'),convs:el('convs'),
       convcount:el('convcount'),search:el('search'),msgs:el('msgs'),aside:el('aside'),composer:el('composer'),
       modellbl:el('modellbl'),cstats:el('cstats'),input:el('input'),send:el('send'),picker:el('picker'),
-      pq:el('pq'),pmem:el('pmem'),fam:el('fam'),plist:el('plist'),dlbody:el('dlbody'),intbody:el('intbody')};
+      pq:el('pq'),pmem:el('pmem'),fam:el('fam'),plist:el('plist'),dlbody:el('dlbody'),intbody:el('intbody'),
+      chips:el('chips'),fileinput:el('fileinput')};
+
+    // ---- attachments (text files → chat context; tiny button or drop anywhere on MATRIX) ----
+    const ATT_MAX=3,ATT_BYTES=200*1024;
+    function renderChips(){
+      E.chips.style.display=st.attach.length?'':'none';
+      E.chips.innerHTML=st.attach.map((f,i)=>`<span class="mx-fchip">⎘ ${esc(f.name)}<span class="sz">${(f.size/1024).toFixed(0)}KB</span><button class="rm" data-mxfrm="${i}" title="Remove">✕</button></span>`).join('');
+    }
+    function looksBinary(t){let bad=0;const n=Math.min(t.length,2000);for(let i=0;i<n;i++){const c=t.charCodeAt(i);if(c===0||(c<9&&c!==0)||(c>13&&c<32))bad++}return bad>n*0.02}
+    function addFiles(list){
+      const files=[...(list||[])];
+      for(const f of files){
+        if(st.attach.length>=ATT_MAX){Toast.show('Max '+ATT_MAX+' attachments.');break}
+        if(f.size>ATT_BYTES){Toast.show(f.name+' skipped — over 200KB.');continue}
+        const rd=new FileReader();
+        rd.onload=()=>{
+          const t=String(rd.result||'');
+          if(looksBinary(t)){Toast.show(f.name+' skipped — text files only for now.');return}
+          st.attach.push({name:f.name,size:f.size,text:t});
+          renderChips();
+          if(st.view==='dl'||st.view==='int')Toast.show('Attached to chat: '+f.name);
+        };
+        rd.readAsText(f);
+      }
+    }
 
     // ---- cluster data (live /state or demo) ----
     function nodes(){
@@ -6427,6 +6480,12 @@ const Panels=(()=>{
       const n=nodes().length;
       if(st.online){E.status.classList.remove('off');E.statustxt.innerHTML=`${n} NODE${n>1?'S':''} · ENGINE ONLINE`}
       else{E.status.classList.add('off');E.statustxt.innerHTML=`ENGINE OFFLINE — DEMO DATA <span class="hint">· start your MATRIX engine to go live</span>`}
+      const eb=root.querySelector('[data-mx="engine"]');
+      if(eb){
+        if(st.eng&&st.eng.avail&&!st.online&&st.eng.found){eb.style.display='';eb.className='mx-engbtn';eb.textContent='▶ START ENGINE'}
+        else if(st.eng&&st.eng.avail&&st.online&&st.eng.ownedPid){eb.style.display='';eb.className='mx-engbtn stop';eb.textContent=(st.armed&&st.armed.key==='engine')?'SURE?':'■ STOP ENGINE'}
+        else eb.style.display='none';
+      }
     }
     function renderSide(){
       const q=(E.search.value||'').toLowerCase();
@@ -6520,7 +6579,7 @@ const Panels=(()=>{
     }
     function arm(key){ // two-click confirm for destructive ops; tick() clears stale arms
       if(st.armed&&st.armed.key===key)return true;
-      st.armed={key,ts:performance.now()};renderAside();if(st.view==='dl')renderDl();
+      st.armed={key,ts:performance.now()};renderAside();renderStatus();if(st.view==='dl')renderDl();
       return false;
     }
     async function delInstance(id){
@@ -6547,12 +6606,62 @@ const Panels=(()=>{
       catch(_){Toast.show('Remove failed.')}
       st.armed=null;
     }
+    // ---- engine lifecycle (bridge/matrix.mjs — permission-gated daemon control) ----
+    async function refreshEng(){ // just try the RPC — Bridge.on() lags the real pairing state
+      try{const s=await RPC('matrix','status');st.eng={avail:true,ownedPid:s.ownedPid,found:s.engineFound}}
+      catch(_){st.eng={avail:false}}
+    }
+    async function engStart(){
+      try{
+        const r=await RPC('matrix','start');
+        if(r&&r.ok)Toast.show(r.already?'Engine already running.':'Engine starting — the node appears as soon as it elects itself.');
+        else{
+          const err=(r&&r.error)||'start failed';
+          Toast.show(/permission/.test(err)?'Enable Settings → My Machine → "MATRIX engine control" first.':('Start failed: '+err));
+        }
+      }catch(e){Toast.show('Start failed: '+((e&&e.message)||'bridge error'))}
+      refreshEng();
+    }
+    async function engStop(){
+      try{
+        const r=await RPC('matrix','stop');
+        Toast.show(r&&r.ok?'Engine stopped.':('Stop failed: '+((r&&r.error)||'error')));
+      }catch(e){Toast.show('Stop failed: '+((e&&e.message)||'bridge error'))}
+      st.armed=null;refreshEng();
+    }
+    // ---- BYOK provider — the cluster's OpenAI-compatible endpoint in the Models registry,
+    // so the Terminal, Brain, Compare and Harness pickers can run on the user's own cluster
+    async function refreshProv(){
+      try{
+        const provs=await RPC('models','listProviders');
+        const p=(provs||[]).find(x=>(x.baseUrl||'').startsWith(API));
+        st.prov=p?{id:p.id,models:(p.models||[]).length}:null;
+      }catch(_){st.prov=null}
+    }
+    async function registerProvider(){
+      try{
+        let id=st.prov&&st.prov.id;
+        if(!id){
+          const r=await RPC('models','addProvider',{kind:'local',provider:'matrix',label:'MATRIX Cluster',baseUrl:API+'/v1'});
+          if(!r||!r.ok){Toast.show('Register failed: '+((r&&r.error)||'error'));return}
+          id=r.id;
+        }
+        const t=await RPC('models','testProvider',id);
+        await refreshProv();
+        if(t&&t.ok)Toast.show('MATRIX registered — '+((t.models&&t.models.length)||0)+' model(s) now in your Terminal/Brain/Harness pickers.');
+        else Toast.show('Registered. Model sync pending — start the engine, then REFRESH MODELS.');
+      }catch(e){Toast.show('Register failed: '+((e&&e.message)||'bridge error'))}
+      if(st.view==='int')renderInt();
+    }
     function renderMsgs(){
       const c=st.chat;
       if(!c){E.msgs.innerHTML='';return}
       E.msgs.innerHTML=c.msgs.map((m,i)=>{
         const t=m.t||'';
-        if(m.role==='user')return `<div class="mx-msg q"><div class="mx-mhead">${esc(t)} QUERY <i></i></div><div class="mx-bub">${esc(m.content)}</div></div>`;
+        if(m.role==='user'){
+          const fl=(m.files&&m.files.length)?`<div style="margin-top:5px;font-size:8px;color:var(--ink-faint)">⎘ ${m.files.map(esc).join(' · ')}</div>`:'';
+          return `<div class="mx-msg q"><div class="mx-mhead">${esc(t)} QUERY <i></i></div><div class="mx-bub">${esc(m.content)}${fl}</div></div>`;
+        }
         const stats=m.stats?`<span class="mx-mstats">TTFT ${m.stats.ttft}ms · ${m.stats.tps} tok/s</span>`:'';
         const body=m.done?(window.MDLite?MDLite.render(m.content):esc(m.content)):esc(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
         const pre=(!m.content&&st.streaming&&i===c.msgs.length-1)?(m.prefill!=null?`<div class="mx-prefill"><i style="width:${m.prefill}%"></i></div>`:'<span class="mx-cursor"></span>'):'';
@@ -6579,7 +6688,7 @@ const Panels=(()=>{
       catalog.sort((a,b)=>(hasState(b)?1:0)-(hasState(a)?1:0));
       const shown=catalog.slice(0,40);
       const rows=shown.map(m=>`<tr><td title="${esc(m.id)}">${esc(m.id)}</td>${ns.map(n=>dlCell(m,n,map,liveSet)).join('')}</tr>`);
-      E.dlbody.innerHTML=`<div class="mx-dlh1">DOWNLOADS</div><div class="mx-dlsub">Overview of models on each node${st.online?'':' — engine offline, demo view'}</div>
+      E.dlbody.innerHTML=`<div class="mx-dlhead"><div><div class="mx-dlh1">DOWNLOADS</div><div class="mx-dlsub">Overview of models on each node${st.online?'':' — engine offline, demo view'}</div></div><button class="mx-dlattach" data-mx="attach" title="Attach a file to the chat"><svg><use href="#i-file"/></svg>ATTACH FILE</button></div>
         <table class="mx-dltable"><thead><tr><th>MODEL</th>${ns.map(n=>{
           const d=disk[n.id];const free=d&&d.available?gb1(d.available.inBytes)+' free':'';
           return `<th class="nd">${esc(n.name.toUpperCase())}<span class="free">${esc(free)}</span></th>`;}).join('')}</tr></thead>
@@ -6605,6 +6714,11 @@ const Panels=(()=>{
           <div class="mx-ecard"><div class="t">CLAUDE-COMPATIBLE</div><div class="u">${esc(API)}</div></div>
           <div class="mx-ecard"><div class="t">OLLAMA-COMPATIBLE</div><div class="u">${esc(API)}/ollama</div></div>
         </div>
+        <div class="mx-provcard">
+          <div class="t">USE THIS CLUSTER IN CLONE FRAME</div>
+          <div class="d">Register MATRIX as a BYOK provider — its models join the Terminal, Brain, Compare and Harness model pickers, served from your own machines. No key, no cloud.</div>
+          <div class="row"><button class="mx-provbtn" data-mx="provider">${st.prov?'↻ REFRESH MODELS':'⚡ REGISTER AS PROVIDER'}</button><span class="st">${st.prov?`<b>✓ registered</b> — ${st.prov.models} model(s) in the pickers`:'not registered yet'}</span></div>
+        </div>
         <div class="mx-ttabs">${INT_TOOLS.map(t=>`<button data-mxtool="${t[0]}" class="${st.intTool===t[0]?'on':''}">${esc(t[1])}</button>`).join('')}</div>
         <div class="mx-code"><div class="mx-codeh"><b>Shell Command</b><span>Run in terminal</span><button class="mx-copy" data-mx="copy">COPY</button></div>
         <pre data-mx="cmdpre">${esc(intCmd(st.intTool))}</pre></div>`;
@@ -6618,7 +6732,7 @@ const Panels=(()=>{
       root.querySelector('.mx-vint').classList.toggle('on',v==='int');
       E.composer.style.display=(v==='home'||v==='chat')?'':'none';
       if(v==='dl')renderDl();
-      if(v==='int')renderInt();
+      if(v==='int'){renderInt();refreshProv().then(()=>{if(st.view==='int')renderInt()})}
       if(v==='home')requestAnimationFrame(()=>drawTopo(E.topo,false));
       if(v==='chat')renderMsgs();
       renderAside();
@@ -6635,6 +6749,8 @@ const Panels=(()=>{
         if(!was){loadModels()}
       }catch(_){st.fails++;if(st.fails>=2)st.online=false}
       if(st.armed&&performance.now()-st.armed.ts>3500)st.armed=null;
+      st.tickN=(st.tickN||0)+1;
+      if(st.tickN%8===1)refreshEng();
       renderStatus();
       if(st.view==='home')drawTopo(E.topo,false);
       if(st.view==='dl')renderDl();
@@ -6668,9 +6784,11 @@ const Panels=(()=>{
       if(!model){Toast.show('No READY instance — launch a model first (model ops land in the next phase; use the engine dashboard for now).');return}
       const hhmm=new Date().toTimeString().slice(0,8);
       if(!st.chat){st.chat={id:String(Date.now()),title:text.slice(0,42),model,msgs:[],stats:null};st.convs.unshift(st.chat)}
-      const history=st.chat.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content}));
-      history.push({role:'user',content:text});
-      st.chat.msgs.push({role:'user',content:text,t:hhmm});
+      const history=st.chat.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.sent||m.content}));
+      const files=st.attach.splice(0);renderChips();
+      const sent=files.length?text+'\n\n'+files.map(f=>'--- attached file: '+f.name+' ---\n'+f.text).join('\n\n'):text;
+      history.push({role:'user',content:sent});
+      st.chat.msgs.push({role:'user',content:text,sent,t:hhmm,files:files.map(f=>f.name)});
       const bot={role:'assistant',content:'',t:hhmm,stats:null,prefill:null,done:false};
       st.chat.msgs.push(bot);
       E.input.value='';st.streaming=true;setView('chat');renderSide();updateComposer();
@@ -6730,8 +6848,14 @@ const Panels=(()=>{
       E.pmem.innerHTML=`<b>${esc(gb1(free))}</b>/${esc(gb1(total))}`;
       E.fam.innerHTML=famList().map(f=>`<button data-mxfam="${esc(f)}" class="${st.famFilter===f?'on':''}">${esc(f==='all'?'All':f)}</button>`).join('');
       if(!st.models){E.plist.innerHTML=`<div class="mx-pempty">Engine offline — no catalog.<br>Start your MATRIX engine to browse ${st.online?'':'the '}models.</div>`;return}
-      const q=st.query.toLowerCase();
-      let list=st.models.filter(m=>(st.famFilter==='all'||m.family===st.famFilter)&&(!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)));
+      // token-AND search: "3.2 3b" must find "Llama-3.2-3B-…" (separators vary per model id)
+      const toks=st.query.toLowerCase().split(/\s+/).filter(Boolean);
+      let list=st.models.filter(m=>{
+        if(st.famFilter!=='all'&&m.family!==st.famFilter)return false;
+        if(!toks.length)return true;
+        const hay=(m.id+' '+m.name+' '+m.base+' '+m.quant).toLowerCase();
+        return toks.every(t=>hay.includes(t));
+      });
       // group variants by base model
       const groups=new Map();
       for(const m of list){const k=m.base+'|'+m.family;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(m)}
@@ -6764,6 +6888,8 @@ const Panels=(()=>{
       const t=e.target;
       const nav=t.closest('[data-mxview]');if(nav){setView(nav.dataset.mxview);return}
       const act=t.closest('[data-mx]');
+      const frm=t.closest('[data-mxfrm]');
+      if(frm){st.attach.splice(+frm.dataset.mxfrm,1);renderChips();return}
       const cdel=t.closest('[data-mxcdel]');
       if(cdel){const id=cdel.dataset.mxcdel;const c=st.convs.find(x=>x.id===id);
         st.convs=st.convs.filter(x=>x.id!==id);
@@ -6799,13 +6925,22 @@ const Panels=(()=>{
         case 'modelbtn':case 'mtrig':E.picker.classList.add('on');renderPicker();setTimeout(()=>E.pq.focus(),30);break;
         case 'pclose':E.picker.classList.remove('on');break;
         case 'launch':launch();break;
-        case 'attach':Toast.show('Attachments land in the next MATRIX phase.');break;
+        case 'engine':if(!st.online)engStart();else if(arm('engine'))engStop();break;
+        case 'provider':registerProvider();break;
+        case 'attach':E.fileinput.click();break;
         case 'send':sendChat();break;
         case 'copy':{const pre=root.querySelector('[data-mx="cmdpre"]');
           navigator.clipboard.writeText(pre?pre.textContent:'').then(()=>Toast.show('Copied.'));break}
       }
     });
     E.picker.addEventListener('click',e=>{if(e.target===E.picker)E.picker.classList.remove('on')});
+    E.fileinput.addEventListener('change',()=>{addFiles(E.fileinput.files);E.fileinput.value=''});
+    // drop a file anywhere on MATRIX → attached (dragenter/leave counted — children fire pairs)
+    let dragDepth=0;
+    root.addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();dragDepth++;root.classList.add('dropping')}});
+    root.addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files'))e.preventDefault()});
+    root.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;root.classList.remove('dropping')}});
+    root.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;root.classList.remove('dropping');addFiles(e.dataTransfer&&e.dataTransfer.files)});
     E.pq.addEventListener('input',()=>{st.query=E.pq.value;renderPicker()});
     E.search.addEventListener('input',renderSide);
     E.input.addEventListener('input',()=>{E.input.style.height='auto';E.input.style.height=Math.min(150,E.input.scrollHeight)+'px';updateComposer()});
@@ -6815,7 +6950,7 @@ const Panels=(()=>{
     renderSide();renderAside();renderStatus();updateComposer();
     requestAnimationFrame(()=>drawTopo(E.topo,false));
     new ResizeObserver(()=>{if(st.view==='home')drawTopo(E.topo,false)}).observe(root.querySelector('.mx-canvas'));
-    tick();loadModels();
+    tick();loadModels();refreshEng();refreshProv();
     st.timer=setInterval(tick,1000);
     p._dispose=()=>{try{clearInterval(st.timer)}catch(_){ } try{st.abort&&st.abort.abort()}catch(_){ }};
   }
@@ -8588,12 +8723,12 @@ const Panels=(()=>{
       try{perms=await RPC('permissions','get')}catch(e){return fail(e)}
       try{tools=await RPC('admin','tools')}catch(_){}
       const mc=!!perms.machineControl;
-      const rows=[['fullAccess','Full app access','the LLM can open any tab and act inside the HUB'],['rootMode','Root mode (sudo)','allows sudo commands in the terminal (asks your password each time)'],['autoAutomations','Automations without approval','the agent runs services/automations on its own'],['fileWrite','Write files','the agent can create and edit files on your machine'],['webAccess','Browse the web','the agent can search and open pages'],['autoEmail','Send email without approval','the agent sends email automatically'],['ssh','Remote servers (SSH)','open SSH sessions to your own saved servers/VMs — kept separate from full machine control (remote reach ≠ local)']];
+      const rows=[['fullAccess','Full app access','the LLM can open any tab and act inside the HUB'],['rootMode','Root mode (sudo)','allows sudo commands in the terminal (asks your password each time)'],['autoAutomations','Automations without approval','the agent runs services/automations on its own'],['fileWrite','Write files','the agent can create and edit files on your machine'],['webAccess','Browse the web','the agent can search and open pages'],['autoEmail','Send email without approval','the agent sends email automatically'],['ssh','Remote servers (SSH)','open SSH sessions to your own saved servers/VMs — kept separate from full machine control (remote reach ≠ local)'],['matrix','MATRIX engine control','start and stop the local cluster engine from the MATRIX tab — its own gate, a resident daemon is a deliberate choice']];
       pane.innerHTML='<div class="sethead">FULL MACHINE CONTROL</div>'+
         `<div class="autotoggle" style="border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)"><div><b style="color:var(--accent)">Full machine control</b><div class="sub">Let your agent do ANYTHING on this computer — open any app or folder, run any command, automate the machine. One prompt in CODE is enough. This is your whole workstation, fully driveable by the AI.</div></div><div class="sw3 ${mc?'on':''}" data-perm="machineControl"><i></i></div></div>`+
         `<div class="secnote" style="${mc?'':'display:none'}" id="mcnote">✓ Full machine control is ON — the agent can open apps, folders and run anything you ask. The catastrophic-command guard (rm -rf /, mkfs, dd to disk) stays active even now, to protect you from mistakes.</div>`+
         '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
-        rows.map(r=>`<div class="autotoggle" style="${mc&&r[0]!=='autoEmail'&&r[0]!=='ssh'?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&r[0]!=='autoEmail'&&r[0]!=='ssh'))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`).join('')+
+        rows.map(r=>{const own=r[0]==='autoEmail'||r[0]==='ssh'||r[0]==='matrix';return `<div class="autotoggle" style="${mc&&!own?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&!own))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`}).join('')+
         '<div class="secnote">Root mode asks for your password at the moment (never stored). Catastrophic patterns (rm -rf /, mkfs, dd to disk) are ALWAYS blocked, even as root.</div>'+
         '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${esc(t.name)}</b><div class="sub">${esc(t.kind||'')} ${esc((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>');
       pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));

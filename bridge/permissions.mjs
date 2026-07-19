@@ -15,7 +15,9 @@ const FILE = path.join(DIR, 'permissions.json');
 // ssh = reach the user's own remote servers/VMs. Its OWN gate, default OFF, NOT unlocked by the
 // master switch — remote blast radius ≠ local, so "control this machine" must not imply "SSH into
 // my whole fleet" (mirrors how email stays separate).
-const DEFAULTS = { machineControl: false, fullAccess: false, rootMode: false, autoEmail: false, autoAutomations: false, fileWrite: false, webAccess: false, ssh: false };
+// matrix = start/stop the local MATRIX cluster engine daemon. Its OWN gate like ssh —
+// spawning/killing a resident engine is a deliberate owner choice, not implied by the master.
+const DEFAULTS = { machineControl: false, fullAccess: false, rootMode: false, autoEmail: false, autoAutomations: false, fileWrite: false, webAccess: false, ssh: false, matrix: false };
 
 function load() {
   try { return Object.assign({}, DEFAULTS, JSON.parse(fs.readFileSync(FILE, 'utf8'))); } catch { return { ...DEFAULTS }; }
@@ -42,8 +44,8 @@ export const Permissions = {
   },
   // action → which flag governs it. The master switch unlocks everything except email.
   can(action) {
-    if (perms.machineControl && action !== 'email' && action !== 'ssh') return true;
-    const map = { shell: 'fullAccess', root: 'rootMode', email: 'autoEmail', automation: 'autoAutomations', fileWrite: 'fileWrite', web: 'webAccess', open: 'fullAccess', ssh: 'ssh' };
+    if (perms.machineControl && action !== 'email' && action !== 'ssh' && action !== 'matrix') return true;
+    const map = { shell: 'fullAccess', root: 'rootMode', email: 'autoEmail', automation: 'autoAutomations', fileWrite: 'fileWrite', web: 'webAccess', open: 'fullAccess', ssh: 'ssh', matrix: 'matrix' };
     const flag = map[action];
     if (!flag) return false;
     return !!perms[flag];
