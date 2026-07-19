@@ -1612,6 +1612,8 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .sh-tab .sh-tclose:hover{opacity:1;color:var(--accent)}
 .sh-tab .sh-tpop{opacity:.45;font-size:10px;line-height:1}
 .sh-tab .sh-tpop:hover{opacity:1;color:var(--accent)}
+.sh-tab .sh-trecon{opacity:.8;font-size:10px;line-height:1;color:var(--accent);cursor:pointer;margin:0 1px}
+.sh-tab .sh-trecon:hover{opacity:1;filter:brightness(1.25)}
 .sh-tab .sh-dot{width:5px;height:5px;border-radius:50%;background:#3fd68f;flex:none}
 .sh-tab .sh-dot.busy{background:#e8b86d;animation:shpulse 1s infinite}
 @keyframes shpulse{0%,100%{opacity:.4}50%{opacity:1}}
@@ -1634,6 +1636,27 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .sh-tmuxpop button span{font-size:9px;color:var(--ink-faint)}
 .sh-tmuxpop .none{font-size:10.5px;color:var(--ink-dim);padding:8px 9px;max-width:220px;white-space:normal}
 .sh-tmuxpop .none code{font-family:var(--mono);color:var(--accent);font-size:10px}
+.sh-hostpop{position:absolute;z-index:40;min-width:210px;max-width:290px;background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:11px;padding:5px;box-shadow:0 22px 55px -16px rgba(0,0,0,.85)}
+.sh-hostpop .hd{font-size:7.5px;letter-spacing:.16em;color:var(--ink-faint);padding:6px 9px 4px}
+.sh-hostpop button[data-h]{all:unset;display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;padding:7px 9px;border-radius:7px;font-size:11px;color:var(--fg);cursor:pointer}
+.sh-hostpop button[data-h]:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.sh-hostpop button[data-h] b{flex:0 0 auto;font-weight:600}
+.sh-hostpop button[data-h] span{flex:1 1 auto;font-size:9px;color:var(--ink-faint);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-hostpop .rm{flex:0 0 auto;font-size:10px;color:var(--ink-dim);font-style:normal;padding:2px 5px;border-radius:5px}
+.sh-hostpop .rm:hover{color:var(--err,#e5484d);background:color-mix(in srgb,var(--fg) 10%,transparent)}
+.sh-hostpop .add{all:unset;display:block;width:100%;box-sizing:border-box;padding:8px 9px;margin-top:3px;border-top:1px solid var(--border);font-size:10.5px;color:var(--accent);cursor:pointer;text-align:center}
+.sh-hostpop .add:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.sh-hostpop .none{font-size:10.5px;color:var(--ink-dim);padding:8px 9px;white-space:normal}
+.sh-hostpop .frm{display:flex;flex-direction:column;gap:5px;padding:4px 6px 6px}
+.sh-hostpop .frm input{all:unset;box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--fg);background:color-mix(in srgb,var(--fg) 4%,transparent);font-family:var(--mono)}
+.sh-hostpop .frm input:focus{border-color:var(--accent)}
+.sh-hostpop .frm .fp{font-size:9.5px;color:var(--ink-dim);white-space:normal;line-height:1.55}
+.sh-hostpop .frm .fp.err{color:var(--err,#e5484d)}
+.sh-hostpop .frm .fp code{display:block;font-family:var(--mono);color:var(--fg);font-size:9px;word-break:break-all;margin-top:2px}
+.sh-hostpop .frm .row{display:flex;gap:6px;margin-top:2px}
+.sh-hostpop .frm .row button{all:unset;flex:1;text-align:center;padding:6px 9px;border-radius:7px;font-size:10.5px;cursor:pointer;border:1px solid var(--border);color:var(--fg)}
+.sh-hostpop .frm .row button[data-a="save"],.sh-hostpop .frm .row button[data-a="done"]{background:var(--accent);border-color:var(--accent);color:#08120a}
+.sh-hostpop .frm .row button:hover{filter:brightness(1.08)}
 .sh-out{flex:1;overflow-y:auto;padding:12px 14px;font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--fg)}
 .sh-out .cmd{color:var(--accent)}
 .sh-out .err{color:#e8846d}
@@ -3531,7 +3554,7 @@ function Term(hostEl,opts){
       term.parser.registerOscHandler(777,d=>{try{const m=/^notify;([^;]*);?([\s\S]*)$/.exec(String(d||''));if(m)opts.onNotify(m[1],m[2])}catch(_){}return true});
     }
     const q=new URLSearchParams({op:opts.op||'shell',cols:String(term.cols||80),rows:String(term.rows||24)});
-    if(opts.session)q.set('session',opts.session);if(opts.cwd)q.set('cwd',opts.cwd);
+    if(opts.session)q.set('session',opts.session);if(opts.host)q.set('host',opts.host);if(opts.sess)q.set('sess',opts.sess);if(opts.cwd)q.set('cwd',opts.cwd);
     if(opts.ids){if(opts.ids.ws)q.set('ws',opts.ids.ws);if(opts.ids.surf)q.set('surf',opts.ids.surf);} // iT identity → CFHUB_IT_* env in the shell (for the `it` CLI)
     // Phase 4 — persistent sessions: a stable session id lets the bridge reattach to a
     // still-live pty after a reload and replay its scrollback, instead of killing it.
@@ -3539,7 +3562,7 @@ function Term(hostEl,opts){
     let ws;try{ws=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?'+q.toString(),['cfhub','cfhub.bearer.'+b.token])}catch(e){term.write('\r\n[connect failed]\r\n');return}
     ws.binaryType='arraybuffer';
     ws.onopen=()=>{try{term.focus()}catch(_){}};
-    ws.onmessage=(e)=>{try{term.write(typeof e.data==='string'?e.data:new Uint8Array(e.data))}catch(_){}if(opts.onOutput)try{opts.onOutput()}catch(_){}};
+    ws.onmessage=(e)=>{const _s=typeof e.data==='string';try{term.write(_s?e.data:new Uint8Array(e.data))}catch(_){}if(opts.onOutput)try{opts.onOutput()}catch(_){}if(opts.onChunk)try{opts.onChunk(_s?e.data:new TextDecoder().decode(new Uint8Array(e.data)))}catch(_){}};
     ws.onclose=(e)=>{try{term.write('\r\n\x1b[38;5;244m[session closed'+(e&&e.reason?' — '+e.reason:'')+']\x1b[0m\r\n')}catch(_){}if(opts.onExit)try{opts.onExit()}catch(_){}};
     ws.onerror=()=>{};
     term.onData(d=>{try{if(ws.readyState===1)ws.send(d)}catch(_){}});
@@ -6104,7 +6127,7 @@ const Panels=(()=>{
     const paneCur=()=>{const w=wsCur();return w?(w.panes.find(x=>x.id===w.focus)||w.panes[0]||null):null};
     const activeTab=()=>{const pn=paneCur();return pn?pn.surfaces[pn.active]:null};
     const leaves=n=>n.sp?[...leaves(n.a),...leaves(n.b)]:[n];
-    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.attach)return 'tmux:'+t.attach;if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
+    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.sess)return '⟳ '+(t.sessName||t.sess);if(t.host)return '⚡ '+t.host;if(t.attach)return 'tmux:'+t.attach;if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
     function wsLabel(w){return (w&&(w.name||w.autoName||base(w.cwd)))||'~'}
     function curCwd(){const t=activeTab();return (t&&t.cwd)||(wsCur()&&wsCur().cwd)||homeAbs}
     // a surface is "seen" when its window is visible, its workspace is active and it is its pane's front tab
@@ -6129,7 +6152,7 @@ const Panels=(()=>{
     function hydrate(spec,w){ // rebuild a saved split tree; each tty surface reopens a fresh shell at its cwd
       if(spec&&spec.sp)return{sp:spec.sp,ratio:spec.ratio||.5,a:hydrate(spec.a,w),b:hydrate(spec.b,w)};
       const pn=makePane(w);
-      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,s.attach||null,true,s.psid));
+      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>{const nt=newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,s.attach||null,true,s.psid,s.host||null,s.sess||null);if(nt&&s.sessName)nt.sessName=s.sessName;});
       if(!pn.surfaces.length)newSurface(pn,w.cwd,undefined,null,true);
       pn.active=Math.max(0,Math.min((spec&&spec.active)||0,pn.surfaces.length-1));
       return{pane:pn};
@@ -6143,9 +6166,9 @@ const Panels=(()=>{
       wireCanvasPane(w,pn);
       w.panes.push(pn);return pn;
     }
-    function newSurface(pn,cwd,kind,attach,quiet,psid){
+    function newSurface(pn,cwd,kind,attach,quiet,psid,host,sess){
       kind=kind||((canTTY&&Bridge.on()&&localStorage.getItem('cfhub.it.deftab')!=='smart')?'tty':'smart');
-      const t={id:'sh'+(++seq),kind,attach:attach||null,cwd:cwd||homeAbs,ptitle:'',named:false,dead:false,unread:0,out:'',hist:[],hi:-1,busy:false,ctl:null,termApi:null,el:null,pane:null,pn};
+      const t={id:'sh'+(++seq),kind,attach:attach||null,host:host||null,sess:sess||null,cwd:cwd||homeAbs,ptitle:'',named:false,dead:false,unread:0,out:'',hist:[],hi:-1,busy:false,ctl:null,termApi:null,el:null,pane:null,pn};
       // Phase 4: a shell tab (not a tmux attach) gets a stable session id so its pty can
       // survive a reload — reattach + scrollback replay instead of being killed. On restore
       // we keep the SAVED id so the reattach finds the still-live pty.
@@ -6157,18 +6180,35 @@ const Panels=(()=>{
       return t;
     }
     function newTab(cwd,kind,attach){const pn=paneCur();return pn?newSurface(pn,cwd,kind,attach):null} // legacy name — smart-shell keys + tmux menu call this
+    // The live tty Term for a surface (local shell / ssh / keeper). Extracted so a dead
+    // remote/keeper surface can be RECONNECTED in place without rebuilding the whole pane.
+    function makeTtyTerm(t,pane){
+      const pn=t.pn;
+      return Term(pane,{
+        op:t.sess?'keeper':(t.host?'ssh':(t.attach?'attach':'shell')),session:t.attach||undefined,host:t.host||undefined,sess:t.sess||undefined,cwd:t.cwd,ids:{ws:pn.w.id,surf:t.id},
+        sid:t.attach?undefined:t.psid,persist:t.attach?false:itPersist(),
+        onCwd:dir=>{t.cwd=dir;t.hasCwd=true;const w=pn.w;if(isWsLead(t)){w.cwd=dir;refreshWsGit(w)}schedule();markHere();saveState()},
+        onTitle:s=>{const v=String(s||'').trim();if(v&&!t.attach&&!t.host&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
+        onExit:()=>{t.dead=true;schedule()},
+        onOutput:()=>{if(!surfVisible(t)){const had=t.unread;t.unread=++unreadStamp;if(!had)schedule()}},
+        onNotify:(ti,bo)=>noteAdd(t,ti,bo),
+        onChunk:d=>pipeFeed(t,d) // Layer 2: `it pipe` tees output to a file when armed
+      });
+    }
+    // Reconnect a dead remote/keeper surface — rebuild its live Term in place (ssh redials;
+    // keeper reattaches to the still-alive daemon and replays scrollback).
+    function reconnectSurface(t){
+      if(!t||t.kind!=='tty'||!t.pane)return;
+      if(t.pipe)pipeStop(t);
+      if(t.termApi&&t.termApi.dispose){try{t.termApi.dispose()}catch(_){}}
+      t.pane.innerHTML='';t.dead=false;t.busy=false;
+      t.termApi=makeTtyTerm(t,t.pane);
+      renderAll();
+    }
     function buildSurface(pn,t){
       const pane=document.createElement('div');pane.className='sh-pane '+t.kind;t.pane=pane;pn.body.appendChild(pane);
       if(t.kind==='tty'){
-        t.termApi=Term(pane,{
-          op:t.attach?'attach':'shell',session:t.attach||undefined,cwd:t.cwd,ids:{ws:pn.w.id,surf:t.id},
-          sid:t.attach?undefined:t.psid,persist:t.attach?false:itPersist(), // Phase 4: survive reloads
-          onCwd:dir=>{t.cwd=dir;t.hasCwd=true;const w=pn.w;if(isWsLead(t)){w.cwd=dir;refreshWsGit(w)}schedule();markHere();saveState()},
-          onTitle:s=>{const v=String(s||'').trim();if(v&&!t.attach&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
-          onExit:()=>{t.dead=true;schedule()},
-          onOutput:()=>{if(!surfVisible(t)){const had=t.unread;t.unread=++unreadStamp;if(!had)schedule()}},
-          onNotify:(ti,bo)=>noteAdd(t,ti,bo)
-        });
+        t.termApi=makeTtyTerm(t,pane);
       }else if(t.kind==='web'){
         // browser surface (⌘⇧L) — the page beside the terminal, cmux-style. Hybrid load like
         // the BROWSER panel: search → DDG through the proxy; sites → direct when frameable.
@@ -6282,6 +6322,7 @@ const Panels=(()=>{
     }
     function closeSurface(pn,i){
       const t=pn.surfaces[i];if(!t)return;
+      if(t.pipe)pipeStop(t); // flush + stop any output pipe before disposing
       disposeSurf(t,true);pn.surfaces.splice(i,1);
       if(!pn.surfaces.length){closePane(pn);return}
       if(pn.active>=pn.surfaces.length)pn.active=pn.surfaces.length-1;
@@ -6585,14 +6626,17 @@ const Panels=(()=>{
       act('help',helpOverlay);
     }
     function renderPaneTabs(pn){
-      pn.strip.innerHTML=pn.surfaces.map((t,i)=>`<div class="sh-tab ${i===pn.active?'on':''}" data-ti="${i}" title="${esc(t.cwd)}"><span class="sh-dot ${t.dead?'dead':(t.busy?'busy':'')}${t.kind==='tty'?' live':''}"></span>${t.unread?'<span class="it-ud"></span>':''}${esc(tabLabel(t))}<span class="sh-tpop" data-pop="${i}" title="Send this terminal to a frame square">⤢</span><span class="sh-tclose" data-close="${i}" title="Close tab">✕</span></div>`).join('')
-        +`<button class="sh-newtab" data-act="new" title="New tab (⌘T) · ⌥-click: smart shell">＋</button><button class="sh-treetog" data-act="tmux" title="Attach a tmux session">⌗</button><span class="sh-tspacer"></span><button class="sh-treetog" data-act="omz" title="Prompt theme (smart tabs · Oh My Zsh): ${esc(omzTheme)}">◈</button><button class="sh-treetog" data-act="sr" title="Split right (⌘D)">◫</button><button class="sh-treetog" data-act="sd" title="Split down (⌘⇧D)">⊟</button><button class="sh-treetog" data-act="pc" title="Close pane">✕</button>`;
-      pn.strip.querySelectorAll('.sh-tab').forEach(el=>el.addEventListener('click',e=>{if(e.target.dataset.close!=null||e.target.dataset.pop!=null)return;pn.w.focus=pn.id;pn.active=+el.dataset.ti;syncPanes();schedule();markHere()}));
+      pn.strip.innerHTML=pn.surfaces.map((t,i)=>`<div class="sh-tab ${i===pn.active?'on':''}" data-ti="${i}" title="${esc(t.cwd)}"><span class="sh-dot ${t.dead?'dead':(t.busy?'busy':'')}${t.kind==='tty'?' live':''}"></span>${t.unread?'<span class="it-ud"></span>':''}${esc(tabLabel(t))}${(t.dead&&(t.host||t.sess))?`<span class="sh-trecon" data-recon="${i}" title="Reconnect">↻</span>`:''}<span class="sh-tpop" data-pop="${i}" title="Send this terminal to a frame square">⤢</span><span class="sh-tclose" data-close="${i}" title="Close tab">✕</span></div>`).join('')
+        +`<button class="sh-newtab" data-act="new" title="New tab (⌘T) · ⌥-click: smart shell">＋</button><button class="sh-treetog" data-act="tmux" title="Attach a tmux session">⌗</button><button class="sh-treetog" data-act="host" title="Remote hosts (SSH)">⚡</button><button class="sh-treetog" data-act="sess" title="Persistent sessions (survive disconnect)">⟳</button><span class="sh-tspacer"></span><button class="sh-treetog" data-act="omz" title="Prompt theme (smart tabs · Oh My Zsh): ${esc(omzTheme)}">◈</button><button class="sh-treetog" data-act="sr" title="Split right (⌘D)">◫</button><button class="sh-treetog" data-act="sd" title="Split down (⌘⇧D)">⊟</button><button class="sh-treetog" data-act="pc" title="Close pane">✕</button>`;
+      pn.strip.querySelectorAll('.sh-tab').forEach(el=>el.addEventListener('click',e=>{if(e.target.dataset.close!=null||e.target.dataset.pop!=null||e.target.dataset.recon!=null)return;pn.w.focus=pn.id;pn.active=+el.dataset.ti;syncPanes();schedule();markHere()}));
       pn.strip.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();closeSurface(pn,+b.dataset.close)}));
       pn.strip.querySelectorAll('[data-pop]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();popSurf(pn,+b.dataset.pop)}));
+      pn.strip.querySelectorAll('[data-recon]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();reconnectSurface(pn.surfaces[+b.dataset.recon])}));
       const act=(k,fn)=>{const b=pn.strip.querySelector('[data-act="'+k+'"]');if(b)b.addEventListener('click',fn)};
       act('new',e=>{pn.w.focus=pn.id;newSurface(pn,(pn.surfaces[pn.active]||{}).cwd||pn.w.cwd,e.altKey?'smart':undefined)});
       act('tmux',e=>{e.stopPropagation();pn.w.focus=pn.id;tmuxMenu(e.currentTarget)});
+      act('host',e=>{e.stopPropagation();pn.w.focus=pn.id;hostMenu(e.currentTarget)});
+      act('sess',e=>{e.stopPropagation();pn.w.focus=pn.id;sessMenu(e.currentTarget)});
       act('omz',cycleOmz);
       act('sr',()=>{pn.w.focus=pn.id;splitPane(pn,'h')});
       act('sd',()=>{pn.w.focus=pn.id;splitPane(pn,'v')});
@@ -6750,6 +6794,8 @@ const Panels=(()=>{
         ['open-diff',K('open-diff'),openDiffSplit],
         ['open-code-editor',K('open-code-editor'),()=>openCodeEditor()],
         ['attach-tmux','⌗',()=>{const b=p.querySelector('[data-act="tmux"]');if(b)tmuxMenu(b)}],
+        ['host-manager','⚡',()=>{const b=p.querySelector('[data-act="host"]');if(b)hostMenu(b)}],
+        ['session-manager','⟳',()=>{const b=p.querySelector('[data-act="sess"]');if(b)sessMenu(b)}],
         ['jump-to-unread',K('jump-to-unread'),jumpUnread],
         ['mark-all-read',K('mark-all-read'),markAllRead],
         ['new-browser',K('new-browser'),newBrowserSplit],
@@ -6899,7 +6945,7 @@ const Panels=(()=>{
     p.addEventListener('keydown',e=>{if(hotkey(e)){e.preventDefault();e.stopPropagation()}},true);
 
     // ---- layout persistence — workspaces + splits survive a reload (shells reopen at their cwds) ----
-    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,attach:t.attach||null,psid:(t.kind==='tty'&&!t.attach)?t.psid:undefined,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
+    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,attach:t.attach||null,host:t.host||undefined,sess:t.sess||undefined,sessName:t.sessName||undefined,psid:(t.kind==='tty'&&!t.attach&&!t.sess)?t.psid:undefined,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
     let saveT=null;
     function saveState(){
       if(!primary)return;
@@ -6937,6 +6983,7 @@ const Panels=(()=>{
           const all=[];(workspaces[wi].panes||[]).forEach(pn=>pn.surfaces.forEach(t=>all.push(t)));
           const n=+String(f.surface).replace(/^surface:/,'');return all[n-1]||null;
         }
+        if(f.host){let hit=null;(workspaces||[]).forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.host===f.host&&!t.dead&&!hit)hit=t})));return hit;} // --host targets the live remote surface
         if(f.workspace||f.pane){
           const wi=f.workspace?wsByRef(f.workspace):wsActive;if(wi<0)return null;
           const w=workspaces[wi];
@@ -6980,6 +7027,42 @@ const Panels=(()=>{
         case 'send-key':{const t=target();if(!t||t.kind!=='tty'||!t.termApi)return{ok:false,error:'no live terminal'};const b=itKey(f._[0]);if(b==null)return{ok:false,error:'unknown key: '+(f._[0]||'')};t.termApi.send(b);return okOut('key '+f._[0])}
         case 'read-screen':case 'capture-pane':{const t=target();if(!t)return{ok:false,error:'no tab'};if(t.kind!=='tty'||!t.termApi||!t.termApi.read)return okOut(strip(t.out||'').slice(-4000));const n=Math.max(0,Math.min(500,+(f.lines||0)||0))||undefined;return okOut(t.termApi.read(n))}
         case 'notify':{const title=(f.title&&f.title!=='true')?f.title:f._.join(' ');if(!title)return{ok:false,error:'usage: it notify --title <text> [--body <text>]'};noteAdd(target(),title,(f.body&&f.body!=='true')?f.body:'',{toast:true});return okOut('notified')}
+        case 'host':return (async()=>{ // OUR remote hosts (SSH) — see 01_COMMAND_MAP.md; no tmux vocabulary
+          const sub=String(f._[0]||'list');
+          if(sub==='list'){const r=await RPC('ssh','list').catch(()=>null);return (r&&r.ok)?{ok:true,rows:(r.hosts||[]).map(h=>({alias:h.alias,user:h.user||'',host:h.hostname,port:h.port,persist:h.persist?'●':''}))}:{ok:false,error:'ssh module unavailable'}}
+          if(sub==='add'){const patch={alias:f.alias,hostname:f.host||f.hostname,user:f.user,port:f.port?+f.port:undefined,identityFile:f.identity||f.identityFile};const r=await RPC('ssh','add',patch).catch(()=>null);return (r&&r.ok)?okOut('host added · '+r.host.alias):{ok:false,error:(r&&r.error)||'add failed — need --alias and --host'}}
+          if(sub==='edit'){const a=f._[1];if(!a)return{ok:false,error:'usage: it host edit <alias> [--host --user --port --identity]'};const patch={};if(f.host||f.hostname)patch.hostname=f.host||f.hostname;if(f.user)patch.user=f.user;if(f.port)patch.port=+f.port;if(f.identity||f.identityFile)patch.identityFile=f.identity||f.identityFile;const r=await RPC('ssh','update',a,patch).catch(()=>null);return (r&&r.ok)?okOut('updated '+a):{ok:false,error:(r&&r.error)||'edit failed'}}
+          if(sub==='rm'||sub==='remove'){const a=f._[1];const r=await RPC('ssh','remove',a).catch(()=>null);return (r&&r.ok)?okOut('removed '+a):{ok:false,error:(r&&r.error)||'rm failed'}}
+          if(sub==='connect'){const a=f._[1];if(!a)return{ok:false,error:'usage: it host connect <alias>'};const perms=await RPC('permissions','get').catch(()=>null);if(!perms||!perms.ssh)return{ok:false,error:'ssh permission is off — enable it in Settings → Machine'};return newHostTab(a)?okOut('connecting → '+a):{ok:false,error:'no pane'}}
+          if(sub==='disconnect'){const a=f._[1];const kill=[];(workspaces||[]).forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.host===a)kill.push([pn,t])})));kill.forEach(([pn,t])=>{const i=pn.surfaces.indexOf(t);if(i>=0){try{closeSurface(pn,i)}catch(_){}}});return okOut(kill.length?('disconnected '+a):'no live session for '+a)}
+          if(sub==='fingerprint'){const a=f._[1];const r=await RPC('ssh','fingerprint',a).catch(()=>null);return (r&&r.ok)?{ok:true,rows:r.fingerprints}:{ok:false,error:(r&&r.error)||'fingerprint failed'}}
+          if(sub==='forget-key'){const a=f._[1];const r=await RPC('ssh','forgetKey',a).catch(()=>null);return (r&&r.ok)?okOut('forgot host key for '+a):{ok:false,error:(r&&r.error)||'failed'}}
+          return {ok:false,error:'usage: it host <list|add|edit|rm|connect|disconnect|fingerprint|forget-key>'};
+        })();
+        case 'run':return (async()=>{ // run + capture: locally, or on a saved SSH host with --host
+          const cmdStr=f._.join(' ').trim();
+          if(!cmdStr)return{ok:false,error:'usage: it run <command> [--host <alias>]'};
+          if(f.host){const r=await RPC('ssh','run',f.host,cmdStr).catch(e=>({ok:false,err:String((e&&e.message)||e)}));if(!r)return{ok:false,error:'run failed'};const body=(String(r.out||'')+(r.err?('\n'+r.err):'')).trim();return r.ok?okOut(body||'(no output)'):{ok:false,error:body||r.error||'run failed'}}
+          if(!Bridge.on())return{ok:false,error:'bridge offline'};
+          let out='';try{await Bridge.shell(cmdStr,x=>{out+=x})}catch(e){return{ok:false,error:String((e&&e.message)||e)}}
+          return okOut(strip(out).trim()||'(no output)');
+        })();
+        case 'pipe':{ // OUR pipe-pane analog: tee a surface's output to a file
+          const sub=String(f._[0]||'').toLowerCase(),t=target();
+          if(!t||t.kind!=='tty')return{ok:false,error:'no live terminal to pipe (open one, or target with --host/--surface)'};
+          if(sub==='off'){pipeStop(t);return okOut('pipe off')}
+          if(sub==='on'||sub===''){const file=(f.file&&f.file!=='true')?f.file:pipeFile(t);const r=pipeStart(t,file);return r.ok?okOut('piping → '+contract(file)):{ok:false,error:r.error}}
+          return{ok:false,error:'usage: it pipe <on|off> [--file <path>]'};
+        }
+        case 'sess':return (async()=>{ // OUR persistence keeper — survives disconnect + bridge restart, no tmux
+          const sub=String(f._[0]||'list');
+          if(sub==='list'){const r=await RPC('keeper','list').catch(()=>null);return (r&&r.ok)?{ok:true,rows:(r.sessions||[]).map(s=>({id:s.id,name:s.name||'',cwd:contract(s.cwd||''),pid:s.pid}))}:{ok:false,error:'keeper unavailable'}}
+          if(sub==='new'){const id=(f.id&&f.id!=='true')?String(f.id):('s'+Date.now().toString(36));const name=(f.name&&f.name!=='true')?String(f.name):'';const t=newSessTab(id,name);return t?okOut('persistent session '+id+(name?(' · '+name):'')):{ok:false,error:'no pane'}}
+          if(sub==='attach'){const id=f._[1];if(!id)return{ok:false,error:'usage: it sess attach <id>'};return newSessTab(id,'')?okOut('attaching → '+id):{ok:false,error:'no pane'}}
+          if(sub==='kill'){const id=f._[1];const r=await RPC('keeper','kill',id).catch(()=>null);return (r&&r.ok)?okOut('killed '+id):{ok:false,error:(r&&r.error)||'kill failed'}}
+          if(sub==='rename'){const id=f._[1],nm=f._.slice(2).join(' ');const r=await RPC('keeper','rename',id,nm).catch(()=>null);return (r&&r.ok)?okOut('renamed '+id):{ok:false,error:(r&&r.error)||'rename failed'}}
+          return {ok:false,error:'usage: it sess <list|new|attach|kill|rename>'};
+        })();
         case 'display-message':Toast.show(f._.join(' ')||'iT');return okOut('shown');
         case 'right-sidebar':{const s=f._[0]||'toggle';if(s==='show'||s==='files'){if(treeHidden)toggleTree()}else if(s==='hide'){if(!treeHidden)toggleTree()}else toggleTree();return okOut('right sidebar '+(treeHidden?'hidden':'shown'))}
         case 'toggle-left-sidebar':toggleLeft();return okOut('left sidebar '+(leftHidden?'hidden':'shown'));
@@ -7062,6 +7145,88 @@ const Panels=(()=>{
       pop.querySelectorAll('button[data-s]').forEach(b=>b.addEventListener('click',()=>{pop.remove();newTab(homeAbs,'tty',b.dataset.s);renderAll()}));
       setTimeout(()=>addEventListener('pointerdown',function once(ev){if(!ev.target.closest('.sh-tmuxpop'))pop.remove();removeEventListener('pointerdown',once,true)},true),0);
     }
+    // ── Remote hosts (SSH) ──────────────────────────────────────────────────
+    // OUR remote engine: a saved host → a normal tty surface running `ssh <alias>`.
+    // No tmux. The bridge resolves the alias server-side (op=ssh) so the hostname/IP
+    // never crosses to the client; a remote session reuses the Phase-4 pty persistence.
+    function hostPos(pop,anchor){const pr=p.getBoundingClientRect(),ar=anchor.getBoundingClientRect();pop.style.left=Math.max(8,ar.left-pr.left-40)+'px';pop.style.top=(ar.bottom-pr.top+6)+'px'}
+    function hostDismiss(pop){setTimeout(()=>addEventListener('pointerdown',function once(ev){if(!ev.target.closest('.sh-hostpop'))pop.remove();removeEventListener('pointerdown',once,true)},true),0)}
+    async function hostMenu(anchor){
+      const old=p.querySelector('.sh-hostpop');if(old){old.remove();return}
+      if(!Bridge.on()){Toast.show('Connect the HUB Bridge first');return}
+      const pop=document.createElement('div');pop.className='sh-hostpop';p.appendChild(pop);hostPos(pop,anchor);hostDismiss(pop);
+      await hostRenderList(pop,anchor);
+    }
+    async function hostRenderList(pop,anchor){
+      let res;try{res=await RPC('ssh','list')}catch(_){res=null}
+      const hosts=(res&&res.ok&&res.hosts)||[];
+      const list=hosts.length?hosts.map(h=>`<button data-h="${esc(h.alias)}"><b>${esc(h.alias)}</b><span>${esc((h.user?h.user+'@':'')+h.hostname)}</span><i class="rm" data-rm="${esc(h.alias)}" title="Forget host">✕</i></button>`).join(''):'<div class="none">no saved hosts — add one below</div>';
+      pop.innerHTML='<div class="hd">REMOTE HOSTS · SSH</div>'+list+'<button class="add" data-add="1">＋ Add remote host</button>';
+      hostPos(pop,anchor);
+      pop.querySelectorAll('button[data-h]').forEach(b=>b.addEventListener('click',e=>{if(e.target&&e.target.dataset.rm!=null)return;pop.remove();hostConnect(b.dataset.h)}));
+      pop.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('ssh','remove',b.dataset.rm).catch(()=>{});hostRenderList(pop,anchor)}));
+      const addBtn=pop.querySelector('[data-add]');if(addBtn)addBtn.addEventListener('click',()=>hostAddForm(pop,anchor));
+    }
+    function hostAddForm(pop,anchor){
+      pop.innerHTML='<div class="hd">ADD REMOTE HOST</div><div class="frm">'
+        +'<input data-f="alias" placeholder="alias — e.g. prod" spellcheck="false" autocomplete="off">'
+        +'<input data-f="hostname" placeholder="hostname or IP" spellcheck="false" autocomplete="off">'
+        +'<input data-f="user" placeholder="user (optional)" spellcheck="false" autocomplete="off">'
+        +'<input data-f="port" placeholder="port — 22" spellcheck="false" autocomplete="off">'
+        +'<input data-f="identityFile" placeholder="~/.ssh/id_ed25519 (optional)" spellcheck="false" autocomplete="off">'
+        +'<div class="fp"></div><div class="row"><button data-a="save">Save</button><button data-a="back">Cancel</button></div></div>';
+      hostPos(pop,anchor);
+      const val=k=>String((pop.querySelector('[data-f="'+k+'"]')||{}).value||'').trim();
+      const fp=pop.querySelector('.fp');
+      async function doSave(){
+        const patch={alias:val('alias'),hostname:val('hostname')};
+        if(val('user'))patch.user=val('user');
+        if(val('port'))patch.port=Number(val('port'));
+        if(val('identityFile'))patch.identityFile=val('identityFile');
+        fp.className='fp';fp.textContent='saving…';
+        let r;try{r=await RPC('ssh','add',patch)}catch(_){r=null}
+        if(!r||!r.ok){fp.className='fp err';fp.textContent=(r&&r.error)||'could not save';return}
+        fp.textContent='checking host key…';
+        let f;try{f=await RPC('ssh','fingerprint',patch.alias)}catch(_){f=null}
+        if(f&&f.ok&&f.fingerprints&&f.fingerprints.length){fp.className='fp';fp.innerHTML='<b>verify this matches your server:</b>'+f.fingerprints.map(x=>`<code>${esc(x.sha256||'')} · ${esc(x.type||'')}</code>`).join('')}
+        else{fp.className='fp';fp.textContent='saved — the host key will be verified on first connect.'}
+        const done=document.createElement('div');done.className='row';done.innerHTML='<button data-a="done">Done</button>';
+        pop.querySelector('.frm').appendChild(done);
+        done.querySelector('[data-a="done"]').addEventListener('click',()=>hostRenderList(pop,anchor));
+      }
+      pop.querySelectorAll('input').forEach(i=>i.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();doSave()}}));
+      pop.querySelector('[data-a="save"]').addEventListener('click',doSave);
+      pop.querySelector('[data-a="back"]').addEventListener('click',()=>hostRenderList(pop,anchor));
+    }
+    async function hostConnect(alias){
+      let perms;try{perms=await RPC('permissions','get')}catch(_){perms=null}
+      if(!perms||!perms.ssh){Toast.show('SSH is off — enable it in Settings → Machine');return}
+      newHostTab(alias);
+    }
+    function newHostTab(alias){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}return newSurface(pn,homeAbs,'tty',null,false,null,alias)}
+    // ── Persistent sessions (OUR keeper) — survive disconnect + bridge restart, no tmux ──
+    async function sessMenu(anchor){
+      const old=p.querySelector('.sh-hostpop');if(old){old.remove();return}
+      if(!Bridge.on()){Toast.show('Connect the HUB Bridge first');return}
+      const pop=document.createElement('div');pop.className='sh-hostpop';p.appendChild(pop);hostPos(pop,anchor);hostDismiss(pop);
+      await sessRenderList(pop,anchor);
+    }
+    async function sessRenderList(pop,anchor){
+      let res;try{res=await RPC('keeper','list')}catch(_){res=null}
+      const ss=(res&&res.ok&&res.sessions)||[];
+      const list=ss.length?ss.map(s=>`<button data-ss="${esc(s.id)}"><b>${esc(s.name||s.id)}</b><span>${esc(base(s.cwd||'')||'~')} · pid ${esc(String(s.pid||''))}</span><i class="rm" data-sk="${esc(s.id)}" title="Kill session">✕</i></button>`).join(''):'<div class="none">no persistent sessions — start one below</div>';
+      pop.innerHTML='<div class="hd">PERSISTENT SESSIONS</div>'+list+'<button class="add" data-new="1">＋ New persistent session</button>';
+      hostPos(pop,anchor);
+      pop.querySelectorAll('button[data-ss]').forEach(b=>b.addEventListener('click',e=>{if(e.target&&e.target.dataset.sk!=null)return;pop.remove();newSessTab(b.dataset.ss,'')}));
+      pop.querySelectorAll('[data-sk]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('keeper','kill',b.dataset.sk).catch(()=>{});sessRenderList(pop,anchor)}));
+      const nb=pop.querySelector('[data-new]');if(nb)nb.addEventListener('click',()=>{pop.remove();newSessTab('s'+Date.now().toString(36),'')});
+    }
+    function newSessTab(id,name){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}const t=newSurface(pn,homeAbs,'tty',null,false,null,null,id);if(t&&name)t.sessName=name;return t}
+    // ── output pipe (OUR pipe-pane analog) — tee a surface's output to a file, debounced flush ──
+    function pipeFile(t){return (homeAbs||'')+'/'+((t.host?('ssh-'+t.host):(base(t.cwd)||'shell'))+'-'+t.id)+'.log'}
+    function pipeStart(t,file){if(!Bridge.on())return{ok:false,error:'bridge offline'};if(t.pipe)pipeStop(t);t.pipe={file,buf:'',timer:null};return{ok:true,file}}
+    function pipeFeed(t,d){if(!t.pipe)return;t.pipe.buf+=strip(String(d||''));if(t.pipe.buf.length>200000)t.pipe.buf=t.pipe.buf.slice(-200000);if(!t.pipe.timer)t.pipe.timer=setTimeout(()=>{const p=t.pipe;if(!p)return;const c=p.buf;p.buf='';p.timer=null;if(c)RPC('files','write',p.file,c,{append:true}).catch(()=>{})},1000)}
+    function pipeStop(t){if(!t.pipe)return;const p=t.pipe;t.pipe=null;if(p.timer)clearTimeout(p.timer);if(p.buf)RPC('files','write',p.file,p.buf,{append:true}).catch(()=>{})}
     function onKey(e,t){
       const inp=e.target;
       if(e.key==='Enter'){e.preventDefault();const cmd=inp.value;inp.value='';setGhost(t,'','');if(cmd.trim()){t.hist.push(cmd);t.hi=t.hist.length}run(t,cmd)}
@@ -7654,12 +7819,12 @@ const Panels=(()=>{
       try{perms=await RPC('permissions','get')}catch(e){return fail(e)}
       try{tools=await RPC('admin','tools')}catch(_){}
       const mc=!!perms.machineControl;
-      const rows=[['fullAccess','Full app access','the LLM can open any tab and act inside the HUB'],['rootMode','Root mode (sudo)','allows sudo commands in the terminal (asks your password each time)'],['autoAutomations','Automations without approval','the agent runs services/automations on its own'],['fileWrite','Write files','the agent can create and edit files on your machine'],['webAccess','Browse the web','the agent can search and open pages'],['autoEmail','Send email without approval','the agent sends email automatically']];
+      const rows=[['fullAccess','Full app access','the LLM can open any tab and act inside the HUB'],['rootMode','Root mode (sudo)','allows sudo commands in the terminal (asks your password each time)'],['autoAutomations','Automations without approval','the agent runs services/automations on its own'],['fileWrite','Write files','the agent can create and edit files on your machine'],['webAccess','Browse the web','the agent can search and open pages'],['autoEmail','Send email without approval','the agent sends email automatically'],['ssh','Remote servers (SSH)','open SSH sessions to your own saved servers/VMs — kept separate from full machine control (remote reach ≠ local)']];
       pane.innerHTML='<div class="sethead">FULL MACHINE CONTROL</div>'+
         `<div class="autotoggle" style="border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)"><div><b style="color:var(--accent)">Full machine control</b><div class="sub">Let your agent do ANYTHING on this computer — open any app or folder, run any command, automate the machine. One prompt in CODE is enough. This is your whole workstation, fully driveable by the AI.</div></div><div class="sw3 ${mc?'on':''}" data-perm="machineControl"><i></i></div></div>`+
         `<div class="secnote" style="${mc?'':'display:none'}" id="mcnote">✓ Full machine control is ON — the agent can open apps, folders and run anything you ask. The catastrophic-command guard (rm -rf /, mkfs, dd to disk) stays active even now, to protect you from mistakes.</div>`+
         '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
-        rows.map(r=>`<div class="autotoggle" style="${mc&&r[0]!=='autoEmail'?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&r[0]!=='autoEmail'))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`).join('')+
+        rows.map(r=>`<div class="autotoggle" style="${mc&&r[0]!=='autoEmail'&&r[0]!=='ssh'?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&r[0]!=='autoEmail'&&r[0]!=='ssh'))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`).join('')+
         '<div class="secnote">Root mode asks for your password at the moment (never stored). Catastrophic patterns (rm -rf /, mkfs, dd to disk) are ALWAYS blocked, even as root.</div>'+
         '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${esc(t.name)}</b><div class="sub">${esc(t.kind||'')} ${esc((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>');
       pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));

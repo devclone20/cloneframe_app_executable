@@ -12,7 +12,10 @@ const FILE = path.join(DIR, 'permissions.json');
 // machineControl = the master switch: when ON, the agent may do anything on this machine
 // (shell, root/sudo, files, web, open apps/folders, automations). Email stays separate —
 // sending mail on the owner's behalf is outbound to other people and keeps its own toggle.
-const DEFAULTS = { machineControl: false, fullAccess: false, rootMode: false, autoEmail: false, autoAutomations: false, fileWrite: false, webAccess: false };
+// ssh = reach the user's own remote servers/VMs. Its OWN gate, default OFF, NOT unlocked by the
+// master switch — remote blast radius ≠ local, so "control this machine" must not imply "SSH into
+// my whole fleet" (mirrors how email stays separate).
+const DEFAULTS = { machineControl: false, fullAccess: false, rootMode: false, autoEmail: false, autoAutomations: false, fileWrite: false, webAccess: false, ssh: false };
 
 function load() {
   try { return Object.assign({}, DEFAULTS, JSON.parse(fs.readFileSync(FILE, 'utf8'))); } catch { return { ...DEFAULTS }; }
@@ -39,8 +42,8 @@ export const Permissions = {
   },
   // action → which flag governs it. The master switch unlocks everything except email.
   can(action) {
-    if (perms.machineControl && action !== 'email') return true;
-    const map = { shell: 'fullAccess', root: 'rootMode', email: 'autoEmail', automation: 'autoAutomations', fileWrite: 'fileWrite', web: 'webAccess', open: 'fullAccess' };
+    if (perms.machineControl && action !== 'email' && action !== 'ssh') return true;
+    const map = { shell: 'fullAccess', root: 'rootMode', email: 'autoEmail', automation: 'autoAutomations', fileWrite: 'fileWrite', web: 'webAccess', open: 'fullAccess', ssh: 'ssh' };
     const flag = map[action];
     if (!flag) return false;
     return !!perms[flag];

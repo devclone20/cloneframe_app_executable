@@ -107,11 +107,19 @@ Commands:
   send <text>                               type into the focused terminal
   send-key <key>                            enter · escape · tab · up/down/left/right · ctrl+c …
   read-screen [--lines <n>]                 read the focused terminal's screen
+  run <command> [--host <alias>]            run + capture output (locally, or on a saved SSH host)
+  pipe <on|off> [--file <path>]             tee the terminal's output to a file
   notify --title <text> [--body <text>]
   right-sidebar <toggle|show|hide|files>
   toggle-left-sidebar
 
-  Surface commands also take --workspace <ref> [--pane pane:N] [--surface surface:N].
+  Surface commands also take --workspace <ref> [--pane pane:N] [--surface surface:N] [--host <alias>].
+
+  # remote hosts (SSH) — your own servers/VMs, gated by the "Remote servers (SSH)" permission
+  host list                                 saved hosts
+  host add --alias <a> --host <h> [--user <u>] [--port <n>] [--identity <path>]
+  host connect <alias>                      open a remote shell in a new tab
+  host fingerprint <alias> · host rm <alias> · host disconnect <alias> · host forget-key <alias>
 
   # tmux compatibility
   capture-pane [--lines <n>]                alias of read-screen

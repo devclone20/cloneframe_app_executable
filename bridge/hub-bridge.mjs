@@ -46,6 +46,16 @@ function loadToken() {
 }
 const TOKEN = loadToken();
 
+// ── log hygiene ──────────────────────────────────────────────────────────────
+// Local logs may contain hostnames/IPs (esp. once SSH lands). Keep them owner-only
+// (0600) — launch.sh creates them via shell redirects that default to 0644.
+function hardenLogs() {
+  for (const f of ['server.log', 'bridge.log', 'launch.log', 'electron.log']) {
+    try { fs.chmodSync(path.join(CONFIG_DIR, f), 0o600); } catch {}
+  }
+}
+hardenLogs();
+
 // ── agent field guide → the root of iT (~/.clone-frame-hub/AGENTS.md) ─────────
 // The bundle ships context/AGENTS.md; mirror it into the iT runtime root so any
 // iT shell (and `it context`) finds it, and so it travels with a downloaded app.
@@ -364,14 +374,14 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  pty: './pty.mjs', it: './it.mjs' };
+  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  pty: 'Pty', it: 'It' };
+  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper' };
 const _modCache = {};
 async function getMod(name) {
   if (_modCache[name]) return _modCache[name];
@@ -578,6 +588,31 @@ async function dispatchStream(ws, url) {
     const session = String(url.searchParams.get('session') || '');
     if (!/^[\w.-]{1,64}$/.test(session)) { try { ws.close(1008, 'bad session name'); } catch {} return; }
     hello = { cmd: 'tmux', args: ['attach-session', '-t', session], cwd, cols, rows };
+  } else if (op === 'ssh') {
+    // iT remote — a (persistence-capable) PTY running `ssh <alias>`. This is OUR own remote
+    // engine, not tmux; ssh is only the transport. Gated by the default-OFF `ssh` permission.
+    // The hostname is resolved server-side from a SAVED alias, so it never crosses to the client,
+    // and the argv is built by ssh.mjs (allowlisted -o, `--` before the host, no user@host).
+    let Perms; try { Perms = await getMod('permissions'); } catch {}
+    if (!Perms || !Perms.can('ssh')) { try { ws.close(1008, 'ssh permission is off'); } catch {} return; }
+    let Ssh; try { Ssh = await getMod('ssh'); } catch {}
+    const spec = Ssh && Ssh._connectArgs(String(url.searchParams.get('host') || ''), { interactive: true });
+    if (!spec) { try { ws.close(1008, 'unknown host'); } catch {} return; }
+    hello = { cmd: spec.cmd, args: spec.args, cwd, cols, rows };
+    // reuse Phase-4 persistence: reattach to the live ssh pty after a reload (remote stays up).
+    const sid = String(url.searchParams.get('sid') || '');
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(sid)) { hello.id = sid; hello.persist = url.searchParams.get('persist') === '1'; }
+  } else if (op === 'keeper') {
+    // iT Keeper — OUR own tmux-less persistence. The session lives in a DETACHED daemon that
+    // outlives this attach AND a bridge restart; here we only bridge the WS to a `keeper attach`
+    // child (ephemeral — reaped on ws close; the daemon keeps the shell alive and replays on reattach).
+    const sess = String(url.searchParams.get('sess') || '');
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(sess)) { try { ws.close(1008, 'bad session id'); } catch {} return; }
+    let Keeper; try { Keeper = await getMod('keeper'); } catch {}
+    if (!Keeper) { try { ws.close(1011, 'keeper unavailable'); } catch {} return; }
+    const ens = await Keeper.ensure(sess, { cwd, cols, rows });
+    if (!ens || !ens.ok) { try { ws.close(1011, (ens && ens.error) || 'keeper failed'); } catch {} return; }
+    hello = { cmd: process.execPath, args: [Keeper._keeperPath(), 'attach', sess], cwd, cols, rows };
   } else {
     const shell = process.env.SHELL || 'zsh';
     hello = { cmd: shell, args: ['-l'], cwd, cols, rows };
