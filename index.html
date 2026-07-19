@@ -1570,8 +1570,8 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .ds5-track i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:color-mix(in srgb,var(--fg) 55%,transparent);transition:width .5s}
 .ds5-track.hot i{background:var(--accent)}
 
-/* ---------- panel:lab (exolab) ---------- */
-/* ---------- LAB = exolab (cluster · models · chat · animated iNFT) ---------- */
+/* ---------- panel:lab ---------- */
+/* ---------- LAB (cluster · models · chat · animated iNFT) ---------- */
 .labx{display:flex;flex-direction:column;height:100%}
 .labtabs{display:flex;align-items:center;gap:5px;padding:9px 12px;border-bottom:1px solid var(--line)}
 .labtab{all:unset;cursor:pointer;font-size:9.5px;letter-spacing:.1em;padding:6px 14px;color:var(--ink-dim);border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--bg) 40%,transparent);display:flex;align-items:center;gap:6px;font-family:var(--mono);transition:color .15s,border-color .15s,box-shadow .15s}
@@ -1967,7 +1967,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .labinft .im .ft .d{font-size:10.5px;color:var(--ink-dim);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .labinft .im .go{margin-top:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink-dim);display:flex;align-items:center;gap:5px}
 .labinft .im .go i{color:var(--accent);font-style:normal;transition:transform .18s}
-/* model picker (exo-style) */
+/* model picker */
 .labmp{display:flex;gap:11px;height:100%}
 .labfam{width:78px;flex:none;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
 .labfam button{all:unset;cursor:pointer;text-align:center;font-size:8.5px;letter-spacing:.08em;color:var(--ink-dim);padding:8px 4px;border-radius:9px;font-family:var(--mono);transition:background .15s,color .15s,box-shadow .15s}
@@ -2069,7 +2069,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .labep{display:flex;align-items:center;gap:9px;font-size:9.5px;padding:3px 0}
 .labep span{width:52px;color:var(--ink-faint)}
 .labep code{font-family:var(--mono);color:var(--ink-dim);font-size:9px}
-/* Turbo — the exo production interface inside the LAB (conversations · cluster · load model) */
+/* Turbo — the LAB production interface (conversations · cluster · load model) */
 .tbo{display:flex;height:100%;min-height:0}
 .tbo-side{width:152px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column}
 .tbo-new{all:unset;cursor:pointer;margin:9px 8px 7px;padding:7px 10px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:9px;font-size:9.5px;letter-spacing:.08em;color:var(--fg);text-align:center}
@@ -2253,6 +2253,214 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .ag-actions .btn.primary:hover{background:color-mix(in srgb,var(--accent) 24%,transparent)}
 /* ---------- /panel:agentview ---------- */
 
+/* ---------- panel:matrix — distributed AI cluster (our EXO lab) ---------- */
+.mx{--mx-ok:#41d491;--mx-warn:#e0b04b;--mx-err:#ef5f6b;position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;font-family:var(--mono);background:radial-gradient(ellipse at 50% 36%,color-mix(in srgb,var(--accent) 5%,transparent),transparent 64%),var(--bg)}
+.mx *{font-variant-numeric:tabular-nums}
+.mx-top{position:relative;display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);flex:none;background:color-mix(in srgb,var(--panel) 40%,transparent)}
+.mx-burger{all:unset;cursor:pointer;width:24px;height:24px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:5px;color:var(--accent);font-size:11px;transition:background .15s}
+.mx-burger:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.mx-logo{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;pointer-events:none}
+.mx-logo b{font-size:17px;font-weight:800;letter-spacing:.34em;margin-right:-.34em;color:var(--accent);text-shadow:0 0 16px color-mix(in srgb,var(--accent) 40%,transparent)}
+.mx-logo i{width:9px;height:9px;background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 60%,transparent)}
+.mx-nav{margin-left:auto;display:flex;gap:4px}
+.mx-nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:5px;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.14em;color:var(--ink-dim);transition:color .15s,background .15s}
+.mx-nav button:hover{color:var(--fg)}
+.mx-nav button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.mx-nav button svg{width:11px;height:11px}
+.mx-body{flex:1;display:flex;min-height:0}
+/* left rail — conversations */
+.mx-side{width:196px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--line);transition:width .25s ease,opacity .2s;overflow:hidden}
+.mx.side-off .mx-side{width:0;opacity:0}
+.mx-newchat{all:unset;cursor:pointer;margin:12px 12px 8px;padding:8px 0;text-align:center;border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);border-radius:6px;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;color:var(--accent);transition:background .15s}
+.mx-newchat:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.mx-search{margin:0 12px 10px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.mx-search svg{width:10px;height:10px;color:var(--ink-faint);flex:none}
+.mx-search input{all:unset;flex:1;min-width:0;font-family:var(--mono);font-size:9.5px;color:var(--fg)}
+.mx-search input::placeholder{color:var(--ink-faint)}
+.mx-convs{flex:1;overflow-y:auto;padding:0 8px;min-height:0}
+.mx-convlbl{font-size:7.5px;letter-spacing:.18em;color:var(--ink-faint);padding:4px 6px 6px}
+.mx-conv{position:relative;padding:8px 9px;border:1px solid transparent;border-radius:7px;cursor:pointer;margin-bottom:3px;transition:border-color .15s,background .15s}
+.mx-convdel{all:unset;cursor:pointer;position:absolute;top:5px;right:6px;font-size:8px;color:var(--ink-faint);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s}
+.mx-conv:hover .mx-convdel{opacity:1}
+.mx-convdel:hover{color:var(--mx-err)}
+.mx-conv:hover{background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.mx-conv.on{border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.mx-conv .t{font-size:9.5px;font-weight:700;color:var(--fg);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-conv .m{font-size:8px;color:var(--ink-faint);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-conv .s{font-size:8px;color:var(--accent);margin-top:2px}
+.mx-sempty{margin:auto;text-align:center;color:var(--ink-faint);padding:20px}
+.mx-sempty .ic{width:34px;height:34px;margin:0 auto 10px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-size:13px}
+.mx-sempty b{display:block;font-size:9px;letter-spacing:.16em;color:var(--ink-dim)}
+.mx-sempty span{font-size:9px;letter-spacing:.03em}
+.mx-sfoot{flex:none;border-top:1px solid var(--line);padding:9px 12px;font-size:8px;letter-spacing:.16em;color:var(--ink-faint);text-align:center}
+/* center */
+.mx-main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.mx-view{flex:1;min-height:0;display:none;flex-direction:column;overflow:hidden}
+.mx-view.on{display:flex}
+.mx-canvas{flex:1;position:relative;overflow:hidden}
+.mx-canvas svg{position:absolute;inset:0;width:100%;height:100%}
+.mx-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 2px,color-mix(in srgb,var(--fg) 2.5%,transparent) 2px 3px)}
+.mx-status{position:absolute;top:12px;left:14px;display:flex;align-items:center;gap:7px;font-size:8.5px;letter-spacing:.14em;color:var(--ink-dim)}
+.mx-status i{width:6px;height:6px;border-radius:50%;background:var(--mx-ok);box-shadow:0 0 8px var(--mx-ok)}
+.mx-status.off i{background:var(--ink-faint);box-shadow:none}
+.mx-status .hint{color:var(--ink-faint);letter-spacing:.04em;text-transform:none}
+.mx-hintline{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:9.5px;letter-spacing:.05em;color:var(--ink-dim)}
+.mx-node text{font-family:var(--mono)}
+.mx-link{stroke:color-mix(in srgb,var(--fg) 38%,transparent);stroke-width:1;stroke-dasharray:4 4;animation:mxflow .75s linear infinite}
+@keyframes mxflow{to{stroke-dashoffset:-8}}
+/* chat */
+.mx-msgs{flex:1;overflow-y:auto;padding:18px 26px 10px;min-height:0}
+.mx-msg{margin-bottom:16px}
+.mx-mhead{display:flex;align-items:center;gap:7px;font-size:8px;letter-spacing:.16em;color:var(--ink-faint);margin-bottom:6px}
+.mx-mhead i{width:5px;height:5px;border-radius:50%;background:var(--ink-faint)}
+.mx-msg.q{display:flex;flex-direction:column;align-items:flex-end}
+.mx-msg.q .mx-bub{max-width:70%;border:1px solid var(--line);border-radius:9px 3px 9px 9px;padding:10px 13px;font-size:10.5px;line-height:1.55;color:var(--fg);background:color-mix(in srgb,var(--panel) 72%,transparent);user-select:text}
+.mx-msg.a .mx-bub{border-left:2px solid color-mix(in srgb,var(--accent) 55%,transparent);border-radius:3px;padding:10px 14px;font-size:10.5px;line-height:1.6;color:var(--fg);background:color-mix(in srgb,var(--panel) 45%,transparent);user-select:text}
+.mx-msg.a .mx-mhead i{background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 60%,transparent);animation:mxpulse 1.6s ease infinite}
+.mx-msg.a .mx-mhead b{color:var(--accent);letter-spacing:.2em}
+@keyframes mxpulse{50%{opacity:.45}}
+.mx-mstats{margin-left:auto;color:var(--ink-faint);letter-spacing:.06em}
+.mx-cursor{display:inline-block;width:7px;height:12px;background:color-mix(in srgb,var(--accent) 70%,transparent);vertical-align:-2px;animation:mxpulse .9s steps(2) infinite}
+.mx-prefill{height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin:4px 0 2px}
+.mx-prefill i{display:block;height:100%;background:var(--accent);transition:width .2s}
+/* composer */
+.mx-composer{flex:none;margin:0 22px 16px;border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--panel) 60%,transparent)}
+.mx-crow1{display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:8.5px;letter-spacing:.1em;color:var(--ink-faint)}
+.mx-modelbtn{all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:5px;padding:4px 9px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--accent);max-width:340px;transition:background .15s}
+.mx-modelbtn:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.mx-modelbtn em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-cstats{margin-left:auto;display:flex;gap:12px;color:var(--ink-dim);letter-spacing:.06em;white-space:nowrap}
+.mx-cstats b{color:var(--fg);font-weight:600}
+.mx-crow2{display:flex;align-items:flex-end;gap:9px;padding:9px 12px}
+.mx-attach{all:unset;cursor:pointer;width:20px;height:20px;display:grid;place-items:center;color:var(--ink-faint);flex:none}
+.mx-attach:hover{color:var(--fg)}
+.mx-caret{color:var(--accent);font-size:10px;flex:none;padding-bottom:3px}
+.mx-input{flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--fg);max-height:150px;padding:2px 0}
+.mx-input::placeholder{color:var(--ink-faint);letter-spacing:.04em}
+.mx-send{all:unset;cursor:pointer;flex:none;padding:6px 14px;border-radius:5px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.16em;color:var(--ink-dim);border:1px solid var(--line);transition:all .15s}
+.mx-send.hot{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+.mx-send.stop{color:var(--mx-err);border-color:color-mix(in srgb,var(--mx-err) 55%,transparent)}
+/* right rail */
+.mx-aside{width:248px;flex:none;border-left:1px solid var(--line);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.mx-ash{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:700;letter-spacing:.18em;color:var(--fg)}
+.mx-ash i{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent)}
+.mx-ash i.dia{border-radius:1px;transform:rotate(45deg);box-shadow:none;background:transparent;border:1px solid var(--accent)}
+.mx-ash .n{margin-left:auto;color:var(--ink-dim);font-weight:600;letter-spacing:.04em}
+.mx-inst{border:1px solid color-mix(in srgb,var(--mx-ok) 35%,var(--line));border-radius:8px;padding:10px 11px;font-size:9px;display:flex;flex-direction:column;gap:5px}
+.mx-inst.bad{border-color:color-mix(in srgb,var(--mx-err) 40%,var(--line))}
+.mx-inst .idrow{display:flex;align-items:center;gap:6px}
+.mx-inst .idrow i{width:6px;height:6px;border-radius:50%;background:var(--mx-ok);box-shadow:0 0 7px var(--mx-ok)}
+.mx-inst.bad .idrow i{background:var(--mx-err);box-shadow:0 0 7px var(--mx-err)}
+.mx-inst.wait .idrow i{background:var(--mx-warn);box-shadow:0 0 7px var(--mx-warn);animation:mxpulse 1.2s ease infinite}
+.mx-inst .idrow b{color:var(--ink-dim);letter-spacing:.1em;font-size:8.5px}
+.mx-instdel{all:unset;cursor:pointer;margin-left:auto;font-size:7.5px;font-weight:700;letter-spacing:.14em;color:var(--mx-err);border:1px solid color-mix(in srgb,var(--mx-err) 45%,transparent);border-radius:4px;padding:2px 7px}
+.mx-instdel:hover{background:color-mix(in srgb,var(--mx-err) 12%,transparent)}
+.mx-inst .mdl{color:var(--accent);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-inst .meta{display:flex;align-items:center;gap:6px;color:var(--ink-dim);font-size:8px;letter-spacing:.06em;flex-wrap:wrap}
+.mx-badge{font-size:7px;font-weight:700;letter-spacing:.12em;border-radius:3px;padding:2px 5px;background:color-mix(in srgb,var(--mx-ok) 18%,transparent);color:var(--mx-ok)}
+.mx-badge.bad{background:color-mix(in srgb,var(--mx-err) 18%,transparent);color:var(--mx-err)}
+.mx-badge.wait{background:color-mix(in srgb,var(--mx-warn) 18%,transparent);color:var(--mx-warn)}
+.mx-inst .foot{font-size:8.5px;color:var(--mx-ok)}
+.mx-inst.bad .foot{color:var(--mx-err)}
+.mx-mtrig{all:unset;cursor:pointer;display:flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:6px;padding:8px 11px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--fg);transition:background .15s}
+.mx-mtrig:hover{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.mx-mtrig em{font-style:normal;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-dim)}
+.mx-mtrig em.sel{color:var(--fg)}
+.mx-mtrig .gb{color:var(--ink-faint);font-size:8.5px}
+.mx-mtrig .car{color:var(--accent)}
+.mx-mcard{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:8px;padding:11px;display:flex;flex-direction:column;gap:8px;font-size:9px}
+.mx-mcard .nm{display:flex;align-items:baseline;gap:6px}
+.mx-mcard .nm b{color:var(--accent);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-mcard .nm .gb{margin-left:auto;color:var(--accent);font-weight:700}
+.mx-mcard .hf{color:var(--ink-faint);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-chips{display:flex;gap:5px}
+.mx-chip{font-size:7.5px;font-weight:700;letter-spacing:.1em;color:var(--ink-dim);border:1px solid var(--line);border-radius:4px;padding:3px 7px}
+.mx-dllbl{font-size:7.5px;letter-spacing:.14em;color:var(--ink-faint)}
+.mx-dlrow{display:flex;align-items:center;gap:7px;font-size:8px;color:var(--ink-dim)}
+.mx-dlbar{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.mx-dlbar i{display:block;height:100%;background:var(--accent)}
+.mx-launch{all:unset;cursor:pointer;text-align:center;padding:8px 0;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--fg);transition:all .15s}
+.mx-launch:hover{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.mx-launch.dim{opacity:.45}
+.mx-dlact{all:unset;cursor:pointer;margin-left:6px;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;color:var(--ink-faint);border:1px solid transparent;border-radius:4px;padding:2px 6px;transition:all .15s}
+.mx-dlact:hover{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.mx-minitopo{border:1px solid var(--line);border-radius:8px;height:150px;position:relative;overflow:hidden}
+.mx-minitopo svg{position:absolute;inset:0;width:100%;height:100%}
+/* model picker modal */
+.mx-picker{position:absolute;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(3px)}
+.mx-picker.on{display:flex}
+.mx-pbox{width:min(620px,92%);height:min(480px,88%);display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;background:var(--panel);box-shadow:0 24px 70px rgba(0,0,0,.5);overflow:hidden}
+.mx-phead{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--line)}
+.mx-phead svg{width:11px;height:11px;color:var(--ink-faint);flex:none}
+.mx-phead input{all:unset;flex:1;min-width:0;font-family:var(--mono);font-size:10px;color:var(--fg)}
+.mx-phead input::placeholder{color:var(--ink-faint)}
+.mx-pmem{font-size:8.5px;letter-spacing:.06em;color:var(--ink-dim)}
+.mx-pmem b{color:var(--accent)}
+.mx-pclose{all:unset;cursor:pointer;color:var(--ink-faint);font-size:12px;padding:0 3px}
+.mx-pclose:hover{color:var(--fg)}
+.mx-pbody{flex:1;display:flex;min-height:0}
+.mx-fam{width:64px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:8px 6px;display:flex;flex-direction:column;gap:3px}
+.mx-fam button{all:unset;cursor:pointer;text-align:center;padding:6px 2px;border-radius:5px;font-family:var(--mono);font-size:7px;font-weight:700;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-fam button:hover{color:var(--fg)}
+.mx-fam button.on{color:var(--bg);background:var(--accent)}
+.mx-plist{flex:1;overflow-y:auto;min-width:0;padding:6px 8px}
+.mx-pgrp{display:flex;align-items:center;gap:6px;font-size:8px;font-weight:700;letter-spacing:.1em;color:var(--mx-ok);background:color-mix(in srgb,var(--mx-ok) 9%,transparent);border-radius:5px;padding:6px 9px;margin:4px 0 5px}
+.mx-pgrp.oth{color:var(--ink-faint);background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.mx-pgrp .sub{font-weight:400;letter-spacing:.04em;text-transform:none;opacity:.8}
+.mx-prow{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;cursor:pointer;font-size:9.5px;color:var(--fg)}
+.mx-prow:hover{background:color-mix(in srgb,var(--fg) 5%,transparent)}
+.mx-prow .car{color:var(--ink-faint);font-size:8px;width:8px;flex:none}
+.mx-prow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-prow .caps{display:flex;gap:3px;color:var(--ink-faint)}
+.mx-prow .caps svg{width:9px;height:9px}
+.mx-prow .sz{margin-left:auto;color:var(--ink-dim);font-size:8.5px;white-space:nowrap}
+.mx-prow .sz.tight{color:var(--mx-warn)}
+.mx-prow .sz.no{color:var(--mx-err)}
+.mx-prow .star{color:var(--ink-faint);font-size:10px;flex:none}
+.mx-prow .star.on{color:var(--mx-warn)}
+.mx-pvar{display:flex;align-items:center;gap:9px;padding:6px 9px 6px 26px;border-radius:6px;cursor:pointer;font-size:9px;color:var(--ink-dim)}
+.mx-pvar:hover{background:color-mix(in srgb,var(--accent) 7%,transparent);color:var(--fg)}
+.mx-pvar .q{font-size:7.5px;font-weight:700;letter-spacing:.08em;border:1px solid var(--line);border-radius:3px;padding:2px 6px;background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.mx-pvar .sz{margin-left:auto}
+.mx-pvar .dl{color:var(--mx-ok);font-size:8px}
+.mx-pempty{padding:28px;text-align:center;font-size:9.5px;color:var(--ink-faint);letter-spacing:.04em}
+/* downloads view */
+.mx-dl{flex:1;overflow:auto;padding:18px 24px}
+.mx-dlh1{font-size:13px;font-weight:800;letter-spacing:.22em;color:var(--accent)}
+.mx-dlsub{font-size:9px;color:var(--ink-dim);margin:4px 0 14px;letter-spacing:.04em}
+.mx-dltable{width:100%;border-collapse:collapse;font-size:9.5px}
+.mx-dltable th{text-align:left;font-size:7.5px;letter-spacing:.16em;color:var(--ink-faint);padding:8px 10px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.mx-dltable th.nd{text-align:center}
+.mx-dltable th.nd .free{display:block;font-size:7px;color:var(--ink-faint);letter-spacing:.04em;margin-top:2px}
+.mx-dltable td{padding:9px 10px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.mx-dltable td.c{text-align:center;color:var(--ink-faint)}
+.mx-dltable td.c .ok{color:var(--mx-ok);font-weight:700}
+.mx-dltable td.c .szl{display:block;font-size:8px;color:var(--ink-dim);margin-top:1px}
+/* integrations view */
+.mx-int{flex:1;overflow-y:auto;padding:20px 26px}
+.mx-int h2{font-family:var(--font);font-size:16px;font-weight:700;color:var(--fg);letter-spacing:.02em}
+.mx-intsub{font-size:9.5px;color:var(--ink-dim);margin:4px 0 16px}
+.mx-kv{display:flex;align-items:center;gap:9px;font-size:9.5px;margin-bottom:5px}
+.mx-kv .k{font-size:8px;letter-spacing:.14em;color:var(--ink-faint)}
+.mx-kv .v{color:var(--fg)}
+.mx-kv .v.acc{color:var(--accent)}
+.mx-endp{display:flex;gap:9px;margin:14px 0 16px;flex-wrap:wrap}
+.mx-ecard{flex:1;min-width:160px;border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+.mx-ecard .t{font-size:7.5px;letter-spacing:.14em;color:var(--ink-faint);margin-bottom:5px}
+.mx-ecard .u{font-size:9.5px;color:var(--fg);user-select:text}
+.mx-ttabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.mx-ttabs button{all:unset;cursor:pointer;padding:5px 11px;border-radius:14px;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--ink-dim);border:1px solid transparent;transition:all .15s}
+.mx-ttabs button:hover{color:var(--fg)}
+.mx-ttabs button.on{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,transparent);background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.mx-code{border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.mx-codeh{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.mx-codeh b{font-size:9.5px;color:var(--fg)}
+.mx-codeh span{font-size:8px;color:var(--ink-faint);letter-spacing:.06em}
+.mx-copy{all:unset;cursor:pointer;margin-left:auto;font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--ink-dim);border:1px solid var(--line);border-radius:5px;padding:4px 10px;transition:all .15s}
+.mx-copy:hover{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.mx-code pre{margin:0;padding:12px 14px;font-family:var(--mono);font-size:9px;line-height:1.6;color:var(--ink-dim);white-space:pre-wrap;word-break:break-all;user-select:text}
+/* ---------- /panel:matrix ---------- */
+
 </style>
 </head>
 <body>
@@ -2270,6 +2478,9 @@ body[data-density="comfy"]{--ui-scale:1.1}
     </symbol>
     <symbol id="i-term2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M6.5 9.5 9.5 12l-3 2.5M12.5 14.5h5"/>
+    </symbol>
+    <symbol id="i-matrix" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="17.5" r="2.2"/><circle cx="19" cy="17.5" r="2.2"/><path d="M10.9 6.9 6.2 15.7M13.1 6.9l4.7 8.8M7.2 17.5h9.6"/>
     </symbol>
     <symbol id="i-agent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
       <rect x="5" y="7" width="14" height="12" rx="3.5"/><circle cx="9.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><path d="M12 7V4M9 19v1.5M15 19v1.5"/>
@@ -2406,6 +2617,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
     <button data-open="terminal">CODE</button>
     <button data-open="harness">HARNESS</button>
     <button data-open="lab">LAB</button>
+    <button data-open="matrix">MATRIX</button>
   </nav>
   <div id="devtabs">
     <button class="devtab" data-dev="GAME OVER" title="GAME OVER — in development"><svg><use href="#i-gameover"/></svg></button>
@@ -2497,7 +2709,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
    Isolated modules; communication only through the Bus (portable for production).
    Bus · Store · Themes · Fx · Camera · Cosmos · Ruler · Reframe ·
    Grid · Proximity · TileDrag · Menu · Panels · Snap · Tri · Guide ·
-   Palette · Exo · App
+   Palette · App
    ============================================================ */
 
 const Bus=(()=>{const m={};return{
@@ -3263,7 +3475,7 @@ const Reframe=(()=>{
 
 /* ---------- MENU: single source for the add-menu (#menu) + the flyout (Tri) ---------- */
 const MENU=[
-  ['Workspace',[['terminal','&lt;/&gt; Code','#i-term'],['shell','iT Terminal','#i-term2'],['folders','Folders','#i-folder'],['harness','Harness','#i-harness'],['lab','LAB','#i-lab'],['machine','My Machine','#i-chip'],['agents','My Agents','#i-agents']]],
+  ['Workspace',[['terminal','&lt;/&gt; Code','#i-term'],['shell','iT Terminal','#i-term2'],['folders','Folders','#i-folder'],['harness','Harness','#i-harness'],['lab','LAB','#i-lab'],['matrix','MATRIX','#i-matrix'],['machine','My Machine','#i-chip'],['agents','My Agents','#i-agents']]],
   ['Tools',[['brain','Brain','#i-brain'],['calendar','Calendar','#i-calendar'],['compare','Compare','#i-compare'],['cookbook','Cookbook','#i-cookbook'],['research','Browser','#i-globe'],['gallery','Gallery','#i-gallery'],['library','Library','#i-library'],['notes','Notes','#i-notes'],['tasks','Tasks','#i-tasks'],['__theme','Theme','#i-pal']]],
   ['Communication',[['email','Email','#i-mail'],['contacts','Contacts','#i-contacts'],['reminders','Reminders','#i-reminders'],['approval','Approval','#i-shield'],['automations','Automations','#i-automations'],['integrations','Connections','#i-integrations']]],
   ['System',[['__search','Search','#i-search'],['__wallet','Sign in','#i-wallet'],['settings','Settings','#i-gear']]],
@@ -3272,8 +3484,8 @@ const MENU=[
 /* ---------- Grid (cells ÷4: 28px, full-bleed with overscan) ---------- */
 const Grid=(()=>{
   const grid=document.getElementById('grid');
-  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',contacts:'#i-contacts',integrations:'#i-integrations',reminders:'#i-reminders',brain:'#i-brain',calendar:'#i-calendar',compare:'#i-compare',cookbook:'#i-cookbook',research:'#i-globe',gallery:'#i-gallery',library:'#i-library',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
-  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',contacts:'CONTACTS',integrations:'CONNECTIONS',reminders:'REMIND',brain:'BRAIN',calendar:'CALENDAR',compare:'COMPARE',cookbook:'COOKBOOK',research:'BROWSER',gallery:'GALLERY',library:'LIBRARY',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
+  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',matrix:'#i-matrix',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',contacts:'#i-contacts',integrations:'#i-integrations',reminders:'#i-reminders',brain:'#i-brain',calendar:'#i-calendar',compare:'#i-compare',cookbook:'#i-cookbook',research:'#i-globe',gallery:'#i-gallery',library:'#i-library',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
+  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',matrix:'MATRIX',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',contacts:'CONTACTS',integrations:'CONNECTIONS',reminders:'REMIND',brain:'BRAIN',calendar:'CALENDAR',compare:'COMPARE',cookbook:'COOKBOOK',research:'BROWSER',gallery:'GALLERY',library:'LIBRARY',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
   const DIM={CELL:28,GAP:4,PITCH:32}; // mutable (density)
   let OV=4*DIM.PITCH;
   let cols=0,rows=0,cells=[],centers=[];
@@ -3775,7 +3987,7 @@ Type \`/harness\` or open the Harness panel → **COUNCIL** mode to watch a deli
     await typeOut(pickMock(String(messages[messages.length-1]?.content||'')),onTok,signal);
     return'mock';
   }
-  return{stream,detect,typeOut,update,label:()=>label,exoOn:()=>false,activeKind,readyProvider};
+  return{stream,detect,typeOut,update,label:()=>label,activeKind,readyProvider};
 })();
 Bus.on('bridge:changed',()=>Brain.update());
 
@@ -4160,6 +4372,7 @@ const Panels=(()=>{
         <div class="ckbody" id="ckbody"></div>
       </div>`},
     research:{icon:'#i-globe',title:'BROWSER',sub:'the whole web, inside CLONE FRAME',w:980,h:680,pad:false,body:()=>`<div class="wbx" id="wbxroot"></div>`},
+    matrix:{icon:'#i-matrix',title:'MATRIX',sub:'distributed AI cluster · your devices, one brain',w:1200,h:740,pad:false,body:()=>`<div class="mx" id="mxroot"></div>`},
     gallery:{icon:'#i-gallery',title:'GALLERY',sub:'photos · albums · editor',w:740,h:620,pad:false,body:()=>`<div class="listpanel"><div class="gltabs"><button class="gltab on" data-t="photos">Photos</button><button class="gltab" data-t="albums">Albums</button><button class="gltab" data-t="edit">Edit</button><button class="gltab" data-t="settings">Settings</button><span class="glcount" id="glcount">0 photos</span></div><div class="lpbody" id="glview"></div></div>`},
     compare:{icon:'#i-compare',title:'MODEL COMPARISON',sub:'same prompt · side-by-side',w:760,h:640,pad:false,body:()=>`<div class="listpanel"><div class="cmpv2cfg" id="cmpcfg"></div><div class="lpbody" id="cmpbody"></div></div>`},
     calendar:{icon:'#i-calendar',title:'CALENDAR',sub:'CalDAV · month view',w:860,h:640,pad:false,body:()=>`<div class="cal2wrap" id="calroot"></div>`},
@@ -4241,7 +4454,7 @@ const Panels=(()=>{
   };
 
   // Public entry: open a URL in the in-app BROWSER (the standalone `research` panel).
-  // ANY module/agent → webOpen(url) or webOpen(url,{newTab:true}). localhost (e.g. exo)
+  // ANY module/agent → webOpen(url) or webOpen(url,{newTab:true}). localhost (e.g. the MATRIX engine)
   // lands on the direct-iframe fast path inside the BROWSER, never the OS browser.
   function webOpen(url,opts){
     opts=opts||{};
@@ -4294,6 +4507,7 @@ const Panels=(()=>{
     if(type==='lab')wireLab(p);
     if(type==='agentview')wireAgentView(p);
     if(type==='shell')wireShell(p);
+    if(type==='matrix')wireMatrix(p);
     if(type==='folders')wireFolders(p);
     if(type==='machine')wireMachine(p);
     if(type==='harness')wireHarness(p);
@@ -6051,6 +6265,561 @@ const Panels=(()=>{
     };
   })();
   let pendingShellCwd=null; // set by CODE's "pop out" before opening iT
+
+  // ---------- MATRIX — distributed AI cluster (our EXO lab, own code + own paths) ----------
+  // Design phase: live READ-ONLY view of the local engine (http://127.0.0.1:52415 — exo-compatible
+  // API surface) + real streaming chat against a READY instance. Control actions (launch/download/
+  // delete) are visual until the model-ops layer lands. Offline → labelled demo cluster.
+  function wireMatrix(p){
+    const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const API='http://127.0.0.1:52415';
+    const root=p.querySelector('#mxroot');
+    const GB=n=>(n/1073741824);
+    const gb1=n=>{const g=GB(n);return (g>=100?Math.round(g):g>=10?g.toFixed(1):g.toFixed(1))+'GB'};
+    const mb2gb=mb=>{const g=mb/1024;return (g>=100?Math.round(g):g.toFixed(1))+'GB'};
+    const CONVKEY='cfhub.matrix.convs.v1';
+    const loadConvs=()=>{try{const j=JSON.parse(localStorage.getItem(CONVKEY)||'[]');return Array.isArray(j)?j.map(c=>({...c,msgs:(c.msgs||[]).map(m=>({...m,done:true}))})):[]}catch(_){return []}};
+    const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null}))}))))}catch(_){}};
+    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null};
+    const DEMO={
+      nodes:[{id:'demo1',name:'MATRIX NODE 01',chip:'Apple M5',used:11.8*1073741824,total:16*1073741824},
+             {id:'demo2',name:'MATRIX NODE 02',chip:'Apple M3 Ultra',used:64*1073741824,total:192*1073741824}],
+      links:[['demo1','demo2']],
+      inst:[{id:'DEMO0000',model:'demo/local-model-4bit',shard:'PIPELINE',ring:'MLX RING',status:'READY',demo:true}],
+    };
+
+    root.innerHTML=`
+      <div class="mx-top">
+        <button class="mx-burger" data-mx="burger" title="Toggle conversations">«</button>
+        <div class="mx-logo"><i></i><b>MATRIX</b></div>
+        <nav class="mx-nav">
+          <button data-mxview="home" class="on"><svg><use href="#i-lab"/></svg>HOME</button>
+          <button data-mxview="dl"><svg><use href="#i-folder"/></svg>DOWNLOADS</button>
+          <button data-mxview="int"><svg><use href="#i-integrations"/></svg>INTEGRATIONS</button>
+        </nav>
+      </div>
+      <div class="mx-body">
+        <div class="mx-side">
+          <button class="mx-newchat" data-mx="newchat">+ NEW CHAT</button>
+          <div class="mx-search"><svg><use href="#i-search"/></svg><input data-mx="search" placeholder="Search conversations..."></div>
+          <div class="mx-convs" data-mx="convs"></div>
+          <div class="mx-sfoot" data-mx="convcount">0 CONVERSATIONS</div>
+        </div>
+        <div class="mx-main">
+          <div class="mx-view mx-vhome on">
+            <div class="mx-canvas"><svg data-mx="toposvg"></svg><div class="mx-scan"></div>
+              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span></div>
+              <div class="mx-hintline" data-mx="hint">Select a model to get started.</div>
+            </div>
+          </div>
+          <div class="mx-view mx-vchat"><div class="mx-msgs" data-mx="msgs"></div></div>
+          <div class="mx-view mx-vdl"><div class="mx-dl" data-mx="dlbody"></div></div>
+          <div class="mx-view mx-vint"><div class="mx-int" data-mx="intbody"></div></div>
+          <div class="mx-composer" data-mx="composer">
+            <div class="mx-crow1">
+              <span>MODEL:</span>
+              <button class="mx-modelbtn" data-mx="modelbtn"><em data-mx="modellbl">— SELECT MODEL —</em><span>▾</span></button>
+              <div class="mx-cstats" data-mx="cstats"></div>
+            </div>
+            <div class="mx-crow2">
+              <button class="mx-attach" title="Attach file (next phase)" data-mx="attach"><svg><use href="#i-file"/></svg></button>
+              <span class="mx-caret">▶</span>
+              <textarea class="mx-input" rows="1" data-mx="input" placeholder="Choose a model to start chatting"></textarea>
+              <button class="mx-send" data-mx="send">SEND</button>
+            </div>
+          </div>
+        </div>
+        <div class="mx-aside" data-mx="aside"></div>
+      </div>
+      <div class="mx-picker" data-mx="picker">
+        <div class="mx-pbox">
+          <div class="mx-phead">
+            <svg><use href="#i-search"/></svg>
+            <input data-mx="pq" placeholder="Search models...">
+            <span class="mx-pmem" data-mx="pmem"></span>
+            <button class="mx-pclose" data-mx="pclose" title="Close">✕</button>
+          </div>
+          <div class="mx-pbody">
+            <div class="mx-fam" data-mx="fam"></div>
+            <div class="mx-plist" data-mx="plist"></div>
+          </div>
+        </div>
+      </div>`;
+
+    const el=k=>root.querySelector(`[data-mx="${k}"]`);
+    const E={status:el('status'),statustxt:el('statustxt'),hint:el('hint'),topo:el('toposvg'),convs:el('convs'),
+      convcount:el('convcount'),search:el('search'),msgs:el('msgs'),aside:el('aside'),composer:el('composer'),
+      modellbl:el('modellbl'),cstats:el('cstats'),input:el('input'),send:el('send'),picker:el('picker'),
+      pq:el('pq'),pmem:el('pmem'),fam:el('fam'),plist:el('plist'),dlbody:el('dlbody'),intbody:el('intbody')};
+
+    // ---- cluster data (live /state or demo) ----
+    function nodes(){
+      if(st.online&&st.st8){
+        const s=st.st8,ids=(s.topology&&s.topology.nodes)||[];
+        return ids.map(id=>{const nid=(s.nodeIdentities||{})[id]||{},m=(s.nodeMemory||{})[id]||{};
+          const tot=m.ramTotal?m.ramTotal.inBytes:0,av=m.ramAvailable?m.ramAvailable.inBytes:0;
+          return {id,name:nid.friendlyName||nid.modelId||id.slice(0,8),chip:nid.chipId||'',used:Math.max(0,tot-av),total:tot}});
+      }
+      return DEMO.nodes;
+    }
+    function links(){
+      if(st.online&&st.st8){
+        const conns=(st.st8.topology&&st.st8.topology.connections)||{},out=[],seen=new Set();
+        for(const a in conns){const peers=conns[a];const list=Array.isArray(peers)?peers:Object.keys(peers||{});
+          for(const b of list){const pk=typeof b==='string'?b:(b&&b.node)||'';const k=[a,pk].sort().join('|');
+            if(pk&&!seen.has(k)){seen.add(k);out.push([a,pk])}}}
+        return out;
+      }
+      return DEMO.links;
+    }
+    function instances(){
+      if(st.online&&st.st8){
+        const s=st.st8,out=[],ins=s.instances||{},run=s.runners||{};
+        for(const iid in ins){
+          const kind=Object.keys(ins[iid])[0]||'',b=ins[iid][kind]||{},sa=b.shardAssignments||{};
+          const rids=Object.keys(sa.runnerToShard||{});
+          let status='LOADING';
+          for(const r of rids){const rs=run[r]?Object.keys(run[r])[0]||'':'';
+            if(/Failed/i.test(rs)){status='FAILED';break}
+            if(/Ready|Running/i.test(rs))status='READY'}
+          const sk=rids.length?Object.keys(sa.runnerToShard[rids[0]])[0]||'':'';
+          out.push({id:iid,model:sa.modelId||'?',shard:/Tensor/i.test(sk)?'TENSOR':'PIPELINE',ring:/Jaccl/i.test(kind)?'RDMA':'MLX RING',status});
+        }
+        return out;
+      }
+      return st.fails>1?DEMO.inst:[];
+    }
+    function readyModel(){const i=instances().find(i=>i.status==='READY'&&!i.demo);return i?i.model:null}
+    function clusterFree(){return nodes().reduce((a,n)=>a+(n.total-n.used),0)}
+    function clusterTotal(){return nodes().reduce((a,n)=>a+n.total,0)}
+
+    // ---- topology (orbit layout, exo-style but ours) ----
+    function deviceSVG(n,x,y,scale){
+      const s=scale,w=46*s,h=28*s,kb=7*s,fillH=Math.round((h-4)*Math.min(1,n.total?n.used/n.total:0));
+      const pct=n.total?Math.round(n.used/n.total*100):0;
+      return `<g class="mx-node" transform="translate(${x},${y})">
+        <text x="0" y="${-h/2-14*s}" text-anchor="middle" style="fill:var(--accent)" font-size="${9*s}" font-weight="700" letter-spacing=".08em">${esc(n.name.length>22?n.name.slice(0,21)+'…':n.name)}</text>
+        <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="${3*s}" style="fill:color-mix(in srgb,var(--panel) 80%,transparent);stroke:color-mix(in srgb,var(--fg) 45%,transparent);stroke-width:1.2"/>
+        <rect x="${-w/2+2}" y="${h/2-2-fillH}" width="${w-4}" height="${fillH}" rx="${2*s}" style="fill:color-mix(in srgb,var(--accent) 78%,transparent)"/>
+        <rect x="${-w/2-4*s}" y="${h/2}" width="${w+8*s}" height="${kb}" rx="${2*s}" style="fill:color-mix(in srgb,var(--panel) 92%,var(--fg));stroke:color-mix(in srgb,var(--fg) 40%,transparent);stroke-width:1"/>
+        <rect x="${-3*s}" y="${-3*s}" width="${6*s}" height="${6*s}" style="fill:color-mix(in srgb,var(--bg) 85%,transparent)"/>
+        <rect x="${w/2+7*s}" y="${-h/2}" width="${9*s}" height="${h+kb}" rx="${2*s}" style="fill:color-mix(in srgb,var(--panel) 85%,transparent);stroke:color-mix(in srgb,var(--fg) 30%,transparent);stroke-width:1"/>
+        <text x="${w/2+11.5*s}" y="${-h/2+8*s}" text-anchor="middle" style="fill:var(--ink-dim)" font-size="${6*s}">0%</text>
+        <text x="0" y="${h/2+kb+12*s}" text-anchor="middle" font-size="${7.5*s}"><tspan style="fill:var(--accent)" font-weight="700">${esc(gb1(n.used))}</tspan><tspan style="fill:var(--ink-dim)">/${esc(gb1(n.total))} (${pct}%)</tspan></text>
+        <text x="0" y="${h/2+kb+22*s}" text-anchor="middle" style="fill:var(--ink-faint)" font-size="${6.5*s}" letter-spacing=".06em">${esc(n.chip||'')}</text>
+      </g>`;
+    }
+    function drawTopo(svg,compact){
+      const ns=nodes(),ls=links(),r=svg.getBoundingClientRect();
+      const W=Math.max(160,r.width),H=Math.max(120,r.height);
+      const scale=compact?0.62:1;
+      const orbit=ns.length===1?0:Math.min(W,H)/2-70*scale;
+      const cx=W/2,cy=H/2-(compact?2:8);
+      const pos={};ns.forEach((n,i)=>{const a=(i/ns.length)*2*Math.PI-Math.PI/2;pos[n.id]=[cx+orbit*Math.cos(a),cy+orbit*Math.sin(a)]});
+      let out='';
+      for(const [a,b] of ls){if(pos[a]&&pos[b])out+=`<line class="mx-link" x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}"/>`}
+      for(const n of ns)out+=deviceSVG(n,pos[n.id][0],pos[n.id][1],scale);
+      svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=out;
+    }
+
+    // ---- renders ----
+    function renderStatus(){
+      const n=nodes().length;
+      if(st.online){E.status.classList.remove('off');E.statustxt.innerHTML=`${n} NODE${n>1?'S':''} · ENGINE ONLINE`}
+      else{E.status.classList.add('off');E.statustxt.innerHTML=`ENGINE OFFLINE — DEMO DATA <span class="hint">· start your MATRIX engine to go live</span>`}
+    }
+    function renderSide(){
+      const q=(E.search.value||'').toLowerCase();
+      const list=st.convs.filter(c=>!q||c.title.toLowerCase().includes(q));
+      if(!st.convs.length){
+        E.convs.innerHTML=`<div class="mx-sempty"><div class="ic">◍</div><b>NO CONVERSATIONS</b><span>Start a new chat to begin</span></div>`;
+      }else{
+        E.convs.innerHTML=`<div class="mx-convlbl">CONVERSATIONS</div>`+list.map(c=>`
+          <div class="mx-conv${st.chat===c?' on':''}" data-cid="${c.id}">
+            <button class="mx-convdel" data-mxcdel="${c.id}" title="Delete conversation">✕</button>
+            <div class="t">${esc(c.title)}</div>
+            <div class="m">${esc((c.model||'').split('/').pop()||'')}</div>
+            ${c.stats?`<div class="s">TTFT ${c.stats.ttft}ms · ${c.stats.tps} tok/s</div>`:''}
+          </div>`).join('');
+      }
+      E.convcount.textContent=`${st.convs.length} CONVERSATION${st.convs.length===1?'':'S'}`;
+    }
+    function instCard(i){
+      const cls=i.status==='FAILED'?'bad':(i.status==='READY'?'':'wait');
+      const badge=i.status==='READY'?'<span class="mx-badge">READY</span>':i.status==='FAILED'?'<span class="mx-badge bad">FAILED</span>':'<span class="mx-badge wait">LOADING</span>';
+      return `<div class="mx-inst ${cls}">
+        <div class="idrow"><i></i><b>${esc(i.id.slice(0,8).toUpperCase())}</b>${i.demo?'<span class="mx-badge wait">DEMO</span>':''}<button class="mx-instdel" data-mxdel="${esc(i.id)}"${i.demo?' data-demo="1"':''}>${st.armed&&st.armed.key==='inst:'+i.id?'SURE?':'DELETE'}</button></div>
+        <div class="mdl">${esc(i.model)}</div>
+        <div class="meta">${esc(i.shard)} · ${esc(i.ring)} ${badge}</div>
+        <div class="foot">${i.status==='READY'?'Ready to chat!':i.status==='FAILED'?'Runner failed — check the engine log.':'Loading into memory…'}</div>
+      </div>`;
+    }
+    function renderAside(){
+      const ins=instances();
+      const mcount=st.models?st.models.length:null;
+      const m=st.selModel;
+      const dlDone=m&&isDownloaded(m.id);
+      const mLive=!!m&&ins.some(i=>i.model===m.id&&i.status==='READY');
+      const mFits=!!m&&m.storage_size_megabytes*1048576<=clusterFree();
+      const launchLbl=st.launching?'LAUNCHING…':mLive?'● LIVE':(!mFits?'INSUFFICIENT MEMORY':'▸ LAUNCH');
+      const launchDim=st.launching||(!mFits&&!mLive);
+      E.aside.innerHTML=
+        (st.view==='chat'?`<div class="mx-ash"><i></i>TOPOLOGY<span class="n">${nodes().length} NODE${nodes().length>1?'S':''}</span></div><div class="mx-minitopo"><svg data-mx="minitopo"></svg></div>`:'')
+        +(ins.length?`<div class="mx-ash"><i></i>INSTANCES</div>`+ins.map(instCard).join(''):'')
+        +`<div class="mx-ash"><i class="dia"></i>LOAD MODEL<span class="n">${mcount===null?'—':mcount+' models'}</span></div>
+        <button class="mx-mtrig" data-mx="mtrig"><em class="${m?'sel':''}">${m?esc(m.name):'— SELECT MODEL —'}</em>${m?`<span class="gb">${esc(m.gbLabel)}</span>`:''}<span class="car">▾</span></button>`
+        +(m?`<div class="mx-mcard">
+            <div class="nm"><b>${esc(m.name)}</b><span class="gb">${esc(m.gbLabel)}</span></div>
+            <div class="hf">${esc(m.id)}</div>
+            <div class="mx-chips"><span class="mx-chip">PIPELINE</span><span class="mx-chip">MLX RING</span></div>
+            <div class="mx-dllbl">DOWNLOAD</div>
+            <div class="mx-dlrow"><span>${esc(nodes()[0]?nodes()[0].name.slice(0,10):'node')}…</span><div class="mx-dlbar"><i style="width:${dlDone?100:0}%"></i></div><span>${dlDone?'100%':'—'}</span></div>
+            <button class="mx-launch${launchDim?' dim':''}" data-mx="launch">${launchLbl}</button>
+          </div>`:'');
+      const mini=root.querySelector('[data-mx="minitopo"]');if(mini)drawTopo(mini,true);
+    }
+    const dlMeta={}; // "modelId|nodeId" → shardMetadata seen in state, reused for retry/resume
+    function dlMap(){
+      const out={};
+      if(!st.online||!st.st8)return out;
+      const dls=st.st8.downloads||{};
+      for(const nid in dls)for(const d of dls[nid]||[]){
+        const k=Object.keys(d)[0]||'',b=d[k]||{};
+        const md=b.shardMetadata,sk=md?Object.keys(md)[0]:'';
+        const card=sk&&md[sk]&&md[sk].modelCard;if(!card)continue;
+        const mid=card.modelId;
+        dlMeta[mid+'|'+nid]=md;
+        const cell=(out[mid]=out[mid]||{});
+        if(/Completed/i.test(k))cell[nid]={s:'done',bytes:b.total?b.total.inBytes:0};
+        else if(/Ongoing/i.test(k)){const pr=b.downloadProgress||{};const tot=pr.total?pr.total.inBytes:0,dn=pr.downloaded?pr.downloaded.inBytes:0;cell[nid]={s:'run',pct:tot?Math.round(dn/tot*100):0}}
+        else if(/Failed/i.test(k))cell[nid]={s:'fail',err:b.errorMessage||''};
+        else cell[nid]={s:'wait'};
+      }
+      return out;
+    }
+    function isDownloaded(modelId){
+      const m=dlMap()[modelId];
+      if(m&&Object.values(m).some(c=>c.s==='done'))return true;
+      // a READY instance implies the weights are local
+      return instances().some(i=>i.model===modelId&&i.status==='READY');
+    }
+    // ---- model ops (control-plane of the local engine) ----
+    async function launch(){
+      const m=st.selModel;if(!m)return;
+      if(!st.online){Toast.show('MATRIX engine is offline — start it first.');return}
+      if(st.launching)return;
+      if(instances().some(i=>i.model===m.id&&i.status==='READY')){Toast.show('Already live — ask anything.');return}
+      st.launching=true;renderAside();
+      try{
+        const r=await fetch(API+'/place_instance',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model_id:m.id,sharding:'Pipeline',instance_meta:'MlxRing',min_nodes:1})});
+        if(!r.ok){let tx='';try{tx=(await r.text()).slice(0,180)}catch(_){}throw new Error(tx||('HTTP '+r.status))}
+        Toast.show('Launching '+m.name+' — watch INSTANCES.');
+      }catch(err){Toast.show('Launch failed: '+((err&&err.message)||'error'))}
+      st.launching=false;renderAside();
+    }
+    function arm(key){ // two-click confirm for destructive ops; tick() clears stale arms
+      if(st.armed&&st.armed.key===key)return true;
+      st.armed={key,ts:performance.now()};renderAside();if(st.view==='dl')renderDl();
+      return false;
+    }
+    async function delInstance(id){
+      try{
+        const r=await fetch(API+'/instance/'+encodeURIComponent(id),{method:'DELETE'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        Toast.show('Instance deleted.');
+      }catch(err){Toast.show('Delete failed: '+((err&&err.message)||'error'))}
+      st.armed=null;
+    }
+    async function dlStart(nodeId,modelId){
+      const md=dlMeta[modelId+'|'+nodeId];
+      if(!md){Toast.show('No shard metadata yet — LAUNCH the model once and MATRIX seeds the download through placement.');return}
+      try{const r=await fetch(API+'/download/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetNodeId:nodeId,shardMetadata:md})});if(!r.ok)throw 0;Toast.show('Download started.')}
+      catch(_){Toast.show('Download start failed.')}
+    }
+    async function dlCancel(nodeId,modelId){
+      try{const r=await fetch(API+'/download/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetNodeId:nodeId,modelId})});if(!r.ok)throw 0;Toast.show('Download cancelled.')}
+      catch(_){Toast.show('Cancel failed.')}
+    }
+    async function dlDelete(nodeId,modelId){
+      // model ids contain "/" — the engine route takes them as a raw path segment
+      try{const r=await fetch(API+'/download/'+encodeURIComponent(nodeId)+'/'+modelId,{method:'DELETE'});if(!r.ok)throw 0;Toast.show('Removed from disk.')}
+      catch(_){Toast.show('Remove failed.')}
+      st.armed=null;
+    }
+    function renderMsgs(){
+      const c=st.chat;
+      if(!c){E.msgs.innerHTML='';return}
+      E.msgs.innerHTML=c.msgs.map((m,i)=>{
+        const t=m.t||'';
+        if(m.role==='user')return `<div class="mx-msg q"><div class="mx-mhead">${esc(t)} QUERY <i></i></div><div class="mx-bub">${esc(m.content)}</div></div>`;
+        const stats=m.stats?`<span class="mx-mstats">TTFT ${m.stats.ttft}ms · ${m.stats.tps} tok/s</span>`:'';
+        const body=m.done?(window.MDLite?MDLite.render(m.content):esc(m.content)):esc(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
+        const pre=(!m.content&&st.streaming&&i===c.msgs.length-1)?(m.prefill!=null?`<div class="mx-prefill"><i style="width:${m.prefill}%"></i></div>`:'<span class="mx-cursor"></span>'):'';
+        return `<div class="mx-msg a"><div class="mx-mhead"><i></i><b>MATRIX</b> ${esc(t)} ${stats}</div><div class="mx-bub">${pre||body}</div></div>`;
+      }).join('');
+      E.msgs.scrollTop=E.msgs.scrollHeight;
+    }
+    function dlCell(m,n,map,liveSet){
+      const c=(map[m.id]&&map[m.id][n.id])||(liveSet.has(m.id)?{s:'done',bytes:0}:null);
+      const act=(kind,glyph,title)=>`<button class="mx-dlact" data-mxdla="${kind}" data-n="${esc(n.id)}" data-m="${esc(m.id)}" title="${title}">${glyph}</button>`;
+      // DownloadPending = the engine's "not on this node yet" idle state, same as no entry
+      if(!c||c.s==='wait')return `<td class="c">${act('start','⤓','Download to this node')}</td>`;
+      if(c.s==='done'){const sz=c.bytes?gb1(c.bytes):mb2gb(m.storage_size_megabytes||0);
+        const rm=st.armed&&st.armed.key==='disk:'+n.id+'|'+m.id?'SURE?':'RM';
+        return `<td class="c"><span class="ok">✓</span><span class="szl">${esc(sz)}</span>${act('disk',rm,'Remove from disk')}</td>`}
+      if(c.s==='run')return `<td class="c"><div class="mx-dlbar" style="width:56px;margin:0 auto 3px"><i style="width:${c.pct}%"></i></div><span class="szl">${c.pct}%</span>${act('cancel','✕','Cancel download')}</td>`;
+      return `<td class="c"><span style="color:var(--mx-err)">✗</span>${act('start','↻','Retry download')}</td>`;
+    }
+    function renderDl(){
+      const ns=nodes(),s=st.st8||{},disk=s.nodeDisk||{},map=dlMap();
+      const liveSet=new Set(instances().filter(i=>i.status==='READY'&&!i.demo).map(i=>i.model));
+      const catalog=(st.models||[]).slice();
+      const hasState=m=>liveSet.has(m.id)||(map[m.id]&&Object.values(map[m.id]).some(x=>x.s!=='wait'));
+      catalog.sort((a,b)=>(hasState(b)?1:0)-(hasState(a)?1:0));
+      const shown=catalog.slice(0,40);
+      const rows=shown.map(m=>`<tr><td title="${esc(m.id)}">${esc(m.id)}</td>${ns.map(n=>dlCell(m,n,map,liveSet)).join('')}</tr>`);
+      E.dlbody.innerHTML=`<div class="mx-dlh1">DOWNLOADS</div><div class="mx-dlsub">Overview of models on each node${st.online?'':' — engine offline, demo view'}</div>
+        <table class="mx-dltable"><thead><tr><th>MODEL</th>${ns.map(n=>{
+          const d=disk[n.id];const free=d&&d.available?gb1(d.available.inBytes)+' free':'';
+          return `<th class="nd">${esc(n.name.toUpperCase())}<span class="free">${esc(free)}</span></th>`;}).join('')}</tr></thead>
+        <tbody>${rows.join('')||`<tr><td colspan="${ns.length+1}" style="color:var(--ink-faint)">No catalog — engine offline.</td></tr>`}</tbody></table>
+        ${catalog.length>40?`<div class="mx-dlsub" style="margin-top:10px">…${catalog.length-40} more models — search in the model picker.</div>`:''}`;
+    }
+    const INT_TOOLS=[['claude','Claude Code'],['opencode','OpenCode'],['codex','Codex'],['webui','Open WebUI'],['n8n','n8n']];
+    function intCmd(tool){
+      const model=readyModel()||'<model-id>';
+      if(tool==='claude')return `ANTHROPIC_BASE_URL=${API} \\\nANTHROPIC_API_KEY=x \\\nANTHROPIC_DEFAULT_OPUS_MODEL=${model} \\\nANTHROPIC_DEFAULT_SONNET_MODEL=${model} \\\nANTHROPIC_DEFAULT_HAIKU_MODEL=${model} \\\nclaude`;
+      if(tool==='opencode')return `# ~/.config/opencode/opencode.json\n{\n  "provider": {\n    "matrix": {\n      "npm": "@ai-sdk/openai-compatible",\n      "options": { "baseURL": "${API}/v1" },\n      "models": { "${model}": {} }\n    }\n  }\n}`;
+      if(tool==='codex')return `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "matrix"\n\n[model_providers.matrix]\nname = "MATRIX"\nbase_url = "${API}/v1"\nwire_api = "chat"`;
+      if(tool==='webui')return `docker run -d -p 3000:8080 \\\n  -e OPENAI_API_BASE_URL=${API}/v1 \\\n  -e OPENAI_API_KEY=matrix \\\n  ghcr.io/open-webui/open-webui:main`;
+      return `# n8n — OpenAI-compatible credential\nBase URL: ${API}/v1\nAPI Key:  matrix (any value)\nModel:    ${model}`;
+    }
+    function renderInt(){
+      const model=readyModel();
+      E.intbody.innerHTML=`<h2>Integrations</h2><div class="mx-intsub">Connect external tools to your MATRIX cluster.</div>
+        <div class="mx-kv"><span class="k">API ENDPOINT</span><span class="v">${esc(API)}</span></div>
+        <div class="mx-kv"><span class="k">RUNNING MODEL</span><span class="v acc">${model?esc(model):'— none (launch a model first)'}</span></div>
+        <div class="mx-endp">
+          <div class="mx-ecard"><div class="t">OPENAI-COMPATIBLE</div><div class="u">${esc(API)}/v1</div></div>
+          <div class="mx-ecard"><div class="t">CLAUDE-COMPATIBLE</div><div class="u">${esc(API)}</div></div>
+          <div class="mx-ecard"><div class="t">OLLAMA-COMPATIBLE</div><div class="u">${esc(API)}/ollama</div></div>
+        </div>
+        <div class="mx-ttabs">${INT_TOOLS.map(t=>`<button data-mxtool="${t[0]}" class="${st.intTool===t[0]?'on':''}">${esc(t[1])}</button>`).join('')}</div>
+        <div class="mx-code"><div class="mx-codeh"><b>Shell Command</b><span>Run in terminal</span><button class="mx-copy" data-mx="copy">COPY</button></div>
+        <pre data-mx="cmdpre">${esc(intCmd(st.intTool))}</pre></div>`;
+    }
+    function setView(v){
+      st.view=v;
+      root.querySelectorAll('.mx-nav button').forEach(b=>b.classList.toggle('on',b.dataset.mxview===(v==='chat'?'home':v)));
+      root.querySelector('.mx-vhome').classList.toggle('on',v==='home');
+      root.querySelector('.mx-vchat').classList.toggle('on',v==='chat');
+      root.querySelector('.mx-vdl').classList.toggle('on',v==='dl');
+      root.querySelector('.mx-vint').classList.toggle('on',v==='int');
+      E.composer.style.display=(v==='home'||v==='chat')?'':'none';
+      if(v==='dl')renderDl();
+      if(v==='int')renderInt();
+      if(v==='home')requestAnimationFrame(()=>drawTopo(E.topo,false));
+      if(v==='chat')renderMsgs();
+      renderAside();
+    }
+
+    // ---- live polling ----
+    async function tick(){
+      if(!p.isConnected){clearInterval(st.timer);st.timer=null;return}
+      try{
+        const r=await fetch(API+'/state',{signal:AbortSignal.timeout(1500)});
+        if(!r.ok)throw 0;
+        st.st8=await r.json();st.fails=0;
+        const was=st.online;st.online=true;
+        if(!was){loadModels()}
+      }catch(_){st.fails++;if(st.fails>=2)st.online=false}
+      if(st.armed&&performance.now()-st.armed.ts>3500)st.armed=null;
+      renderStatus();
+      if(st.view==='home')drawTopo(E.topo,false);
+      if(st.view==='dl')renderDl();
+      renderAside();
+      updateComposer();
+    }
+    async function loadModels(){
+      try{
+        const r=await fetch(API+'/models',{signal:AbortSignal.timeout(3000)});
+        const j=await r.json();st.models=(j.data||j||[]).map(m=>({id:m.id,name:m.name||m.id.split('/').pop(),family:m.family||'other',quant:m.quantization||'',base:m.base_model||m.name||m.id,storage_size_megabytes:m.storage_size_megabytes||0,caps:m.capabilities||[],gbLabel:mb2gb(m.storage_size_megabytes||0)}));
+      }catch(_){st.models=null}
+      renderAside();
+    }
+    function updateComposer(){
+      const rm=readyModel();
+      const lbl=st.selModel?st.selModel.name:(rm?rm.split('/').pop():null);
+      E.modellbl.textContent=lbl||'— SELECT MODEL —';
+      E.input.placeholder=rm?'Ask anything':'Choose a model to start chatting';
+      E.send.classList.toggle('hot',!!(E.input.value.trim()&&rm)&&!st.streaming);
+      E.send.classList.toggle('stop',st.streaming);
+      E.send.textContent=st.streaming?'■ STOP':'SEND';
+      if(st.stats)E.cstats.innerHTML=`<span>TTFT <b>${st.stats.ttft}ms</b></span><span>TPS <b>${st.stats.tps} tok/s</b></span>`;
+    }
+
+    // ---- chat (real streaming against the READY instance) ----
+    async function sendChat(){
+      if(st.streaming){try{st.abort&&st.abort.abort()}catch(_){}return}
+      const text=E.input.value.trim();if(!text)return;
+      const model=readyModel();
+      if(!st.online){Toast.show('MATRIX engine is offline — start it first, then launch a model.');return}
+      if(!model){Toast.show('No READY instance — launch a model first (model ops land in the next phase; use the engine dashboard for now).');return}
+      const hhmm=new Date().toTimeString().slice(0,8);
+      if(!st.chat){st.chat={id:String(Date.now()),title:text.slice(0,42),model,msgs:[],stats:null};st.convs.unshift(st.chat)}
+      const history=st.chat.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content}));
+      history.push({role:'user',content:text});
+      st.chat.msgs.push({role:'user',content:text,t:hhmm});
+      const bot={role:'assistant',content:'',t:hhmm,stats:null,prefill:null,done:false};
+      st.chat.msgs.push(bot);
+      E.input.value='';st.streaming=true;setView('chat');renderSide();updateComposer();
+      const t0=performance.now();let ttft=0,ntok=0;
+      st.abort=new AbortController();
+      try{
+        const r=await fetch(API+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model,messages:history,stream:true}),signal:st.abort.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+        for(;;){
+          const {done,value}=await rd.read();if(done)break;
+          buf+=dec.decode(value,{stream:true});
+          const lines=buf.split('\n');buf=lines.pop();
+          for(const line of lines){
+            const L=line.trim();if(!L)continue;
+            if(L.startsWith(':')){
+              const m=L.match(/^:\s*(\w+)\s+(.*)$/);
+              if(m){try{const j=JSON.parse(m[2]);
+                if(m[1]==='prefill_progress'&&j.total)bot.prefill=Math.round((j.processed||0)/j.total*100);
+                if(m[1]==='generation_stats'){const tps=j.tokens_per_second||j.tps;if(tps)bot.stats={ttft:Math.round(j.time_to_first_token_ms||ttft),tps:(+tps).toFixed(1)}}
+              }catch(_){}}
+              continue;
+            }
+            if(!L.startsWith('data:'))continue;
+            const d=L.slice(5).trim();if(d==='[DONE]')continue;
+            try{
+              const j=JSON.parse(d);
+              const delta=j.choices&&j.choices[0]&&j.choices[0].delta;
+              const piece=delta&&delta.content;
+              if(piece){if(!ntok)ttft=Math.round(performance.now()-t0);ntok++;bot.content+=piece;bot.prefill=null;renderMsgs()}
+            }catch(_){}
+          }
+        }
+        const secs=(performance.now()-t0-ttft)/1000;
+        if(!bot.stats)bot.stats={ttft,tps:secs>0?(ntok/secs).toFixed(1):'—'};
+        st.chat.stats=bot.stats;st.stats=bot.stats;
+      }catch(err){
+        if(err&&err.name==='AbortError'){bot.content+=bot.content?'\n— stopped —':'— stopped —'}
+        else{bot.content=bot.content||('⚠ '+(err&&err.message||'stream failed'));Toast.show('MATRIX chat failed: '+(err&&err.message||'stream error'))}
+      }
+      bot.done=true;st.streaming=false;st.abort=null;
+      saveConvs();
+      renderMsgs();renderSide();updateComposer();
+    }
+
+    // ---- model picker ----
+    const FAM_ORDER=['kimi','qwen','glm','minimax','deepseek','gpt-oss','llama','gemma','nemotron'];
+    function famList(){
+      const fams=new Set((st.models||[]).map(m=>m.family));
+      const rest=[...fams].filter(f=>!FAM_ORDER.includes(f)).sort();
+      return ['all',...FAM_ORDER.filter(f=>fams.has(f)),...rest];
+    }
+    function fitClass(mb){const b=mb*1048576;if(b<=clusterFree())return '';if(b<=clusterTotal())return 'tight';return 'no'}
+    function renderPicker(){
+      const free=clusterFree(),total=clusterTotal();
+      E.pmem.innerHTML=`<b>${esc(gb1(free))}</b>/${esc(gb1(total))}`;
+      E.fam.innerHTML=famList().map(f=>`<button data-mxfam="${esc(f)}" class="${st.famFilter===f?'on':''}">${esc(f==='all'?'All':f)}</button>`).join('');
+      if(!st.models){E.plist.innerHTML=`<div class="mx-pempty">Engine offline — no catalog.<br>Start your MATRIX engine to browse ${st.online?'':'the '}models.</div>`;return}
+      const q=st.query.toLowerCase();
+      let list=st.models.filter(m=>(st.famFilter==='all'||m.family===st.famFilter)&&(!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)));
+      // group variants by base model
+      const groups=new Map();
+      for(const m of list){const k=m.base+'|'+m.family;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(m)}
+      const rows=[...groups.values()];
+      const fits=g=>g.some(m=>fitClass(m.storage_size_megabytes)==='');
+      const rec=rows.filter(fits),oth=rows.filter(g=>!fits(g));
+      const rowHTML=g=>{
+        const one=g.length===1,m0=g[0],key=m0.base+'|'+m0.family;
+        const minMB=Math.min(...g.map(m=>m.storage_size_megabytes)),maxMB=Math.max(...g.map(m=>m.storage_size_megabytes));
+        const sz=one?m0.gbLabel:`${g.length} variants (${mb2gb(minMB)}–${mb2gb(maxMB)})`;
+        const openG=st.open.has(key);
+        return `<div class="mx-prow" data-mxpick="${esc(one?m0.id:'')}" data-mxgrp="${esc(one?'':key)}">
+          <span class="car">${one?'':(openG?'▾':'▸')}</span><span class="nm">${esc(m0.base)}</span>
+          <span class="sz ${fitClass(minMB)}">${esc(sz)}</span><span class="star">☆</span>
+        </div>${openG&&!one?g.map(v=>`<div class="mx-pvar" data-mxpick="${esc(v.id)}"><span class="q">${esc(v.quant||'default')}</span><span>${esc(v.name)}</span>${isDownloaded(v.id)?'<span class="dl">✓ on disk</span>':''}<span class="sz ${fitClass(v.storage_size_megabytes)}">${esc(v.gbLabel)}</span></div>`).join(''):''}`;
+      };
+      E.plist.innerHTML=
+        (rec.length?`<div class="mx-pgrp">◎ RECOMMENDED FOR YOUR CLUSTER <span class="sub">— fits in available memory</span></div>`+rec.map(rowHTML).join(''):'')
+        +(oth.length?`<div class="mx-pgrp oth">OTHER MODELS</div>`+oth.map(rowHTML).join(''):'')
+        ||'<div class="mx-pempty">No models match.</div>';
+    }
+    function pickModel(id){
+      const m=(st.models||[]).find(x=>x.id===id);if(!m)return;
+      st.selModel=m;st.chatModel=id;E.picker.classList.remove('on');
+      renderAside();updateComposer();
+    }
+
+    // ---- events ----
+    root.addEventListener('click',e=>{
+      const t=e.target;
+      const nav=t.closest('[data-mxview]');if(nav){setView(nav.dataset.mxview);return}
+      const act=t.closest('[data-mx]');
+      const cdel=t.closest('[data-mxcdel]');
+      if(cdel){const id=cdel.dataset.mxcdel;const c=st.convs.find(x=>x.id===id);
+        st.convs=st.convs.filter(x=>x.id!==id);
+        if(st.chat===c){st.chat=null;setView('home')}
+        saveConvs();renderSide();return}
+      const conv=t.closest('.mx-conv');if(conv){const c=st.convs.find(x=>x.id===conv.dataset.cid);if(c){st.chat=c;setView('chat');renderSide()}return}
+      const fam=t.closest('[data-mxfam]');if(fam){st.famFilter=fam.dataset.mxfam;renderPicker();return}
+      const tool=t.closest('[data-mxtool]');if(tool){st.intTool=tool.dataset.mxtool;renderInt();return}
+      const del=t.closest('[data-mxdel]');
+      if(del){
+        if(del.dataset.demo){Toast.show('Demo instance — start the engine for real ops.');return}
+        if(arm('inst:'+del.dataset.mxdel))delInstance(del.dataset.mxdel);
+        return;
+      }
+      const dla=t.closest('[data-mxdla]');
+      if(dla){
+        const nid=dla.dataset.n,mid=dla.dataset.m;
+        if(!st.online){Toast.show('MATRIX engine is offline.');return}
+        if(dla.dataset.mxdla==='start')dlStart(nid,mid);
+        else if(dla.dataset.mxdla==='cancel')dlCancel(nid,mid);
+        else if(dla.dataset.mxdla==='disk'&&arm('disk:'+nid+'|'+mid))dlDelete(nid,mid);
+        return;
+      }
+      const pick=t.closest('[data-mxpick]');
+      if(pick){
+        if(pick.dataset.mxpick){pickModel(pick.dataset.mxpick);return}
+        const k=pick.dataset.mxgrp;if(k){st.open.has(k)?st.open.delete(k):st.open.add(k);renderPicker();return}
+      }
+      if(!act)return;
+      switch(act.dataset.mx){
+        case 'burger':root.classList.toggle('side-off');break;
+        case 'newchat':st.chat=null;st.stats=null;setView('home');renderSide();updateComposer();break;
+        case 'modelbtn':case 'mtrig':E.picker.classList.add('on');renderPicker();setTimeout(()=>E.pq.focus(),30);break;
+        case 'pclose':E.picker.classList.remove('on');break;
+        case 'launch':launch();break;
+        case 'attach':Toast.show('Attachments land in the next MATRIX phase.');break;
+        case 'send':sendChat();break;
+        case 'copy':{const pre=root.querySelector('[data-mx="cmdpre"]');
+          navigator.clipboard.writeText(pre?pre.textContent:'').then(()=>Toast.show('Copied.'));break}
+      }
+    });
+    E.picker.addEventListener('click',e=>{if(e.target===E.picker)E.picker.classList.remove('on')});
+    E.pq.addEventListener('input',()=>{st.query=E.pq.value;renderPicker()});
+    E.search.addEventListener('input',renderSide);
+    E.input.addEventListener('input',()=>{E.input.style.height='auto';E.input.style.height=Math.min(150,E.input.scrollHeight)+'px';updateComposer()});
+    E.input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendChat()}});
+
+    // ---- boot ----
+    renderSide();renderAside();renderStatus();updateComposer();
+    requestAnimationFrame(()=>drawTopo(E.topo,false));
+    new ResizeObserver(()=>{if(st.view==='home')drawTopo(E.topo,false)}).observe(root.querySelector('.mx-canvas'));
+    tick();loadModels();
+    st.timer=setInterval(tick,1000);
+    p._dispose=()=>{try{clearInterval(st.timer)}catch(_){ } try{st.abort&&st.abort.abort()}catch(_){ }};
+  }
+
   function wireShell(p){
     const treeEl=p.querySelector('#shtree'),wsEl=p.querySelector('#itws'),mainEl=p.querySelector('#itmain');
     if(!treeEl||!wsEl||!mainEl)return;
