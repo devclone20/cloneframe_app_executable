@@ -158,6 +158,38 @@
     emit(u, !!d.newTab, !!d.gesture);
   }, false);
 
+  // ── Google anti-bot wall (/sorry/ · recaptcha interstitial) — report, don't strand ──
+  // Solving the wall INSIDE a frame almost never sticks: the exemption cookie Google sets
+  // is SameSite-Lax, so the framed request never carries it and the challenge loops
+  // forever. Instead of stranding the user we tell the HUB, which quietly re-runs the
+  // SAME query on an engine that doesn't wall. Detection is depth-1, google.* only.
+  if (isTop1 && /(^|\.)google\.[a-z.]{2,10}$/.test(location.hostname)) {
+    var walled = false;
+    var checkWall = function () {
+      if (walled) return;
+      try {
+        var sorry = /^\/sorry(\/|$)/.test(location.pathname);
+        var capForm = !!document.querySelector('form#captcha-form,form[action*="/sorry"]');
+        // a recaptcha frame WITHOUT a results container = interstitial, not a results page
+        var capFrame = !!document.querySelector('iframe[src*="recaptcha"]') && !document.getElementById("search");
+        if (!(sorry || capForm || capFrame)) return;
+        walled = true;
+        var q = "";
+        try {
+          var here = new URL(location.href);
+          var cont = here.searchParams.get("continue") || "";
+          if (cont) { try { q = new URL(cont).searchParams.get("q") || ""; } catch (e) {} }
+          if (!q) q = here.searchParams.get("q") || "";
+        } catch (e) {}
+        window.top.postMessage({ __cfhub: 1, type: "searchwall", q: q }, "*");
+      } catch (e) {}
+    };
+    if (document.readyState !== "loading") checkWall();
+    else document.addEventListener("DOMContentLoaded", checkWall);
+    window.addEventListener("load", checkWall);
+    setTimeout(checkWall, 1500); // late-injected challenges
+  }
+
   // ── Address-bar truthfulness (depth-1 only) ─────────────────────────────────
   // Report the tab's REAL current URL + title. In direct mode the frame shows the
   // genuine same-origin page, so location.href is authoritative (a page can only

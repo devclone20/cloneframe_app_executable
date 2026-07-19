@@ -7,7 +7,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 DIR="${0:A:h}"
-ORDER=(runtime)   # framer needs no install (extension files ship as-is)
+ORDER=()   # framer needs no install (extension files ship as-is); the CfT
+           # runtime integration was retired — the HUB launches in branded
+           # Google Chrome (see bridge/launch.sh).
 
 echo "CLONE FRAME · installing integrations into their folders"
 for INT in $ORDER; do

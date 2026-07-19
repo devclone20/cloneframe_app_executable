@@ -4,8 +4,6 @@
 */src/
 */.venv/
 */node_modules/
-*/.exo.log
-*/.exo.pid
 */dist/
 */build/
 framer/_metadata/

@@ -8,20 +8,18 @@ app runs self‑contained — nothing has to be fetched from elsewhere at runtim
 integrations/
 ├── registry.json           # the list of bundled integrations (load order)
 ├── install-all.sh          # installs every integration into its own folder
-├── runtime/                # Browser Runtime — bundled Chrome for Testing (Chromium)
-│   ├── integration.json    #   the browser CLONE FRAME launches in, so Framer loads
-│   ├── NOTICE.md           #   (branded Chrome 142+ refuses --load-extension)
-│   ├── install.sh          #   downloads Chrome for Testing (~172MB) into this folder
-│   └── chrome-mac-arm64/   #   Google Chrome for Testing.app (created by install.sh)
 └── framer/                 # Framer — bundled Chrome extension (in-app browser embedding)
     ├── integration.json
     ├── manifest.json rules.json marker.js frame-nav.js   # the extension itself
     └── README.md
 ```
 
-> **Coming soon — EXO LAB · Manaflow · TMUX.** These three are listed in the app's
-> INTEGRATIONS tab as **"coming soon"** placeholders. They are **not bundled** in this
-> build (no folder, no bridge module, no source) — they return in a later update.
+> **Direction change — no more bundled third-party apps.** Capabilities we want from
+> other tools are now built **from scratch as our own engines**, mapping the design and
+> the open-source code instead of shipping the upstream app: tmux's capabilities became
+> the **iT** terminal engine, and exo's became the **MATRIX** cluster surface — own code,
+> own command paths, no upstream folder, no bridge wrapper. The old Browser Runtime
+> (Chrome for Testing) was retired in v0.49 — the app launches branded Google Chrome.
 
 ## How it works
 

@@ -152,7 +152,7 @@ function errorPage(url, reason) {
     : reason && reason.startsWith('http-') ? 'The site returned ' + reason.slice(5) + ' — it may block embedded browsers.'
     : 'The page could not be loaded.';
   return shell('Could not load', `<h1>Couldn't load this page</h1><div class="u">${esc(url)}</div>
-    <p>${esc(nice)}</p><div class="acts"><a data-nav="${esc(url)}">Try again</a><a data-x="${esc(url)}">Open in your browser ↗</a></div>`);
+    <p>${esc(nice)}</p><div class="acts"><a data-nav="${esc(url)}">Try again</a><a data-x="${esc(url)}">Try direct mode</a></div>`);
 }
 
 function binaryPage(url, ct) {
@@ -170,6 +170,16 @@ function rewriteHtml(html, finalUrl) {
   // drop the page's own base + framing/refresh directives; we set our own headers.
   s = s.replace(/<base\b[^>]*>/gi, '');
   s = s.replace(/<meta[^>]+http-equiv\s*=\s*["']?\s*(content-security-policy|refresh|x-frame-options)\s*["']?[^>]*>/gi, '');
+  // READER MODE IS SCRIPT-FREE (2026-07-17): the page's own JS runs in an opaque
+  // sandbox where storage/origin APIs throw — React/Next hydration then fails and
+  // UNMOUNTS the server-rendered DOM, turning content-rich pages into a blank white
+  // frame (observed on coinmarketcap.com). Stripping site scripts keeps the SSR
+  // content on screen — a true reader. Full-JS browsing is direct mode's job.
+  s = s.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
+  s = s.replace(/<script\b[^>]*\/>/gi, '');
+  // <noscript> holds the no-JS fallbacks (lazy images etc.) but never renders while
+  // allow-scripts is on (our controller needs it) — unwrap it so the fallbacks show.
+  s = s.replace(/<\/?noscript\b[^>]*>/gi, '');
   const inject =
     `<base href="${esc(finalUrl)}">` +
     `<meta name="referrer" content="no-referrer">` +
@@ -209,7 +219,28 @@ export async function render(rawUrl, { fresh = false, ua = '' } = {}) {
 
   let out;
   if (isHtml) {
-    out = { status: 200, contentType: 'text/html; charset=utf-8', body: rewriteHtml(r.body.toString('utf8'), finalUrl) };
+    const doc = rewriteHtml(r.body.toString('utf8'), finalUrl);
+    // Client-only SPAs ship NO server-rendered content — after script-stripping the
+    // reader would show just the site's noscript nag ("enable JavaScript"). Detect the
+    // near-empty document and say something honest instead.
+    const visible = doc
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<(script|style|head)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (visible.length < 120) {
+      const host = (() => { try { return new URL(finalUrl).hostname.replace(/^www\./, ''); } catch { return finalUrl; } })();
+      out = {
+        status: 200, contentType: 'text/html; charset=utf-8',
+        body: shell('Read-only preview',
+          `<h1>Read-only preview</h1><div class="u">${esc(finalUrl)}</div>` +
+          `<p><b>${esc(host)}</b> refuses to run inside an embedded frame, and its content is built entirely by JavaScript — so this in-app view can only read pages, not run the live site or sign you in.</p>` +
+          `<p>This is a limit of the current in-app browser (a frame), not a fault of the site. A fully interactive in-app browser is on the roadmap.</p>`),
+      };
+    } else {
+      out = { status: 200, contentType: 'text/html; charset=utf-8', body: doc };
+    }
   } else if (ct.startsWith('image/')) {
     out = { status: 200, contentType: r.contentType, body: r.body, binary: true };
   } else if (ct.startsWith('text/') || ct.includes('json') || ct.includes('xml') || ct.includes('javascript')) {

@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { OAuth } from './oauth.mjs'; // Gmail accounts connected via OAuth (loopback) → XOAUTH2 IMAP/SMTP, no app password
 
 // ── errors ───────────────────────────────────────────────────────────────────
 // Thrown (not returned) from read-path functions — list/message/attachment/
@@ -61,9 +62,52 @@ function saveStore(store) {
   try { fs.chmodSync(ACCOUNTS_FILE, 0o600); } catch { /* best effort */ }
 }
 
+// ── OAuth-backed Gmail accounts ──────────────────────────────────────────────
+// A Gmail account connected through oauth.mjs (loopback OAuth — the ONLY way Google
+// permits sign-in for a desktop app) surfaces here as a first-class read+send account
+// authenticated with XOAUTH2, so the inbox works with NO app password. Its id is
+// `oauth:<email>`; it is virtual (never written to accounts.json) and always reflects
+// the live set of OAuth sign-ins.
+function oauthAccountShape(email) {
+  return {
+    id: `oauth:${email}`, email, user: email, display: email,
+    provider: 'gmail', authType: 'xoauth2',
+    imapHost: 'imap.gmail.com', imapPort: 993, imapSecure: true,
+    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpSecure: true,
+    isDefault: false,
+  };
+}
+function oauthAccountEmails() {
+  try { return (OAuth.accounts() || []).map((a) => a.email).filter(Boolean); }
+  catch { return []; }
+}
+
 function getAccountRaw(id) {
+  if (typeof id === 'string' && id.startsWith('oauth:')) {
+    const email = id.slice(6);
+    return oauthAccountEmails().includes(email) ? oauthAccountShape(email) : null;
+  }
   const store = loadStore();
   return store.accounts.find((a) => a.id === id) || null;
+}
+
+// Resolve the auth object for a connection: XOAUTH2 (fresh, auto-refreshed access
+// token) for OAuth accounts, otherwise the stored password. Throws EmailError if an
+// OAuth token can't be obtained (expired grant → user must sign in again).
+async function resolveAuth(acct) {
+  if (acct.authType === 'xoauth2') {
+    const r = await OAuth.accessToken(acct.email);
+    if (!r || !r.ok || !r.token) {
+      throw new EmailError(`Gmail OAuth token unavailable for ${acct.email}: ${(r && r.error) || 'sign in again'}`);
+    }
+    return { user: acct.user || acct.email, accessToken: r.token };
+  }
+  return { user: acct.user || acct.email, pass: acct.pass };
+}
+// nodemailer spells XOAUTH2 auth as { type:'OAuth2', user, accessToken }; ImapFlow takes
+// { user, accessToken } directly. This adapts a resolveAuth() result for SMTP.
+function smtpAuthShape(auth) {
+  return auth.accessToken ? { type: 'OAuth2', user: auth.user, accessToken: auth.accessToken } : auth;
 }
 
 function publicSummary(acct) {
@@ -119,12 +163,12 @@ function withAccountLock(accountId, task) {
   return result;
 }
 
-function buildImapOptions(acct) {
+function buildImapOptions(acct, auth) {
   return {
     host: acct.imapHost,
     port: Number(acct.imapPort),
     secure: acct.imapSecure !== false,
-    auth: { user: acct.user || acct.email, pass: acct.pass },
+    auth, // { user, pass } or { user, accessToken } — ImapFlow uses XOAUTH2 when accessToken is set
     logger: false,
     disableAutoIdle: true,
     connectionTimeout: 15_000,
@@ -141,10 +185,26 @@ async function getClient(accountId) {
   }
   const acct = getAccountRaw(accountId);
   if (!acct) throw new EmailError(`unknown account: ${accountId}`);
-  const client = new ImapFlow(buildImapOptions(acct));
+  const client = new ImapFlow(buildImapOptions(acct, await resolveAuth(acct)));
   client.on('error', () => { if (pool.get(accountId) === client) pool.delete(accountId); });
   client.on('close', () => { if (pool.get(accountId) === client) pool.delete(accountId); });
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (e) {
+    // XOAUTH2 rejected: almost always the consent didn't grant the Gmail (IMAP/SMTP)
+    // scope `https://mail.google.com/` — Google issues a token with only email/openid
+    // when that restricted scope isn't on the OAuth consent screen. Give an actionable
+    // message instead of the raw "Invalid credentials".
+    if (acct.authType === 'xoauth2' && (e.authenticationFailed || e.serverResponseCode === 'AUTHENTICATIONFAILED')) {
+      throw new EmailError(
+        `Gmail rejected the OAuth token for ${acct.email}: the sign-in didn't include Gmail (IMAP/SMTP) access. `
+        + `In Google Cloud Console → OAuth consent screen add the scope "https://mail.google.com/" and add ${acct.email} as a Test user, `
+        + `then reconnect and approve the Gmail permission (click through the "unverified app" notice).`,
+        e,
+      );
+    }
+    throw e;
+  }
   pool.set(accountId, client);
   return client;
 }
@@ -166,7 +226,7 @@ async function probeImap(cfg) {
     host: cfg.imapHost,
     port: Number(cfg.imapPort),
     secure: cfg.imapSecure !== false,
-    auth: { user: cfg.user || cfg.email, pass: cfg.pass },
+    auth: await resolveAuth(cfg),
     logger: false,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -187,7 +247,7 @@ async function probeSmtp(cfg) {
     port: Number(cfg.smtpPort),
     secure: cfg.smtpSecure !== false,
     requireTLS: cfg.smtpSecure === false, // enforce STARTTLS upgrade, never fall back to plaintext
-    auth: { user: cfg.user || cfg.email, pass: cfg.pass },
+    auth: smtpAuthShape(await resolveAuth(cfg)),
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
   });
@@ -409,7 +469,15 @@ async function appendRawToSent(accountId, raw) {
 
 /** @returns {Promise<{id:string,email:string,display:string,isDefault:boolean}[]>} */
 export async function listAccounts() {
-  return loadStore().accounts.map(publicSummary);
+  const own = loadStore().accounts;
+  const oauthEmails = oauthAccountEmails();
+  const oauthSet = new Set(oauthEmails);
+  // OAuth (secure token, no password) SUPERSEDES a stored password account for the same
+  // address — one row per email, and it uses XOAUTH2. The password record stays in the
+  // store (untouched), so removing the OAuth connection restores it.
+  const oauthRows = oauthEmails.map((email) => publicSummary(oauthAccountShape(email)));
+  const ownRows = own.filter((a) => !oauthSet.has(a.email)).map(publicSummary);
+  return [...oauthRows, ...ownRows];
 }
 
 /** @returns {Promise<object|null>} full config minus password, or null */
@@ -614,7 +682,7 @@ export async function send(accountId, msg = {}) {
     port: Number(acct.smtpPort),
     secure: acct.smtpSecure !== false,
     requireTLS: acct.smtpSecure === false,
-    auth: { user: acct.user || acct.email, pass: acct.pass },
+    auth: smtpAuthShape(await resolveAuth(acct)),
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
     socketTimeout: 20_000,
