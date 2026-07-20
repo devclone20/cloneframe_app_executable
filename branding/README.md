@@ -23,6 +23,17 @@ iconutil -c icns CloneFrame.iconset -o applet.icns
 ```sh
 APP="$HOME/Applications/CLONE FRAME HUB.app"
 cp applet.icns "$APP/Contents/Resources/applet.icns"
-codesign --force --sign - "$APP"   # the applet is ad-hoc signed; re-seal it
-touch "$APP"; killall Dock Finder  # refresh the icon cache
+
+# GOTCHA: this AppleScript applet also ships CFBundleIconName + an Assets.car asset
+# catalog, and on modern macOS the asset catalog WINS over applet.icns — so replacing
+# only the .icns leaves Finder/Dock showing the old icon (while the browser favicon,
+# which is separate, already updates). Remove both so applet.icns becomes authoritative:
+/usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Contents/Info.plist"
+rm -f "$APP/Contents/Resources/Assets.car"
+
+codesign --force --sign - "$APP"                       # ad-hoc applet; re-seal after edits
+touch "$APP/Contents/Info.plist"; touch "$APP"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
+mv "$APP" "$HOME/Applications/.refresh.app" && mv "$HOME/Applications/.refresh.app" "$APP"  # force re-catalog
+killall Dock Finder                                    # icon cache is stubborn — this + the rename dance clears it
 ```
