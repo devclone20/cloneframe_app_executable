@@ -8842,7 +8842,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     async function secSearch(){
       pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, docs, contacts…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · library · contacts · recipes · tasks · reminders · research).</div>';
-      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
+      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['personalassistant','Personal Assistant'],['itterm','iT — Terminal'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
       const inp=pane.querySelector('#ssq'),res=pane.querySelector('#ssres');let tmr=null;
       inp.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
         const q=inp.value.trim().toLowerCase();
