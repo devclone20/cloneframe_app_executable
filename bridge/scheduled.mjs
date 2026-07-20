@@ -22,15 +22,11 @@
 // Read-path methods return values directly. Public surface: `Scheduled` object
 // + named exports. See SCHEDULED.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
-// ── paths / limits ────────────────────────────────────────────────────────────
-const ROOT = path.join(homedir(), '.clone-frame-hub');
-const SCHEDULED_FILE = path.join(ROOT, 'scheduled.json');
-
+// ── limits ────────────────────────────────────────────────────────────────────
 const STORE_VERSION = 1;
 const MAX_SUBJECT_LEN = 998; // RFC 5322 header line length ceiling
 const MAX_BODY_LEN = 500_000; // 500KB — generous ceiling for a composed message body
@@ -39,34 +35,44 @@ const MAX_ATTEMPTS = 3;
 
 const VALID_STATUS = new Set(['pending', 'sent', 'failed', 'canceled']);
 
-// ── persistence — atomic writes, dir 0700 / file 0600, never logs anything ────
-function ensureDir() {
-  fs.mkdirSync(ROOT, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(ROOT, 0o700); } catch { /* best effort on odd/shared filesystems */ }
+// ── persistence ───────────────────────────────────────────────────────────────
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/scheduled.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// per-record coercion (isValidRecord + sanitizeRecord) stays this module's job.
+//
+// Every WRITE-path method (schedule/cancel/reschedule/tick) goes through
+// store.mutate(), whose per-handle in-process queue serializes read-modify-write
+// sections — even when the section awaits I/O. This closes the tick() lost-update
+// window: tick() holds a snapshot across an `await Email.send()` per due item
+// before its single trailing save, so a concurrent cancel()/schedule()/
+// reschedule() that loaded-and-saved independently used to be silently clobbered
+// by tick()'s stale-snapshot save (last-write-wins). Under mutate() those callers
+// queue behind tick() instead. As a consequence the write-path methods are now
+// async (Promise-returning); the RPC dispatcher already awaits every method, and
+// the only in-process caller (hub-bridge's interval) already `await S.tick()`s.
+const store = openStore({ name: 'scheduled', version: STORE_VERSION, shape: { items: [] }, root: hubRoot() });
+
+// Coerce a raw store object's items to the canonical shape (the file may be
+// hand-edited). Shared by the read wrapper and every mutate() section.
+function coerceItems(data) {
+  return Array.isArray(data?.items) ? data.items.filter(isValidRecord).map(sanitizeRecord) : [];
 }
 
+// Read-path (sync): the coerced store, exactly as the old loadStore() returned.
 function loadStore() {
-  ensureDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(SCHEDULED_FILE, 'utf8'));
-    const items = Array.isArray(data?.items)
-      ? data.items.filter(isValidRecord).map(sanitizeRecord)
-      : [];
-    return { version: STORE_VERSION, items };
-  } catch {
-    // Missing (ENOENT) or corrupt/hand-edited JSON must never crash the app —
-    // start from an empty store rather than throw.
-    return { version: STORE_VERSION, items: [] };
-  }
+  return { version: STORE_VERSION, items: coerceItems(store.read()) };
 }
 
-function saveStore(store) {
-  ensureDir();
-  const tmp = `${SCHEDULED_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, SCHEDULED_FILE);
-  try { fs.chmodSync(SCHEDULED_FILE, 0o600); } catch { /* best effort */ }
+// Inside a mutate(fn): normalize the raw `data` in place to the canonical
+// {version, items} shape — coerce items, drop any stray hand-edited top-level
+// keys — so the trailing write persists exactly what loadStore()→saveStore()
+// would have. Returns the coerced items array for the caller to operate on.
+function normalizeInPlace(data) {
+  const items = coerceItems(data);
+  for (const k of Object.keys(data)) if (k !== 'version' && k !== 'items') delete data[k];
+  data.version = STORE_VERSION;
+  data.items = items;
+  return items;
 }
 
 // ── value coercion ────────────────────────────────────────────────────────────
@@ -175,7 +181,7 @@ function byNewestSendAt(a, b) {
 
 // Write-path: {ok, id} on success, {ok:false, error} otherwise. Never throws.
 // Requires accountId, to, subject, a body, and a sendAt strictly in the future.
-export function schedule(input = {}) {
+export async function schedule(input = {}) {
   try {
     const src = input && typeof input === 'object' ? input : {};
     const accountId = asString(src.accountId).trim();
@@ -209,10 +215,11 @@ export function schedule(input = {}) {
       error: null,
     };
 
-    const store = loadStore();
-    store.items.push(record);
-    saveStore(store);
-    return { ok: true, id: record.id };
+    return await store.mutate((data) => {
+      const items = normalizeInPlace(data);
+      items.push(record);
+      return { ok: true, id: record.id };
+    });
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };
   }
@@ -239,15 +246,16 @@ export function get(id) {
 
 // Write-path: {ok} on success, {ok:false, error} otherwise. Only a 'pending'
 // item can be canceled. Never throws.
-export function cancel(id) {
+export async function cancel(id) {
   try {
-    const store = loadStore();
-    const r = store.items.find((x) => x.id === id);
-    if (!r) return { ok: false, error: 'cancel: unknown id' };
-    if (r.status !== 'pending') return { ok: false, error: `cancel: item is '${r.status}', not 'pending'` };
-    r.status = 'canceled';
-    saveStore(store);
-    return { ok: true };
+    return await store.mutate((data) => {
+      const items = normalizeInPlace(data);
+      const r = items.find((x) => x.id === id);
+      if (!r) return { ok: false, error: 'cancel: unknown id' };
+      if (r.status !== 'pending') return { ok: false, error: `cancel: item is '${r.status}', not 'pending'` };
+      r.status = 'canceled';
+      return { ok: true };
+    });
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };
   }
@@ -255,18 +263,19 @@ export function cancel(id) {
 
 // Write-path: {ok} on success, {ok:false, error} otherwise. Only a 'pending'
 // item can be rescheduled; the new sendAt must be in the future. Never throws.
-export function reschedule(id, sendAt) {
+export async function reschedule(id, sendAt) {
   try {
-    const store = loadStore();
-    const r = store.items.find((x) => x.id === id);
-    if (!r) return { ok: false, error: 'reschedule: unknown id' };
-    if (r.status !== 'pending') return { ok: false, error: `reschedule: item is '${r.status}', not 'pending'` };
-    const when = parseInstant(sendAt);
-    if (!when.ok) return { ok: false, error: `reschedule: ${when.error}` };
-    if (toMillis(when.iso) <= Date.now()) return { ok: false, error: 'reschedule: sendAt must be in the future' };
-    r.sendAt = when.iso;
-    saveStore(store);
-    return { ok: true };
+    return await store.mutate((data) => {
+      const items = normalizeInPlace(data);
+      const r = items.find((x) => x.id === id);
+      if (!r) return { ok: false, error: 'reschedule: unknown id' };
+      if (r.status !== 'pending') return { ok: false, error: `reschedule: item is '${r.status}', not 'pending'` };
+      const when = parseInstant(sendAt);
+      if (!when.ok) return { ok: false, error: `reschedule: ${when.error}` };
+      if (toMillis(when.iso) <= Date.now()) return { ok: false, error: 'reschedule: sendAt must be in the future' };
+      r.sendAt = when.iso;
+      return { ok: true };
+    });
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };
   }
@@ -295,53 +304,66 @@ export function due(now) {
 // import) is caught per-item so one bad record can't stall the rest of the
 // batch.
 export async function tick() {
-  const result = { sent: 0, failed: 0 };
   const cutoff = Date.now();
-  const store = loadStore();
-  const dueItems = store.items.filter((r) => r.status === 'pending' && toMillis(r.sendAt, Infinity) <= cutoff);
-  if (!dueItems.length) return result;
-
-  let Email;
-  try {
-    ({ default: Email } = await import('./email.mjs'));
-  } catch (e) {
-    // The send stack itself is unavailable — every due item fails this pass
-    // and is left pending (unless it has already exhausted its attempts) so
-    // the next tick() can retry once the import succeeds.
-    for (const r of dueItems) recordFailure(r, `email.mjs import failed: ${e?.message || String(e)}`);
-    result.failed = dueItems.length;
-    saveStore(store);
-    return result;
+  // Fast path: nothing due → no mutation and no write at all (matches the
+  // original's early return; avoids rewriting the store on every idle interval
+  // and avoids taking the mutate() lock when there is no work to serialize).
+  if (!loadStore().items.some((r) => r.status === 'pending' && toMillis(r.sendAt, Infinity) <= cutoff)) {
+    return { sent: 0, failed: 0 };
   }
 
-  for (const r of dueItems) {
-    r.attempts += 1;
+  // Work path: the whole read-modify-write — including the awaited Email.send()
+  // per due item — runs under ONE serialized mutate() section, so a concurrent
+  // schedule()/cancel()/reschedule() queues behind us instead of being clobbered
+  // by our trailing save. The store is RE-READ fresh inside mutate() (the
+  // fast-path snapshot above is only a lock-avoidance hint).
+  return store.mutate(async (data) => {
+    const result = { sent: 0, failed: 0 };
+    const items = normalizeInPlace(data);
+    const nowCutoff = Date.now();
+    const dueItems = items.filter((r) => r.status === 'pending' && toMillis(r.sendAt, Infinity) <= nowCutoff);
+    if (!dueItems.length) return result;
+
+    let Email;
     try {
-      const outcome = await Email.send(r.accountId, {
-        to: r.to,
-        cc: r.cc || undefined,
-        bcc: r.bcc || undefined,
-        subject: r.subject,
-        text: r.body,
-      });
-      if (outcome?.ok) {
-        r.status = 'sent';
-        r.sentAt = new Date().toISOString();
-        r.sentMessageId = outcome.messageId || null;
-        r.error = null;
-        result.sent += 1;
-      } else {
-        applyFailureOutcome(r, outcome?.error || 'send failed');
+      ({ default: Email } = await import('./email.mjs'));
+    } catch (e) {
+      // The send stack itself is unavailable — every due item fails this pass
+      // and is left pending (unless it has already exhausted its attempts) so
+      // the next tick() can retry once the import succeeds.
+      for (const r of dueItems) recordFailure(r, `email.mjs import failed: ${e?.message || String(e)}`);
+      result.failed = dueItems.length;
+      return result;
+    }
+
+    for (const r of dueItems) {
+      r.attempts += 1;
+      try {
+        const outcome = await Email.send(r.accountId, {
+          to: r.to,
+          cc: r.cc || undefined,
+          bcc: r.bcc || undefined,
+          subject: r.subject,
+          text: r.body,
+        });
+        if (outcome?.ok) {
+          r.status = 'sent';
+          r.sentAt = new Date().toISOString();
+          r.sentMessageId = outcome.messageId || null;
+          r.error = null;
+          result.sent += 1;
+        } else {
+          applyFailureOutcome(r, outcome?.error || 'send failed');
+          result.failed += 1;
+        }
+      } catch (e) {
+        applyFailureOutcome(r, e?.message || String(e));
         result.failed += 1;
       }
-    } catch (e) {
-      applyFailureOutcome(r, e?.message || String(e));
-      result.failed += 1;
     }
-  }
 
-  saveStore(store);
-  return result;
+    return result;
+  });
 }
 
 // attempts is already incremented by the caller before the send attempt; this

@@ -22,11 +22,17 @@ import path from 'node:path';
 import { homedir, userInfo } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
+import { scrubText } from './platform/redact.mjs';
 
 // ── locations ────────────────────────────────────────────────────────────────
+// CONFIG_DIR stays homedir-anchored: it is still the read root for listStores()/
+// system()/schedulerHealthy()/logs() and the secret-scrub file reads. Only the
+// admin.json store itself moved onto the shared port (below), which resolves its
+// own directory through hubRoot() — byte-identical to CONFIG_DIR in production.
 const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const ADMIN_FILE = path.join(CONFIG_DIR, 'admin.json');
 const SERVER_LOG = path.join(CONFIG_DIR, 'server.log');
 const BRIDGE_TOKEN_FILE = path.join(CONFIG_DIR, 'bridge.token');
 const TASKS_FILE = path.join(CONFIG_DIR, 'tasks.json');
@@ -66,23 +72,19 @@ const builtinId = (name) => `builtin:${name}`;
 const BUILTIN_NAMES = new Set(BUILTIN_TOOLS.map((t) => t.name));
 
 // ── persistence ──────────────────────────────────────────────────────────────
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on odd filesystems */ }
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/admin.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// store only guarantees the top-level container; the built-in self-heal on read
+// and the exact write projection below (normalizeTool / normalizeProfile and the
+// whitelisted field maps) stay this module's job, exactly as before the port.
+const store = openStore({ name: 'admin', version: STORE_VERSION, shape: { tools: [], profile: null }, root: hubRoot() });
 
 // Read-only load. Normalizes on-disk data and ensures the built-in tools are
 // present *in memory* — it never writes. Persistence of built-ins happens on
 // the next write, so read paths stay pure. Corrupt/missing → empty defaults.
 function loadStore() {
-  ensureConfigDir();
-  let data = null;
-  try {
-    data = JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-  } catch {
-    data = null; // ENOENT or corrupt — start from clean defaults
-  }
-  const rawTools = data && Array.isArray(data.tools) ? data.tools : [];
+  const data = store.read(); // never throws; ENOENT/corrupt → {version, tools:[], profile:null}
+  const rawTools = Array.isArray(data.tools) ? data.tools : [];
   const tools = [];
   const seen = new Set();
   for (const raw of rawTools) {
@@ -97,15 +99,18 @@ function loadStore() {
     tools.push(makeBuiltinTool(seed));
     seen.add(seed.name);
   }
-  const profile = normalizeProfile(data && data.profile);
+  const profile = normalizeProfile(data.profile);
   return { version: STORE_VERSION, tools, profile };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const payload = {
+function saveStore(s) {
+  // Project to exactly the known fields — never let a stray in-memory key (or a
+  // hand-edited one) get persisted alongside the registry/profile. version is
+  // kept first to preserve the exact on-disk key order; the store re-stamps it
+  // (same STORE_VERSION value, same position) on write.
+  store.write({
     version: STORE_VERSION,
-    tools: store.tools.map((t) => ({
+    tools: s.tools.map((t) => ({
       id: t.id,
       name: t.name,
       kind: t.kind,
@@ -116,21 +121,16 @@ function saveStore(store) {
       createdAt: t.createdAt || null,
       updatedAt: t.updatedAt || null,
     })),
-    profile: store.profile
+    profile: s.profile
       ? {
-          id: store.profile.id,
-          name: store.profile.name,
-          role: store.profile.role,
-          createdAt: store.profile.createdAt || null,
-          updatedAt: store.profile.updatedAt || null,
+          id: s.profile.id,
+          name: s.profile.name,
+          role: s.profile.role,
+          createdAt: s.profile.createdAt || null,
+          updatedAt: s.profile.updatedAt || null,
         }
       : null,
-  };
-  const tmp = `${ADMIN_FILE}.${process.pid}.${randomUUID()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, ADMIN_FILE);
-  try { fs.chmodSync(ADMIN_FILE, 0o600); } catch { /* best effort */ }
+  });
 }
 
 // ── normalization / shaping ──────────────────────────────────────────────────
@@ -404,15 +404,14 @@ function system() {
 }
 
 // ── logs (secrets-scrubbed tail) ─────────────────────────────────────────────
-const ANSI_RE = /[\u001b\u009b]\[[0-9;?]*[ -\/]*[@-~]/g;
-
-function stripAnsi(s) {
-  return s.replace(ANSI_RE, '');
-}
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+// ANSI stripping + the secret-shaped SCRUB_PATTERNS + scrubLine all moved onto
+// platform/redact.mjs's scrubText (T-024). The port is a proven superset of the
+// old local patterns — same families (PEM, sk-ant/sk-, JWT, AKIA, ghp_, xox,
+// bearer, token=, key:/key= pairs, authorization) plus a truncated-PEM fallback
+// the local copy lacked — so a scrubbed log line can never regain a secret.
+// Only the machine-local LITERAL gathering below stays here: it is fs/env I/O
+// the pure redact port deliberately does not do; its output feeds scrubText via
+// the `literals` option (redacted longest-first, exactly as scrubLine did).
 
 // Literal secrets present on this machine, gathered ONLY to redact them out of
 // log lines. Never returned, never logged. Best-effort and failure-tolerant.
@@ -429,30 +428,6 @@ function collectLiteralSecrets() {
   }
   // Longest-first so a superstring is redacted before any embedded substring.
   return [...new Set(out.filter(Boolean))].sort((a, b) => b.length - a.length);
-}
-
-// Pattern-based scrubbers applied to every line after literal redaction.
-const SCRUB_PATTERNS = [
-  [/(-----BEGIN[A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END[A-Z ]*PRIVATE KEY-----)/g, '$1[REDACTED]$2'],
-  [/sk-ant-[A-Za-z0-9_-]{12,}/g, 'sk-ant-[REDACTED]'],
-  [/\bsk-[A-Za-z0-9]{16,}\b/g, 'sk-[REDACTED]'],
-  [/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b/g, '[REDACTED_JWT]'],
-  [/\bAKIA[0-9A-Z]{16}\b/g, '[REDACTED_AWS_KEY]'],
-  [/\bghp_[A-Za-z0-9]{20,}\b/g, '[REDACTED]'],
-  [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, '[REDACTED]'],
-  [/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1[REDACTED]'],
-  [/(#?\btoken=)[^\s&"'<>]+/gi, '$1[REDACTED]'],
-  [/(\b(?:api[_-]?key|apikey|password|passwd|secret|access[_-]?token|refresh[_-]?token|client[_-]?secret)\b["']?\s*[:=]\s*)["']?[^\s,"'<>]+/gi, '$1[REDACTED]'],
-  [/(\bauthorization\b["']?\s*[:=]\s*)["']?[^\s,"'<>]+/gi, '$1[REDACTED]'],
-];
-
-function scrubLine(line, literals) {
-  let out = stripAnsi(line);
-  for (const lit of literals) {
-    if (out.includes(lit)) out = out.split(lit).join('[REDACTED]');
-  }
-  for (const [re, rep] of SCRUB_PATTERNS) out = out.replace(re, rep);
-  return out;
 }
 
 // Reads at most the trailing LOG_TAIL_MAX_BYTES of a file without slurping the
@@ -487,7 +462,7 @@ function logs(input = {}) {
   const literals = collectLiteralSecrets();
   const rawLines = text.split(/\r\n|\r|\n/);
   if (rawLines.length && rawLines[rawLines.length - 1] === '') rawLines.pop();
-  return rawLines.slice(-n).map((l) => scrubLine(l, literals));
+  return rawLines.slice(-n).map((l) => scrubText(l, { literals }));
 }
 
 // ── export surface (routed by the bridge as Admin.<fn>(...args)) ─────────────

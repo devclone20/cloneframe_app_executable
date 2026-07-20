@@ -23,15 +23,10 @@
 //
 // Public surface: `Research` object + named exports. See RESEARCH.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { ask } from './llm.mjs';
-
-// ── paths ──────────────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'research.json');
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── limits (bound cost + payload; Claude tolerates far more, we don't need it) ──
 const STORE_VERSION = 1;
@@ -47,38 +42,24 @@ const TOK_ANALYZE = 1_600;
 const TOK_SYNTH = 3_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Persistence — atomic write, dir 0700 / file 0600. A corrupt/missing store
-// degrades to empty; nothing here ever throws out of load/save call sites.
+// Persistence — backed by the shared atomic JSON store:
+// ~/.clone-frame-hub/research.json, dir 0700 / file 0600, tmp-write-then-rename,
+// read-per-call, never logs. A corrupt/missing store degrades to empty; the
+// per-report coercion below (valid object with a string id) stays this module's
+// job, exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on odd/shared fs */ }
-}
-
-function emptyStore() {
-  return { version: STORE_VERSION, reports: [] };
-}
+const store = openStore({ name: 'research', version: STORE_VERSION, shape: { reports: [] }, root: hubRoot() });
 
 function loadStore() {
-  try {
-    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    const reports = Array.isArray(data?.reports)
-      ? data.reports.filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
-      : [];
-    return { version: STORE_VERSION, reports };
-  } catch {
-    // ENOENT or corrupt JSON — start clean, never crash the sidebar.
-    return emptyStore();
-  }
+  const data = store.read();
+  const reports = Array.isArray(data.reports)
+    ? data.reports.filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
+    : [];
+  return { version: STORE_VERSION, reports };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── input sanitisation ─────────────────────────────────────────────────────────

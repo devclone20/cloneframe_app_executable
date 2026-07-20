@@ -20,16 +20,12 @@
 //
 // Public surface: `Compare` object + named exports. See COMPARE.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 import { ask } from './llm.mjs';
 
-// ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'compare.json');
-
+// ── limits / redaction ─────────────────────────────────────────────────────────
 const STORE_VERSION = 1;
 const RUNS_CAP = 100;          // keep history bounded; oldest runs are dropped
 const MAX_MODELS = 12;         // hard ceiling on models per run
@@ -40,33 +36,21 @@ const DEFAULT_TIMEOUT_MS = 120_000; // per-model wall-clock cap
 // future field ever carried one we strip it before it can leave the process.
 const SECRET_KEYS = new Set(['apiKey', 'apikey', 'password', 'pass', 'token', 'secret', 'authorization']);
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
-function emptyStore() {
-  return { version: STORE_VERSION, runs: [] };
-}
+// ── persistence ────────────────────────────────────────────────────────────────
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/compare.json, dir
+// 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The store
+// guarantees only the top-level {runs:[]} container; the per-run coercion below
+// (the Array.isArray guard on read, stripSecrets on the way out) stays this
+// module's job at the call site, exactly as before.
+const store = openStore({ name: 'compare', version: STORE_VERSION, shape: { runs: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    return { version: STORE_VERSION, runs: Array.isArray(data.runs) ? data.runs : [] };
-  } catch {
-    // ENOENT or corrupt/garbage JSON → start clean; a bad store must never throw.
-    return emptyStore();
-  }
+  const data = store.read();
+  return { version: STORE_VERSION, runs: Array.isArray(data.runs) ? data.runs : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // appendRun has no `await` inside — JS single-threading makes it atomic w.r.t.

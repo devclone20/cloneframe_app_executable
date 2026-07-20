@@ -19,13 +19,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot, hubPath } from './platform/hub-root.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'gallery.json');
-const BLOB_DIR = path.join(CONFIG_DIR, 'gallery');
+// Only the JSON index (gallery.json) rides the shared atomic store. The raw
+// image bytes stay as separate blob files under ~/.clone-frame-hub/gallery/,
+// written and read directly below (writeBlob/get/remove) — never routed through
+// the JSON store.
+const CONFIG_DIR = hubRoot();
+const BLOB_DIR = hubPath('gallery');
+const store = openStore({ name: 'gallery', version: 1, shape: { items: [] }, root: hubRoot() });
 
 // Per-image byte cap. Generous for photos/screenshots, bounded so a single
 // import can never exhaust the disk. Applies to the decoded bytes, not base64.
@@ -64,25 +69,12 @@ function ensureDirs() {
 }
 
 function loadStore() {
-  ensureDirs();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { items: Array.isArray(data.items) ? data.items : [] };
-  } catch (e) {
-    if (e && e.code === 'ENOENT') return { items: [] };
-    // Corrupt index must never crash the gallery — start clean rather than throw.
-    return { items: [] };
-  }
+  const data = store.read();
+  return { items: Array.isArray(data.items) ? data.items : [] };
 }
 
-function saveStore(store) {
-  ensureDirs();
-  const tmp = `${STORE_FILE}.${process.pid}.${randomUUID()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 function blobPathFor(filename) {

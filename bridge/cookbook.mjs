@@ -16,14 +16,11 @@
 //
 // Public surface: `Cookbook` object + named exports. See COOKBOOK.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 import { ask } from './llm.mjs';
 
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'cookbook.json');
 const STORE_VERSION = 1;
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_TEMPLATE_LEN = 20_000;
@@ -32,32 +29,22 @@ const MAX_TEMPLATE_LEN = 20_000;
 const VAR_RE = /\{\{\s*([\w.-]+)\s*\}\}/g;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Persistence — atomic writes, dir 0700 / file 0600. Corrupt store → empty.
-// Only USER recipes live on disk; built-ins are code-defined (see BUILTINS).
+// Persistence — backed by the shared atomic JSON store: ~/.clone-frame-hub/
+// cookbook.json, dir 0700 / file 0600, tmp-write-then-rename, read-per-call.
+// A missing/corrupt store degrades to empty. Only USER recipes live on disk;
+// built-ins are code-defined (see BUILTINS). The store guarantees only the
+// top-level {recipes:[]} container; the per-record isSaneRecord filter stays
+// this module's job at the call site, exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on odd filesystems */ }
-}
+const store = openStore({ name: 'cookbook', version: STORE_VERSION, shape: { recipes: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    return { recipes: Array.isArray(data.recipes) ? data.recipes.filter(isSaneRecord) : [] };
-  } catch {
-    // Missing or corrupt store must never crash the app — start empty.
-    return { recipes: [] };
-  }
+  const data = store.read();
+  return { recipes: Array.isArray(data.recipes) ? data.recipes.filter(isSaneRecord) : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ version: STORE_VERSION, recipes: store.recipes }, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write({ recipes: s.recipes });
 }
 
 function isSaneRecord(r) {

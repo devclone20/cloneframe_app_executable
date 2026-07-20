@@ -3,15 +3,18 @@
 // In-app browser backend: search + reader view (via web.mjs), history, bookmarks,
 // quick-links. So the user never leaves CLONE FRAME to search/read the web.
 // ─────────────────────────────────────────────────────────────────────────────
-import { homedir } from 'node:os';
-import fs from 'node:fs';
-import path from 'node:path';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
-const DIR = path.join(homedir(), '.clone-frame-hub');
-const FILE = path.join(DIR, 'browser.json');
-function load() { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch { return { history: [], bookmarks: [] }; } }
-function save(o) { try { fs.mkdirSync(DIR, { recursive: true, mode: 0o700 }); const t = FILE + '.' + process.pid + '.tmp'; fs.writeFileSync(t, JSON.stringify(o), { mode: 0o600 }); fs.renameSync(t, FILE); } catch {} }
-let store = load();
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/browser.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call (no cached
+// singleton, so a second bridge process or a hand-edited file is never stale).
+// Every mutation below reads fresh, mutates, then saves in the same call.
+const store = openStore({ name: 'browser', version: 1, shape: { history: [], bookmarks: [] }, root: hubRoot() });
+const load = () => store.read();
+// The old hand-rolled save() swallowed disk errors (catch {}) so a mutation
+// always reported ok; the port throws, so keep that swallow at the call site.
+const save = (o) => { try { store.write(o); } catch { /* best effort, matches pre-port behavior */ } };
 const rid = () => Math.random().toString(36).slice(2, 10);
 
 const QUICK = [
@@ -40,30 +43,38 @@ export const Browser = {
     try {
       const r = await W.fetchUrl(String(url || ''));
       if (r && r.ok) {
-        store.history.unshift({ id: rid(), url: r.url || url, title: r.title || url, ts: Date.now() });
-        if (store.history.length > 200) store.history.length = 200; save(store);
+        // Record the visit BEST-EFFORT: a history-store read/write failure must
+        // never discard a page that was fetched successfully (the store now
+        // re-throws a genuine EACCES rather than the old swallow-to-empty).
+        try {
+          const s = load();
+          s.history.unshift({ id: rid(), url: r.url || url, title: r.title || url, ts: Date.now() });
+          if (s.history.length > 200) s.history.length = 200; save(s);
+        } catch { /* best-effort history; the fetched page still returns below */ }
       }
       return r || { ok: false, error: 'falhou' };
     } catch (e) { return { ok: false, error: e.message }; }
   },
-  history({ limit = 30 } = {}) { return store.history.slice(0, limit); },
-  clearHistory() { store.history = []; save(store); return { ok: true }; },
-  bookmarks() { return store.bookmarks.slice(); },
+  history({ limit = 30 } = {}) { return load().history.slice(0, limit); },
+  clearHistory() { const s = load(); s.history = []; save(s); return { ok: true }; },
+  bookmarks() { return load().bookmarks.slice(); },
   addBookmark({ url, title } = {}) {
     if (!url) return { ok: false, error: 'no url' };
-    if (store.bookmarks.some(b => b.url === url)) return { ok: true, dup: true };
-    const id = rid(); store.bookmarks.unshift({ id, url, title: title || url, ts: Date.now() }); save(store); return { ok: true, id };
+    const s = load();
+    if (s.bookmarks.some(b => b.url === url)) return { ok: true, dup: true };
+    const id = rid(); s.bookmarks.unshift({ id, url, title: title || url, ts: Date.now() }); save(s); return { ok: true, id };
   },
-  removeBookmark(id) { store.bookmarks = store.bookmarks.filter(b => b.id !== id); save(store); return { ok: true }; },
+  removeBookmark(id) { const s = load(); s.bookmarks = s.bookmarks.filter(b => b.id !== id); save(s); return { ok: true }; },
   quickLinks() { return QUICK.slice(); },
   // fire-and-forget history write from the in-app browser (the proxy path sets the
   // iframe src directly, so History would otherwise stay empty)
   visit({ url, title } = {}) {
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
-    const h = store.history;
-    if (h[0] && h[0].url === url) { if (title) h[0].title = title; save(store); return { ok: true }; }
+    const s = load();
+    const h = s.history;
+    if (h[0] && h[0].url === url) { if (title) h[0].title = title; save(s); return { ok: true }; }
     h.unshift({ id: rid(), url, title: title || url, ts: Date.now() });
-    if (h.length > 200) h.length = 200; save(store);
+    if (h.length > 200) h.length = 200; save(s);
     return { ok: true };
   },
 };

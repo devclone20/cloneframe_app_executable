@@ -19,82 +19,70 @@
 // disconnected result on any store, network, or parse failure — never throw.
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
+import {
+  davFetch,
+  parseMultistatus as davParseMultistatus,
+  unfoldLines,
+  splitPropertyLine,
+  describeFetchError,
+} from './platform/dav.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'calendar.json');       // non-secret: connection url + event cache
-const SECRET_FILE = path.join(CONFIG_DIR, 'calendar.secret.json'); // creds only, never returned
+// Two separate atomic JSON stores under ~/.clone-frame-hub, both dir 0700 /
+// file 0600, tmp-write-then-rename, read-per-call, never logged:
+//   • calendar.json        — non-secret: connection url + local event cache
+//   • calendar.secret.json — credentials only (url+user+pass), NEVER returned
+// The store guarantees only the top-level container; the per-field coercion
+// below stays this module's job, exactly as before: the connection/events
+// shaping in loadStore(), and — critically — the strict url/user/pass whitelist
+// in loadSecret(). status() still exposes the connection url and nothing else;
+// the raw secret file never leaves loadSecret's projection.
+const STORE_VERSION = 1;
+const store = openStore({ name: 'calendar', version: STORE_VERSION, shape: { connection: null, events: [] }, root: hubRoot() });
+const secretStore = openStore({ name: 'calendar.secret', version: STORE_VERSION, shape: {}, root: hubRoot() });
 
-const HTTP_TIMEOUT_MS = 15_000;
 const MAX_CACHE = 2_000;                 // cap the local event cache (keep most-recently-seen)
 const DEFAULT_PAST_MS = 7 * 24 * 3_600_000;
 const DEFAULT_FUTURE_MS = 60 * 24 * 3_600_000;
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return {
-      connection: data.connection && typeof data.connection === 'object' ? data.connection : null,
-      events: Array.isArray(data.events) ? data.events : [],
-    };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { connection: null, events: [] };
-    // A corrupt store must never crash the app — start from an empty state.
-    return { connection: null, events: [] };
-  }
+  const data = store.read();
+  return {
+    connection: data.connection && typeof data.connection === 'object' ? data.connection : null,
+    events: Array.isArray(data.events) ? data.events : [],
+  };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ connection: store.connection, events: store.events }, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write({ connection: s.connection, events: s.events });
 }
 
 // Read-path helper: persisting the refreshed cache must never make a read throw.
-function saveStoreSafe(store) {
-  try { saveStore(store); } catch { /* the returned value is still correct even if the cache write fails */ }
+function saveStoreSafe(s) {
+  try { saveStore(s); } catch { /* the returned value is still correct even if the cache write fails */ }
 }
 
-// The credentials live in their own file so they can never ride along in the
-// main store (which is read back and reshaped into public event objects).
+// The credentials live in their own 0600 store so they can never ride along in
+// the main store (which is read back and reshaped into public event objects).
+// The url/user/pass whitelist here is the read projection — nothing else, and
+// certainly not the raw store, ever leaves this function.
 function loadSecret() {
-  ensureConfigDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(SECRET_FILE, 'utf8'));
-    if (data && typeof data.url === 'string') {
-      return { url: data.url, user: typeof data.user === 'string' ? data.user : '', pass: typeof data.pass === 'string' ? data.pass : '' };
-    }
-    return null;
-  } catch {
-    return null;
+  const data = secretStore.read();
+  if (data && typeof data.url === 'string') {
+    return { url: data.url, user: typeof data.user === 'string' ? data.user : '', pass: typeof data.pass === 'string' ? data.pass : '' };
   }
+  return null;
 }
 
 function saveSecret(creds) {
-  ensureConfigDir();
-  const tmp = `${SECRET_FILE}.${process.pid}.tmp`;
-  const payload = JSON.stringify({ url: creds.url, user: creds.user || '', pass: creds.pass || '' });
-  fs.writeFileSync(tmp, payload, { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, SECRET_FILE);
-  try { fs.chmodSync(SECRET_FILE, 0o600); } catch { /* best effort */ }
+  secretStore.write({ url: creds.url, user: creds.user || '', pass: creds.pass || '' });
 }
 
 function clearSecret() {
-  try { fs.rmSync(SECRET_FILE, { force: true }); } catch { /* already gone */ }
+  try { fs.rmSync(secretStore.path, { force: true }); } catch { /* already gone */ }
 }
 
 // ── date / iCalendar conversion ──────────────────────────────────────────────
@@ -213,29 +201,10 @@ function buildVEvent({ uid, summary, start, end, location }) {
   return lines.map(foldLine).join('\r\n') + '\r\n';
 }
 
-// ── iCalendar / multistatus parsing (hand-rolled, no XML/ical deps) ──────────
-function unfoldLines(text) {
-  const raw = text.split(/\r\n|\r|\n/);
-  const lines = [];
-  for (const line of raw) {
-    if ((line.startsWith(' ') || line.startsWith('\t')) && lines.length > 0) {
-      lines[lines.length - 1] += line.slice(1);
-    } else {
-      lines.push(line);
-    }
-  }
-  return lines;
-}
-
-function splitPropertyLine(line) {
-  const colonIdx = line.indexOf(':');
-  if (colonIdx === -1) return null;
-  const head = line.slice(0, colonIdx);
-  const value = line.slice(colonIdx + 1);
-  const [name, ...params] = head.split(';');
-  return { name: name.toUpperCase(), params, value };
-}
-
+// ── iCalendar VEVENT parsing (domain-specific; multistatus transport → port) ──
+// Line unfolding + property-line splitting are shared DAV/iCalendar primitives
+// and now come from platform/dav.mjs; the VEVENT-block extraction below is the
+// calendar-only domain layer that consumes them.
 function extractVEventBlocks(ical) {
   const blocks = [];
   const re = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/gi;
@@ -278,19 +247,6 @@ function parseVEventBlock(block) {
   };
 }
 
-function decodeXMLEntities(s) {
-  return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/g, '&');
-}
-
-const HREF_RE = /<(?:[\w-]+:)?href[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?href>/i;
-const CALDATA_RE = /<(?:[\w-]+:)?calendar-data[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?calendar-data>/i;
-
 function absolutize(href, base) {
   try { return new URL(href, base).toString(); } catch { return href; }
 }
@@ -300,21 +256,18 @@ function childHref(collectionUrl, name) {
   try { return new URL(name, b).toString(); } catch { return b + name; }
 }
 
-// Splits a DAV multistatus body into <response> chunks and pulls the <href> +
-// <calendar-data> out of each, tolerating any namespace prefix (D:/d:/none).
+// Splits a CalDAV multistatus body into per-<response> {href, calendar-data}
+// pairs via the shared DAV port (namespace-tolerant, entity-decoded, href
+// absolutized against baseUrl), then applies the calendar-only domain layer:
+// extract each VEVENT block and, when a <response> carried no href, derive the
+// child href from the event uid — the same fallback the fork had inline.
 function parseMultistatus(xml, baseUrl) {
   const out = [];
-  const chunks = xml.split(/<\/(?:[\w-]+:)?response>/i);
-  for (const chunk of chunks) {
-    const dataM = chunk.match(CALDATA_RE);
-    if (!dataM) continue;
-    const hrefM = chunk.match(HREF_RE);
-    const href = hrefM ? decodeXMLEntities(hrefM[1].trim()) : '';
-    const ical = decodeXMLEntities(dataM[1]);
-    for (const veBlock of extractVEventBlocks(ical)) {
+  for (const { href, data } of davParseMultistatus(xml, { dataTag: 'calendar-data', baseUrl })) {
+    for (const veBlock of extractVEventBlocks(data)) {
       const ev = parseVEventBlock(veBlock);
       if (!ev) continue;
-      ev.href = href ? absolutize(href, baseUrl) : childHref(baseUrl, `${ev.uid}.ics`);
+      ev.href = href || childHref(baseUrl, `${ev.uid}.ics`);
       out.push(ev);
     }
   }
@@ -371,24 +324,7 @@ function cacheUpsert(store, events) {
   store.events = arr;
 }
 
-// ── HTTP (CalDAV over global fetch) ──────────────────────────────────────────
-function authHeader(creds) {
-  return `Basic ${Buffer.from(`${creds.user || ''}:${creds.pass || ''}`, 'utf8').toString('base64')}`;
-}
-
-function describeFetchError(e) {
-  if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) return 'request timed out';
-  const cause = e && e.cause;
-  if (cause && cause.code) return `${cause.code}: ${cause.message || e.message}`;
-  return (e && e.message) || String(e);
-}
-
-async function davFetch(url, { method, headers = {}, body, creds } = {}) {
-  const h = { ...headers };
-  if (creds && (creds.user || creds.pass)) h.Authorization = authHeader(creds);
-  return fetch(url, { method, headers: h, body, redirect: 'follow', signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
-}
-
+// ── CalDAV request bodies (transport = platform/dav.mjs davFetch) ────────────
 const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8" ?>
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -434,7 +370,8 @@ async function connect({ url, user, pass } = {}) {
 
   const creds = { url: trimmed, user: user || '', pass: pass || '' };
   try {
-    const res = await davFetch(trimmed, {
+    const res = await davFetch({
+      url: trimmed,
       method: 'PROPFIND',
       headers: { Depth: '0', 'Content-Type': 'application/xml; charset=utf-8' },
       body: PROPFIND_BODY,
@@ -504,7 +441,8 @@ async function events({ from, to } = {}) {
   const range = resolveRange(from, to);
 
   try {
-    const res = await davFetch(creds.url, {
+    const res = await davFetch({
+      url: creds.url,
       method: 'REPORT',
       headers: { Depth: '1', 'Content-Type': 'application/xml; charset=utf-8' },
       body: calendarQueryBody(range),
@@ -571,7 +509,8 @@ async function createEvent({ summary, start, end, location } = {}) {
   const ics = buildVEvent({ uid, summary: summary.trim(), start: s, end: e, location: location ? String(location) : '' });
 
   try {
-    const res = await davFetch(href, {
+    const res = await davFetch({
+      url: href,
       method: 'PUT',
       headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'If-None-Match': '*' },
       body: ics,
@@ -611,7 +550,7 @@ async function deleteEvent(uid) {
   const href = cached && cached.href ? absolutize(cached.href, creds.url) : childHref(creds.url, `${uid}.ics`);
 
   try {
-    const res = await davFetch(href, { method: 'DELETE', creds });
+    const res = await davFetch({ url: href, method: 'DELETE', creds });
     if ((res.status >= 200 && res.status < 300) || res.status === 404) {
       store.events = store.events.filter((ev) => ev.uid !== uid);
       saveStoreSafe(store);

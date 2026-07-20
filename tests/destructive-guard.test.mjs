@@ -7,21 +7,25 @@
 //     — function destructive(line), line ~125
 //     (its own comment: "mirrors pty.mjs isDestructive()")
 //
-// Neither function is exported (both are internal to their module's closure,
-// only reachable indirectly through open()/run()), so this test transcribes
-// the regex verbatim from both files and pins its behavior directly, plus a
-// source-level pin proving the two copies are STILL byte-for-byte identical
-// today (exactly the duplication Wave-2 is expected to unify into one shared
-// guard — if they ever silently diverge, this test is the tripwire).
+// Neither legacy copy was exported (both internal to their module's closure).
+// This test transcribes the legacy regex verbatim and pins its behavior as the
+// baseline the consolidation must preserve. As of Wave-3 (T-023) the two copies
+// were unified into the single shared guard `platform/shell-guard.mjs`; the
+// source-level pin below flipped accordingly — it now proves the copies are GONE
+// and both modules import the one guard, and that the shared guard is a superset
+// that still blocks every legacy pattern. If a copy is ever reintroduced, or the
+// shared guard stops blocking a legacy pattern, this test is the tripwire.
 // ─────────────────────────────────────────────────────────────────────────────
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { isDestructive as portIsDestructive } from '../bridge/platform/shell-guard.mjs';
 
 const PTY_PATH = new URL('../bridge/pty.mjs', import.meta.url);
 const SSH_PATH = new URL('../bridge/ssh.mjs', import.meta.url);
 
-// verbatim from pty.mjs:106-112 / ssh.mjs:125-129 (identical bodies)
+// verbatim from the legacy pty.mjs/ssh.mjs bodies (identical) — the baseline
+// behavior the shared guard must preserve (it does, as a documented superset).
 function isDestructive(line) {
   const s = String(line || '');
   return /\brm\s+-[a-z]*[rf][a-z]*\s+(\/\*{0,2}(\s|$)|~(\/|\s|$)|\$HOME)/.test(s)
@@ -106,14 +110,22 @@ test('isDestructive/destructive — empty/non-string input never throws', () => 
   assert.equal(isDestructive(null), false);
 });
 
-// ── source-level pin ─────────────────────────────────────────────────────────
-test('pty.mjs and ssh.mjs still carry byte-identical copies of the guard regex', () => {
+// ── source-level pin (flipped in Wave-3 / T-023: duplication is now GONE) ──────
+test('pty.mjs and ssh.mjs no longer carry the guard copy — both import the shared port', () => {
   const ptySrc = fs.readFileSync(PTY_PATH, 'utf8');
   const sshSrc = fs.readFileSync(SSH_PATH, 'utf8');
   const REGEX_LITERAL = "/\\brm\\s+-[a-z]*[rf][a-z]*\\s+(\\/\\*{0,2}(\\s|$)|~(\\/|\\s|$)|\\$HOME)/";
-  assert.ok(ptySrc.includes(REGEX_LITERAL), 'pty.mjs rm-guard regex literal not found verbatim');
-  assert.ok(sshSrc.includes(REGEX_LITERAL), 'ssh.mjs rm-guard regex literal not found verbatim');
-  assert.ok(ptySrc.includes('\\bmkfs\\b') && sshSrc.includes('\\bmkfs\\b'));
-  assert.ok(ptySrc.includes('of=\\/dev\\/') && sshSrc.includes('of=\\/dev\\/'));
-  assert.ok(ptySrc.includes(':\\(\\)\\s*\\{\\s*:\\|:') && sshSrc.includes(':\\(\\)\\s*\\{\\s*:\\|:'));
+  // The verbatim copy must be gone from both modules...
+  assert.ok(!ptySrc.includes(REGEX_LITERAL), 'pty.mjs must no longer inline the rm-guard regex');
+  assert.ok(!sshSrc.includes(REGEX_LITERAL), 'ssh.mjs must no longer inline the rm-guard regex');
+  // ...replaced by an import of the one shared guard.
+  assert.match(ptySrc, /import \{[^}]*isDestructive[^}]*\} from '\.\/platform\/shell-guard\.mjs'/);
+  assert.match(sshSrc, /import \{[^}]*isDestructive[^}]*\} from '\.\/platform\/shell-guard\.mjs'/);
+});
+
+test('the shared guard is a superset — it blocks every legacy BLOCKED pattern', () => {
+  for (const cmd of BLOCKED) {
+    assert.equal(portIsDestructive(cmd), true, `shared guard must still block: ${cmd}`);
+    assert.equal(isDestructive(cmd), portIsDestructive(cmd) || isDestructive(cmd), 'legacy⊆port');
+  }
 });

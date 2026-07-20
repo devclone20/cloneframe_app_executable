@@ -14,11 +14,10 @@ import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
 import { simpleParser } from 'mailparser';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { OAuth } from './oauth.mjs'; // Gmail accounts connected via OAuth (loopback) → XOAUTH2 IMAP/SMTP, no app password
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── errors ───────────────────────────────────────────────────────────────────
 // Thrown (not returned) from read-path functions — list/message/attachment/
@@ -33,33 +32,25 @@ export class EmailError extends Error {
 }
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const ACCOUNTS_FILE = path.join(CONFIG_DIR, 'accounts.json');
-
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/accounts.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. This
+// file holds each account's IMAP/SMTP `pass` — the only stored credential (OAuth
+// Gmail accounts are virtual and keep their tokens in oauth.mjs). The load/save
+// projection below keeps the store to exactly {accounts} so no stray key ever
+// rides along with the passwords, and the password itself never leaves this
+// module unmasked: publicSummary() (listAccounts) and sanitizeAccount()
+// (getAccount) both drop `pass` before anything reaches a client — unchanged.
+const store = openStore({ name: 'accounts', version: 1, shape: { accounts: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { accounts: Array.isArray(data.accounts) ? data.accounts : [] };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { accounts: [] };
-    throw new EmailError(`failed to read accounts store: ${e.message}`, e);
-  }
+  const data = store.read(); // never throws; ENOENT/corrupt → {version, accounts:[]}
+  return { accounts: Array.isArray(data.accounts) ? data.accounts : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${ACCOUNTS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, ACCOUNTS_FILE);
-  try { fs.chmodSync(ACCOUNTS_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  // Project to exactly {accounts} — never let a stray in-memory or hand-edited
+  // key get persisted alongside the account credentials.
+  store.write({ accounts: Array.isArray(s.accounts) ? s.accounts : [] });
 }
 
 // ── OAuth-backed Gmail accounts ──────────────────────────────────────────────

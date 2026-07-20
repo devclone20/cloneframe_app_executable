@@ -12,17 +12,28 @@
 // Unknown commands are refused. `onchainos` prints JSON on stdout for data
 // commands by default (no --json flag exists — verified via --help; nothing
 // invented here) and human text on stderr, so stdout is parsed best-effort.
+//
+// The four-class gate itself (binary discovery wiring, longest-prefix
+// classification, capped execFile, append-only audit, fail-closed sentinels)
+// is the shared platform/cli-gate mechanism — this module supplies only the
+// onchainos-specific config (its command tree, binary discovery, messages).
+// See platform/cli-gate.mjs + tests/cli-gate-port.test.mjs for the proof the
+// gate is a strict behavioral superset of the copy that used to live here.
 // ─────────────────────────────────────────────────────────────────────────────
-import { execFile, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+import { makeGatedCli } from './platform/cli-gate.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
-const DIR = path.join(homedir(), '.clone-frame-hub');
+const DIR = hubRoot();
 const AUDIT = path.join(DIR, 'okxai-audit.jsonl');
 const DRAFTS_FILE = path.join(DIR, 'okxai-drafts.json');
-const MAX_OUT = 200 * 1024;
 
+// onchainos-specific binary discovery — the ONE piece the shared gate cannot
+// express (it only knows "give me an absolute executable path or null"). Kept
+// local and passed to makeGatedCli as resolveBin. Never throws.
 function bin() {
   const override = process.env.OKX_ONCHAINOS_BIN;
   if (override) { try { fs.accessSync(override, fs.constants.X_OK); return override; } catch {} }
@@ -75,40 +86,48 @@ const CLASS = {
 // 180s window for the three slow, network+encode-heavy mutate commands.
 const LONG_TIMEOUT_KEYS = new Set(['agent upload', 'agent create', 'agent activate']);
 
-function classify(argv) {
-  const words = argv.filter(a => !a.startsWith('-'));
-  for (let n = Math.min(3, words.length); n >= 1; n--) {
-    const key = words.slice(0, n).join(' ');
-    if (CLASS[key]) return { key, cls: CLASS[key] };
-  }
-  return null;
+// A non-zero exit whose text smells like a dead wallet session — surfaced as a
+// needsAuth sentinel so the UI can prompt the owner to re-login in their own
+// terminal instead of silently showing an "error".
+function detectSession(code, stdout, stderr) {
+  if (/session expired|not logged in|please log ?in|unauthorized|401/i.test(stdout + ' ' + stderr)) return { needsAuth: true };
+  return undefined;
 }
 
-function audit(entry) {
-  try {
-    fs.mkdirSync(DIR, { recursive: true, mode: 0o700 });
-    fs.appendFileSync(AUDIT, JSON.stringify({ ts: Date.now(), ...entry }) + '\n', { mode: 0o600 });
-  } catch {}
-}
-
-function exec(argv, { timeoutMs = 60000 } = {}) {
-  const b = bin();
-  if (!b) return Promise.resolve({ ok: false, error: 'onchainos CLI not installed — set OKX_ONCHAINOS_BIN or install to ~/.local/bin/onchainos' });
-  return new Promise(resolve => {
-    execFile(b, argv, { timeout: Math.min(Math.max(timeoutMs, 1000), 180000), maxBuffer: 8 * 1024 * 1024, env: { ...process.env, NO_COLOR: '1' } },
-      (err, stdout, stderr) => {
-        const out = String(stdout || '').slice(0, MAX_OUT);
-        const errText = String(stderr || '').slice(0, 4000);
-        let json = null; try { json = JSON.parse(out); } catch {}
-        const code = err ? (err.killed ? 'timeout' : (err.code ?? 1)) : 0;
-        const needsAuth = code !== 0 && /session expired|not logged in|please log ?in|unauthorized|401/i.test(out + ' ' + errText);
-        resolve({ ok: code === 0, code, json, text: json ? undefined : out, error: code === 0 ? undefined : (errText || out || String(err && err.message)), needsAuth: needsAuth || undefined });
-      });
-  });
-}
+const gate = makeGatedCli({
+  resolveBin: bin,
+  classMap: CLASS,
+  auditFile: AUDIT,
+  longTimeoutKeys: LONG_TIMEOUT_KEYS,
+  binName: 'onchainos',
+  binNotFoundError: 'onchainos CLI not installed — set OKX_ONCHAINOS_BIN or install to ~/.local/bin/onchainos',
+  authMessage: 'login/verify/add/switch/logout/preflight/upgrade run in YOUR terminal, never through the app',
+  detectSentinel: detectSession,
+  // clamps/caps below are the onchainos originals; passed explicitly so a
+  // future change to the port's defaults can never silently move them here.
+  defaultTimeoutMs: 60000,
+  longTimeoutMs: 180000,
+  minTimeoutMs: 1000,
+  maxTimeoutMs: 180000,
+  maxOutputBytes: 200 * 1024,
+  maxErrorBytes: 4000,
+  maxArgvLen: 24,
+  maxArgLen: 4000,
+  maxPrefixWords: 3,
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 // Single-file JSON store for ASP listing drafts, keyed by name. Never holds
 // keys/secrets — just draft form state (name/description/services/avatar).
+//
+// NOT migrated to platform/json-store's openStore, deliberately: this file's
+// TOP-LEVEL object IS the draft map (dynamic keys = draft names), whereas
+// openStore stamps a fixed `version` field onto the top level. Stamping would
+// (a) inject a `version` key into the user's existing on-disk map and (b) make
+// `Object.values()` in localDrafts() return the number `1` as a phantom draft —
+// a return-shape regression. It is already read-per-call (readDrafts re-reads
+// from disk every call; there is no module-level cached copy), so it carries
+// none of the stale-singleton bug openStore exists to fix. Left as-is.
 function readDrafts() {
   try {
     const j = JSON.parse(fs.readFileSync(DRAFTS_FILE, 'utf8'));
@@ -123,11 +142,11 @@ function writeDrafts(map) {
 export const OkxAi = {
   // ---- CLI presence + auth posture (never returns apiKey/tokens) ----
   async status() {
-    const b = bin();
+    const b = gate.bin();
     if (!b) return { ok: true, installed: false };
-    const v = await exec(['--version'], { timeoutMs: 8000 });
+    const v = await gate.probe(['--version'], { timeoutMs: 8000 });
     const version = String(v.text ?? v.json ?? '').replace(/^onchainos\s+/i, '').trim();
-    const s = await exec(['wallet', 'status'], { timeoutMs: 15000 });
+    const s = await gate.probe(['wallet', 'status'], { timeoutMs: 15000 });
     const data = s.json && s.json.data;
     const authenticated = !!data && data.loggedIn === true;
     const address = (data && (data.address || data.evmAddress)) || undefined;
@@ -135,18 +154,8 @@ export const OkxAi = {
   },
 
   // ---- the single gate every CLI call goes through ----
-  async run(argv, opts = {}) {
-    if (!Array.isArray(argv) || !argv.length || argv.length > 24) return { ok: false, error: 'bad argv' };
-    if (!argv.every(a => typeof a === 'string' && a.length <= 4000 && !a.includes('\0'))) return { ok: false, error: 'bad argv' };
-    const c = classify(argv);
-    if (!c) return { ok: false, error: `refused: unknown or unsupported command "${argv.slice(0, 3).join(' ')}"` };
-    if (c.cls === 'auth') return { ok: false, needsTerminal: true, class: 'auth', command: 'onchainos ' + argv.join(' '), error: 'login/verify/add/switch/logout/preflight/upgrade run in YOUR terminal, never through the app' };
-    if (c.cls === 'financial' && opts.approved !== true) return { ok: false, needsApproval: true, class: 'financial', command: c.key };
-    if (c.cls === 'mutate' && opts.confirm !== true && opts.approved !== true) return { ok: false, needsConfirm: true, class: 'mutate', command: c.key };
-    const timeoutMs = opts.timeoutMs ?? (LONG_TIMEOUT_KEYS.has(c.key) ? 180000 : 60000);
-    const r = await exec(argv, { timeoutMs });
-    if (c.cls !== 'read') audit({ cmd: argv.join(' ').slice(0, 200), class: c.cls, ok: r.ok, code: r.code });
-    return { ...r, class: c.cls };
+  run(argv, opts = {}) {
+    return gate.run(argv, opts);
   },
 
   // ---- convenience: the user's own registered agents ----

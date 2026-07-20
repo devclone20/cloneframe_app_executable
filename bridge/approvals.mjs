@@ -8,44 +8,29 @@
 // Dependencies: Node built-ins only. email.mjs is lazy dynamic-imported inside
 // approve() so a load-order issue in that module never breaks importing this one.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'approvals.json');
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/approvals.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// store guarantees only the top-level container; the per-item status/type
+// coercion below stays this module's job, exactly as before.
+const store = openStore({ name: 'approvals', version: 1, shape: { items: [] }, root: hubRoot() });
 const MAX_ITEMS = 200;
 
 const STATUSES = new Set(['pending', 'approved', 'rejected', 'sent']);
 const TYPES = new Set(['ai_reply', 'ai_email']);
 const EDITABLE_FIELDS = ['to', 'cc', 'bcc', 'subject', 'body'];
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { items: Array.isArray(data.items) ? data.items : [] };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { items: [] };
-    return { items: [] }; // corrupt store must never crash the queue — start clean
-  }
+  const data = store.read();
+  return { items: Array.isArray(data.items) ? data.items : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // Drops the oldest non-pending items first so nothing awaiting a human

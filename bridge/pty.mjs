@@ -22,6 +22,7 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import fs from 'node:fs';
+import { isDestructive } from './platform/shell-guard.mjs';
 
 // Guarded native import — the daemon keeps booting even if node-pty isn't built.
 let ptySpawn = null;
@@ -101,15 +102,6 @@ function endSession(s, reason) {
 }
 
 // ── guards / normalisers ────────────────────────────────────────────────────
-
-// Verbatim catastrophic-pattern guard from hub-bridge.mjs /shell — blocked always.
-function isDestructive(line) {
-  const s = String(line || '');
-  return /\brm\s+-[a-z]*[rf][a-z]*\s+(\/\*{0,2}(\s|$)|~(\/|\s|$)|\$HOME)/.test(s)
-    || /\bmkfs\b/.test(s)
-    || /\bdd\b[^\n]*of=\/dev\//.test(s)
-    || /:\(\)\s*\{\s*:\|:/.test(s);
-}
 
 function clampDim(v, fallback) {
   const n = Math.floor(Number(v));

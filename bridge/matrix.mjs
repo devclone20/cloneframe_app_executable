@@ -16,22 +16,26 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import Permissions from './permissions.mjs';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 const DIR = path.join(os.homedir(), '.clone-frame-hub');
 const PIDFILE = path.join(DIR, 'matrix-engine.pid');
 const LOGFILE = path.join(DIR, 'matrix-engine.log');
-const CFGFILE = path.join(DIR, 'matrix.json');
 const API = 'http://127.0.0.1:52415';
 const DEFAULT_BIN = path.join(os.homedir(), 'exo', '.venv', 'bin', 'exo');
 
+// Engine config (matrix.json) on the shared atomic JSON store: dir 0700 /
+// file 0600, tmp-write-then-rename, read-per-call, never logs. The container is
+// a free-form object ({enginePath?}); the per-field coercion below (enginePath's
+// string/trim guard) stays this module's job, exactly as before. Read-per-call
+// is already safe here — the sole mutation (setEnginePath) reads, mutates and
+// writes in one shot, and no path relies on unsaved in-memory config.
+const cfgStore = openStore({ name: 'matrix', shape: {}, root: hubRoot() });
+
 function ensureDir() { try { fs.mkdirSync(DIR, { recursive: true, mode: 0o700 }); } catch { /* exists */ } }
-function loadCfg() { try { return JSON.parse(fs.readFileSync(CFGFILE, 'utf8')) || {}; } catch { return {}; } }
-function saveCfg(c) {
-  ensureDir();
-  const tmp = CFGFILE + '.' + process.pid + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(c, null, 2), { mode: 0o600 });
-  fs.renameSync(tmp, CFGFILE);
-}
+function loadCfg() { return cfgStore.read(); }
+function saveCfg(c) { cfgStore.write(c); } // throws on write failure — callers wrap
 
 function enginePath() {
   const cfg = loadCfg();

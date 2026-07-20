@@ -21,12 +21,15 @@
 // cap so a single call can never hang or request an unbounded image.
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'images.json');
+// The BYOK key rides the shared atomic store (~/.clone-frame-hub/images.json,
+// file 0600 in a 0700 dir, tmp-write-then-rename). It is written only by
+// config(), read only by loadStore() for a live provider call, and is never
+// logged, echoed back by config(), or exposed by status().
+const store = openStore({ name: 'images', version: 1, shape: {}, root: hubRoot() });
 
 const TIMEOUT_MS = 60_000;
 const MAX_PROMPT_LEN = 4_000;
@@ -53,37 +56,24 @@ const PROVIDERS = {
   },
 };
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
+// The store guarantees only that read() returns a plain object; the provider
+// whitelist + apiKey presence check below stay this module's job. An
+// unconfigured, missing, or corrupt store surfaces as {version} with no
+// provider, which fails these guards and yields null — treated as unconfigured,
+// exactly as before.
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    if (!data || typeof data !== 'object') return null;
-    if (!PROVIDERS[data.provider]) return null;
-    if (typeof data.apiKey !== 'string' || !data.apiKey) return null;
-    return {
-      provider: data.provider,
-      apiKey: data.apiKey,
-      model: typeof data.model === 'string' && data.model ? data.model : PROVIDERS[data.provider].defaultModel,
-    };
-  } catch (e) {
-    // Missing or corrupt store must never crash the module — treat as unconfigured.
-    return null;
-  }
+  const data = store.read();
+  if (!PROVIDERS[data.provider]) return null;
+  if (typeof data.apiKey !== 'string' || !data.apiKey) return null;
+  return {
+    provider: data.provider,
+    apiKey: data.apiKey,
+    model: typeof data.model === 'string' && data.model ? data.model : PROVIDERS[data.provider].defaultModel,
+  };
 }
 
 function saveStore(record) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(record, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+  store.write(record);
 }
 
 // ── input normalisation ──────────────────────────────────────────────────────
@@ -290,8 +280,7 @@ export async function generate(input = {}) {
  */
 export function removeConfig() {
   try {
-    ensureConfigDir();
-    fs.rmSync(STORE_FILE, { force: true });
+    fs.rmSync(store.path, { force: true });
     return { ok: true };
   } catch {
     return { ok: true };

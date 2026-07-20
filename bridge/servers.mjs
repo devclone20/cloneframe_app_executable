@@ -13,12 +13,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { homedir } from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const DIR = path.join(homedir(), '.clone-frame-hub');
-const FILE = path.join(DIR, 'servers.json');
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 const CMD_TIMEOUT = 60_000;        // per SSH command
 const DEPLOY_TIMEOUT = 180_000;    // file sync / deploy
@@ -31,24 +29,29 @@ const SHORT = 4_000;               // step-log excerpt length
 // docker, then degrade gracefully. deployAgent lands files in ~/clone-agent/<name>.
 const SVC = 'clone-agent';
 
-// ── persistence (atomic, 0o700 dir / 0o600 file — same pattern as permissions.mjs)
+// ── persistence ───────────────────────────────────────────────────────────────
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/servers.json, dir
+// 0700 / file 0600, tmp-write-then-rename, read-per-call (no cached singleton —
+// fixes the old `let store = load()`-at-import stale read), never logs. The store
+// guarantees only the top-level `{ servers }` container; the per-server coercion
+// (Array.isArray guard below, secret-masking in _public) stays this module's job.
+// save() keeps its swallow-to-false contract at the call site because the port
+// throws on write failure and existing callers ignore the boolean, expecting a
+// failed write to be silent rather than to flip their {ok:true} result.
+const store = openStore({ name: 'servers', version: 1, shape: { servers: [] }, root: hubRoot() });
+
 function load() {
-  try { const s = JSON.parse(fs.readFileSync(FILE, 'utf8')); if (!Array.isArray(s.servers)) s.servers = []; return s; }
-  catch { return { servers: [] }; }
+  const s = store.read();
+  if (!Array.isArray(s.servers)) s.servers = [];
+  return s;
 }
 function save(o) {
-  try {
-    fs.mkdirSync(DIR, { recursive: true, mode: 0o700 });
-    const tmp = FILE + '.' + process.pid + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(o), { mode: 0o600 });
-    fs.renameSync(tmp, FILE);
-    return true;
-  } catch { return false; }
+  try { store.write(o); return true; }
+  catch { return false; }
 }
-let store = load();
 
 const _id = () => randomBytes(9).toString('hex');
-const _find = (id) => store.servers.find((x) => x.id === String(id));
+const _find = (st, id) => st.servers.find((x) => x.id === String(id));
 const _short = (s) => String(s || '').slice(0, SHORT);
 const _shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'"; // POSIX single-quote for shell-parsed strings (rsync -e)
 
@@ -230,12 +233,12 @@ function _tarOverSsh(s, localDir, remoteDir) {
 
 // ── public API (each fn wrapped, never throws) ───────────────────────────────
 function list() {
-  try { return { ok: true, servers: store.servers.map(_public) }; }
+  try { return { ok: true, servers: load().servers.map(_public) }; }
   catch (e) { return { ok: false, error: e.message }; }
 }
 
 function get(id) {
-  try { const s = _find(id); return s ? { ok: true, server: _public(s) } : { ok: false, error: 'not found' }; }
+  try { const s = _find(load(), id); return s ? { ok: true, server: _public(s) } : { ok: false, error: 'not found' }; }
   catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -261,15 +264,17 @@ function add(cfg = {}) {
       dropletId: cfg.dropletId || null,
       createdAt: Date.now(),
     };
-    store.servers.push(rec);
-    save(store);
+    const st = load();
+    st.servers.push(rec);
+    save(st);
     return { ok: true, server: _public(rec) };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
 function update(id, patch = {}) {
   try {
-    const s = _find(id);
+    const st = load();
+    const s = _find(st, id);
     if (!s) return { ok: false, error: 'not found' };
     const allowed = ['name', 'user', 'keyPath', 'port', 'doToken', 'host', 'dropletId'];
     for (const k of allowed) {
@@ -278,24 +283,25 @@ function update(id, patch = {}) {
       else if (k === 'name' || k === 'user' || k === 'keyPath' || k === 'host') s[k] = String(patch[k] || '');
       else s[k] = patch[k];
     }
-    save(store);
+    save(st);
     return { ok: true, server: _public(s) };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
 function remove(id) {
   try {
-    const before = store.servers.length;
-    store.servers = store.servers.filter((x) => x.id !== String(id));
-    const removed = store.servers.length < before;
-    if (removed) save(store);
+    const st = load();
+    const before = st.servers.length;
+    st.servers = st.servers.filter((x) => x.id !== String(id));
+    const removed = st.servers.length < before;
+    if (removed) save(st);
     return { ok: true, removed };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
 async function test(id) {
   try {
-    const s = _find(id);
+    const s = _find(load(), id);
     if (!s) return { ok: true, reachable: false, detail: 'server not found' };
     if (!s.host) return { ok: true, reachable: false, detail: 'no host set yet' };
     const r = await _ssh(s, 'echo cfhub-ok');
@@ -309,7 +315,7 @@ async function test(id) {
 // ssh; the remote shell runs it. ok:true means we ran it — inspect `exit` for result.
 async function run(id, cmd) {
   try {
-    const s = _find(id);
+    const s = _find(load(), id);
     if (!s) return { ok: false, error: 'server not found' };
     if (!s.host) return { ok: false, error: 'server has no host yet' };
     const r = await _ssh(s, String(cmd || ''));
@@ -333,7 +339,7 @@ async function runAutomation(id, key) {
 
 async function deployAgent(id, opts = {}) {
   try {
-    const s = _find(id);
+    const s = _find(load(), id);
     if (!s) return { ok: false, error: 'server not found' };
     if (!s.host) return { ok: false, error: 'server has no host yet (provision/boot first)' };
     const safe = String(opts.name || '').replace(/[^A-Za-z0-9._-]/g, '');
@@ -373,7 +379,7 @@ async function provision(cfg = {}) {
     if (!name) return { ok: false, error: 'name required' };
     // The client NEVER sends secrets — read the DO token from a stored server record.
     let token = cfg.doToken ? String(cfg.doToken) : '';
-    if (!token) { const wt = store.servers.find((x) => x.doToken); if (wt) token = wt.doToken; }
+    if (!token) { const wt = load().servers.find((x) => x.doToken); if (wt) token = wt.doToken; }
     if (!token) return { ok: false, error: 'no DigitalOcean token — add one to a server in Settings → Servers first' };
     const body = {
       name,
@@ -404,24 +410,36 @@ async function provision(cfg = {}) {
       dropletId: droplet.id,
       createdAt: Date.now(),
     };
-    store.servers.push(rec);
-    save(store);
+    // Re-read after the (slow) provisioning fetch so a server added meanwhile
+    // isn't clobbered by a store snapshot taken before the API round-trip.
+    const st = load();
+    st.servers.push(rec);
+    save(st);
     return { ok: true, server: _public(rec), note: 'booting — call dropletStatus to get the IP' };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
 async function dropletStatus(id) {
   try {
-    const s = _find(id);
-    if (!s) return { ok: false, error: 'not found' };
-    if (!s.dropletId) return { ok: false, error: 'not a provisioned droplet' };
-    if (!s.doToken) return { ok: false, error: 'no DigitalOcean token on record' };
-    const r = await _doFetch('GET', '/v2/droplets/' + s.dropletId, s.doToken);
+    const s0 = _find(load(), id);
+    if (!s0) return { ok: false, error: 'not found' };
+    if (!s0.dropletId) return { ok: false, error: 'not a provisioned droplet' };
+    if (!s0.doToken) return { ok: false, error: 'no DigitalOcean token on record' };
+    const r = await _doFetch('GET', '/v2/droplets/' + s0.dropletId, s0.doToken);
     if (!r.ok) return { ok: false, error: r.error };
     const d = r.data && r.data.droplet;
     if (!d) return { ok: false, error: 'droplet not found' };
     const ip = _publicIPv4(d);
-    if (ip && ip !== s.host) { s.host = ip; save(store); }
+    if (ip) {
+      // Re-read AFTER the network round-trip and do the host update as a single
+      // synchronous read-modify-write, so a concurrent write that landed during
+      // the await is not clobbered by a stale pre-await snapshot. (Read-per-call
+      // surfaced this lost-update; the old shared in-memory singleton masked it.
+      // No mutate() needed — the await is OUTSIDE this read-modify-write.)
+      const st = load();
+      const s = _find(st, id);
+      if (s && ip !== s.host) { s.host = ip; save(st); }
+    }
     return { ok: true, status: d.status, ip: ip || '' };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -430,7 +448,7 @@ const POWER = new Set(['power_on', 'power_off', 'reboot', 'shutdown']);
 async function powerAction(id, action) {
   try {
     if (!POWER.has(String(action))) return { ok: false, error: 'invalid action' };
-    const s = _find(id);
+    const s = _find(load(), id);
     if (!s) return { ok: false, error: 'not found' };
     if (!s.dropletId) return { ok: false, error: 'not a provisioned droplet' };
     if (!s.doToken) return { ok: false, error: 'no DigitalOcean token on record' };

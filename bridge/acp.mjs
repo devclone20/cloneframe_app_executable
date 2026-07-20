@@ -8,17 +8,27 @@
 //               own terminal (configure/signers/signing are owner-only flows)
 // Unknown commands are refused. Local agents (name + neural_soul.md + runtime)
 // live in ~/CloneFrame/Agents — no chain, no funds, safe by construction.
+//
+// The CLI mechanism (binary discovery, longest-prefix classification, capped
+// execFile, append-only jsonl audit, fail-closed sentinels) is the shared
+// platform/cli-gate.mjs port — a proven behavioral superset of this module's
+// original gate (see cli-gate-port.test.mjs). This module now supplies ONLY
+// the acp-specific policy: the command tree (CLASS), the `trade --dry-run`
+// reclassify, the `--json` argv prefix, and the needsSetup sentinel. The local
+// agent registry stays on plain fs — it is a directory tree (config.json +
+// neural_soul.md per agent), not a single-file json store, so no store port
+// applies and there is no module-cache to convert.
 // ─────────────────────────────────────────────────────────────────────────────
-import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import Folders from './folders.mjs';
+import { makeGatedCli } from './platform/cli-gate.mjs';
+import { hubPath } from './platform/hub-root.mjs';
 
 const BIN_CANDIDATES = ['/opt/homebrew/bin/acp', '/usr/local/bin/acp'];
-const DIR = path.join(homedir(), '.clone-frame-hub');
-const AUDIT = path.join(DIR, 'acp-audit.jsonl');
-const CONFIG_DIR = path.join(homedir(), '.config', 'acp');
+const AUDIT = hubPath('acp-audit.jsonl');
+const CONFIG_DIR = path.join(homedir(), '.config', 'acp'); // the acp CLI's OWN config — not the hub's
 const MAX_OUT = 200 * 1024;
 
 function bin() { for (const b of BIN_CANDIDATES) { try { fs.accessSync(b, fs.constants.X_OK); return b; } catch {} } return null; }
@@ -65,41 +75,34 @@ const CLASS = {
 };
 // 'job watch' and 'events listen' stream forever — intentionally unclassified (refused).
 
-function classify(argv) {
-  const words = argv.filter(a => !a.startsWith('-'));
-  for (let n = Math.min(3, words.length); n >= 1; n--) {
-    const key = words.slice(0, n).join(' ');
-    if (CLASS[key]) {
-      // `trade --dry-run` is a quote, not an execution — the CLI's own preview mode
-      if (CLASS[key] === 'financial' && key.startsWith('trade') && argv.includes('--dry-run')) return { key, cls: 'read' };
-      return { key, cls: CLASS[key] };
-    }
-  }
-  return null;
-}
+// acp-specific policy handed to the shared gate. Exported so the port contract
+// test can wire the REAL config to an in-memory fakeCli (no binary, no network)
+// and prove the acp wiring — argv prefix, dry-run reclassify, needsSetup — end
+// to end. Production supplies resolveBin (bin) alongside this.
+export const cliGateConfig = {
+  classMap: CLASS,
+  auditFile: AUDIT,
+  binName: 'acp',
+  binNotFoundError: 'acp CLI not installed — `npm i -g @virtuals-protocol/acp-cli`',
+  authMessage: 'key/signer/login flows run in YOUR terminal, never through the app',
+  defaultTimeoutMs: 30000,
+  maxTimeoutMs: 120000,
+  maxOutputBytes: MAX_OUT,
+  maxErrorBytes: 4000,
+  // `trade --dry-run` is a quote, not an execution — the CLI's own preview mode.
+  reclassify: (key, cls, argv) =>
+    (cls === 'financial' && key.startsWith('trade') && argv.includes('--dry-run')) ? 'read' : undefined,
+  // acp emits/consumes JSON; UI callers can opt out with opts.json === false.
+  buildExecArgv: (argv, opts) => (opts.json === false ? argv : ['--json', ...argv]),
+  // A non-zero exit whose output smells like a missing/expired session becomes a
+  // needsSetup hint so the UI can route the owner to `acp configure`.
+  detectSentinel: (code, out, errText) =>
+    /not (configured|authenticated)|no (active )?agent|run `?acp configure|unauthorized|401/i.test(out + ' ' + errText)
+      ? { needsSetup: true }
+      : undefined,
+};
 
-function audit(entry) {
-  try {
-    fs.mkdirSync(DIR, { recursive: true, mode: 0o700 });
-    fs.appendFileSync(AUDIT, JSON.stringify({ ts: Date.now(), ...entry }) + '\n', { mode: 0o600 });
-  } catch {}
-}
-
-function exec(argv, { timeoutMs = 30000 } = {}) {
-  const b = bin();
-  if (!b) return Promise.resolve({ ok: false, error: 'acp CLI not installed — `npm i -g @virtuals-protocol/acp-cli`' });
-  return new Promise(resolve => {
-    execFile(b, argv, { timeout: Math.min(Math.max(timeoutMs, 1000), 120000), maxBuffer: 8 * 1024 * 1024, env: { ...process.env, NO_COLOR: '1' } },
-      (err, stdout, stderr) => {
-        const out = String(stdout || '').slice(0, MAX_OUT);
-        const errText = String(stderr || '').slice(0, 4000);
-        let json = null; try { json = JSON.parse(out); } catch {}
-        const code = err ? (err.killed ? 'timeout' : (err.code ?? 1)) : 0;
-        const needsSetup = code !== 0 && /not (configured|authenticated)|no (active )?agent|run `?acp configure|unauthorized|401/i.test(out + ' ' + errText);
-        resolve({ ok: code === 0, code, json, text: json ? undefined : out, error: code === 0 ? undefined : (errText || out || String(err && err.message)), needsSetup: needsSetup || undefined });
-      });
-  });
-}
+const gate = makeGatedCli({ ...cliGateConfig, resolveBin: bin });
 
 function agentsRoot() {
   const r = Folders.root();
@@ -117,12 +120,12 @@ export const Acp = {
   async status() {
     const b = bin();
     if (!b) return { ok: true, installed: false };
-    const v = await exec(['--version'], { timeoutMs: 8000 });
+    const v = await gate.probe(['--version'], { timeoutMs: 8000 });
     let configured = false;
     try { configured = fs.existsSync(CONFIG_DIR) && fs.readdirSync(CONFIG_DIR).length > 0; } catch {}
     let who = null;
     if (configured) {
-      const w = await exec(['--json', 'agent', 'whoami'], { timeoutMs: 10000 });
+      const w = await gate.probe(['--json', 'agent', 'whoami'], { timeoutMs: 10000 });
       who = w.ok ? (w.json ?? w.text) : null;
     }
     return { ok: true, installed: true, bin: b, version: (v.text || '').trim() || (v.json ?? ''), configured, authenticated: !!who, whoami: who };
@@ -134,24 +137,14 @@ export const Acp = {
   async chains() {
     const b = bin();
     if (!b) return { ok: false, installed: false, chains: [], hasRobinhood: false };
-    const r = await exec(['--json', 'chain', 'list'], { timeoutMs: 10000 });
+    const r = await gate.probe(['--json', 'chain', 'list'], { timeoutMs: 10000 });
     const list = (r.ok && r.json && Array.isArray(r.json.chains)) ? r.json.chains : [];
     return { ok: r.ok, chains: list, hasRobinhood: list.some(c => Number(c.id) === 4663), updateCmd: 'npm i -g @virtuals-protocol/acp-cli@latest' };
   },
 
-  // ---- the single gate every CLI call goes through ----
-  async run(argv, opts = {}) {
-    if (!Array.isArray(argv) || !argv.length || argv.length > 24) return { ok: false, error: 'bad argv' };
-    if (!argv.every(a => typeof a === 'string' && a.length <= 4000 && !a.includes('\0'))) return { ok: false, error: 'bad argv' };
-    const c = classify(argv);
-    if (!c) return { ok: false, error: `refused: unknown or unsupported command "${argv.slice(0, 3).join(' ')}"` };
-    if (c.cls === 'auth') return { ok: false, needsTerminal: true, class: 'auth', command: 'acp ' + argv.join(' '), error: 'key/signer/login flows run in YOUR terminal, never through the app' };
-    if (c.cls === 'financial' && opts.approved !== true) return { ok: false, needsApproval: true, class: 'financial', command: c.key };
-    if (c.cls === 'mutate' && opts.confirm !== true && opts.approved !== true) return { ok: false, needsConfirm: true, class: 'mutate', command: c.key };
-    const full = opts.json === false ? argv : ['--json', ...argv];
-    const r = await exec(full, { timeoutMs: opts.timeoutMs });
-    if (c.cls !== 'read') audit({ cmd: argv.join(' ').slice(0, 200), class: c.cls, ok: r.ok, code: r.code });
-    return { ...r, class: c.cls };
+  // ---- the single gate every CLI call goes through (shared cli-gate port) ----
+  run(argv, opts = {}) {
+    return gate.run(argv, opts);
   },
 
   // ---- local agent registry (~/CloneFrame/Agents) — the safe, chainless path ----

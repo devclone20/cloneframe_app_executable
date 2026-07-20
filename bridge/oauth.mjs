@@ -21,15 +21,11 @@
 
 import http from 'node:http';
 import { randomBytes, createHash } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import nodemailer from 'nodemailer';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── constants ────────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const OAUTH_FILE = path.join(CONFIG_DIR, 'oauth.json');
-
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo';
@@ -42,39 +38,31 @@ const AUTH_TIMEOUT_MS = 180_000;
 const TOKEN_SKEW_MS = 60_000; // refresh a minute before real expiry
 
 // ── persistence ──────────────────────────────────────────────────────────────
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on odd FS */ }
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/oauth.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. This
+// file holds the BYOK clientSecret and per-account refresh/access tokens — the
+// load/save projections below keep it to exactly {clientId, clientSecret,
+// accounts} so no stray key is ever read or written (same as before the port).
+const store = openStore({ name: 'oauth', version: 1, shape: { accounts: [] }, root: hubRoot() });
 
 /** @returns {{clientId?:string, clientSecret?:string, accounts:Array<object>}} */
 function loadStore() {
-  try {
-    const data = JSON.parse(fs.readFileSync(OAUTH_FILE, 'utf8'));
-    return {
-      clientId: typeof data.clientId === 'string' ? data.clientId : undefined,
-      clientSecret: typeof data.clientSecret === 'string' ? data.clientSecret : undefined,
-      accounts: Array.isArray(data.accounts) ? data.accounts : [],
-    };
-  } catch {
-    // ENOENT or corrupt/garbage JSON → treat as empty. We never want a
-    // half-written store to brick sign-in; the user can just re-config.
-    return { accounts: [] };
-  }
+  const data = store.read(); // never throws; ENOENT/corrupt → {version, accounts:[]}
+  return {
+    clientId: typeof data.clientId === 'string' ? data.clientId : undefined,
+    clientSecret: typeof data.clientSecret === 'string' ? data.clientSecret : undefined,
+    accounts: Array.isArray(data.accounts) ? data.accounts : [],
+  };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const payload = {
-    clientId: store.clientId,
-    clientSecret: store.clientSecret,
-    accounts: Array.isArray(store.accounts) ? store.accounts : [],
-  };
-  const tmp = `${OAUTH_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, OAUTH_FILE);
-  try { fs.chmodSync(OAUTH_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  // Project to exactly the three known fields — never let a stray in-memory key
+  // (or a hand-edited one) get persisted alongside the secrets.
+  store.write({
+    clientId: s.clientId,
+    clientSecret: s.clientSecret,
+    accounts: Array.isArray(s.accounts) ? s.accounts : [],
+  });
 }
 
 // A non-reversible fingerprint of the client used to mint an account's tokens,

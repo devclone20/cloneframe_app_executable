@@ -13,12 +13,14 @@
 // and are NEVER in the website.
 // ─────────────────────────────────────────────────────────────────────────────
 import http from 'node:http';
-import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import Shell from './domains/chat/shell.mjs';
+import Chat from './domains/chat/chat.mjs';
+import { serveStatic } from './transport/static.mjs';
 // guarded (never crash the daemon if 'ws' is absent — /stream just becomes unavailable).
 // ws is CommonJS: the WebSocketServer lives on the default export, not as a named ESM export.
 let WebSocketServer = null;
@@ -29,10 +31,6 @@ const HUB_ROOT = path.dirname(BRIDGE_DIR); // the clone-frame-hub dir (serves th
 const VERSION = '0.2.0';
 const HOST = '127.0.0.1';                       // localhost only — refuse anything else
 const PORT = Number(process.env.HUB_BRIDGE_PORT || 8765);
-const OUT_CAP = 512 * 1024;                      // 512 KiB max output per command
-const CMD_TIMEOUT = 120_000;                     // 2 min hard cap per command
-const CHAT_TIMEOUT = 120_000;
-const DEFAULT_MODEL = process.env.HUB_BRIDGE_MODEL || 'claude-opus-4-8';
 const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
 
 // ── pairing token (persistent, chmod 600) ───────────────────────────────────
@@ -80,23 +78,6 @@ function ensureContext() {
 }
 ensureContext();
 
-// ── Anthropic key: env first, then ~/.env.local (never printed, never logged) ─
-function loadKey() {
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY.trim();
-  for (const f of [path.join(homedir(), '.env.local'), path.join(homedir(), '.env')]) {
-    try {
-      const m = fs.readFileSync(f, 'utf8').match(/^\s*ANTHROPIC_API_KEY\s*=\s*(.+)\s*$/m);
-      if (m) return m[1].replace(/^["']|["']$/g, '').trim();
-    } catch {}
-  }
-  return null;
-}
-const KEY = loadKey();
-
-// ── shell state: a single tracked working directory ─────────────────────────
-const state = { cwd: process.env.HOME || homedir(), prev: null };
-const running = new Map(); // id -> child process (for interrupt)
-
 // ── tiny helpers ─────────────────────────────────────────────────────────────
 const j = (o) => JSON.stringify(o);
 function cors(req, res) {
@@ -143,285 +124,10 @@ function streamHead(res) {
   });
 }
 
-// ── static app serving (this makes the HUB a real local app on this origin) ──
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.map': 'application/json', '.txt': 'text/plain; charset=utf-8' };
-function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname);
-  if (rel === '/' || rel === '') rel = '/index.html';
-  if (rel.includes('\0') || rel.includes('..')) return false;
-  // Serve the built single-file document (dist/index.html) when it exists; fall back to the
-  // hand-authored monolith so the app is always launchable, even with no build tools (T-005).
-  let file;
-  if (rel === '/index.html') {
-    const dist = path.join(HUB_ROOT, 'dist', 'index.html');
-    file = fs.existsSync(dist) ? dist : path.join(HUB_ROOT, 'index.html');
-  } else {
-    file = path.join(HUB_ROOT, rel);
-  }
-  if (file !== HUB_ROOT && !file.startsWith(HUB_ROOT + path.sep)) return false;
-  // never expose dotfiles or the bridge source dir
-  if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404); res.end('not found'); return true; }
-  let data;
-  try { if (fs.statSync(file).isDirectory()) return false; data = fs.readFileSync(file); }
-  catch { return false; }
-  const ext = path.extname(file).toLowerCase();
-  if (ext === '.html') {
-    // auto-pair ONLY on a real top-level navigation — a malicious page's fetch()
-    // has sec-fetch-dest:empty and cannot forge 'document', so it can't scrape the token.
-    const dest = req.headers['sec-fetch-dest'];
-    // Only inject the token on a REAL top-level browser navigation. The Chrome --app
-    // window always sends dest:'document'; a non-browser client (curl run by ANOTHER
-    // local user) sends undefined — denying it there stops cross-user token theft.
-    const isNav = dest === 'document';
-    let html = data.toString('utf8');
-    if (isNav) {
-      const inject = `<script>window.__CFHUB_BRIDGE__=${JSON.stringify({ endpoint: `http://${HOST}:${PORT}`, token: TOKEN })};</script>`;
-      html = html.includes('<head>') ? html.replace('<head>', '<head>' + inject) : inject + html;
-    }
-    data = Buffer.from(html, 'utf8');
-  }
-  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-  res.end(data);
-  return true;
-}
-
-// ── shell exec ───────────────────────────────────────────────────────────────
-function resolveCd(arg) {
-  const home = process.env.HOME || homedir();
-  if (!arg || arg === '~') return home;
-  if (arg === '-') return state.prev || state.cwd;
-  let p = arg.startsWith('~') ? path.join(home, arg.slice(1)) : arg;
-  if (!path.isAbsolute(p)) p = path.resolve(state.cwd, p);
-  return p;
-}
-async function handleShell(req, res, body) {
-  const cmd = String(body.cmd || '').trim();
-  const id = String(body.id || randomBytes(4).toString('hex'));
-  streamHead(res);
-  if (!cmd) { res.end(); return; }
-
-  // built-in cd (persists the tracked cwd; real terminals need this)
-  const cdMatch = cmd.match(/^cd(?:\s+(.+))?$/);
-  if (cdMatch) {
-    const target = resolveCd((cdMatch[1] || '').trim().replace(/^["']|["']$/g, ''));
-    try {
-      if (fs.statSync(target).isDirectory()) { state.prev = state.cwd; state.cwd = target; res.end('\x00CWD\x00' + state.cwd); }
-      else res.end('cd: not a directory: ' + target + '\n');
-    } catch { res.end('cd: no such file or directory: ' + target + '\n'); }
-    return;
-  }
-  if (cmd === 'pwd') { res.end(state.cwd + '\n\x00CWD\x00' + state.cwd); return; }
-  if (cmd === 'clear') { res.end('\x00CLEAR\x00'); return; }
-
-  // destructive-pattern guard — blocked even with root, always
-  if (/\brm\s+-[a-z]*[rf][a-z]*\s+(\/\*{0,2}(\s|$)|~(\/|\s|$)|\$HOME)/.test(cmd) || /\bmkfs\b/.test(cmd) || /\bdd\b[^\n]*of=\/dev\//.test(cmd) || /:\(\)\s*\{\s*:\|:/.test(cmd)) {
-    res.end('\x00ERR\x00refused: catastrophic pattern blocked for safety\n'); return;
-  }
-  // sudo / root — only when Root mode is ON; password is per-request, never stored/logged
-  let spawnCmd = cmd, sudoPass = null;
-  if (/^\s*sudo\b/.test(cmd)) {
-    let allowed = false;
-    try { const P = await getMod('permissions'); allowed = P.can && P.can('root'); } catch {}
-    if (!allowed) { res.end('\x00ERR\x00root/sudo is OFF. Enable "Root mode" in Settings → Agent and try again.\n'); return; }
-    sudoPass = body.sudoPass || '';
-    if (!sudoPass) { res.end('\x00NEEDSUDO\x00'); return; }
-    spawnCmd = cmd.replace(/^\s*sudo\b/, 'sudo -S -p ""');
-  }
-
-  let sent = 0, killedForCap = false;
-  const child = spawn('zsh', ['-lc', spawnCmd], {
-    cwd: fs.existsSync(state.cwd) ? state.cwd : (process.env.HOME || homedir()),
-    env: process.env,
-    detached: true, // own process group → SIGINT/SIGKILL the whole tree (npm run dev, sleep, …)
-  });
-  if (sudoPass) { try { child.stdin.write(sudoPass + '\n'); child.stdin.end(); } catch {} }
-  const killGroup = (sig) => { try { process.kill(-child.pid, sig); } catch { try { child.kill(sig); } catch {} } };
-  running.set(id, killGroup);
-  const to = setTimeout(() => { killGroup('SIGKILL'); res.write('\n\x00ERR\x00command timed out (2m)\n'); }, CMD_TIMEOUT);
-  const push = (buf) => {
-    if (killedForCap) return;
-    sent += buf.length;
-    if (sent > OUT_CAP) { killedForCap = true; killGroup('SIGKILL'); res.write('\n\x00ERR\x00output capped (512 KiB)\n'); return; }
-    res.write(buf);
-  };
-  child.stdout.on('data', push);
-  child.stderr.on('data', push);
-  child.on('error', (e) => { res.write('\x00ERR\x00' + e.message + '\n'); });
-  child.on('close', (code) => {
-    clearTimeout(to); running.delete(id);
-    res.end('\x00EXIT\x00' + (code ?? 0) + '\x00CWD\x00' + state.cwd);
-  });
-  req.on('close', () => killGroup('SIGKILL'));
-}
-
-// ── Claude relay (streaming SSE → plain text chunks) ─────────────────────────
-async function handleChat(req, res, body) {
-  if (!KEY) { res.writeHead(501, { 'Content-Type': 'text/plain' }); res.end('no ANTHROPIC_API_KEY on this machine'); return; }
-  streamHead(res);
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const model = body.model || DEFAULT_MODEL;
-  const system = body.system || 'You are the model the owner connected to CLONE FRAME. Answer helpfully, directly and honestly. You have real access to this machine\'s terminal through the HUB Bridge.';
-  const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT);
-  req.on('close', () => ctl.abort());
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', signal: ctl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
-      body: j({ model, max_tokens: Number(body.max_tokens) || 2048, system, messages, stream: true }),
-    });
-    if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00anthropic ' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
-    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl; while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim(); if (payload === '[DONE]') continue;
-        try {
-          const ev = JSON.parse(payload);
-          if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') res.write(ev.delta.text);
-          else if (ev.type === 'error') res.write('\x00ERR\x00' + (ev.error?.message || 'stream error'));
-        } catch {}
-      }
-    }
-    res.end();
-  } catch (e) {
-    res.end('\x00ERR\x00' + (e.name === 'AbortError' ? 'timeout' : e.message));
-  } finally { clearTimeout(to); }
-}
-
-// ── Email (real IMAP/SMTP via email.mjs — lazily loaded so a mail issue never
-//    takes down shell/chat; deps: imapflow + nodemailer + mailparser) ─────────
-let _emailMod = null, _emailErr = null;
-async function getEmail() {
-  if (_emailMod) return _emailMod;
-  if (_emailErr) throw _emailErr;
-  try { const m = await import('./email.mjs'); _emailMod = m.Email || m.default || m; return _emailMod; }
-  catch (e) { _emailErr = e; throw e; }
-}
-async function handleEmail(req, res, pathname, body) {
-  const ok = (o) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j(o)); };
-  const fail = (code, e) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: String((e && e.message) || e) })); };
-  let Email;
-  try { Email = await getEmail(); } catch (e) { return fail(503, 'email engine unavailable: ' + ((e && e.message) || e)); }
-  try {
-    switch (pathname) {
-      case '/email/accounts':        return ok(await Email.listAccounts());
-      case '/email/account/get':     return ok(await Email.getAccount(body.id));
-      case '/email/account/add':     return ok(await Email.addAccount(body));
-      case '/email/account/test':    return ok(await Email.testAccount(body));
-      case '/email/account/remove':  return ok(await Email.removeAccount(body.id));
-      case '/email/account/default': return ok(await Email.setDefault(body.id));
-      case '/email/folders':         return ok(await Email.folders(body.accountId));
-      case '/email/list':            return ok(await Email.list(body.accountId, body.folder, body.opts || {}));
-      case '/email/message':         return ok(await Email.message(body.accountId, body.folder, body.uid));
-      case '/email/attachment':      return ok(await Email.attachment(body.accountId, body.folder, body.uid, body.partId));
-      case '/email/send':            return ok(await Email.send(body.accountId, body.msg || {}));
-      case '/email/flag':            return ok(await Email.flag(body.accountId, body.folder, body.uid, body.flags || {}));
-      case '/email/move':            return ok(await Email.move(body.accountId, body.folder, body.uid, body.target));
-      case '/email/drafts':          return ok(await Email.listDrafts(body.accountId, body.opts || {}));
-      case '/email/draft/save':      return ok(await Email.saveDraft(body.accountId, body.draft));
-      case '/email/draft/delete':    return ok(await Email.deleteDraft(body.accountId, body.uid));
-      case '/email/refresh':         return ok(await Email.idleSince(body.accountId, body.folder, body.sinceUid || 0));
-      default: return fail(404, 'unknown email route');
-    }
-  } catch (e) { return fail(500, e); }
-}
-
-// MATRIX cluster: a model that is on disk but has no running instance answers the
-// OpenAI endpoint with 404 "no instance found". Spin one up on demand (Pipeline / MlxRing,
-// single node) so any downloaded local model is directly chattable from CODE/LAB — without
-// a manual LAUNCH. Never auto-DOWNLOADS: refuses a model that is not already on disk.
-// Returns true once an instance exists or is coming up (the caller then polls the chat call).
-async function matrixEnsureInstance(v1Base, model, signal) {
-  const eng = String(v1Base || '').replace(/\/v\d+$/, ''); // http://127.0.0.1:52415
-  const getJson = async (p) => { try { const r = await fetch(eng + p, { signal }); return r.ok ? await r.json() : null; } catch { return null; } };
-  const state = await getJson('/state');
-  const coming = state && state.instances && Object.values(state.instances).some((i) => {
-    const inner = (i && (i.MlxRingInstance || i)) || {}; const sa = inner.shardAssignments;
-    return sa && sa.modelId === model;
-  });
-  if (!coming) {
-    const dl = await getJson('/models?status=downloaded');
-    const ids = dl ? (dl.data || dl || []).map((m) => m && m.id) : [];
-    if (!ids.includes(model)) return false; // not on disk — do not trigger a (huge) download
-    try {
-      const r = await fetch(eng + '/place_instance', {
-        method: 'POST', signal,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model_id: model, sharding: 'Pipeline', instance_meta: 'MlxRing', min_nodes: 1 }),
-      });
-      if (!r.ok) return false;
-    } catch { return false; }
-  }
-  return true;
-}
-
-// ── provider chat: stream from the user's OWN model (API or local), any provider
-//    Anthropic → /v1/messages ; everyone else (OpenAI/DeepSeek/Groq/Ollama/…) → /chat/completions
-async function handleProviderChat(req, res, body) {
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const system = body.system || '';
-  const maxTok = Number(body.max_tokens) || 2048;
-  let Models; try { Models = await getMod('models'); } catch (e) { res.writeHead(503); res.end('models module off'); return; }
-  const raw = Models._raw && Models._raw(String(body.providerId || ''));
-  if (!raw) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('provider not found'); return; }
-  const model = body.model || (raw.models && raw.models[0]) || 'auto';
-  const key = raw.apiKey || '';
-  const anthropic = Models._isAnthropic ? Models._isAnthropic(raw.provider, raw.baseUrl) : false;
-  streamHead(res);
-  const ctl = new AbortController(); let to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); req.on('close', () => ctl.abort());
-  try {
-    if (anthropic) {
-      // tolerate a stored base that already ends in /v1 (e.g. https://api.anthropic.com/v1)
-      let base = (raw.baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '').replace(/\/v\d+$/, '');
-      const r = await fetch(base + '/v1/messages', {
-        method: 'POST', signal: ctl.signal,
-        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: j({ model, max_tokens: maxTok, system, messages, stream: true }),
-      });
-      if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
-      for (;;) { const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true });
-        let nl; while ((nl = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
-          if (!line.startsWith('data:')) continue; const p = line.slice(5).trim(); if (p === '[DONE]') continue;
-          try { const ev = JSON.parse(p); if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') res.write(ev.delta.text); else if (ev.type === 'error') res.write('\x00ERR\x00' + (ev.error?.message || 'stream error')); } catch {} } }
-      res.end();
-    } else {
-      // OpenAI-compatible (also Ollama/llama.cpp/vLLM local, and the MATRIX cluster)
-      let base = (raw.baseUrl || '').replace(/\/+$/, '');
-      const url = /\/v\d+$/.test(base) ? base + '/chat/completions' : base + '/v1/chat/completions';
-      const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
-      const headers = { 'content-type': 'application/json' };
-      if (raw.kind === 'api' && key) headers.Authorization = 'Bearer ' + key;
-      const send = () => fetch(url, { method: 'POST', signal: ctl.signal, headers, body: j({ model, messages: msgs, stream: true, max_tokens: maxTok }) });
-      let r = await send();
-      // MATRIX cluster: on-disk model with no instance → 404. Launch it once, wait, retry.
-      if (!r.ok && r.status === 404 && raw.provider === 'matrix') {
-        const t = await r.text().catch(() => '');
-        if (/no instance/i.test(t) && await matrixEnsureInstance(base, model, ctl.signal)) {
-          for (let i = 0; i < 40 && !ctl.signal.aborted; i++) {
-            await new Promise((s) => setTimeout(s, 1500));
-            r = await send();
-            if (r.ok || r.status !== 404) break;
-          }
-          if (r.ok) { clearTimeout(to); to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); } // fresh window for generation
-        }
-        if (!r.ok) { res.end('\x00ERR\x00' + r.status + ' ' + (t || '').slice(0, 300)); clearTimeout(to); return; }
-      }
-      if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
-      for (;;) { const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true });
-        let nl; while ((nl = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-          if (!line.startsWith('data:')) continue; const p = line.slice(5).trim(); if (p === '[DONE]') continue;
-          try { const ev = JSON.parse(p); const d = ev.choices?.[0]?.delta?.content; if (d) res.write(d); } catch {} } }
-      res.end();
-    }
-  } catch (e) { res.end('\x00ERR\x00' + (e.name === 'AbortError' ? 'timeout' : e.message)); }
-  finally { clearTimeout(to); }
-}
+// Email (real IMAP/SMTP) now flows through the generic /mod router as `email`
+// (adapter: domains/mail/mail.mjs). The bespoke /email/* switch was retired in
+// T-033 — email.mjs itself is unchanged and still lazily loaded, so a mail-deps
+// issue never takes down shell/chat (getMod degrades it to a 503).
 
 // ── generic module RPC (tasks/approvals/style/contacts/integrations) ─────────
 // One token-gated route serves every backend module: POST /mod/<name> {fn, args}.
@@ -433,14 +139,16 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs', assistant: './assistant.mjs' };
+  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs', assistant: './assistant.mjs',
+  email: './domains/mail/mail.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix', assistant: 'Assistant' };
+  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix', assistant: 'Assistant',
+  email: 'Email' };
 const _modCache = {};
 async function getMod(name) {
   if (_modCache[name]) return _modCache[name];
@@ -540,7 +248,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
-  if (req.method === 'GET' && serveStatic(req, res, url.pathname)) return;
+  if (req.method === 'GET' && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: TOKEN })) return;
   // in-app browser proxy — token-LESS by design (see handleProxy). localOnly() already passed.
   if (req.method === 'GET' && url.pathname === '/proxy') { await handleProxy(req, res, url); return; }
   // everything else requires the pairing token
@@ -548,18 +256,16 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/pair') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(j({ ok: true, cwd: state.cwd, brain: KEY ? 'anthropic' : 'none', model: KEY ? DEFAULT_MODEL : null })); return;
+    const b = await Chat.brain();
+    res.end(j({ ok: true, cwd: Shell.cwd(), brain: b.ready ? (b.provider || 'ready') : 'none', model: b.model, provider: b.provider || null })); return;
   }
-  if (req.method === 'POST' && url.pathname === '/shell') { handleShell(req, res, await readBody(req)); return; }
+  if (req.method === 'POST' && url.pathname === '/shell') { Shell.handleShell(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname === '/interrupt') {
-    const { id } = await readBody(req); const c = running.get(String(id));
-    if (c) c('SIGINT');
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j({ ok: !!c })); return;
+    const { id } = await readBody(req);
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j({ ok: Shell.interrupt(id) })); return;
   }
-  if (req.method === 'POST' && url.pathname === '/chat') { await handleChat(req, res, await readBody(req)); return; }
-  if (req.method === 'POST' && url.pathname === '/provider-chat') { await handleProviderChat(req, res, await readBody(req)); return; }
-  if (req.method === 'POST' && url.pathname.startsWith('/email/')) { await handleEmail(req, res, url.pathname, await readBody(req)); return; }
-  if (req.method === 'GET' && url.pathname === '/email/accounts') { await handleEmail(req, res, '/email/accounts', {}); return; }
+  if (req.method === 'POST' && url.pathname === '/chat') { await Chat.handleChat(req, res, await readBody(req), { streamHead }); return; }
+  if (req.method === 'POST' && url.pathname === '/provider-chat') { await Chat.handleProviderChat(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
   res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'not found' }));
 });
@@ -692,15 +398,16 @@ async function dispatchStream(ws, url) {
 }
 
 // refuse to run wide-open
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
   const endpoint = `http://${HOST}:${PORT}`;
   const pair = `${endpoint}#token=${TOKEN}`;
   const line = '─'.repeat(64);
   console.log(`\n\x1b[38;5;176m▓▒ CLONE FRAME · HUB — local app v${VERSION}\x1b[0m`);
   console.log(line);
   console.log(`  app        \x1b[1m${endpoint}\x1b[0m  ← open this (auto-pairs)`);
-  console.log(`  brain      ${KEY ? '\x1b[32manthropic (' + DEFAULT_MODEL + ') — key loaded from disk\x1b[0m' : '\x1b[33mnone — set ANTHROPIC_API_KEY or ~/.env.local\x1b[0m'}`);
-  console.log(`  shell      zsh · cwd ${state.cwd}`);
+  const brain = await Chat.brain();
+  console.log(`  brain      ${brain.ready ? '\x1b[32m' + (brain.provider || 'model') + ' (' + brain.model + ') — from Settings/env, any provider\x1b[0m' : '\x1b[33mnone — add a provider, or set DEEPSEEK_API_KEY / ANTHROPIC_API_KEY in ~/.env.local\x1b[0m'}`);
+  console.log(`  shell      zsh · cwd ${Shell.cwd()}`);
   console.log(`  bind       ${HOST} only  ·  token gate ON  ·  serving ${path.basename(HUB_ROOT)}/`);
   console.log(line);
   console.log(`  Opened via the launcher, the Chrome app window auto-connects.`);

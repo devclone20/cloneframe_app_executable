@@ -14,6 +14,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import Permissions from './permissions.mjs';
+import { isDestructive } from './platform/shell-guard.mjs';
 
 const HOME = homedir();
 const DIR = path.join(HOME, '.clone-frame-hub');
@@ -121,12 +122,10 @@ function pub(h) {
 
 function find(hosts, alias) { return hosts.find((h) => h.alias === alias) || null; }
 
-// Catastrophic-command guard for the scripted run path (mirrors pty.mjs isDestructive()).
-function destructive(line) {
-  const s = String(line || '');
-  return /\brm\s+-[a-z]*[rf][a-z]*\s+(\/\*{0,2}(\s|$)|~(\/|\s|$)|\$HOME)/.test(s)
-    || /\bmkfs\b/.test(s) || /\bdd\b[^\n]*of=\/dev\//.test(s) || /:\(\)\s*\{\s*:\|:/.test(s);
-}
+// Catastrophic-command guard for the scripted run path — the single shared
+// isDestructive() from platform/shell-guard.mjs (a documented superset of the
+// legacy pty/hub-bridge copies: same safe commands pass, more catastrophic
+// patterns are caught). See tests/shell-guard-port.test.mjs.
 
 // ── safe argv builder (server-only) ──────────────────────────────────────────────────────────
 // Build the ssh argument ARRAY for a normalized host. Every -o below is a fixed constant; only
@@ -237,7 +236,7 @@ export const Ssh = {
     if (!cmd.trim()) return { ok: false, error: 'empty command' };
     if (cmd.length > 2000) return { ok: false, error: 'command too long (max 2000)' };
     if (/[\r\n]/.test(cmd)) return { ok: false, error: 'one line only (no newlines)' };
-    if (destructive(cmd)) return { ok: false, error: 'refused: catastrophic pattern blocked' };
+    if (isDestructive(cmd)) return { ok: false, error: 'refused: catastrophic pattern blocked' };
     const args = argvFor(h, { interactive: false, tty: false, remoteCommand: cmd });
     const r = await _spawnCapped('ssh', args, '', 60000);
     return { ok: r.ok, out: r.out, err: r.err, code: r.ok ? 0 : 1 };

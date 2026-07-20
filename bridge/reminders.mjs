@@ -22,15 +22,11 @@
 // values directly. Public surface: `Reminders` object + named exports.
 // See REMINDERS.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
-// ── paths / limits ────────────────────────────────────────────────────────────
-const ROOT = path.join(homedir(), '.clone-frame-hub');
-const REMINDERS_FILE = path.join(ROOT, 'reminders.json');
-
+// ── limits ────────────────────────────────────────────────────────────────────
 const STORE_VERSION = 1;
 const MAX_NOTE_LEN = 4_000; // per-reminder note character cap
 const MAX_REF_LEN = 200;    // refType / refId character cap
@@ -38,34 +34,23 @@ const MAX_SNOOZE_MIN = 525_600; // one year, in minutes — an upper bound for s
 
 const VALID_STATUS = new Set(['pending', 'done', 'dismissed']);
 
-// ── persistence — atomic writes, dir 0700 / file 0600, never logs anything ────
-function ensureDir() {
-  fs.mkdirSync(ROOT, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(ROOT, 0o700); } catch { /* best effort on odd/shared filesystems */ }
-}
+// ── persistence ───────────────────────────────────────────────────────────────
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/reminders.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// store guarantees only the top-level container; the per-reminder coercion below
+// (isValidReminder + sanitizeReminder) stays this module's job, exactly as before.
+const store = openStore({ name: 'reminders', version: STORE_VERSION, shape: { reminders: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(REMINDERS_FILE, 'utf8'));
-    const reminders = Array.isArray(data?.reminders)
-      ? data.reminders.filter(isValidReminder).map(sanitizeReminder)
-      : [];
-    return { version: STORE_VERSION, reminders };
-  } catch {
-    // Missing (ENOENT) or corrupt/hand-edited JSON must never crash the app —
-    // start from an empty store rather than throw.
-    return { version: STORE_VERSION, reminders: [] };
-  }
+  const data = store.read();
+  const reminders = Array.isArray(data.reminders)
+    ? data.reminders.filter(isValidReminder).map(sanitizeReminder)
+    : [];
+  return { version: STORE_VERSION, reminders };
 }
 
-function saveStore(store) {
-  ensureDir();
-  const tmp = `${REMINDERS_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, REMINDERS_FILE);
-  try { fs.chmodSync(REMINDERS_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── value coercion ────────────────────────────────────────────────────────────

@@ -2,8 +2,12 @@
 // CLONE FRAME · HUB — virtuals
 // Keyless discovery over the public Virtuals Protocol API + a keyless Base
 // Blockscout log scan for ERC-8004 registrations. No auth, no secrets — every
-// endpoint here is a public read. Zero deps: global fetch only.
+// endpoint here is a public read. No npm deps: global fetch + the shared
+// platform/evm read stack (address/uint codec, ABI-string decode, eth_call
+// failover) that nft.mjs and robinhood.mjs also consume.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { isAddress, encodeUint, decodeAbiString, ethCall, SELECTORS } from './platform/evm.mjs';
 
 const API = 'https://api.virtuals.io/api';
 const BLOCKSCOUT = 'https://base.blockscout.com/api';
@@ -13,7 +17,6 @@ const ERC8004_TOPIC0 = '0xca52e62c367d81bb2e328eb795f7c7ba24afb478408a26c0e201d1
 // Keyless Base JSON-RPC — used to read each ERC-8004 identity's tokenURI on-chain so
 // agent NAMES survive even when api.virtuals.io (the Strapi catalog) is unreachable.
 const BASE_RPCS = ['https://mainnet.base.org', 'https://base-rpc.publicnode.com', 'https://base.llamarpc.com', 'https://1rpc.io/base'];
-const SEL_TOKEN_URI = '0xc87b56dd'; // tokenURI(uint256)
 // Browser-ish headers reduce Cloudflare bot-blocking on api.virtuals.io from server IPs.
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
@@ -21,8 +24,6 @@ const WALLET_TTL = 5 * 60 * 1000;
 const AGENT_TTL = 5 * 60 * 1000;
 const ERC_TTL = 10 * 60 * 1000;
 const STATS_TTL = 30 * 60 * 1000;
-
-const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 
 // ── in-memory caches (per-process, TTL-bound — no disk, nothing to leak) ──────
 const walletCache = new Map();
@@ -107,36 +108,17 @@ function normalizeAgent(item) {
 
 // ── ERC-8004 on-chain identity read (keyless Base RPC) ───────────────────────
 // Resilient path: when the Strapi catalog (api.virtuals.io) is unreachable, agent
-// names still resolve from each identity's tokenURI on Base. Read-only eth_call.
-const uint = (n) => BigInt(n).toString(16).padStart(64, '0');
-function decodeAbiString(hex) {
-  try {
-    const h = hex.slice(2);
-    const len = parseInt(h.slice(64, 128), 16);
-    if (!len || len > 2_000_000) return '';
-    const bytes = h.slice(128, 128 + len * 2).match(/.{2}/g).map((b) => parseInt(b, 16));
-    return new TextDecoder().decode(new Uint8Array(bytes));
-  } catch { return ''; }
-}
-async function ethCall(to, data, { timeoutMs = 6000 } = {}) {
-  for (const rpc of BASE_RPCS) {
-    try {
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), timeoutMs);
-      let r;
-      try {
-        r = await fetch(rpc, {
-          method: 'POST', signal: ctl.signal,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] }),
-        });
-      } finally { clearTimeout(t); }
-      const j = await r.json();
-      if (j && j.result && j.result !== '0x') return j.result;
-    } catch { /* try next rpc */ }
-  }
-  return null;
-}
+// names still resolve from each identity's tokenURI on Base. Read-only eth_call —
+// the address/uint codec, ABI-string decode and RPC failover come from the shared
+// platform/evm read stack (SELECTORS.tokenURI + encodeUint + decodeAbiString +
+// ethCall), pinned to BASE_RPCS with the original 6s per-RPC budget so the on-wire
+// request is byte-identical to the pre-consolidation fork.
+//
+// resolveTokenMeta stays local on purpose: its remote branch goes through this
+// module's own fetchJson (single-retry, no size cap — the Virtuals-catalog HTTP
+// client, which is out of scope for the evm port). The evm port's resolveTokenMeta
+// has different fetch semantics (no retry, 1.5MB cap), so importing it would change
+// observable behavior on the best-effort enrichment path.
 // tokenURI may be an on-chain data: URI (base64 or url-encoded JSON) or an off-chain
 // https/ipfs/ar pointer. Return parsed metadata JSON, or null.
 async function resolveTokenMeta(uri) {
@@ -160,7 +142,7 @@ async function resolveTokenMeta(uri) {
 }
 // One ERC-8004 identity → {agentId, name, description, image} from its on-chain tokenURI.
 async function readIdentity(agentId) {
-  const hex = await ethCall(ERC8004_CONTRACT, SEL_TOKEN_URI + uint(agentId));
+  const hex = await ethCall(ERC8004_CONTRACT, SELECTORS.tokenURI + encodeUint(agentId), { rpcs: BASE_RPCS, timeoutMs: 6000 });
   const out = { agentId: String(agentId), name: null, description: null, image: null };
   if (!hex) return out;
   const meta = await resolveTokenMeta(decodeAbiString(hex));
@@ -177,7 +159,7 @@ export const Virtuals = {
   // Agents created by a wallet — GET /api/virtuals?filters[walletAddress][$eq]=<addr>
   async byWallet(address, { limit = 24, fresh = false } = {}) {
     const addr = String(address || '');
-    if (!ADDR_RE.test(addr)) return { ok: false, error: 'bad address' };
+    if (!isAddress(addr)) return { ok: false, error: 'bad address' };
     const key = addr.toLowerCase() + ':' + limit;
     const hit = cacheGet(walletCache, key, fresh);
     if (hit) return hit;
@@ -242,7 +224,7 @@ export const Virtuals = {
   // topic1 = agentId (indexed), topic2 = owner address (indexed, left-padded).
   async erc8004ByOwner(address, { fresh = false } = {}) {
     const addr = String(address || '');
-    if (!ADDR_RE.test(addr)) return { ok: false, error: 'bad address' };
+    if (!isAddress(addr)) return { ok: false, error: 'bad address' };
     const key = addr.toLowerCase();
     const hit = cacheGet(ercCache, key, fresh);
     if (hit) return hit;
@@ -297,7 +279,7 @@ export const Virtuals = {
   // so it can show an honest retry state instead of a misleading "nothing found".
   async detect(address, opts = {}) {
     const addr = String(address || '');
-    if (!ADDR_RE.test(addr)) return { ok: false, error: 'bad address' };
+    if (!isAddress(addr)) return { ok: false, error: 'bad address' };
     const w = await this.byWallet(addr, opts);
     return {
       ok: w.ok,

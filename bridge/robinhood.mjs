@@ -3,8 +3,19 @@
 // Read-only helper for Robinhood Chain (Arbitrum Nitro L2 on Ethereum, chain id
 // 4663 / testnet 46630): status probe, balances, token + NFT listings via a
 // keyless JSON-RPC endpoint and the public Blockscout indexer.
-// Zero deps: node: imports + global fetch only.
+// Zero deps: node: imports + global fetch + the shared platform/evm codec.
+//
+// The generic address/uint256 codec primitives (isAddress/encodeUint/encodeAddr)
+// come from platform/evm.mjs — one shared, contract-tested implementation
+// instead of a private byte-identical fork. The bespoke launch-payload encoder
+// below (fixed-size string arrays, uint8[] cores, dynamic bytes → preLaunch)
+// stays local: the port has no equivalent for that shape, and a wrong encoding
+// here builds a wrong on-chain tx. The keyless _rpc wrapper (concurrency cap +
+// monotonic request id, single-endpoint) also stays local — the port's rpcCall
+// carries neither.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { isAddress, encodeUint, encodeAddr } from './platform/evm.mjs';
 
 const TIMEOUT_MS = 10_000;
 
@@ -102,9 +113,6 @@ async function _fetchJson(url) {
   }
 }
 
-const _ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
-function _isAddr(a) { return _ADDR_RE.test(String(a || '')); }
-
 // wei → fixed 6dp ETH string (native currency display; not trimmed)
 function _formatEth(wei) {
   const neg = wei < 0n;
@@ -195,7 +203,7 @@ async function status({ testnet = false } = {}) {
 }
 
 async function balance(address, { testnet = false } = {}) {
-  if (!_isAddr(address)) return { ok: false, error: 'invalid address' };
+  if (!isAddress(address)) return { ok: false, error: 'invalid address' };
   const addr = address.toLowerCase();
   const key = 'balance:' + (testnet ? 't' : 'm') + ':' + addr;
   const cached = _cacheGet(key);
@@ -212,7 +220,7 @@ async function balance(address, { testnet = false } = {}) {
 
 // Blockscout API v2 token balances — keyless; 404 on a fresh/unindexed address is normal
 async function tokens(address, { testnet = false } = {}) {
-  if (!_isAddr(address)) return { ok: false, error: 'invalid address' };
+  if (!isAddress(address)) return { ok: false, error: 'invalid address' };
   const addr = address.toLowerCase();
   const key = 'tokens:' + (testnet ? 't' : 'm') + ':' + addr;
   const cached = _cacheGet(key);
@@ -232,7 +240,7 @@ async function tokens(address, { testnet = false } = {}) {
 
 // Blockscout API v2 NFT holdings (ERC-721 + ERC-1155) — keyless
 async function nfts(address, { testnet = false } = {}) {
-  if (!_isAddr(address)) return { ok: false, error: 'invalid address' };
+  if (!isAddress(address)) return { ok: false, error: 'invalid address' };
   const addr = address.toLowerCase();
   const key = 'nfts:' + (testnet ? 't' : 'm') + ':' + addr;
   const cached = _cacheGet(key);
@@ -251,7 +259,7 @@ async function nfts(address, { testnet = false } = {}) {
 }
 
 async function txcount(address, { testnet = false } = {}) {
-  if (!_isAddr(address)) return { ok: false, error: 'invalid address' };
+  if (!isAddress(address)) return { ok: false, error: 'invalid address' };
   const addr = address.toLowerCase();
   const key = 'txcount:' + (testnet ? 't' : 'm') + ':' + addr;
   const cached = _cacheGet(key);
@@ -294,27 +302,30 @@ const LAUNCH = {
   // default matches the real BDAT launch (needAcf=false, no pre-buy) exactly
   defaultExtParams: '0x0000000000000000000000000000000000000000000000000000000000000001',
 };
+// Generic uint256/address word codec is the shared platform/evm implementation
+// (encodeUint === the former local `_word`; encodeAddr === `_addrWord`, both
+// byte-identical for the lowercase-0x inputs this module ever passes). The
+// composite encoders below (utf8 string, dynamic bytes, uint8[] cores,
+// fixed-size string-array blob → preLaunch) have no port equivalent and stay.
 const _te = new TextEncoder();
 const _hx = (buf) => Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
-const _word = (n) => BigInt(n).toString(16).padStart(64, '0');
 const _padR = (h) => { const r = h.length % 64; return r ? h + '0'.repeat(64 - r) : h; };
-const _addrWord = (a) => String(a).toLowerCase().replace(/^0x/, '').padStart(64, '0');
-const _encStr = (s) => { const b = _te.encode(String(s)); return _word(b.length) + _padR(_hx(b)); };
-const _encBytes = (h) => { const x = String(h || '').replace(/^0x/, ''); return _word(x.length / 2) + _padR(x); };
-const _encU8Arr = (a) => _word(a.length) + a.map((v) => _word(v & 0xff)).join('');
+const _encStr = (s) => { const b = _te.encode(String(s)); return encodeUint(b.length) + _padR(_hx(b)); };
+const _encBytes = (h) => { const x = String(h || '').replace(/^0x/, ''); return encodeUint(x.length / 2) + _padR(x); };
+const _encU8Arr = (a) => encodeUint(a.length) + a.map((v) => encodeUint(v & 0xff)).join('');
 function _encStrArr(arr) { // fixed-size array of dynamic strings → its own head+tail blob
   const n = arr.length, parts = arr.map(_encStr);
   let off = n * 32; const heads = [], tails = [];
-  for (const p of parts) { heads.push(_word(off)); tails.push(p); off += p.length / 2; }
+  for (const p of parts) { heads.push(encodeUint(off)); tails.push(p); off += p.length / 2; }
   return heads.join('') + tails.join('');
 }
 function _encodePreLaunch(p) {
   const dyn = [_encStr(p.name), _encStr(p.ticker), _encU8Arr(p.cores), _encStr(p.desc),
     _encStr(p.img), _encStrArr(p.urls), null, null, null, null, null, null, null, _encBytes(p.extParams)];
-  const stat = { 6: _word(p.purchaseWei), 7: _word(p.startTime), 8: _word(p.launchMode),
-    9: _word(p.airdropBips), 10: _word(p.needAcf ? 1 : 0), 11: _word(p.antiSniper), 12: _word(p.isProject60days ? 1 : 0) };
+  const stat = { 6: encodeUint(p.purchaseWei), 7: encodeUint(p.startTime), 8: encodeUint(p.launchMode),
+    9: encodeUint(p.airdropBips), 10: encodeUint(p.needAcf ? 1 : 0), 11: encodeUint(p.antiSniper), 12: encodeUint(p.isProject60days ? 1 : 0) };
   const N = 14, heads = new Array(N), tails = []; let off = N * 32;
-  for (let i = 0; i < N; i++) { if (dyn[i] !== null) { heads[i] = _word(off); tails.push(dyn[i]); off += dyn[i].length / 2; } else heads[i] = stat[i]; }
+  for (let i = 0; i < N; i++) { if (dyn[i] !== null) { heads[i] = encodeUint(off); tails.push(dyn[i]); off += dyn[i].length / 2; } else heads[i] = stat[i]; }
   return LAUNCH.preLaunchSel + heads.join('') + tails.join('');
 }
 
@@ -345,18 +356,18 @@ function buildLaunchTx(p = {}) {
     virtual: LAUNCH.virtual, factory: LAUNCH.factory,
   };
   // pre-buy pulls VIRTUAL via transferFrom → must approve the factory first
-  if (purchaseWei > 0n) out.approveTx = { to: LAUNCH.virtual, data: '0x' + LAUNCH.approveSel.replace(/^0x/, '') + _addrWord(LAUNCH.factory) + _word(purchaseWei), value: '0x0' };
+  if (purchaseWei > 0n) out.approveTx = { to: LAUNCH.virtual, data: '0x' + LAUNCH.approveSel.replace(/^0x/, '') + encodeAddr(LAUNCH.factory) + encodeUint(purchaseWei), value: '0x0' };
   return out;
 }
 
 // Read the wallet's $VIRTUAL balance + allowance to the factory on Robinhood Chain,
 // so the launch UI can tell the user up front whether they can fund a pre-buy.
 async function launchReadiness(address, { virtualAmount = '0' } = {}) {
-  if (!_isAddr(address)) return { ok: false, error: 'invalid address' };
+  if (!isAddress(address)) return { ok: false, error: 'invalid address' };
   const owner = address.toLowerCase();
   const [balR, allowR] = await Promise.all([
-    _rpc('eth_call', [{ to: LAUNCH.virtual, data: LAUNCH.balanceOfSel + _addrWord(owner) }, 'latest']),
-    _rpc('eth_call', [{ to: LAUNCH.virtual, data: LAUNCH.allowanceSel + _addrWord(owner) + _addrWord(LAUNCH.factory) }, 'latest']),
+    _rpc('eth_call', [{ to: LAUNCH.virtual, data: LAUNCH.balanceOfSel + encodeAddr(owner) }, 'latest']),
+    _rpc('eth_call', [{ to: LAUNCH.virtual, data: LAUNCH.allowanceSel + encodeAddr(owner) + encodeAddr(LAUNCH.factory) }, 'latest']),
   ]);
   const bal = balR.ok ? BigInt(balR.result) : 0n;
   const allow = allowR.ok ? BigInt(allowR.result) : 0n;

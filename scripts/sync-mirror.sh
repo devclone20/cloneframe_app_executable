@@ -73,6 +73,16 @@ RSYNC_EXCLUDES=(
   --exclude='*.bak*'
   --exclude='ARCHITECTURE/'          # internal restructuring plan — not public
   --exclude='INTEGRATION_PLAN/'      # internal integration design notes — not public
+  # Secret-handling test fixtures: these three files exist ONLY to prove the
+  # redactor / OAuth store handle secrets, so they necessarily CONTAIN intentional
+  # fake ones (sk-ant-…, AKIA…, xoxb-…, PRIVATE KEY headers, SECRET-… placeholders).
+  # Keep them out of the mirror so the public face ships no key-shaped test vectors —
+  # the secret-scan below stays STRICT (no allowlist holes), and the tests still run
+  # in the canonical dev tree. A NEW such fixture will (correctly) fail the scan and
+  # force a conscious add here rather than slipping through. (T-034 sync milestone.)
+  --exclude='tests/redact-port.test.mjs'
+  --exclude='tests/admin-fork.test.mjs'
+  --exclude='tests/oauth-context.test.mjs'
   --exclude='build/'
   # NOTE: the public mirror's own .gitignore ignores dist/, so the built dist/index.html
   # is staged but not committed publicly today — harmless at Step 0 (the root index.html

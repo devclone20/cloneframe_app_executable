@@ -20,14 +20,11 @@
 // key is read back into memory only by the module-private getRecord(), used
 // solely by testProvider()/listModels() to perform the live probe.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'models.json');
 const PROBE_TIMEOUT_MS = 10_000;
 
 // Capabilities the UI always renders in "AI Defaults" (others may be added ad
@@ -49,38 +46,26 @@ const KNOWN = {
   vllm: { label: 'vLLM', kind: 'local', baseUrl: 'http://localhost:8000/v1', docsUrl: 'https://docs.vllm.ai' },
 };
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
-function emptyStore() {
-  return { providers: [], defaults: {} };
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/models.json, dir
+// 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs (the raw
+// apiKey lives on disk only and is never surfaced by the store itself). The
+// per-record coercion below (providers -> valid objects with a string id;
+// defaults -> a plain object) stays this module's job, exactly as before.
+const store = openStore({ name: 'models', version: 1, shape: { providers: [], defaults: {} }, root: hubRoot() });
 
 // A missing or corrupt store degrades to empty — it must never throw.
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-    return {
-      providers: Array.isArray(data.providers)
-        ? data.providers.filter((p) => p && typeof p === 'object' && typeof p.id === 'string')
-        : [],
-      defaults: data.defaults && typeof data.defaults === 'object' && !Array.isArray(data.defaults) ? data.defaults : {},
-    };
-  } catch {
-    return emptyStore();
-  }
+  const data = store.read();
+  return {
+    providers: Array.isArray(data.providers)
+      ? data.providers.filter((p) => p && typeof p === 'object' && typeof p.id === 'string')
+      : [],
+    defaults: data.defaults && typeof data.defaults === 'object' && !Array.isArray(data.defaults) ? data.defaults : {},
+  };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // Internal only — never exported. Returns the raw record (apiKey included),
@@ -106,6 +91,25 @@ function normalizeBaseUrl(u) {
 
 function isAnthropic(provider, baseUrl) {
   return provider === 'anthropic' || (KNOWN[provider]?.native === 'anthropic') || hostOf(baseUrl) === 'api.anthropic.com';
+}
+
+// Server-only: the exact wire details /provider-chat needs to stream from a
+// STORED provider. Returns the apiKey — hence exposed ONLY as `_streamConfig`
+// (the RPC dispatcher blocks _-prefixed fns, so a secret can never be returned
+// to the client). Consolidates the old two-step `_raw` (whole record) +
+// `_isAnthropic` reach into ONE purpose-built accessor for the streaming relay.
+// @returns {null | {provider,kind,baseUrl,apiKey,models,anthropic}}
+function streamConfig(id) {
+  const r = getRecord(id);
+  if (!r) return null;
+  return {
+    provider: r.provider,
+    kind: r.kind,
+    baseUrl: r.baseUrl || '',
+    apiKey: r.apiKey || '',
+    models: Array.isArray(r.models) ? r.models : [],
+    anthropic: isAnthropic(r.provider, r.baseUrl),
+  };
 }
 
 // Candidate model-list URLs for an OpenAI-compatible base. Handles bases given
@@ -564,10 +568,11 @@ export const Models = {
   setModels,
   setModelEnabled,
   brainStatus,
-  // server-only (RPC blocks _-prefixed): the bridge's /provider-chat uses these
+  // server-only (RPC blocks _-prefixed): the model port + the chat relay use these
   _raw: getRecord,
   _isAnthropic: (provider, baseUrl) => isAnthropic(provider, baseUrl),
   _baseUrl: (u) => normalizeBaseUrl(u),
+  _streamConfig: streamConfig,
 };
 
 export default Models;

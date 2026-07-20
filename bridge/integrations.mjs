@@ -20,41 +20,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
+import { davFetch } from './platform/dav.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'integrations.json');
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/integrations.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call. Each integration
+// record's config holds live secrets (password/apiKey/token/pass/secret and
+// authHeader.value); those are stripped on the way out to every caller by
+// toIntegration()/buildMeta()/hasAuthConfigured() below (unchanged). The
+// load/save projections keep the on-disk container to exactly {integrations:[]}.
+const store = openStore({ name: 'integrations', version: 1, shape: { integrations: [] }, root: hubRoot() });
 
 const TYPES = new Set(['mcp', 'api', 'caldav', 'carddav', 'contacts_import']);
 const STATUSES = new Set(['connected', 'pending', 'error', 'configured', 'disabled']);
 const HANDSHAKE_TIMEOUT_MS = 8_000;
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { integrations: Array.isArray(data.integrations) ? data.integrations : [] };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { integrations: [] };
-    return { integrations: [] }; // a corrupt store must never crash the registry — start clean
-  }
+  const data = store.read(); // never throws; ENOENT/corrupt → {version, integrations:[]}
+  return { integrations: Array.isArray(data.integrations) ? data.integrations : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  // Project to exactly the known container — a corrupt store already degrades to
+  // {integrations:[]} on read, and no stray top-level key is ever persisted.
+  store.write({ integrations: Array.isArray(s.integrations) ? s.integrations : [] });
 }
 
 // Internal only — never exported, never part of the `Integrations` object.
@@ -260,16 +252,23 @@ async function testMcp(config) {
 }
 
 async function testDav(config) {
-  const headers = { Depth: '0', 'content-type': 'application/xml; charset=utf-8' };
+  // Transport via the shared davFetch (platform/dav.mjs): same PROPFIND, Depth:0,
+  // redirect-follow, 8s-timeout request the local fork hand-rolled. The Basic-auth
+  // header is still built inline rather than via the port's authHeader() — the port
+  // coerces a nullish pass to '' (`creds.pass || ''`), which would change the wire
+  // value for a non-string caldav password; this keeps the request byte-identical.
+  const headers = { 'content-type': 'application/xml; charset=utf-8' };
   if (config.username && config.password !== undefined) {
     headers.Authorization = `Basic ${Buffer.from(`${config.username}:${config.password}`).toString('base64')}`;
   }
   try {
-    await fetch(config.url, {
+    await davFetch({
+      url: config.url,
       method: 'PROPFIND',
+      depth: 0,
       headers,
       body: '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><resourcetype/></prop></propfind>',
-      signal: AbortSignal.timeout(HANDSHAKE_TIMEOUT_MS),
+      timeout: HANDSHAKE_TIMEOUT_MS,
     });
     return { ok: true, status: 'connected' };
   } catch (e) {

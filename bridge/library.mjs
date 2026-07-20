@@ -15,14 +15,12 @@
 //
 // Public surface: `Library` object + named exports. See LIBRARY.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
 import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'library.json');
 const STORE_VERSION = 1;
 
 // ── limits (guard the JSON store + memory against pathological inputs) ────────
@@ -38,31 +36,20 @@ const MAX_HITS_PER_TERM = 2;
 const MAX_SEARCH_RESULTS = 50;
 const DEFAULT_LIST_LIMIT = 500;
 
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/library.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// store guarantees only the {docs} top-level container; the per-doc coercion
+// below (Array.isArray guard + the listView/getView projections) stays this
+// module's job, exactly as before.
+const store = openStore({ name: 'library', version: STORE_VERSION, shape: { docs: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { version: STORE_VERSION, docs: Array.isArray(data.docs) ? data.docs : [] };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { version: STORE_VERSION, docs: [] };
-    // A corrupt store must never crash the Library — start fresh rather than throw.
-    return { version: STORE_VERSION, docs: [] };
-  }
+  const data = store.read();
+  return { version: STORE_VERSION, docs: Array.isArray(data.docs) ? data.docs : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── MIME handling ─────────────────────────────────────────────────────────────

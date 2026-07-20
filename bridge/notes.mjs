@@ -14,48 +14,33 @@
 // is directly callable with plain JSON arguments and returns JSON-serializable
 // values. Public surface: `Notes` object + named exports. See NOTES.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
-// ── paths / limits ────────────────────────────────────────────────────────────
-const ROOT = path.join(homedir(), '.clone-frame-hub');
-const NOTES_FILE = path.join(ROOT, 'notes.json');
-
+// ── limits ────────────────────────────────────────────────────────────────────
 const STORE_VERSION = 1;
 const SNIPPET_LEN = 220; // list body preview length, in characters
 const MAX_TAG_LEN = 64;  // per-tag character cap
 const MAX_TAGS = 50;     // per-note tag count cap
 
-// ── persistence — atomic writes, dir 0700 / file 0600, never logs anything ───
-function ensureDir() {
-  fs.mkdirSync(ROOT, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(ROOT, 0o700); } catch { /* best effort on odd/shared filesystems */ }
-}
+// ── persistence ───────────────────────────────────────────────────────────────
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/notes.json, dir
+// 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The store
+// guarantees only the top-level container; the per-note coercion below
+// (isValidNote + sanitizeNote) stays this module's job, exactly as before.
+const store = openStore({ name: 'notes', version: STORE_VERSION, shape: { notes: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureDir();
-  try {
-    const data = JSON.parse(fs.readFileSync(NOTES_FILE, 'utf8'));
-    const notes = Array.isArray(data?.notes)
-      ? data.notes.filter(isValidNote).map(sanitizeNote)
-      : [];
-    return { version: STORE_VERSION, notes };
-  } catch {
-    // Missing (ENOENT) or corrupt/hand-edited JSON must never crash the app —
-    // start from an empty store rather than throw.
-    return { version: STORE_VERSION, notes: [] };
-  }
+  const data = store.read();
+  const notes = Array.isArray(data.notes)
+    ? data.notes.filter(isValidNote).map(sanitizeNote)
+    : [];
+  return { version: STORE_VERSION, notes };
 }
 
-function saveStore(store) {
-  ensureDir();
-  const tmp = `${NOTES_FILE}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, NOTES_FILE);
-  try { fs.chmodSync(NOTES_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── note shape ────────────────────────────────────────────────────────────────

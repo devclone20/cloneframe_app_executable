@@ -15,48 +15,34 @@
 // discards the raw bodies. Only the derived summary is ever persisted — never
 // email content, never secrets. Nothing here is logged.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 import { ask } from './llm.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const STORE_FILE = path.join(CONFIG_DIR, 'style.json');
-
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
-
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/style.json, dir
+// 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The store
+// guarantees only the top-level container; the per-field coercion in loadStore
+// below (and coerceProfileFields at the extract call site) stays this module's
+// job, exactly as before.
 function emptyStore() {
   return { signatures: [], toneRules: [], profiles: {} };
 }
 
+const store = openStore({ name: 'style', version: 1, shape: emptyStore(), root: hubRoot() });
+
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return {
-      signatures: Array.isArray(data.signatures) ? data.signatures : [],
-      toneRules: Array.isArray(data.toneRules) ? data.toneRules.filter((r) => typeof r === 'string') : [],
-      profiles: data.profiles && typeof data.profiles === 'object' ? data.profiles : {},
-    };
-  } catch (e) {
-    if (e.code === 'ENOENT') return emptyStore();
-    throw new Error(`failed to read style store: ${e.message}`);
-  }
+  const data = store.read();
+  return {
+    signatures: Array.isArray(data.signatures) ? data.signatures : [],
+    toneRules: Array.isArray(data.toneRules) ? data.toneRules.filter((r) => typeof r === 'string') : [],
+    profiles: data.profiles && typeof data.profiles === 'object' ? data.profiles : {},
+  };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${STORE_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, STORE_FILE);
-  try { fs.chmodSync(STORE_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── signatures ───────────────────────────────────────────────────────────────

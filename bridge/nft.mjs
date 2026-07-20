@@ -2,12 +2,20 @@
 // CLONE FRAME · HUB — nft
 // Reads the owner's agent iNFT from Base (chain 8453) via public JSON-RPC so the
 // LAB can show the NFT image + description and let the user work with it.
-// Zero deps: hand-rolled ABI encode/decode for tokenURI/ownerOf/name.
+// The chain-read stack (eth_call/JSON-RPC failover, ABI string/address codec,
+// tokenURI/media resolution) is the shared platform/evm.mjs port; only the
+// neural-soul origin allowlist (a privileged-input security seam) and the
+// Blockscout indexer + placeholder domain shaping stay local.
 // ─────────────────────────────────────────────────────────────────────────────
 import { homedir } from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import {
+  DEFAULT_RPCS, SELECTORS,
+  isAddress, encodeUint, encodeAddr, decodeAddr, decodeAbiString,
+  resolveMediaUrl, mediaKind, ethCall, rpcCall, resolveTokenMeta,
+} from './platform/evm.mjs';
 
 const DIR = path.join(homedir(), '.clone-frame-hub');
 const FILE = path.join(DIR, 'nft.json');
@@ -15,47 +23,12 @@ function load() { try { const s = JSON.parse(fs.readFileSync(FILE, 'utf8')); if 
 function save(o) { try { fs.mkdirSync(DIR, { recursive: true, mode: 0o700 }); const t = FILE + '.' + process.pid + '.tmp'; fs.writeFileSync(t, JSON.stringify(o), { mode: 0o600 }); fs.renameSync(t, FILE); } catch {} }
 let store = load();
 
-const RPCS = ['https://mainnet.base.org', 'https://base-rpc.publicnode.com', 'https://base.llamarpc.com', 'https://1rpc.io/base'];
 // Blockscout Base — open, keyless indexer that lists every NFT an address holds (with metadata + animation_url).
 const INDEXER_BASE = 'https://base.blockscout.com/api/v2';
-const SEL = { tokenURI: '0xc87b56dd', ownerOf: '0x6352211e', name: '0x06fdde03', balanceOf: '0x70a08231', tokenOfOwnerByIndex: '0x2f745c59' };
-// ipfs:// → public gateway so <img> can render it
+// ipfs:// → public gateway so <img> can render it. Kept local only because the
+// soul seam below (soulUrl) needs it; all NFT media goes through the port's
+// resolveMediaUrl, which resolves ipfs:// identically.
 function gw(u) { u = String(u || ''); return u.startsWith('ipfs://') ? 'https://ipfs.io/ipfs/' + u.slice(7).replace(/^ipfs\//, '') : u; }
-// any media/pointer scheme → fetchable https (IPFS, Arweave, Irys); http(s)/data pass through
-function mediaUrl(u) {
-  const s = String(u || '').trim();
-  if (!s) return '';
-  if (s.startsWith('ipfs://')) return gw(s);
-  if (s.startsWith('ar://')) return 'https://arweave.net/' + s.slice(5);
-  if (s.startsWith('irys://')) return 'https://gateway.irys.xyz/' + s.slice(7);
-  return s;
-}
-// best-effort media kind so the UI picks the right player (image | video | glb | html)
-function mediaKind(url) {
-  const u = String(url || '').split(/[?#]/)[0].toLowerCase();
-  if (!u) return '';
-  if (/\.(glb|gltf)$/.test(u)) return 'glb';
-  if (/\.(mp4|webm|mov|m4v)$/.test(u)) return 'video';
-  if (/\.(png|jpe?g|gif|svg|webp|avif)$/.test(u)) return 'image';
-  return 'html';
-}
-// The missing half of read(): an http(s)/ipfs/ar tokenURI points at a metadata JSON
-// document — fetch and parse it (10s timeout, 1.5MB cap). ERC-1155 {id} substituted.
-const META_MAX = 1.5 * 1024 * 1024;
-async function fetchMeta(uri, tokenId) {
-  let u = mediaUrl(uri);
-  if (!/^https?:\/\//i.test(u)) return null;
-  if (u.includes('{id}')) u = u.replace('{id}', BigInt(tokenId ?? 0).toString(16).padStart(64, '0'));
-  try {
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 10000);
-    const r = await fetch(u, { signal: ctl.signal, headers: { accept: 'application/json, text/plain, */*' } });
-    clearTimeout(t);
-    if (!r.ok) return null;
-    const text = await r.text();
-    if (text.length > META_MAX) return null;
-    return JSON.parse(text);
-  } catch { return null; }
-}
 const KNOWN = [{ label: 'iCLONE', tokenId: 55101 }, { label: 'VEGETA', tokenId: 58099 }];
 
 // ── neural soul ──────────────────────────────────────────────────────────────
@@ -112,47 +85,6 @@ function soulShape(text, source, uri, cached) {
   return { text, source, uri, sha256: createHash('sha256').update(text).digest('hex'), version, name, fetchedAt: Date.now(), cached: !!cached };
 }
 
-const padId = (n) => BigInt(n).toString(16).padStart(64, '0');
-const padAddr = (a) => String(a || '').replace(/^0x/, '').toLowerCase().padStart(64, '0');
-
-async function rpcJson(method, params, rpcUrl) {
-  const urls = rpcUrl ? [rpcUrl, ...RPCS] : RPCS;
-  for (const url of urls) {
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
-      const r = await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-      clearTimeout(t);
-      const j = await r.json();
-      if (j && j.result !== undefined && j.result !== null) return j.result;
-    } catch {}
-  }
-  return null;
-}
-async function ethCall(to, data, rpcUrl) {
-  const urls = rpcUrl ? [rpcUrl, ...RPCS] : RPCS;
-  for (const url of urls) {
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
-      const r = await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] }) });
-      clearTimeout(t);
-      const j = await r.json();
-      if (j && j.result && j.result !== '0x') return j.result;
-    } catch {}
-  }
-  return null;
-}
-// decode a single ABI-encoded string/bytes return
-function decodeString(hex) {
-  if (!hex || hex === '0x') return '';
-  const h = hex.replace(/^0x/, '');
-  try {
-    const len = parseInt(h.slice(64, 128), 16);
-    const data = h.slice(128, 128 + len * 2);
-    return Buffer.from(data, 'hex').toString('utf8');
-  } catch { return ''; }
-}
-function decodeAddr(hex) { if (!hex) return ''; const h = hex.replace(/^0x/, ''); return '0x' + h.slice(24, 64); }
-
 function parseTokenURI(uri) {
   if (!uri) return null;
   try {
@@ -184,13 +116,13 @@ function fromIndexer(it) {
   const md = it.metadata || {};
   const tok = it.token || {};
   const anim = it.animation_url || md.animation_url || (['video', 'html', 'gif'].includes(String(it.media_type || '').toLowerCase()) ? it.media_url : '') || '';
-  const animUrl = mediaUrl(anim);
+  const animUrl = resolveMediaUrl(anim);
   return {
     contract: tok.address_hash || tok.address || '', tokenId: it.id,
     name: md.name || ((tok.name || 'NFT') + ' #' + it.id),
     collection: tok.name || '', symbol: tok.symbol || '',
     description: md.description || '',
-    image: mediaUrl(it.image_url || it.media_url || md.image || ''),
+    image: resolveMediaUrl(it.image_url || it.media_url || md.image || ''),
     animation: animUrl,
     mediaType: it.media_type || mediaKind(animUrl),
     attributes: Array.isArray(md.attributes) ? md.attributes : [],
@@ -208,7 +140,7 @@ export const NFT = {
   // Detect EVERY iNFT the connected wallet holds. Primary: open Blockscout indexer (keyless, all collections).
   // Fallback: enumerate configured collections over raw RPC (balanceOf + tokenOfOwnerByIndex).
   async scanWallet(address, { limit = 60 } = {}) {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ''))) return { ok: false, error: 'bad address' };
+    if (!isAddress(address)) return { ok: false, error: 'bad address' };
     const base = store.indexerUrl || INDEXER_BASE;
     // 1) indexer
     try {
@@ -242,10 +174,10 @@ export const NFT = {
     const agents = [];
     for (const c of cols) {
       try {
-        const balHex = await ethCall(c, SEL.balanceOf + padAddr(address), store.rpcUrl);
+        const balHex = await ethCall(c, SELECTORS.balanceOf + encodeAddr(address), store.rpcUrl);
         const bal = balHex ? parseInt(balHex, 16) : 0;
         for (let i = 0; i < Math.min(bal, 12); i++) {
-          const tidHex = await ethCall(c, SEL.tokenOfOwnerByIndex + padAddr(address) + padId(i), store.rpcUrl);
+          const tidHex = await ethCall(c, SELECTORS.tokenOfOwnerByIndex + encodeAddr(address) + encodeUint(i), store.rpcUrl);
           if (!tidHex) continue;
           const tokenId = parseInt(tidHex, 16);
           const rr = await this.read({ contract: c, tokenId });
@@ -262,14 +194,14 @@ export const NFT = {
     const hit = store.cache[ck];
     if (!fresh && hit && hit.fetchedAt && Date.now() - hit.fetchedAt < 10 * 60 * 1000) return { ok: true, nft: hit, cached: true };
     try {
-      const uriHex = await ethCall(c, SEL.tokenURI + padId(tokenId), rpcUrl || store.rpcUrl);
-      const uri = decodeString(uriHex);
+      const uriHex = await ethCall(c, SELECTORS.tokenURI + encodeUint(tokenId), rpcUrl || store.rpcUrl);
+      const uri = decodeAbiString(uriHex);
       let meta = parseTokenURI(uri) || {};
-      if (meta.__external) meta = { ...(await fetchMeta(meta.__external, tokenId) || {}), __external: meta.__external };
+      if (meta.__external) meta = { ...(await resolveTokenMeta(meta.__external, { tokenId: tokenId ?? 0, timeoutMs: 10000 }) || {}), __external: meta.__external };
       let owner = '';
-      try { owner = decodeAddr(await ethCall(c, SEL.ownerOf + padId(tokenId), rpcUrl || store.rpcUrl)); } catch {}
-      const image = mediaUrl(meta.image || meta.image_url || '');
-      const animation = mediaUrl(meta.animation_url || meta.animation || '');
+      try { owner = decodeAddr(await ethCall(c, SELECTORS.ownerOf + encodeUint(tokenId), rpcUrl || store.rpcUrl)); } catch {}
+      const image = resolveMediaUrl(meta.image || meta.image_url || '');
+      const animation = resolveMediaUrl(meta.animation_url || meta.animation || '');
       const nft = {
         name: meta.name || `#${tokenId}`, description: meta.description || '',
         image: image || (meta.image_data ? 'data:image/svg+xml;utf8,' + encodeURIComponent(String(meta.image_data)) : svgPlaceholder(tokenId, 'iNFT')),
@@ -282,10 +214,11 @@ export const NFT = {
     } catch (e) { return { ok: false, error: e.message, nft: placeholder(tokenId) }; }
   },
   async balance(address) {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ''))) return { ok: false, error: 'bad address' };
-    const hex = await rpcJson('eth_getBalance', [address, 'latest'], store.rpcUrl);
-    if (hex === null) return { ok: false, error: 'rpc unreachable' };
-    const wei = BigInt(hex);
+    if (!isAddress(address)) return { ok: false, error: 'bad address' };
+    const rpcs = store.rpcUrl ? [store.rpcUrl, ...DEFAULT_RPCS] : DEFAULT_RPCS;
+    const r = await rpcCall('eth_getBalance', [address, 'latest'], { rpcs });
+    if (!r.ok) return { ok: false, error: 'rpc unreachable' };
+    const wei = BigInt(r.result);
     return { ok: true, wei: wei.toString(), eth: Number(wei) / 1e18 };
   },
   // owner-set soul URL override for a tokenId (e.g. fresh mints, Irys re-publishes)
@@ -362,12 +295,12 @@ export const NFT = {
     const c = contract || store.contract;
     if (!c) return { ok: false, error: 'need contract' };
     try {
-      const balHex = await ethCall(c, SEL.balanceOf + padAddr(address), store.rpcUrl);
+      const balHex = await ethCall(c, SELECTORS.balanceOf + encodeAddr(address), store.rpcUrl);
       const bal = balHex ? parseInt(balHex, 16) : 0;
       if (!bal) return { ok: true, nfts: [] };
       const nfts = [];
       for (let i = 0; i < Math.min(bal, 12); i++) {
-        const tidHex = await ethCall(c, SEL.tokenOfOwnerByIndex + padAddr(address) + padId(i), store.rpcUrl);
+        const tidHex = await ethCall(c, SELECTORS.tokenOfOwnerByIndex + encodeAddr(address) + encodeUint(i), store.rpcUrl);
         if (!tidHex) continue;
         const tokenId = parseInt(tidHex, 16);
         const r = await this.read({ contract: c, tokenId });

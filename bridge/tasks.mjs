@@ -11,13 +11,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import crypto from 'node:crypto';
 import { ask } from './llm.mjs';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
 
 // ── Paths ────────────────────────────────────────────────────────────────────
-const ROOT = path.join(os.homedir(), '.clone-frame-hub');
-const TASKS_FILE = path.join(ROOT, 'tasks.json');
+const ROOT = hubRoot();
 const SESSIONS_DIR = path.join(ROOT, 'task-sessions');
 const RUNS_DIR = path.join(ROOT, 'task-runs');
 
@@ -25,6 +25,13 @@ const TICK_MS = 30_000;
 const SESSION_CAP = 200;
 const RUNS_CAP = 100;
 const STORE_VERSION = 1;
+
+// The tasks.json container is backed by the shared atomic JSON store (dir 0700 /
+// file 0600, tmp-write-then-rename, read-per-call). The per-task session and run
+// logs stay on the local writeJSONAtomic/readJSON helpers below: they are a set
+// of dynamically-named files under task-sessions/ and task-runs/, not a single
+// fixed-name container, so they fall outside a single openStore handle's scope.
+const tasksStore = openStore({ name: 'tasks', version: STORE_VERSION, shape: { pausedAll: false, tasks: [] }, root: ROOT });
 
 // ── In-memory state ──────────────────────────────────────────────────────────
 /** @type {{version:number, pausedAll:boolean, tasks:Task[]}} */
@@ -168,7 +175,7 @@ function readJSON(file, fallback) {
 }
 
 function persistStore() {
-  writeJSONAtomic(TASKS_FILE, store);
+  tasksStore.write(store);
 }
 
 // ── Session log (dedicated per-task session) ─────────────────────────────────
@@ -251,7 +258,7 @@ function builtinSeeds() {
 export function init() {
   if (loaded) return;
   ensureDirs();
-  const onDisk = readJSON(TASKS_FILE, null);
+  const onDisk = tasksStore.read();
   if (onDisk && Array.isArray(onDisk.tasks)) {
     store = { version: STORE_VERSION, pausedAll: !!onDisk.pausedAll, tasks: onDisk.tasks };
     // Ensure the 3 built-ins always exist (self-heal without duplicating).

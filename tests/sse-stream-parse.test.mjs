@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// T-006 · Characterization tests — hub-bridge.mjs's SSE→plain-text stream parse
+// T-006 · Characterization tests — the chat relay's SSE→plain-text stream parse
 // Target (READ, never modified):
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/hub-bridge.mjs
-//   function handleChat(), lines ~247-282 (as of this draft)
+//   bridge/domains/chat/chat.mjs  — function handleChat() / handleProviderChat()
+//   (Wave-4 / T-031 moved this loop OUT of hub-bridge.mjs into the chat domain.)
 //
-// hub-bridge.mjs is NOT safely `import`-able in a test process: importing it
+// The module is NOT safely `import`-able in a test process: importing it
 // runs top-level side effects (binds a real TCP socket on 127.0.0.1, writes a
 // pairing token file, imports `ws`, calls process...). Its parsing loop is
 // also not its own function — it's inlined in handleChat, closed over `res`.
@@ -35,9 +35,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+const CHAT_PATH = new URL('../bridge/domains/chat/chat.mjs', import.meta.url);
 const HUB_BRIDGE_PATH = new URL('../bridge/hub-bridge.mjs', import.meta.url);
 
-// ── verbatim transcription of hub-bridge.mjs's handleChat() inner loop ──────
+// ── verbatim transcription of the chat relay's handleChat() inner loop ──────
 // (See lines 263-277 of hub-bridge.mjs: `const reader = r.body.getReader(); ...`)
 // Reworked only so it drives a callback instead of writing to a live `res`,
 // and returns the accumulated buffer between calls instead of closing over it
@@ -150,13 +151,20 @@ test('SSE parse — trailing partial line with no newline is buffered, not dropp
 
 // ── source-level pin ─────────────────────────────────────────────────────────
 // Confirms the literal event-type strings and stream request shape this test
-// characterizes are still the ones actually driving hub-bridge.mjs today.
-test('hub-bridge.mjs source still drives the streaming request/parse this test characterizes', () => {
-  const src = fs.readFileSync(HUB_BRIDGE_PATH, 'utf8');
+// characterizes are still the ones actually driving the chat relay today — and
+// that the loop has fully LEFT the router (T-031).
+test('domains/chat/chat.mjs source still drives the streaming request/parse this test characterizes', () => {
+  const src = fs.readFileSync(CHAT_PATH, 'utf8');
   assert.match(src, /stream:\s*true/, 'handleChat must request `stream:true` (the streaming variant)');
   assert.match(src, /content_block_delta/);
   assert.match(src, /text_delta/);
   assert.match(src, /if \(!line\.startsWith\('data:'\)\) continue;/);
-  assert.match(src, /payload === '\[DONE\]'/);
+  assert.match(src, /=== '\[DONE\]'/);
   assert.match(src, /'\\x00ERR\\x00'/);
+});
+
+test('the streaming parse loop has fully left the router (T-031)', () => {
+  const src = fs.readFileSync(HUB_BRIDGE_PATH, 'utf8');
+  assert.doesNotMatch(src, /content_block_delta/, 'the router must not inline the SSE parse anymore');
+  assert.doesNotMatch(src, /stream:\s*true/, 'the router no longer builds the streaming request');
 });

@@ -2,46 +2,35 @@
 // CLONE FRAME · HUB Bridge — Contacts Engine
 //
 // Local address book: manual contacts, vCard/CSV import, and real CardDAV
-// sync (Basic auth REPORT against an addressbook collection). Zero deps —
-// uses global fetch for HTTP and a hand-rolled vCard/CSV/multistatus-XML
-// scanner. Contacts persist to ~/.clone-frame-hub/contacts.json (0600).
-// CardDAV credentials are never persisted by this module — callers pass
-// {url, user, pass} per call and only the resulting contacts are stored.
+// sync (Basic auth REPORT against an addressbook collection). Zero deps. DAV
+// transport (timed fetch, Basic auth, multistatus parse) and the shared
+// iCalendar/vCard line primitives come from platform/dav.mjs; only the vCard/
+// CSV domain shaping is hand-rolled here. Contacts persist to
+// ~/.clone-frame-hub/contacts.json (0600). CardDAV credentials are never
+// persisted by this module — callers pass {url, user, pass} per call and only
+// the resulting contacts are stored.
 // ─────────────────────────────────────────────────────────────────────────────
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { openStore } from './platform/json-store.mjs';
+import { hubRoot } from './platform/hub-root.mjs';
+import { davFetch, parseMultistatus, unfoldLines, splitPropertyLine } from './platform/dav.mjs';
 
 // ── persistence ──────────────────────────────────────────────────────────────
-const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
-const CONTACTS_FILE = path.join(CONFIG_DIR, 'contacts.json');
-
-function ensureConfigDir() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(CONFIG_DIR, 0o700); } catch { /* best effort on shared/odd filesystems */ }
-}
+// Backed by the shared atomic JSON store: ~/.clone-frame-hub/contacts.json,
+// dir 0700 / file 0600, tmp-write-then-rename, read-per-call, never logs. The
+// store guarantees only the top-level container; the per-contact shaping
+// (makeContact / mergeContacts / update coercion) stays this module's job,
+// exactly as before.
+const STORE_VERSION = 1;
+const store = openStore({ name: 'contacts', version: STORE_VERSION, shape: { contacts: [] }, root: hubRoot() });
 
 function loadStore() {
-  ensureConfigDir();
-  try {
-    const raw = fs.readFileSync(CONTACTS_FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { contacts: Array.isArray(data.contacts) ? data.contacts : [] };
-  } catch (e) {
-    if (e.code === 'ENOENT') return { contacts: [] };
-    // Corrupt store must never crash the app — start fresh rather than throw.
-    return { contacts: [] };
-  }
+  const data = store.read();
+  return { contacts: Array.isArray(data.contacts) ? data.contacts : [] };
 }
 
-function saveStore(store) {
-  ensureConfigDir();
-  const tmp = `${CONTACTS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* best effort */ }
-  fs.renameSync(tmp, CONTACTS_FILE);
-  try { fs.chmodSync(CONTACTS_FILE, 0o600); } catch { /* best effort */ }
+function saveStore(s) {
+  store.write(s);
 }
 
 // ── contact shape ────────────────────────────────────────────────────────────
@@ -96,31 +85,11 @@ function mergeContacts(store, incoming) {
 }
 
 // ── vCard parsing (RFC 6350, minimal subset: FN, N, EMAIL, TEL, ORG) ────────
-// Handles line unfolding (CRLF/LF + leading space/tab continuation) and
-// simple `;PARAM=x:` prefixed property lines. Does not support base64 PHOTO
-// or nested groups — out of scope for an address-book import.
-function unfoldLines(text) {
-  const rawLines = text.split(/\r\n|\r|\n/);
-  const lines = [];
-  for (const line of rawLines) {
-    if ((line.startsWith(' ') || line.startsWith('\t')) && lines.length > 0) {
-      lines[lines.length - 1] += line.slice(1);
-    } else {
-      lines.push(line);
-    }
-  }
-  return lines;
-}
-
-function splitPropertyLine(line) {
-  const colonIdx = line.indexOf(':');
-  if (colonIdx === -1) return null;
-  const head = line.slice(0, colonIdx);
-  const value = line.slice(colonIdx + 1);
-  const [name, ...params] = head.split(';');
-  return { name: name.toUpperCase(), params, value };
-}
-
+// Line unfolding (CRLF/LF + leading space/tab continuation) and `;PARAM=x:`
+// property-line splitting are the shared iCalendar/vCard primitives, taken
+// from platform/dav.mjs. Value unescaping is vCard-specific and stays here.
+// Does not support base64 PHOTO or nested groups — out of scope for an
+// address-book import.
 function unescapeVCardValue(v) {
   return v
     .replace(/\\n/gi, '\n')
@@ -272,29 +241,12 @@ export function parseCSVContacts(text) {
 }
 
 // ── CardDAV sync ─────────────────────────────────────────────────────────────
-// Regex-based multistatus scanner: no XML dependency. Pulls each
-// <address-data>…</address-data> (namespace-prefixed or not) payload out of
-// the REPORT response body and decodes basic XML entities before handing the
-// raw vCard text to parseVCardBlock via extractVCardBlocks.
-function extractAddressDataBlocks(xml) {
-  const blocks = [];
-  const re = /<(?:[\w-]+:)?address-data[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?address-data>/gi;
-  let m;
-  while ((m = re.exec(xml)) !== null) {
-    blocks.push(decodeXMLEntities(m[1]));
-  }
-  return blocks;
-}
-
-function decodeXMLEntities(s) {
-  return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
-}
-
+// Transport + multistatus parsing come from platform/dav.mjs: davFetch runs
+// the REPORT with a Basic-auth header and — unlike this module's former inline
+// fetch, which had NO timeout and could hang the caller against a dead host —
+// always applies a timeout. parseMultistatus pulls the <address-data> payload
+// (namespace-prefixed or not) out of each <response>, XML-entity-decoding it
+// before we hand the raw vCard text to parseVCardBlock via extractVCardBlocks.
 const CARDDAV_REPORT_BODY = `<?xml version="1.0" encoding="utf-8" ?>
 <C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
   <D:prop>
@@ -309,18 +261,12 @@ export async function carddavSync({ url, user, pass } = {}) {
     return { ok: false, error: 'carddavSync: url is required' };
   }
   try {
-    const headers = {
-      'Content-Type': 'application/xml; charset=utf-8',
-      Depth: '1',
-    };
-    if (user) {
-      const token = Buffer.from(`${user}:${pass || ''}`, 'utf8').toString('base64');
-      headers.Authorization = `Basic ${token}`;
-    }
-
-    const res = await fetch(url, {
+    const res = await davFetch({
+      url,
       method: 'REPORT',
-      headers,
+      creds: { user, pass },
+      depth: 1,
+      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
       body: CARDDAV_REPORT_BODY,
     });
 
@@ -329,7 +275,7 @@ export async function carddavSync({ url, user, pass } = {}) {
     }
 
     const xml = await res.text();
-    const vcardBlocks = extractAddressDataBlocks(xml);
+    const vcardBlocks = parseMultistatus(xml, { dataTag: 'address-data' }).map((r) => r.data);
     if (vcardBlocks.length === 0) {
       return { ok: true, imported: 0 };
     }

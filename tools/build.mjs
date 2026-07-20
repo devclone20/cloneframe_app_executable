@@ -32,6 +32,16 @@ let html = readFileSync(SRC, 'utf8');
 html = html.replace(/<style\s+data-cfbuild-src="([^"]+)"\s*><\/style>/g,
   (_m, rel) => `<style>${readFileSync(path.join(WEB, rel), 'utf8')}</style>`);
 
+// 1.5) //@cfbuild-include panels/x.js → splice the file's RAW text in place, at the SAME scope.
+//    This is how the classic main <script> is peeled into web/panels/* SOURCE PARTIALS without
+//    the closure loss an esbuild IIFE would cause: a panel's wireX() still sees Bus/RPC/openPanel/
+//    escHtml/… by lexical scope, exactly as when it was inline. The directive line (indentation +
+//    the trailing newline) is replaced by the partial's bytes, and each partial stores EXACTLY the
+//    lines that were cut — so the built dist is byte-for-byte unchanged by any extraction (the
+//    golden sha stays frozen across the whole peel; that identity IS the proof a cut changed nothing).
+html = html.replace(/^[ \t]*\/\/@cfbuild-include (\S+)[ \t]*\r?\n/gm,
+  (_m, rel) => readFileSync(path.join(WEB, rel), 'utf8'));
+
 // 2) <script data-cfbuild-src="…"[ data-cfbuild-min]></script> → esbuild bundle (iife), inline.
 const directives = [...html.matchAll(/<script\s+data-cfbuild-src="([^"]+)"(\s+data-cfbuild-min)?\s*><\/script>/g)];
 if (directives.length) {
