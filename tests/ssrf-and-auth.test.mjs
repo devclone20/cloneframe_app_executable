@@ -87,11 +87,12 @@ function makeAuthed(TOKEN) {
   };
 }
 
-function makeLocalOnly(PORT) {
-  // verbatim from hub-bridge.mjs:107-115
+function makeLocalOnly(PORT, CONTAINER = false) {
+  // verbatim from hub-bridge.mjs localOnly() (incl. the opt-in container-mode branch)
   return function localOnly(req) {
     const host = (req.headers.host || '').toLowerCase();
     const okHost = host === `127.0.0.1:${PORT}` || host === `localhost:${PORT}` || host === `[::1]:${PORT}`;
+    if (CONTAINER) return okHost;
     const ra = req.socket.remoteAddress || '';
     const okAddr = ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
     return okHost && okAddr;
@@ -101,6 +102,7 @@ function makeLocalOnly(PORT) {
 const TOKEN = 'Tt0kEn_value_of_exactly_32_chars'; // 33 chars, arbitrary fixed fixture
 const authed = makeAuthed(TOKEN);
 const localOnly = makeLocalOnly(8765);
+const localOnlyContainer = makeLocalOnly(8765, true); // HUB_BRIDGE_CONTAINER=1
 
 function reqWith({ authorization, tokenQuery, host, remoteAddress } = {}) {
   const qs = tokenQuery ? `?token=${encodeURIComponent(tokenQuery)}` : '';
@@ -158,10 +160,29 @@ test('localOnly() — rejects a correct Host header from a non-loopback remote s
   assert.equal(localOnly(reqWith({ host: '127.0.0.1:8765', remoteAddress: '10.0.0.7' })), false);
 });
 
+// ── container mode (HUB_BRIDGE_CONTAINER=1) — see hub-bridge.mjs localOnly() ──
+test('localOnly() — CONTAINER mode accepts a correct Host from the container gateway (non-loopback socket)', () => {
+  // In a container the client's packets arrive via the gateway (e.g. 172.17.0.1); the netns + the
+  // host-loopback-only publish is the boundary, so a correct loopback Host header is sufficient.
+  assert.equal(localOnlyContainer(reqWith({ host: '127.0.0.1:8765', remoteAddress: '172.17.0.1' })), true);
+  assert.equal(localOnlyContainer(reqWith({ host: 'localhost:8765', remoteAddress: '172.17.0.1' })), true);
+});
+
+test('localOnly() — CONTAINER mode STILL rejects a mismatched Host (anti DNS-rebinding preserved)', () => {
+  assert.equal(localOnlyContainer(reqWith({ host: 'evil.example.com:8765', remoteAddress: '172.17.0.1' })), false);
+  assert.equal(localOnlyContainer(reqWith({ host: '127.0.0.1:9999', remoteAddress: '172.17.0.1' })), false); // wrong port
+});
+
+test('localOnly() — DEFAULT (no container env) is unchanged: a non-loopback socket is still refused', () => {
+  assert.equal(localOnly(reqWith({ host: '127.0.0.1:8765', remoteAddress: '172.17.0.1' })), false);
+});
+
 // ── source-level pins ───────────────────────────────────────────────────────
 test('hub-bridge.mjs source still carries the transcribed authed()/localOnly() logic', () => {
   const src = fs.readFileSync(HUB_BRIDGE_PATH, 'utf8');
-  assert.match(src, /HOST = '127\.0\.0\.1'/);
+  assert.match(src, /HOST = process\.env\.HUB_BRIDGE_HOST \|\| '127\.0\.0\.1'/);
+  assert.match(src, /CONTAINER = process\.env\.HUB_BRIDGE_CONTAINER === '1'/);
+  assert.match(src, /if \(CONTAINER\) return okHost;/);
   assert.match(src, /tok\.length !== TOKEN\.length/);
   assert.match(src, /d \|= tok\.charCodeAt\(i\) \^ TOKEN\.charCodeAt\(i\)/);
   assert.match(src, /okHost = host === `127\.0\.0\.1:\$\{PORT\}`/);

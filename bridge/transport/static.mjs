@@ -52,7 +52,12 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
     const isNav = dest === 'document';
     let html = data.toString('utf8');
     if (isNav) {
-      const inject = `<script>window.__CFHUB_BRIDGE__=${JSON.stringify({ endpoint: `http://${host}:${port}`, token })};</script>`;
+      // Call-back origin = the address the browser actually opened (its Host header, already
+      // validated as loopback:port by localOnly upstream) — NOT the bind address, which is
+      // 0.0.0.0 in container mode and uncontactable from a browser. Fall back to a loopback.
+      const back = /:\d+$/.test(req.headers.host || '') ? req.headers.host
+                 : `${host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host}:${port}`;
+      const inject = `<script>window.__CFHUB_BRIDGE__=${JSON.stringify({ endpoint: `http://${back}`, token })};</script>`;
       html = html.includes('<head>') ? html.replace('<head>', '<head>' + inject) : inject + html;
     }
     data = Buffer.from(html, 'utf8');

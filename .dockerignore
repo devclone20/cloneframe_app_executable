@@ -1,0 +1,43 @@
+# Keep the build context small and never bake secrets or internal notes into the image.
+.git
+.gitignore
+**/node_modules
+node_modules
+
+# logs / runtime noise
+*.log
+**/*.log
+logs/
+*.pid
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+
+# internal-only (never shipped)
+ARCHITECTURE/
+INTEGRATION_PLAN/
+
+# secrets — never in an image
+.env
+.env.*
+**/.env
+**/.env.*
+scripts/.prod-ip
+*.pem
+*.key
+*_rsa
+*_ed25519
+*.p12
+*.pfx
+*.keystore
+secrets.*
+*.secret
+
+# heavy, not needed by the bridge (UI runs in the host browser)
+integrations/runtime/
+integrations/*/src/
+integrations/*/.venv/
+integrations/*/venv/
+integrations/*/node_modules/
+login-island/dist/

@@ -104,6 +104,21 @@ test('INV-1 NEGATIVE — a non-browser client (no sec-fetch-dest header) is also
   assert.ok(!body.includes(FAKE_TOKEN), 'a header-less client must not receive the token (anti cross-user theft)');
 });
 
+test('INV-1 — the injected call-back endpoint is the browser Host (loopback), NEVER the 0.0.0.0 bind address', () => {
+  // Container mode binds 0.0.0.0, but a browser cannot fetch/WebSocket 0.0.0.0. serveStatic must
+  // hand the page the origin the browser actually opened (its validated Host header), so RPC + the
+  // terminal WS point at a real loopback. Regression guard for the container-mode endpoint fix.
+  const root = staticRoot();
+  try {
+    const res = fakeRes();
+    serveStatic({ headers: { 'sec-fetch-dest': 'document', host: '127.0.0.1:8765' } }, res, '/index.html',
+      { root, host: '0.0.0.0', port: 8765, token: FAKE_TOKEN });
+    const body = res._rec.body ? Buffer.from(res._rec.body).toString('utf8') : '';
+    assert.ok(body.includes('"endpoint":"http://127.0.0.1:8765"'), 'endpoint must be the loopback Host the browser opened');
+    assert.ok(!body.includes('0.0.0.0'), 'the 0.0.0.0 bind address must never be handed to the browser');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // INV-3 · SSRF guard re-validates on EVERY redirect hop.
 // The first-URL block is already covered (ssrf-and-auth.test.mjs). The dangerous,

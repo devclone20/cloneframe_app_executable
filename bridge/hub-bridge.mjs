@@ -29,8 +29,15 @@ try { const _ws = await import('ws'); WebSocketServer = _ws.WebSocketServer || (
 const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HUB_ROOT = path.dirname(BRIDGE_DIR); // the clone-frame-hub dir (serves the app)
 const VERSION = '0.2.0';
-const HOST = '127.0.0.1';                       // localhost only — refuse anything else
+const HOST = process.env.HUB_BRIDGE_HOST || '127.0.0.1'; // bind addr; loopback only by default
 const PORT = Number(process.env.HUB_BRIDGE_PORT || 8765);
+// Container mode (opt-in, OFF by default). When the bridge runs inside a container whose port is
+// published ONLY to the host's loopback (compose: "127.0.0.1:8765:8765"), a client's packets reach
+// the bridge from the container gateway, NOT 127.0.0.1 — so the socket-loopback check cannot apply.
+// The isolation boundary then IS the container network namespace + that loopback-only publish; we
+// still enforce the anti-rebind Host check and the pairing-token gate. Unset → nothing changes on a
+// normal host install. Never publish the container port to 0.0.0.0 when this is on.
+const CONTAINER = process.env.HUB_BRIDGE_CONTAINER === '1';
 const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
 
 // ── pairing token (persistent, chmod 600) ───────────────────────────────────
@@ -93,6 +100,7 @@ function localOnly(req) {
   // socket must actually be loopback. A rebound attacker domain fails the Host check.
   const host = (req.headers.host || '').toLowerCase();
   const okHost = host === `127.0.0.1:${PORT}` || host === `localhost:${PORT}` || host === `[::1]:${PORT}`;
+  if (CONTAINER) return okHost;                 // container netns + loopback-only publish is the boundary
   const ra = req.socket.remoteAddress || '';
   const okAddr = ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
   return okHost && okAddr;

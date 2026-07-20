@@ -542,7 +542,50 @@ The INTEGRATIONS panel installs and launches tools that run **inside** the app.
 
 ## 🚀 Quick start
 
-macOS is the primary platform today.
+### 🐳 Recommended — run sandboxed in Docker
+
+Because the app is in a **Production & Development phase**, the safest way to try it is
+inside a container, where its shell, files, and network are isolated from your host.
+
+```bash
+git clone https://github.com/devclone20/cloneframe_app_executable.git
+cd cloneframe_app_executable
+docker compose up --build          # builds the image and starts the sandboxed bridge
+# then open  http://127.0.0.1:8765  in your browser
+#
+# stop it with:  docker compose down
+```
+
+```mermaid
+flowchart LR
+    HB["🌐 Your host browser<br/>http://127.0.0.1:8765"]:::host
+
+    subgraph BOX["🐳 Docker container — the sandbox"]
+      direction TB
+      BR["⚙️ HUB Bridge · container mode"]:::bridge
+      IN["Shell · files · network<br/>confined to the container"]:::inside
+      BR --> IN
+    end
+
+    VOL["💾 Named volumes<br/>your data persists"]:::vol
+
+    HB ==>|"127.0.0.1:8765 · loopback only"| BR
+    BR --> VOL
+
+    classDef host fill:#1f6feb,stroke:#1158c7,color:#fff
+    classDef bridge fill:#e16f24,stroke:#bc4c00,color:#fff
+    classDef inside fill:#30363d,stroke:#8b949e,color:#fff
+    classDef vol fill:#8957e5,stroke:#6e40c9,color:#fff
+    style BOX fill:#0d1117,stroke:#2da44e,color:#e6edf3
+```
+
+The port is published to your host's **loopback only**; your data persists in named
+Docker volumes (`cfhub-state`, `cfhub-data`). The terminal, file tree, and browser all
+operate **inside** the container — that is the sandbox.
+
+### 🖥️ Native — run directly on macOS
+
+macOS is the primary platform for a direct install.
 
 ```bash
 git clone https://github.com/devclone20/cloneframe_app_executable.git
