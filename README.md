@@ -13,11 +13,16 @@
 [![Single file + one daemon](https://img.shields.io/badge/build-single--file%20app-1f6feb)](#-the-single-file-build)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#-support-the-developer)
 
-> [!WARNING]
-> **This is a PRODUCTION / PREVIEW build.** It is powerful, but **not yet fully ready
-> for unattended production use**. Run it on a machine you trust, keep the powerful
-> permissions off until you need them, and review what your agents do. You are the
-> pilot — the app hands you the controls, it does not fly itself.
+> [!CAUTION]
+> **🔒 Security comes first.**
+> CLONE FRAME HUB is in an active **Production & Development phase**. Because it gives
+> real access to your **shell, files, network, and wallet**, we **strongly recommend
+> running it inside a container / Docker** — isolate it in a sandbox you trust rather
+> than directly on your primary machine.
+>
+> Keep the powerful permissions **off** until you need them, and review what your
+> agents do. **You are the pilot** — the app hands you the controls, it does not fly
+> itself.
 
 ---
 
