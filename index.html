@@ -2404,6 +2404,13 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-mcard .hf{color:var(--ink-faint);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mx-chips{display:flex;gap:5px}
 .mx-chip{font-size:7.5px;font-weight:700;letter-spacing:.1em;color:var(--ink-dim);border:1px solid var(--line);border-radius:4px;padding:3px 7px}
+.mx-chip.tog{cursor:pointer;color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent);transition:background .15s}
+.mx-chip.tog:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.mx-addbody{padding:14px 16px;overflow-y:auto}
+.mx-addbody p{font-size:9.5px;line-height:1.6;color:var(--ink-dim);margin:0 0 10px}
+.mx-addbody p b{color:var(--fg)}
+.mx-addbody p.dim{font-size:8.5px;color:var(--ink-faint)}
+.mx-addbody .mx-code{margin-bottom:10px}
 .mx-dllbl{font-size:7.5px;letter-spacing:.14em;color:var(--ink-faint)}
 .mx-dlrow{display:flex;align-items:center;gap:7px;font-size:8px;color:var(--ink-dim)}
 .mx-dlbar{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
@@ -6315,7 +6322,7 @@ const Panels=(()=>{
     const CONVKEY='cfhub.matrix.convs.v1';
     const loadConvs=()=>{try{const j=JSON.parse(localStorage.getItem(CONVKEY)||'[]');return Array.isArray(j)?j.map(c=>({...c,msgs:(c.msgs||[]).map(m=>({...m,done:true}))})):[]}catch(_){return []}};
     const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null,files:m.files||null,sent:(m.sent&&m.sent!==m.content&&m.sent.length<=65536)?m.sent:undefined}))}))))}catch(_){}};
-    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[],favs:loadFavs(),renaming:null,preview:null,eng:{avail:false},prov:null};
+    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[],favs:loadFavs(),renaming:null,preview:null,eng:{avail:false},prov:null,launchOpts:{sharding:'Pipeline',allNodes:false}};
     const DEMO={
       nodes:[{id:'demo1',name:'MATRIX NODE 01',chip:'Apple M5',used:11.8*1073741824,total:16*1073741824},
              {id:'demo2',name:'MATRIX NODE 02',chip:'Apple M3 Ultra',used:64*1073741824,total:192*1073741824}],
@@ -6343,7 +6350,7 @@ const Panels=(()=>{
         <div class="mx-main">
           <div class="mx-view mx-vhome on">
             <div class="mx-canvas"><svg data-mx="toposvg"></svg><div class="mx-scan"></div>
-              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span><button class="mx-engbtn" data-mx="engine" style="display:none"></button></div>
+              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span><button class="mx-engbtn" data-mx="engine" style="display:none"></button><button class="mx-engbtn" data-mx="addnode" style="display:none">＋ ADD NODE</button></div>
               <div class="mx-hintline" data-mx="hint">Select a model to get started.</div>
             </div>
           </div>
@@ -6369,6 +6376,23 @@ const Panels=(()=>{
         <div class="mx-aside" data-mx="aside"></div>
       </div>
       <div class="mx-dropov"><b>DROP TO ATTACH</b></div>
+      <div class="mx-picker" data-mx="addpop">
+        <div class="mx-pbox" style="height:auto;max-height:88%">
+          <div class="mx-phead"><span style="font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--accent)">＋ ADD A NODE TO YOUR MATRIX</span><span class="mx-pmem"></span><button class="mx-pclose" data-mx="addclose" title="Close">✕</button></div>
+          <div class="mx-addbody">
+            <p>Any Mac on the <b>same network</b> (Wi-Fi, Ethernet or a Thunderbolt cable) joins this cluster automatically — no pairing, no config. Nodes discover each other as long as they run the <b>same engine version</b> (the discovery namespace is the version itself).</p>
+            <p>On the new Mac, run:</p>
+            <div class="mx-code"><div class="mx-codeh"><b>Second node setup</b><span>run on the new Mac</span><button class="mx-copy" data-mx="addcopy">COPY</button></div>
+<pre data-mx="addcmd">git clone https://github.com/exo-explore/exo ~/exo && cd ~/exo
+git checkout b5375f8   # match this node's version — namespaces must agree
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --all-packages
+uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@leo/deepseek-v4"
+.venv/bin/exo</pre></div>
+            <p class="dim">The node appears on this canvas within seconds of starting. Full runbook (firewall, Thunderbolt, troubleshooting): <b>iFRAME/MATRIX_LAB/SECOND_NODE_SETUP.md</b> — a ready-to-run copy lives at <b>setup-second-node.sh</b> (AirDrop it to the new Mac).</p>
+          </div>
+        </div>
+      </div>
       <div class="mx-picker" data-mx="picker">
         <div class="mx-pbox">
           <div class="mx-phead">
@@ -6450,7 +6474,9 @@ const Panels=(()=>{
             if(/Failed/i.test(rs)){status='FAILED';break}
             if(/Ready|Running/i.test(rs))status='READY'}
           const sk=rids.length?Object.keys(sa.runnerToShard[rids[0]])[0]||'':'';
-          out.push({id:iid,model:sa.modelId||'?',shard:/Tensor/i.test(sk)?'TENSOR':'PIPELINE',ring:/Jaccl/i.test(kind)?'RDMA':'MLX RING',status});
+          const ids8=s.nodeIdentities||{};
+          const onNodes=Object.keys(sa.nodeToRunner||{}).map(nid=>(ids8[nid]&&(ids8[nid].friendlyName||ids8[nid].modelId))||nid.slice(0,8));
+          out.push({id:iid,model:sa.modelId||'?',shard:/Tensor/i.test(sk)?'TENSOR':'PIPELINE',ring:/Jaccl/i.test(kind)?'RDMA':'MLX RING',status,nodes:onNodes});
         }
         return out;
       }
@@ -6504,6 +6530,8 @@ const Panels=(()=>{
         else if(st.eng&&st.eng.avail&&st.online&&st.eng.ownedPid){eb.style.display='';eb.className='mx-engbtn stop';eb.textContent=(st.armed&&st.armed.key==='engine')?'SURE?':'■ STOP ENGINE'}
         else eb.style.display='none';
       }
+      const ab=root.querySelector('[data-mx="addnode"]');
+      if(ab)ab.style.display=st.online?'':'none';
     }
     function renderSide(){
       const q=(E.search.value||'').toLowerCase();
@@ -6531,6 +6559,7 @@ const Panels=(()=>{
         <div class="idrow"><i></i><b>${esc(i.id.slice(0,8).toUpperCase())}</b>${i.demo?'<span class="mx-badge wait">DEMO</span>':''}<button class="mx-instdel" data-mxdel="${esc(i.id)}"${i.demo?' data-demo="1"':''}>${st.armed&&st.armed.key==='inst:'+i.id?'SURE?':'DELETE'}</button></div>
         <div class="mdl">${esc(i.model)}</div>
         <div class="meta">${esc(i.shard)} · ${esc(i.ring)} ${badge}</div>
+        ${i.nodes&&i.nodes.length?`<div class="meta">on ${esc(i.nodes.slice(0,2).map(n=>n.length>14?n.slice(0,13)+'…':n).join(' · '))}${i.nodes.length>2?` +${i.nodes.length-2}`:''}</div>`:''}
         <div class="foot">${i.status==='READY'?'Ready to chat!':i.status==='FAILED'?'Runner failed — check the engine log.':'Loading into memory…'}</div>
       </div>`;
     }
@@ -6558,7 +6587,11 @@ const Panels=(()=>{
         +(m?`<div class="mx-mcard">
             <div class="nm"><b>${esc(m.name)}</b><span class="gb">${esc(m.gbLabel)}</span></div>
             <div class="hf">${esc(m.id)}</div>
-            <div class="mx-chips"><span class="mx-chip">PIPELINE</span><span class="mx-chip">MLX RING</span></div>
+            <div class="mx-chips">
+              <span class="mx-chip tog" data-mxopt="sharding" title="Toggle sharding — Tensor needs 2+ nodes and a divisible model">${esc(st.launchOpts.sharding.toUpperCase())}</span>
+              <span class="mx-chip">MLX RING</span>
+              <span class="mx-chip tog" data-mxopt="nodes" title="AUTO lets placement pick; ALL spans every node">${st.launchOpts.allNodes?`ALL ${nodes().length} NODES`:'AUTO NODES'}</span>
+            </div>
             <div class="mx-dllbl">DOWNLOAD</div>
             <div class="mx-dlrow"><span>${esc(nodes()[0]?nodes()[0].name.slice(0,10):'node')}…</span><div class="mx-dlbar"><i style="width:${dlDone?100:0}%"></i></div><span>${dlDone?'100%':'—'}</span></div>
             ${prevHTML}
@@ -6600,7 +6633,8 @@ const Panels=(()=>{
       st.launching=true;renderAside();
       try{
         const r=await fetch(API+'/place_instance',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({model_id:m.id,sharding:'Pipeline',instance_meta:'MlxRing',min_nodes:1})});
+          body:JSON.stringify({model_id:m.id,sharding:st.launchOpts.sharding,instance_meta:'MlxRing',
+            min_nodes:st.launchOpts.allNodes?Math.max(1,nodes().length):1})});
         if(!r.ok){let tx='';try{tx=(await r.text()).slice(0,180)}catch(_){}throw new Error(tx||('HTTP '+r.status))}
         Toast.show('Launching '+m.name+' — watch INSTANCES.');
       }catch(err){Toast.show('Launch failed: '+((err&&err.message)||'error'))}
@@ -6972,6 +7006,13 @@ const Panels=(()=>{
         else if(dla.dataset.mxdla==='disk'&&arm('disk:'+nid+'|'+mid))dlDelete(nid,mid);
         return;
       }
+      const opt=t.closest('[data-mxopt]');
+      if(opt){
+        if(opt.dataset.mxopt==='sharding')st.launchOpts.sharding=st.launchOpts.sharding==='Pipeline'?'Tensor':'Pipeline';
+        if(opt.dataset.mxopt==='nodes')st.launchOpts.allNodes=!st.launchOpts.allNodes;
+        renderAside();if(st.selModel)fetchPreview(st.selModel.id);
+        return;
+      }
       const favb=t.closest('[data-mxfav]');
       if(favb){const k=favb.dataset.mxfav;st.favs.has(k)?st.favs.delete(k):st.favs.add(k);
         if(st.famFilter==='fav'&&!st.favs.size)st.famFilter='all';
@@ -6989,6 +7030,10 @@ const Panels=(()=>{
         case 'pclose':E.picker.classList.remove('on');break;
         case 'launch':launch();break;
         case 'engine':if(!st.online)engStart();else if(arm('engine'))engStop();break;
+        case 'addnode':el('addpop').classList.add('on');break;
+        case 'addclose':el('addpop').classList.remove('on');break;
+        case 'addcopy':{const pre=root.querySelector('[data-mx="addcmd"]');
+          navigator.clipboard.writeText(pre?pre.textContent:'').then(()=>Toast.show('Setup commands copied — AirDrop or paste them on the new Mac.')).catch(()=>Toast.show('Copy blocked — select the block manually.'));break}
         case 'provider':registerProvider();break;
         case 'attach':E.fileinput.click();break;
         case 'send':sendChat();break;
@@ -7003,6 +7048,7 @@ const Panels=(()=>{
       }
     });
     E.picker.addEventListener('click',e=>{if(e.target===E.picker)E.picker.classList.remove('on')});
+    el('addpop').addEventListener('click',e=>{if(e.target===el('addpop'))el('addpop').classList.remove('on')});
     E.fileinput.addEventListener('change',()=>{addFiles(E.fileinput.files);E.fileinput.value=''});
     // drop a file anywhere on MATRIX → attached (dragenter/leave counted — children fire pairs)
     let dragDepth=0;
