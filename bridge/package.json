@@ -1,9 +1,9 @@
 {
   "name": "clone-frame-hub-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Local daemon that gives the CLONE FRAME HUB terminal real shell + Claude (BYOK). Zero dependencies.",
+  "description": "Local daemon that gives the CLONE FRAME HUB terminal a real shell + the user's own model (BYOK, any provider). Deps: ws, node-pty, imapflow, nodemailer, mailparser.",
   "license": "MIT",
   "bin": {
     "hub-bridge": "./hub-bridge.mjs"

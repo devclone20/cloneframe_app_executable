@@ -167,7 +167,7 @@ async function readIdentity(agentId) {
   if (meta && typeof meta === 'object') {
     out.name = meta.name || null;
     out.description = truncate(meta.description || '', 240) || null;
-    const img = meta.image || (meta.image_data ? null : null);
+    const img = meta.image || null;
     out.image = img ? abs(img.startsWith('ipfs://') ? 'https://ipfs.io/ipfs/' + img.slice(7) : img) : null;
   }
   return out;

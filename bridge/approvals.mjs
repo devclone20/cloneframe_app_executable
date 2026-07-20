@@ -59,11 +59,6 @@ function enforceCap(items) {
   return kept.slice(-MAX_ITEMS);
 }
 
-function normalizeAddrList(v) {
-  if (v == null) return undefined;
-  return v;
-}
-
 // ── queries ──────────────────────────────────────────────────────────────────
 
 /** @returns {object[]} newest first, optionally filtered by status */
@@ -106,9 +101,9 @@ export function add(item = {}) {
     id: randomUUID(),
     type: safeType,
     accountId,
-    to: normalizeAddrList(to),
-    cc: normalizeAddrList(cc),
-    bcc: normalizeAddrList(bcc),
+    to,
+    cc: cc ?? undefined,
+    bcc: bcc ?? undefined,
     subject: subject ?? '',
     body,
     sourceUid: sourceUid ?? null,

@@ -85,3 +85,15 @@ Google's official storage at install time and is **not** redistributed in this r
 > INTEGRATIONS tab and are **not bundled** in this build — no source, no submodule, no
 > runtime, and therefore no third-party license obligation here. Their notices return
 > when the integrations ship.
+
+## 3. iT terminal — behavior compatibility (no third-party code)
+
+The **iT** terminal multiplexer is our own clean-room implementation. It is *built on
+ideas from* open-source projects and stays keyboard/command-compatible with cmux, but
+**bundles none of their code**:
+
+| Project | License | Relationship |
+|---|---|---|
+| **cmux** (Manaflow) — github.com/manaflow-ai/cmux | GPL-3.0-or-later | iT speaks the cmux keyboard & command language. Behavior compatibility only — interfaces/shortcuts are unprotectable behavior; no cmux source is copied or bundled. |
+| **tmux** — github.com/tmux/tmux | ISC | iT attaches to tmux sessions already running on the user's machine (`tmux attach-session`). Not bundled. |
+| **exo** — github.com/exo-explore/exo | Apache-2.0 | Local AI cluster integration (coming). Not bundled. |

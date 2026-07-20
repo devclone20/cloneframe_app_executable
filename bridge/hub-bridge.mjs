@@ -3,11 +3,14 @@
 // CLONE FRAME · HUB BRIDGE
 // A local daemon that gives the HUB terminal a REAL body on your machine:
 //   • runs real shell commands (zsh) and streams their output
-//   • relays natural-language prompts to Claude (Anthropic) — BYOK, on your disk
+//   • relays natural-language prompts to the user's OWN model — BYOK, ANY provider
+//     (Anthropic, OpenAI-compatible, local MATRIX cluster) — chosen in Settings
 //
-// Zero dependencies. Node 18+ built-ins only (global fetch, ReadableStream,
-// crypto, child_process, http). Binds 127.0.0.1 ONLY. Never logs your key.
-// Your ANTHROPIC_API_KEY never leaves this machine and is NEVER in the website.
+// The core HTTP/shell/chat daemon uses Node 18+ built-ins (global fetch,
+// ReadableStream, crypto, child_process, http); `ws` (live terminal WS), `node-pty`,
+// and `imapflow`/`nodemailer`/`mailparser` (email) are its only npm dependencies.
+// Binds 127.0.0.1 ONLY. Never logs keys; model API keys never leave this machine
+// and are NEVER in the website.
 // ─────────────────────────────────────────────────────────────────────────────
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -56,18 +59,23 @@ function hardenLogs() {
 }
 hardenLogs();
 
-// ── agent field guide → the root of iT (~/.clone-frame-hub/AGENTS.md) ─────────
-// The bundle ships context/AGENTS.md; mirror it into the iT runtime root so any
-// iT shell (and `it context`) finds it, and so it travels with a downloaded app.
+// ── agent context files → the root of iT (~/.clone-frame-hub/*.md) ────────────
+// The bundle ships context/*.md (AGENTS.md field guide, APP-MAP.md screen map, …);
+// mirror them into the iT runtime root so any iT shell (and `it context`) finds
+// them, and so they travel with a downloaded app.
 function ensureContext() {
   try {
-    const src = path.join(HUB_ROOT, 'context', 'AGENTS.md');
-    if (!fs.existsSync(src)) return;
-    const dst = path.join(CONFIG_DIR, 'AGENTS.md');
-    const s = fs.statSync(src);
-    let stale = true;
-    try { stale = fs.statSync(dst).mtimeMs < s.mtimeMs; } catch {}
-    if (stale) fs.copyFileSync(src, dst);
+    const dir = path.join(HUB_ROOT, 'context');
+    if (!fs.existsSync(dir)) return;
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith('.md')) continue;
+      const src = path.join(dir, name);
+      const dst = path.join(CONFIG_DIR, name);
+      const s = fs.statSync(src);
+      let stale = true;
+      try { stale = fs.statSync(dst).mtimeMs < s.mtimeMs; } catch {}
+      if (stale) fs.copyFileSync(src, dst);
+    }
   } catch {}
 }
 ensureContext();
@@ -141,7 +149,15 @@ function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === '/' || rel === '') rel = '/index.html';
   if (rel.includes('\0') || rel.includes('..')) return false;
-  const file = path.join(HUB_ROOT, rel);
+  // Serve the built single-file document (dist/index.html) when it exists; fall back to the
+  // hand-authored monolith so the app is always launchable, even with no build tools (T-005).
+  let file;
+  if (rel === '/index.html') {
+    const dist = path.join(HUB_ROOT, 'dist', 'index.html');
+    file = fs.existsSync(dist) ? dist : path.join(HUB_ROOT, 'index.html');
+  } else {
+    file = path.join(HUB_ROOT, rel);
+  }
   if (file !== HUB_ROOT && !file.startsWith(HUB_ROOT + path.sep)) return false;
   // never expose dotfiles or the bridge source dir
   if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404); res.end('not found'); return true; }

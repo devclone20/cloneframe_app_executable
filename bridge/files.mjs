@@ -15,7 +15,7 @@ function resolve(p, base) {
   if (!path.isAbsolute(s)) s = path.resolve(base || HOME, s);
   return s;
 }
-const CATASTROPHIC = new Set(['/', HOME, path.join(HOME, ''), '/System', '/usr', '/bin', '/etc']);
+const CATASTROPHIC = new Set(['/', HOME, '/System', '/usr', '/bin', '/etc']);
 
 // Secret stores the agent must NEVER read or write — even with every permission ON.
 // This is the source-of-truth guard behind servers.mjs's _public() masking: the bridge's

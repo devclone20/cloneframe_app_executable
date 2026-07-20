@@ -1,12 +1,11 @@
 {
   "name": "cloneframe-hub-electron",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLONE FRAME HUB — native shell (Electron). The in-app browser is a real top-level WebContentsView, not an iframe, so full web apps and Google sign-in work inside the app.",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "poc": "electron poc.js"
+    "start": "electron ."
   },
   "devDependencies": {
     "electron": "^33.0.0"
