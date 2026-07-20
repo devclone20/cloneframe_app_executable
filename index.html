@@ -5786,6 +5786,14 @@ const Panels=(()=>{
       if(!chat.model||!opts.some(o=>o.v===chat.model))chat.model=opts[0].v;
       return opts;
     }
+    // Live-refresh the chat model picker when the registry changes (e.g. MATRIX cluster sync) —
+    // rewrites only the <select> options so typing and the open conversation are untouched.
+    Bus.on('models:changed',async()=>{
+      if(!document.body.contains(p))return;
+      const sel=body.querySelector('#labcmodel');if(!sel)return;
+      const opts=await modelOptions();
+      sel.innerHTML=opts.map(o=>`<option value="${esc2(o.v)}" ${o.v===chat.model?'selected':''}>${esc2(o.label)}</option>`).join('');
+    });
     // ---- the agent DECK — every agent selected in Agents, as one draggable stack ----
     // The front card is the live one (full animated art + LIVE); neighbours peek from the
     // sides as dimmed stills. Drag the info strip (or a side card) horizontally — or use
@@ -6335,7 +6343,7 @@ const Panels=(()=>{
     const CONVKEY='cfhub.matrix.convs.v1';
     const loadConvs=()=>{try{const j=JSON.parse(localStorage.getItem(CONVKEY)||'[]');return Array.isArray(j)?j.map(c=>({...c,msgs:(c.msgs||[]).map(m=>({...m,done:true}))})):[]}catch(_){return []}};
     const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null,files:m.files||null,sent:(m.sent&&m.sent!==m.content&&m.sent.length<=65536)?m.sent:undefined}))}))))}catch(_){}};
-    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[],favs:loadFavs(),renaming:null,preview:null,eng:{avail:false},prov:null,launchOpts:{sharding:'Pipeline',allNodes:false}};
+    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[],favs:loadFavs(),renaming:null,preview:null,eng:{avail:false},prov:null,provSig:null,launchOpts:{sharding:'Pipeline',allNodes:false}};
     const DEMO={
       nodes:[{id:'demo1',name:'MATRIX NODE 01',chip:'Apple M5',used:11.8*1073741824,total:16*1073741824},
              {id:'demo2',name:'MATRIX NODE 02',chip:'Apple M3 Ultra',used:64*1073741824,total:192*1073741824}],
@@ -6727,37 +6735,45 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       st.armed=null;refreshEng();
     }
     // ---- BYOK provider — the cluster's OpenAI-compatible endpoint in the Models registry,
-    // so the Terminal, Brain, Compare and Harness pickers can run on the user's own cluster
+    // so CODE · LAB · Brain · Compare · Harness pickers can run on the user's own cluster.
+    // Kept in LIVE SYNC: whenever the on-disk model set changes (download / delete), the
+    // provider's model list is rewritten and every picker refreshed. A downloaded model that
+    // isn't running is auto-launched on the first message by the bridge (/provider-chat).
     async function refreshProv(){
       try{
         const provs=await RPC('models','listProviders');
-        const p=(provs||[]).find(x=>(x.baseUrl||'').startsWith(API));
+        const p=(provs||[]).find(x=>(x.baseUrl||'').startsWith(API)||x.provider==='matrix');
         st.prov=p?{id:p.id,models:(p.models||[]).length}:null;
-      }catch(_){st.prov=null}
+        return p||null;
+      }catch(_){st.prov=null;return null}
     }
-    async function registerProvider(){
+    // Ensure the provider exists and its model list mirrors the cluster's on-disk models.
+    // Idempotent + debounced by signature; fires models:changed only when the set changes.
+    async function syncCluster(opts){
+      opts=opts||{};
+      if(st.provBusy)return; st.provBusy=true; // guard: connect-tick fires two calls at once → never double-add
+      let changed=false;
       try{
         let id=st.prov&&st.prov.id;
+        if(!id){const p=await refreshProv();id=p&&p.id}
         if(!id){
           const r=await RPC('models','addProvider',{kind:'local',provider:'matrix',label:'MATRIX Cluster',baseUrl:API+'/v1'});
-          if(!r||!r.ok){Toast.show('Register failed: '+((r&&r.error)||'error'));return}
+          if(!r||!r.ok){if(opts.toast)Toast.show('Register failed: '+((r&&r.error)||'error'));return}
           id=r.id;
         }
-        const t=await RPC('models','testProvider',id);
-        // curate to the models actually on disk — a picker full of 123 unlaunchable ids is noise
-        let curated=null;
-        try{
-          const r=await fetch(API+'/models?status=downloaded',{signal:AbortSignal.timeout(3000)});
-          const j=await r.json();const ids=(j.data||j||[]).map(m=>m.id).filter(Boolean);
-          if(ids.length){const s=await RPC('models','setModels',id,ids);if(s&&s.ok)curated=s.count}
-        }catch(_){/* engine offline or old bridge without setModels — full catalog stays */}
-        await refreshProv();
-        if(curated!==null)Toast.show('MATRIX registered — '+curated+' downloaded model(s) in your Terminal/Brain/Harness pickers.');
-        else if(t&&t.ok)Toast.show('MATRIX registered — '+((t.models&&t.models.length)||0)+' model(s) now in your Terminal/Brain/Harness pickers.');
-        else Toast.show('Registered. Model sync pending — start the engine, then REFRESH MODELS.');
-      }catch(e){Toast.show('Register failed: '+((e&&e.message)||'bridge error'))}
-      if(st.view==='int')renderInt();
+        let ids=[];
+        try{const r=await fetch(API+'/models?status=downloaded',{signal:AbortSignal.timeout(3000)});const jj=await r.json();ids=(jj.data||jj||[]).map(m=>m.id).filter(Boolean)}catch(_){}
+        const sig=ids.slice().sort().join('|');
+        if(sig===st.provSig&&!opts.force)return; // nothing changed on disk — no churn
+        const s=await RPC('models','setModels',id,ids);
+        st.prov={id,models:(s&&s.count)||ids.length};st.provSig=sig;changed=true;
+        Bus.emit('models:changed'); // refresh CODE + LAB pickers live
+        if(opts.toast)Toast.show(ids.length?('MATRIX synced — '+ids.length+' local model(s) in CODE · LAB · Brain · Harness.'):'MATRIX registered — download a model and it shows up in every picker.');
+      }catch(e){if(opts.toast)Toast.show('Sync failed: '+((e&&e.message)||'bridge error'))}
+      finally{st.provBusy=false}
+      if(changed&&st.view==='int')renderInt();
     }
+    const registerProvider=()=>syncCluster({force:true,toast:true});
     function renderMsgs(){
       const c=st.chat;
       if(!c){E.msgs.innerHTML='';return}
@@ -6856,11 +6872,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         if(!r.ok)throw 0;
         st.st8=await r.json();st.fails=0;
         const was=st.online;st.online=true;
-        if(!was){loadModels()}
+        if(!was){loadModels();syncCluster()} // just came online → register + sync the pickers
       }catch(_){st.fails++;if(st.fails>=2)st.online=false}
       if(st.armed&&performance.now()-st.armed.ts>3500)st.armed=null;
       st.tickN=(st.tickN||0)+1;
       if(st.tickN%8===1)refreshEng();
+      if(st.online&&st.tickN%5===0)syncCluster(); // keep the pickers in sync with disk (download/delete)
       if(st.selModel&&st.online&&st.tickN%15===0)fetchPreview(st.selModel.id);
       renderStatus();
       if(st.view==='home')drawTopo(E.topo,false);

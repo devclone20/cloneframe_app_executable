@@ -314,6 +314,35 @@ async function handleEmail(req, res, pathname, body) {
   } catch (e) { return fail(500, e); }
 }
 
+// MATRIX cluster: a model that is on disk but has no running instance answers the
+// OpenAI endpoint with 404 "no instance found". Spin one up on demand (Pipeline / MlxRing,
+// single node) so any downloaded local model is directly chattable from CODE/LAB — without
+// a manual LAUNCH. Never auto-DOWNLOADS: refuses a model that is not already on disk.
+// Returns true once an instance exists or is coming up (the caller then polls the chat call).
+async function matrixEnsureInstance(v1Base, model, signal) {
+  const eng = String(v1Base || '').replace(/\/v\d+$/, ''); // http://127.0.0.1:52415
+  const getJson = async (p) => { try { const r = await fetch(eng + p, { signal }); return r.ok ? await r.json() : null; } catch { return null; } };
+  const state = await getJson('/state');
+  const coming = state && state.instances && Object.values(state.instances).some((i) => {
+    const inner = (i && (i.MlxRingInstance || i)) || {}; const sa = inner.shardAssignments;
+    return sa && sa.modelId === model;
+  });
+  if (!coming) {
+    const dl = await getJson('/models?status=downloaded');
+    const ids = dl ? (dl.data || dl || []).map((m) => m && m.id) : [];
+    if (!ids.includes(model)) return false; // not on disk — do not trigger a (huge) download
+    try {
+      const r = await fetch(eng + '/place_instance', {
+        method: 'POST', signal,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model_id: model, sharding: 'Pipeline', instance_meta: 'MlxRing', min_nodes: 1 }),
+      });
+      if (!r.ok) return false;
+    } catch { return false; }
+  }
+  return true;
+}
+
 // ── provider chat: stream from the user's OWN model (API or local), any provider
 //    Anthropic → /v1/messages ; everyone else (OpenAI/DeepSeek/Groq/Ollama/…) → /chat/completions
 async function handleProviderChat(req, res, body) {
@@ -327,7 +356,7 @@ async function handleProviderChat(req, res, body) {
   const key = raw.apiKey || '';
   const anthropic = Models._isAnthropic ? Models._isAnthropic(raw.provider, raw.baseUrl) : false;
   streamHead(res);
-  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); req.on('close', () => ctl.abort());
+  const ctl = new AbortController(); let to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); req.on('close', () => ctl.abort());
   try {
     if (anthropic) {
       // tolerate a stored base that already ends in /v1 (e.g. https://api.anthropic.com/v1)
@@ -345,13 +374,27 @@ async function handleProviderChat(req, res, body) {
           try { const ev = JSON.parse(p); if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') res.write(ev.delta.text); else if (ev.type === 'error') res.write('\x00ERR\x00' + (ev.error?.message || 'stream error')); } catch {} } }
       res.end();
     } else {
-      // OpenAI-compatible (also Ollama/llama.cpp/vLLM local)
+      // OpenAI-compatible (also Ollama/llama.cpp/vLLM local, and the MATRIX cluster)
       let base = (raw.baseUrl || '').replace(/\/+$/, '');
       const url = /\/v\d+$/.test(base) ? base + '/chat/completions' : base + '/v1/chat/completions';
       const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
       const headers = { 'content-type': 'application/json' };
       if (raw.kind === 'api' && key) headers.Authorization = 'Bearer ' + key;
-      const r = await fetch(url, { method: 'POST', signal: ctl.signal, headers, body: j({ model, messages: msgs, stream: true, max_tokens: maxTok }) });
+      const send = () => fetch(url, { method: 'POST', signal: ctl.signal, headers, body: j({ model, messages: msgs, stream: true, max_tokens: maxTok }) });
+      let r = await send();
+      // MATRIX cluster: on-disk model with no instance → 404. Launch it once, wait, retry.
+      if (!r.ok && r.status === 404 && raw.provider === 'matrix') {
+        const t = await r.text().catch(() => '');
+        if (/no instance/i.test(t) && await matrixEnsureInstance(base, model, ctl.signal)) {
+          for (let i = 0; i < 40 && !ctl.signal.aborted; i++) {
+            await new Promise((s) => setTimeout(s, 1500));
+            r = await send();
+            if (r.ok || r.status !== 404) break;
+          }
+          if (r.ok) { clearTimeout(to); to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); } // fresh window for generation
+        }
+        if (!r.ok) { res.end('\x00ERR\x00' + r.status + ' ' + (t || '').slice(0, 300)); clearTimeout(to); return; }
+      }
       if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
       for (;;) { const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true });
