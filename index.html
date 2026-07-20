@@ -930,24 +930,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .keyadd{display:flex;gap:7px;margin-top:7px}
 .keyadd input{all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-family:var(--mono);font-size:10.5px;color:var(--fg);caret-color:var(--accent)}
 
-/* ---------- COUNCIL (Harness mode) ---------- */
-.hmode{display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px}
-.hmode button{all:unset;flex:1;text-align:center;cursor:pointer;font-size:9px;letter-spacing:.12em;font-weight:600;padding:6px;border-radius:6px;color:var(--ink-dim)}
-.hmode button.on{background:color-mix(in srgb,var(--fg) 10%,transparent);color:var(--fg)}
-.gates4{display:flex;gap:6px;margin-bottom:10px}
-.g4{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px;border:1px solid var(--line);border-radius:9px;font-size:7.5px;letter-spacing:.1em;color:var(--ink-dim);text-align:center}
-.g4 .v{font-weight:700;font-size:8.5px;letter-spacing:.12em;color:var(--ink-faint)}
-.g4.pass{border-color:color-mix(in srgb,#3fd68f 50%,transparent)}.g4.pass .v{color:#3fd68f}
-.g4.hold{border-color:color-mix(in srgb,#e8b86d 50%,transparent)}.g4.hold .v{color:#e8b86d}
-.g4.veto{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}.g4.veto .v{color:var(--accent)}
-.cturn{display:flex;gap:9px;margin-bottom:9px}
-.cturn .who{flex:0 0 auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:7.5px;font-weight:700;color:var(--accent)}
-.cturn .txt{flex:1;font-size:11px;line-height:1.55;color:var(--fg);padding:6px 10px;border:1px solid var(--line);border-radius:10px}
-.cturn .txt b.role{font-size:8px;letter-spacing:.14em;color:var(--ink-faint);display:block;margin-bottom:3px}
-.cprop{display:flex;gap:8px;margin-bottom:10px}
-.cprop input{all:unset;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:11.5px;color:var(--fg);caret-color:var(--accent)}
-.ownercard{border:1px solid var(--accent);border-radius:11px;padding:10px;margin-top:4px;text-align:center}
-.ownercard p{font-size:10.5px;color:var(--ink-dim);margin:0 0 8px}
 
 /* ---------- MY AGENTS ---------- */
 .agentitem{border:1px solid color-mix(in srgb,var(--fg) 5%,transparent);border-radius:16px;padding:12px 13px;margin-bottom:10px;background:color-mix(in srgb,var(--fg) 3%,var(--panel))}
@@ -2808,6 +2790,32 @@ const Store=(()=>{
   return{get:()=>s,save};
 })();
 
+/* ---------- One-time purge of legacy / removed-feature persisted state ----------
+   Older builds (an example "ORION" agent/harness used for demos, plus the removed CLI
+   ECONOMY-OS and INTEGRATIONS sub-panels) left orphan keys in localStorage and could
+   leave a stale agent/selection that no current code reads. This one-time, idempotent
+   sweep removes that dead state so nothing lingers in the UI. It touches only known-dead
+   keys and any ORION-named example — never live data. Version-flagged so it runs once. */
+(()=>{
+  const FLAG='cfhub.migrations.v1';
+  try{ if(localStorage.getItem(FLAG)) return; }catch(_){ return; }
+  try{
+    // 1) dead legacy keys — un-namespaced remnants of removed features (all live keys are cfhub.*)
+    ['lab.inftagent','okx.sec','rbh','lv3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(_){} });
+    // 2) drop any leftover example "ORION" agent from the Store (name-matched, example-only)
+    try{
+      const s=Store.get(); let dirty=false;
+      const isOrion=a=>a&&typeof a.name==='string'&&/^\s*orion\b/i.test(a.name);
+      if(Array.isArray(s.agents)&&s.agents.some(isOrion)){ s.agents=s.agents.filter(a=>!isOrion(a)); dirty=true; }
+      if(Array.isArray(s.pinnedAgents)&&s.pinnedAgents.some(isOrion)){ s.pinnedAgents=s.pinnedAgents.filter(a=>!isOrion(a)); dirty=true; }
+      if(dirty) Store.save();
+    }catch(_){}
+    // 3) clear a stale LAB model selection pointing at the removed picker / a missing agent
+    try{ if(/orion/i.test(localStorage.getItem('cfhub.lab.chatmodel')||'')) localStorage.removeItem('cfhub.lab.chatmodel'); }catch(_){}
+  }catch(_){}
+  try{ localStorage.setItem(FLAG,'1'); }catch(_){}
+})();
+
 /* ---------- Keys: BYOK material only in sessionStorage (never persisted) ---------- */
 const Keys=(()=>{
   const K='cfhub.keys.v1';
@@ -3953,7 +3961,7 @@ const Brain=(()=>{
 
 What I can do in this demo:
 - **/soul** — see my soul (monorepo → Irys)
-- **/harness** — open the spine's COUNCIL
+- **/harness** — open the spine (crew + 4 gates)
 - **/brain** — see which brain I'm using
 
 > Once you connect a BYOK key in MY MACHINE, I start answering with a real model.`,
@@ -3984,7 +3992,7 @@ skills/          # fabric registry (signed)
 Compiled by the Forge's **compile-soul** and published on Irys with an on-chain pointer — mutable, auditable, yours. Open the **LAB** for the workbench.`],
     [/harness|conselho|crew|espinha/i,`The harness spine is sacred: **ORCHESTRATOR** moderates, **SAFETY** holds a fail-closed veto, **EVALUATOR** and **TREASURY** guard quality and funds, and the **OWNER** is you — nothing irreversible happens without your click.
 
-Type \`/harness\` or open the Harness panel → **COUNCIL** mode to watch a deliberation.`],
+Type \`/harness\` or open the Harness panel to see the crew and its gates.`],
   ];
   let mockIdx=0;
   function pickMock(userText){
@@ -5504,7 +5512,6 @@ const Panels=(()=>{
     $('#cdpanebody').addEventListener('click',e=>{if(pane==='term'&&!e.target.closest('input'))$('#cdpanebody').querySelector('#tin')?.focus()});
     function syncBridge(){const inf=Bridge.info();if(inf){host='local';if(inf.cwd){cwd=relCwd(inf.cwd);cwdAbs=inf.cwd;}refreshBranch().then(()=>{if(pane==='term'&&!busy)renderShell()});Tree.onCwd();}}
     Bus.on('bridge:changed',()=>{if(!document.body.contains(p))return;syncBridge();loadModels();loadHarnesses();if(pane==='term'&&!busy)renderShell()});
-    Bus.on('code:pane',m=>{if(!document.body.contains(p))return;if(m==='web'){openPanel('research');return}if(pane!==m)openPane(m)});
     // web:open is handled solely by the standalone BROWSER (research panel) now — see webOpen()/wireWebBrowser. Kept single-sink to avoid double-open.
     Bus.on('models:changed',()=>{if(document.body.contains(p))loadModels()});
     Bus.on('harness:changed',()=>{if(!document.body.contains(p))return;loadHarnesses().then(()=>{if($('#cdharnesspop')&&$('#cdharnesspop').classList.contains('open'))popHarness()})}); // a new/edited harness shows up in the picker immediately
@@ -9142,72 +9149,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     renderBrains();
   }
 
-  /* ---- COUNCIL (HARNESS_ENGINE backbone — Orchestrator moderates, 4 gates, Safety fail-closed) ---- */
-  function wireCouncil(p){
-    const seg=p.querySelector('.hmode');
-    const views={espinha:p.querySelector('#hv-espinha'),conselho:p.querySelector('#hv-conselho'),skills:p.querySelector('#hv-skills')};
-    function mode(m){
-      if(!views[m])return;
-      [...seg.children].forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-      for(const k in views)views[k].style.display=k===m?'':'none';
-      Bus.emit('help',m==='conselho'?'harness-conselho':'panel-harness');
-    }
-    seg.addEventListener('click',e=>{const b=e.target.closest('button');if(b)mode(b.dataset.m)});
-    Bus.on('harness:mode',m=>{if(document.body.contains(p))mode(m)});
-    const gates={EVALUATOR:'#g-eval',SAFETY:'#g-safe',TREASURY:'#g-trea',OWNER:'#g-own'};
-    const log=p.querySelector('#ctlog'),prop=p.querySelector('#cprop'),start=p.querySelector('#cstart'),owner=p.querySelector('#cowner');
-    let running=false;
-    function chip(g,v){
-      const el=p.querySelector(gates[g]);
-      el.className='g4 '+(v==='PASS'?'pass':v==='VETO'?'veto':v==='HOLD'?'hold':'');
-      el.querySelector('.v').textContent=v;
-    }
-    async function turn(role,text){
-      const d=document.createElement('div');d.className='cturn';
-      d.innerHTML=`<div class="who">${role.slice(0,2)}</div><div class="txt"><b class="role">${esc(role)}</b><span></span></div>`;
-      log.appendChild(d);log.scrollTop=log.scrollHeight;
-      const span=d.querySelector('span');
-      await Brain.typeOut(text,t=>{span.textContent+=t;log.scrollTop=log.scrollHeight});
-    }
-    async function run(){
-      if(running)return;running=true;start.disabled=true;
-      log.innerHTML='';owner.style.display='none';
-      for(const g in gates)chip(g,'—');
-      const propTxt=prop.value.trim()||'accept ACP job #123 for 40 USDC';
-      const risky=/(chave|seed|privad|password|segredo|0x[a-fA-F0-9]{8,})/i.test(propTxt);
-      // value = number next to currency (avoids grabbing ids like "#77"); fallback: last number
-      const mAmt=propTxt.match(/(\d+(?:[.,]\d+)?)\s*(?:usdc|usdt|usd|eur|dól|\$|€)/i);
-      const nums=propTxt.match(/\d+(?:[.,]\d+)?/g)||[];
-      const amt=parseFloat((mAmt?mAmt[1]:nums[nums.length-1]||'0').replace(',','.'));
-      await turn('ORCHESTRATOR',`Proposal: "${propTxt}". Round 1/2 — RESEARCH, assess counterparty and context.`);
-      await turn('RESEARCH','Counterparty with a clean ledger history. Price within range. No red flags in the sources.');
-      await turn('DELIVERY','I deliver within SLA — 3-step plan, low effort. I accept if the gates pass.');
-      chip('EVALUATOR','PASS');
-      await turn('EVALUATOR','Clear, verifiable acceptance criteria. PASS.');
-      if(risky){
-        chip('SAFETY','VETO');
-        await turn('SAFETY/HACKER','⛔ VETO — the proposal touches sensitive material (keys/secrets). Fail-closed: train stopped, Owner notified.');
-        Toast.show('COUNCIL: Safety VETO — stopped (fail-closed)');
-        running=false;start.disabled=false;return;
-      }
-      chip('SAFETY','PASS');
-      await turn('SAFETY/HACKER','Clean screen: no secrets in the payload, counterparty allowlisted, policy intact. PASS.');
-      if(amt>50){chip('TREASURY','HOLD');await turn('TREASURY',`${amt} above the per-job cap (50). HOLD — requires explicit Owner approval.`)}
-      else{chip('TREASURY','PASS');await turn('TREASURY','Within the per-job cap (≤50). Reserve recorded on the ledger. PASS.')}
-      chip('OWNER','…');
-      await turn('ORCHESTRATOR','3 gates have ruled. The final decision is human — Owner, do you approve?');
-      owner.style.display='';
-      running=false;start.disabled=false;
-    }
-    start.addEventListener('click',run);
-    prop.addEventListener('keydown',e=>{if(e.key==='Enter')run()});
-    p.querySelector('#c-ap').addEventListener('click',()=>{chip('OWNER','PASS');owner.style.display='none';
-      turn('ORCHESTRATOR','Approved by the Owner. Intent recorded — execution follows the deterministic path (worker → policy gate → signer). Nothing was executed in this demo.');
-      Toast.show('COUNCIL: approved')});
-    p.querySelector('#c-rc').addEventListener('click',()=>{chip('OWNER','VETO');owner.style.display='none';
-      turn('ORCHESTRATOR','Refused by the Owner. Job abandoned, re-plan scheduled.')});
-  }
-
   /* ---- MY AGENTS (I18: read-only on-chain ERC-8004 + HUB Bridge + BYOK) ---- */
   function wireAgents(p){
     const list=p.querySelector('#agentlist');
@@ -11660,7 +11601,6 @@ const Guide=(()=>{
     'panel-harness':['HARNESS',[['SPINE','Orchestrator + Safety never collapse'],['SKILLS','signed Fabric patterns'],['DRAG','to the edge for split-screen']]],
     'panel-lab':['LAB',[['CHAT','any model — an API provider or your machine'],['AGENTS','your agents — pick the iNFTs to work with']]],
     'panel-machine':['MY MACHINE',[['BRIDGE','the real body on your machine'],['BRAIN','BYOK key · mock'],['KEYS','this session only, never saved']]],
-    'harness-conselho':['COUNCIL',[['PROPOSAL','write it and DELIBERATE'],['SAFETY','fail-closed veto on everything'],['TREASURY','per-job cap'],['OWNER','the final decision is always yours']]],
     'panel-settings':['SETTINGS',[['BASE','fixed palettes'],['LIVE','themes with animated background'],['MY MACHINE','detects the local exo']]],
   };
   let mode='build',overlay=null,web=false;
@@ -11730,7 +11670,6 @@ const Palette=(()=>{
     {l:'Open Email',h:'panel',k:'email mail write compose send inbox',i:'#i-mail',run:()=>Panels.openPanel('email')},
     {l:'Write email',h:'email',k:'escrever compor email novo mail',i:'#i-mail',run:()=>Panels.openPanel('email')},
     {l:'Sign in with wallet',h:'access',k:'wallet login siwe sign in connect',i:'#i-wallet',run:()=>WalletAuth.addr()?Toast.show('Already signed in: '+WalletAuth.short(WalletAuth.addr())):PrivyLogin.open()},
-    {l:'Open COUNCIL (Harness)',h:'panel',k:'conselho deliberar gates council',i:'#i-harness',run:()=>{Panels.openPanel('harness');Bus.emit('harness:mode','conselho')}},
     {l:'Open Settings',h:'panel',k:'settings theme density',i:'#i-gear',run:()=>Panels.openPanel('settings')},
     {l:'Atalhos de teclado',h:'ajuda',k:'atalhos teclado keys shortcuts ?',i:'#i-frame',run:()=>Shortcuts.toggle(true)},
     {l:'Desbloquear / bloquear zoom',h:'universo',k:'zoom navegar triangulo',i:'#i-cosmos',run:()=>Camera.setNav(!Camera.isNav())},
