@@ -118,7 +118,12 @@ canvas.layer{position:fixed;inset:0;pointer-events:none}
   background:color-mix(in srgb,var(--bg) 76%,transparent);
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-bottom:1px solid var(--line);
+  -webkit-app-region:drag; /* Electron: the top bar drags the window (no-op in a browser tab) */
 }
+/* interactive children must stay clickable — only the empty gaps drag the window */
+#topbar button,#topbar .seg,#topbar .brand,#topbar #devtabs,#topbar nav,#topbar .right,#topbar input{-webkit-app-region:no-drag}
+/* native shell (hiddenInset title bar): clear the macOS traffic lights on the left */
+html.native-shell #topbar{padding-left:82px}
 .brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;cursor:pointer;user-select:none}
 .brand.nav #brandlogo{box-shadow:0 0 14px -2px var(--accent)!important;transform:scale(1.12)}
 .brand.nav b{color:var(--accent)}
@@ -2312,6 +2317,10 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-engbtn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .mx-engbtn.stop{color:var(--mx-err);border-color:color-mix(in srgb,var(--mx-err) 50%,transparent)}
 .mx-engbtn.stop:hover{background:color-mix(in srgb,var(--mx-err) 10%,transparent)}
+.mx-engbtn.muted{color:var(--ink-dim);border-color:var(--line)}
+.mx-engbtn.muted:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.mx-engbtn.live{color:var(--mx-ok);border-color:color-mix(in srgb,var(--mx-ok) 45%,transparent);cursor:default}
+.mx-engbtn.live:hover{background:transparent}
 .mx-provcard{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:8px;padding:12px 14px;margin:0 0 16px}
 .mx-provcard .t{font-size:8px;font-weight:700;letter-spacing:.16em;color:var(--accent);margin-bottom:5px}
 .mx-provcard .d{font-size:9.5px;color:var(--ink-dim);line-height:1.5;margin-bottom:10px}
@@ -2669,6 +2678,8 @@ body[data-density="comfy"]{--ui-scale:1.1}
     <button id="gear" title="Settings"><svg><use href="#i-gear"/></svg></button>
   </div>
 </header>
+<script>/* Electron native shell: reserve room for the traffic lights + enable window drag */
+if(window.cfhubNative)document.documentElement.classList.add('native-shell');</script>
 
 <div id="wacct">
   <div class="wahead"><svg><use href="#i-wallet"/></svg><b id="waname">WALLET</b><button class="waico" id="waedit" title="Rename this wallet">✎</button><span class="net">BASE 8453</span><button class="waico" id="wagear" title="Account settings"><svg><use href="#i-gear"/></svg></button></div>
@@ -6333,6 +6344,7 @@ const Panels=(()=>{
     root.innerHTML=`
       <div class="mx-top">
         <button class="mx-burger" data-mx="burger" title="Toggle conversations">«</button>
+        <button class="mx-engbtn" data-mx="engine" style="display:none" title="Run your MATRIX cluster engine on this machine"></button>
         <div class="mx-logo"><i></i><b>MATRIX</b></div>
         <nav class="mx-nav">
           <button data-mxview="home" class="on"><svg><use href="#i-lab"/></svg>HOME</button>
@@ -6350,7 +6362,7 @@ const Panels=(()=>{
         <div class="mx-main">
           <div class="mx-view mx-vhome on">
             <div class="mx-canvas"><svg data-mx="toposvg"></svg><div class="mx-scan"></div>
-              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span><button class="mx-engbtn" data-mx="engine" style="display:none"></button><button class="mx-engbtn" data-mx="addnode" style="display:none">＋ ADD NODE</button></div>
+              <div class="mx-status" data-mx="status"><i></i><span data-mx="statustxt">CONNECTING…</span><button class="mx-engbtn" data-mx="addnode" style="display:none">＋ ADD NODE</button></div>
               <div class="mx-hintline" data-mx="hint">Select a model to get started.</div>
             </div>
           </div>
@@ -6526,9 +6538,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       else{E.status.classList.add('off');E.statustxt.innerHTML=`ENGINE OFFLINE — DEMO DATA <span class="hint">· start your MATRIX engine to go live</span>`}
       const eb=root.querySelector('[data-mx="engine"]');
       if(eb){
-        if(st.eng&&st.eng.avail&&!st.online&&st.eng.found){eb.style.display='';eb.className='mx-engbtn';eb.textContent='▶ START ENGINE'}
-        else if(st.eng&&st.eng.avail&&st.online&&st.eng.ownedPid){eb.style.display='';eb.className='mx-engbtn stop';eb.textContent=(st.armed&&st.armed.key==='engine')?'SURE?':'■ STOP ENGINE'}
-        else eb.style.display='none';
+        const e=st.eng||{};
+        eb.style.display='';
+        if(!e.avail){eb.className='mx-engbtn muted';eb.dataset.mode='connect';eb.textContent='◦ CONNECT MACHINE'}
+        else if(st.online&&e.ownedPid){eb.className='mx-engbtn stop';eb.dataset.mode='stop';eb.textContent=(st.armed&&st.armed.key==='engine')?'SURE?':'■ STOP ENGINE'}
+        else if(st.online){eb.className='mx-engbtn live';eb.dataset.mode='live';eb.textContent='● ENGINE ONLINE'}
+        else{eb.className='mx-engbtn';eb.dataset.mode='start';eb.textContent='▶ START ENGINE'}
       }
       const ab=root.querySelector('[data-mx="addnode"]');
       if(ab)ab.style.display=st.online?'':'none';
@@ -6689,6 +6704,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     async function refreshEng(){ // just try the RPC — Bridge.on() lags the real pairing state
       try{const s=await RPC('matrix','status');st.eng={avail:true,ownedPid:s.ownedPid,found:s.engineFound}}
       catch(_){st.eng={avail:false}}
+      renderStatus(); // reflect the engine state as soon as it resolves
     }
     async function engStart(){
       try{
@@ -6805,6 +6821,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           <div class="t">USE THIS CLUSTER IN CLONE FRAME</div>
           <div class="d">Register MATRIX as a BYOK provider — its models join the Terminal, Brain, Compare and Harness model pickers, served from your own machines. No key, no cloud.</div>
           <div class="row"><button class="mx-provbtn" data-mx="provider">${st.prov?'↻ REFRESH MODELS':'⚡ REGISTER AS PROVIDER'}</button><span class="st">${st.prov?`<b>✓ registered</b> — ${st.prov.models} model(s) in the pickers`:'not registered yet'}</span></div>
+        </div>
+        <div class="mx-provcard">
+          <div class="t">OR BRING A CLOUD MODEL</div>
+          <div class="d">Prefer a hosted API? Connect <b>DeepSeek</b>, OpenAI, or <b>any OpenAI-compatible endpoint</b> (custom base URL + key). It joins the same Terminal, Brain, Compare and Harness pickers — your key stays on your machine.</div>
+          <div class="row"><button class="mx-provbtn" data-mx="cloudmodel">＋ CONNECT DEEPSEEK / CUSTOM API</button><span class="st">opens Settings → Add Models</span></div>
         </div>
         <div class="mx-ttabs">${INT_TOOLS.map(t=>`<button data-mxtool="${t[0]}" class="${st.intTool===t[0]?'on':''}">${esc(t[1])}</button>`).join('')}</div>
         <div class="mx-code"><div class="mx-codeh"><b>Shell Command</b><span>Run in terminal</span><button class="mx-copy" data-mx="runit">▸ OPEN IN iT</button><button class="mx-copy" data-mx="copy">COPY</button></div>
@@ -7029,12 +7050,20 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         case 'modelbtn':case 'mtrig':E.picker.classList.add('on');renderPicker();setTimeout(()=>E.pq.focus(),30);break;
         case 'pclose':E.picker.classList.remove('on');break;
         case 'launch':launch();break;
-        case 'engine':if(!st.online)engStart();else if(arm('engine'))engStop();break;
+        case 'engine':{
+          const m=act.dataset.mode;
+          if(m==='connect')Toast.show('To run the engine: relaunch the app so the bridge loads MATRIX control, then enable Settings → My Machine → “MATRIX engine control”.');
+          else if(m==='live')Toast.show('Engine is already running (started outside MATRIX). Stop it where you launched it.');
+          else if(m==='stop'){if(arm('engine'))engStop()}
+          else engStart();
+          break;
+        }
         case 'addnode':el('addpop').classList.add('on');break;
         case 'addclose':el('addpop').classList.remove('on');break;
         case 'addcopy':{const pre=root.querySelector('[data-mx="addcmd"]');
           navigator.clipboard.writeText(pre?pre.textContent:'').then(()=>Toast.show('Setup commands copied — AirDrop or paste them on the new Mac.')).catch(()=>Toast.show('Copy blocked — select the block manually.'));break}
         case 'provider':registerProvider();break;
+        case 'cloudmodel':openPanel('settings');setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="addmodels"]');if(b)b.click()},80);break;
         case 'attach':E.fileinput.click();break;
         case 'send':sendChat();break;
         case 'copy':{const pre=root.querySelector('[data-mx="cmdpre"]');
