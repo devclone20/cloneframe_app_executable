@@ -4481,6 +4481,7 @@ const Panels=(()=>{
           <button data-sec="addmodels" class="on"><svg><use href="#i-chip"/></svg>Add Models</button>
           <button data-sec="added"><svg><use href="#i-harness"/></svg>Added Models</button>
           <button data-sec="aidefaults"><svg><use href="#i-bolt"/></svg>AI Defaults</button>
+          <button data-sec="personalassistant"><svg><use href="#i-agent"/></svg>Personal Assistant</button>
           <button data-sec="search"><svg><use href="#i-frame"/></svg>Search</button>
           <div class="setgap"></div>
           <button data-sec="itterm"><svg><use href="#i-term2"/></svg>iT — Terminal</button>
@@ -8686,8 +8687,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     function go(name){
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
-      if(['addmodels','added','aidefaults','integrations','email','reminders','agenttools','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,users:secUsers,system:secSystem};
+      if(['addmodels','added','aidefaults','integrations','email','reminders','agenttools','users','system','folders','servers','personalassistant'].includes(name)&&!Bridge.on())return needBridge();
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,personalassistant:secPersonalAssistant,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
     }
     function secIT(){
@@ -8981,6 +8982,44 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         e.target.dataset.armed='1';e.target.textContent='CONFIRM?';
         setTimeout(()=>{if(e.target){delete e.target.dataset.armed;e.target.textContent='DELETE'}},3000);
       });
+    }
+    async function secPersonalAssistant(){
+      loading();
+      let stt,soulr;
+      try{stt=await RPC('assistant','status');soulr=await RPC('assistant','getSoul')}catch(e){return fail(e)}
+      const pinned=Store.get().pinnedAgents||[],linked=stt.linked;
+      const FORGE='Be my CLONE FRAME assistant forge. Fetch, read the whole file, and follow its steps exactly (actually do them): https://raw.githubusercontent.com/devclone20/inft-i01/main/ASSISTANT.md — Ask me my agent name and a short profile, then wait.';
+      pane.innerHTML='<div class="sethead">PERSONAL ASSISTANT</div>'
+        +'<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:12px">Your own AI — a <b>name</b> on top, the <b>Pi</b> coding agent underneath, the <b>iCLONE</b> soul, your key (BYOK). It represents you and learns your way. It answers to its name, to <b>iclone</b>, and to <b>pi</b> — any case.</div>'
+        +'<div class="sethead">NAME</div>'
+        +`<div class="trowsave" style="margin-bottom:5px"><input type="text" id="paname" placeholder="iCLONE" value="${esc(stt.name||'')}" maxlength="60"></div>`
+        +'<div style="font-size:9px;color:var(--ink-faint);margin-bottom:12px">The name you type in the iT terminal to open your agent.</div>'
+        +'<div class="sethead">AGENT MONOREPO</div>'
+        +`<div class="trowsave" style="margin-bottom:5px"><input type="text" id="parepo" placeholder="~/my-agent   (empty = soul-only quick mode)" value="${esc(stt.repoPath||'')}"></div>`
+        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:12px">The folder where your agent lives — forge one from the iNFT template (below). Empty runs Pi with just the soul.</div>'
+        +'<div class="sethead">NEURAL SOUL <span style="color:var(--ink-faint);font-weight:400">· '+(soulr.custom?'custom':'iCLONE default')+'</span></div>'
+        +`<textarea id="pasoul" rows="10" spellcheck="false" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--fg);background:color-mix(in srgb,var(--panel) 60%,transparent);border:1px solid var(--line);border-radius:8px;padding:9px;caret-color:var(--accent);resize:vertical">${esc(soulr.soul||'')}</textarea>`
+        +'<div class="setline" style="border:0;padding:6px 0"><span style="font-size:9px;color:var(--ink-faint)">Paste or write a new soul — it layers onto your agent.</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="pasoulsave" style="padding:5px 12px;font-size:9.5px">SAVE SOUL</button><button class="btn" id="pasoulreset" style="padding:5px 12px;font-size:9.5px">RESET</button></span></div>'
+        +'<div class="sethead">LINK AN iNFT <span style="color:var(--ink-faint);font-weight:400">· optional</span></div>'
+        +(pinned.length
+          ?`<div class="setline">Bind a token you own<select id="palink" class="setsel" style="margin-left:auto"><option value="">— none —</option>${pinned.map(a=>`<option value="${esc(a.contract+'::'+a.tokenId)}"${linked&&String(linked.tokenId)===String(a.tokenId)?' selected':''}>${esc(a.name||('#'+a.tokenId))}</option>`).join('')}</select></div>`
+          :'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5">No iNFT pinned yet. Buy one, pin it in <b>LAB → Agents</b>, and it appears here to bind. Your assistant works fully without one.</div>')
+        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin:4px 0 12px">Binding is your choice — whoever holds the token then owns the agent.</div>'
+        +'<div class="sethead">iT TERMINAL CALL</div>'
+        +`<div class="setline">${stt.launcherInstalled?('✓ type <b>'+esc(stt.command)+'</b> in the iT terminal'):'Install the launcher so typing the name opens your agent'}<button class="btn" id="painstall" style="margin-left:auto;padding:5px 12px;font-size:9.5px">${stt.launcherInstalled?'RE-INSTALL':'INSTALL iT COMMAND'}</button></div>`
+        +`<div style="font-size:9px;color:${stt.piInstalled?'#3fd68f':'var(--accent)'};margin:4px 0 12px">${stt.piInstalled?'✓ Pi is installed on this machine':'⚠ Pi not installed — run: npm i -g --ignore-scripts @earendil-works/pi-coding-agent'}</div>`
+        +'<div class="sethead">NO AGENT REPO YET?</div>'
+        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:6px">Paste this to any AI assistant with a terminal (Pi · Claude Code · Cursor…) — it forges your agent from the iNFT template, no iNFT required:</div>'
+        +`<pre id="paforge" style="white-space:pre-wrap;font-family:var(--mono);font-size:9px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--panel) 60%,transparent);border:1px solid var(--line);border-radius:8px;padding:9px;margin:0">${esc(FORGE)}</pre>`
+        +'<div class="setline" style="border:0;padding:6px 0"><span style="font-size:9px;color:var(--ink-faint)">github.com/devclone20/inft-i01</span><button class="btn" id="paforgecopy" style="margin-left:auto;padding:5px 12px;font-size:9.5px">COPY</button></div>';
+      const $q=s=>pane.querySelector(s);
+      $q('#paname').addEventListener('change',async e=>{try{await RPC('assistant','saveConfig',{name:e.target.value.trim()})}catch(_){}});
+      $q('#parepo').addEventListener('change',async e=>{try{const r=await RPC('assistant','saveConfig',{repoPath:e.target.value.trim()});if(r&&!r.ok)Toast.show(r.error||'invalid folder')}catch(_){}});
+      $q('#pasoulsave').addEventListener('click',async()=>{try{const r=await RPC('assistant','saveSoul',$q('#pasoul').value);Toast.show(r&&r.ok?'Soul saved — layered onto your agent.':((r&&r.error)||'failed'))}catch(e){Toast.show(e.message)}});
+      $q('#pasoulreset').addEventListener('click',async()=>{try{await RPC('assistant','saveSoul','');Toast.show('Reset to the iCLONE default.');secPersonalAssistant()}catch(e){Toast.show(e.message)}});
+      const lk=$q('#palink');if(lk)lk.addEventListener('change',async e=>{const v=e.target.value;let ln=null;if(v){const parts=v.split('::'),a=pinned.find(x=>x.contract===parts[0]&&String(x.tokenId)===String(parts[1]));ln={contract:parts[0],tokenId:parts[1],name:(a&&a.name)||''}}try{await RPC('assistant','saveConfig',{linked:ln});Toast.show(ln?'iNFT linked.':'iNFT unlinked.')}catch(_){}});
+      $q('#painstall').addEventListener('click',async()=>{try{const r=await RPC('assistant','install',{name:$q('#paname').value.trim(),repoPath:$q('#parepo').value.trim()});if(r&&r.ok){Toast.show('Installed — type "'+r.command+'" in the iT terminal.');secPersonalAssistant()}else Toast.show((r&&r.error)||'failed')}catch(e){Toast.show(e.message)}});
+      $q('#paforgecopy').addEventListener('click',()=>{navigator.clipboard.writeText(FORGE).then(()=>Toast.show('Copied — paste it to your assistant.')).catch(()=>Toast.show('Copy blocked — select the text manually.'))});
     }
     async function secSystem(){
       loading();

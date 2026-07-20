@@ -417,14 +417,14 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs' };
+  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs', assistant: './assistant.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix' };
+  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix', assistant: 'Assistant' };
 const _modCache = {};
 async function getMod(name) {
   if (_modCache[name]) return _modCache[name];
