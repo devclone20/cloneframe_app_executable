@@ -2283,6 +2283,10 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-convdel{all:unset;cursor:pointer;position:absolute;top:5px;right:6px;font-size:8px;color:var(--ink-faint);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s}
 .mx-conv:hover .mx-convdel{opacity:1}
 .mx-convdel:hover{color:var(--mx-err)}
+.mx-convren{all:unset;cursor:pointer;position:absolute;top:5px;right:22px;font-size:8px;color:var(--ink-faint);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s}
+.mx-conv:hover .mx-convren{opacity:1}
+.mx-convren:hover{color:var(--accent)}
+.mx-renin{all:unset;display:block;width:calc(100% - 30px);font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--fg);border-bottom:1px solid color-mix(in srgb,var(--accent) 55%,transparent);padding-bottom:1px}
 .mx-conv:hover{background:color-mix(in srgb,var(--panel) 70%,transparent)}
 .mx-conv.on{border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .mx-conv .t{font-size:9.5px;font-weight:700;color:var(--fg);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2404,6 +2408,9 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .mx-dlrow{display:flex;align-items:center;gap:7px;font-size:8px;color:var(--ink-dim)}
 .mx-dlbar{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
 .mx-dlbar i{display:block;height:100%;background:var(--accent)}
+.mx-prevrow{display:flex;align-items:center;gap:8px;font-size:8px;letter-spacing:.06em;color:var(--ink-dim)}
+.mx-prevrow .d{margin-left:auto;color:var(--accent);font-weight:700}
+.mx-prevnone{font-size:8px;color:var(--mx-warn);letter-spacing:.04em}
 .mx-launch{all:unset;cursor:pointer;text-align:center;padding:8px 0;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--fg);transition:all .15s}
 .mx-launch:hover{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .mx-launch.dim{opacity:.45}
@@ -6302,14 +6309,17 @@ const Panels=(()=>{
     const GB=n=>(n/1073741824);
     const gb1=n=>{const g=GB(n);return (g>=100?Math.round(g):g>=10?g.toFixed(1):g.toFixed(1))+'GB'};
     const mb2gb=mb=>{const g=mb/1024;return (g>=100?Math.round(g):g.toFixed(1))+'GB'};
+    const FAVKEY='cfhub.matrix.favs.v1';
+    const loadFavs=()=>{try{return new Set(JSON.parse(localStorage.getItem(FAVKEY)||'[]'))}catch(_){return new Set()}};
+    const saveFavs=()=>{try{localStorage.setItem(FAVKEY,JSON.stringify([...st.favs]))}catch(_){}};
     const CONVKEY='cfhub.matrix.convs.v1';
     const loadConvs=()=>{try{const j=JSON.parse(localStorage.getItem(CONVKEY)||'[]');return Array.isArray(j)?j.map(c=>({...c,msgs:(c.msgs||[]).map(m=>({...m,done:true}))})):[]}catch(_){return []}};
-    const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null,files:m.files||null}))}))))}catch(_){}};
-    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[]};
+    const saveConvs=()=>{try{localStorage.setItem(CONVKEY,JSON.stringify(st.convs.slice(0,40).map(c=>({id:c.id,title:c.title,model:c.model,stats:c.stats,msgs:c.msgs.filter(m=>m.content).map(m=>({role:m.role,content:m.content,t:m.t,stats:m.stats||null,files:m.files||null,sent:(m.sent&&m.sent!==m.content&&m.sent.length<=65536)?m.sent:undefined}))}))))}catch(_){}};
+    const st={view:'home',online:false,fails:0,st8:null,models:null,convs:loadConvs(),chat:null,selModel:null,famFilter:'all',query:'',streaming:false,abort:null,stats:null,intTool:'claude',open:new Set(),timer:null,launching:false,armed:null,attach:[],favs:loadFavs(),renaming:null,preview:null,eng:{avail:false},prov:null};
     const DEMO={
       nodes:[{id:'demo1',name:'MATRIX NODE 01',chip:'Apple M5',used:11.8*1073741824,total:16*1073741824},
              {id:'demo2',name:'MATRIX NODE 02',chip:'Apple M3 Ultra',used:64*1073741824,total:192*1073741824}],
-      links:[['demo1','demo2']],
+      links:[['demo1','demo2','thunderbolt']],
       inst:[{id:'DEMO0000',model:'demo/local-model-4bit',shard:'PIPELINE',ring:'MLX RING',status:'READY',demo:true}],
     };
 
@@ -6415,12 +6425,16 @@ const Panels=(()=>{
       }
       return DEMO.nodes;
     }
-    function links(){
+    function links(){ // [a,b,interfaceLabel] — label drawn at the link midpoint (exo hides this; we show it)
       if(st.online&&st.st8){
         const conns=(st.st8.topology&&st.st8.topology.connections)||{},out=[],seen=new Set();
         for(const a in conns){const peers=conns[a];const list=Array.isArray(peers)?peers:Object.keys(peers||{});
-          for(const b of list){const pk=typeof b==='string'?b:(b&&b.node)||'';const k=[a,pk].sort().join('|');
-            if(pk&&!seen.has(k)){seen.add(k);out.push([a,pk])}}}
+          for(const b of list){
+            const isObj=b&&typeof b==='object';
+            const pk=isObj?(b.node||b.sink||b.peer||''):String(b);
+            const lbl=isObj?((b.sourceRdmaIface||b.sinkRdmaIface)?'rdma':(b.sendBackInterface||b.interface||b.iface||'')):'';
+            const k=[a,pk].sort().join('|');
+            if(pk&&!seen.has(k)){seen.add(k);out.push([a,pk,String(lbl)])}}}
         return out;
       }
       return DEMO.links;
@@ -6470,7 +6484,11 @@ const Panels=(()=>{
       const cx=W/2,cy=H/2-(compact?2:8);
       const pos={};ns.forEach((n,i)=>{const a=(i/ns.length)*2*Math.PI-Math.PI/2;pos[n.id]=[cx+orbit*Math.cos(a),cy+orbit*Math.sin(a)]});
       let out='';
-      for(const [a,b] of ls){if(pos[a]&&pos[b])out+=`<line class="mx-link" x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}"/>`}
+      for(const [a,b,lbl] of ls){
+        if(!pos[a]||!pos[b])continue;
+        out+=`<line class="mx-link" x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}"/>`;
+        if(lbl&&!compact)out+=`<text x="${(pos[a][0]+pos[b][0])/2}" y="${(pos[a][1]+pos[b][1])/2-6}" text-anchor="middle" style="fill:var(--ink-faint)" font-size="${7*scale}" letter-spacing=".14em">${esc(lbl.toUpperCase())}</text>`;
+      }
       for(const n of ns)out+=deviceSVG(n,pos[n.id][0],pos[n.id][1],scale);
       svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=out;
     }
@@ -6496,7 +6514,10 @@ const Panels=(()=>{
         E.convs.innerHTML=`<div class="mx-convlbl">CONVERSATIONS</div>`+list.map(c=>`
           <div class="mx-conv${st.chat===c?' on':''}" data-cid="${c.id}">
             <button class="mx-convdel" data-mxcdel="${c.id}" title="Delete conversation">✕</button>
-            <div class="t">${esc(c.title)}</div>
+            <button class="mx-convren" data-mxcren="${c.id}" title="Rename">✎</button>
+            ${st.renaming===c.id
+              ?`<input class="mx-renin" data-mxrenin="${c.id}" value="${esc(c.title)}" maxlength="60">`
+              :`<div class="t">${esc(c.title)}</div>`}
             <div class="m">${esc((c.model||'').split('/').pop()||'')}</div>
             ${c.stats?`<div class="s">TTFT ${c.stats.ttft}ms · ${c.stats.tps} tok/s</div>`:''}
           </div>`).join('');
@@ -6522,6 +6543,13 @@ const Panels=(()=>{
       const mFits=!!m&&m.storage_size_megabytes*1048576<=clusterFree();
       const launchLbl=st.launching?'LAUNCHING…':mLive?'● LIVE':(!mFits?'INSUFFICIENT MEMORY':'▸ LAUNCH');
       const launchDim=st.launching||(!mFits&&!mLive);
+      let prevHTML='';
+      if(m&&st.preview&&st.preview.forId===m.id){
+        const ok=st.preview.rows.filter(r=>!r.err).slice(0,3);
+        prevHTML='<div class="mx-dllbl">PLACEMENT</div>'+(ok.length
+          ?ok.map(r=>`<div class="mx-prevrow"><span>${esc(r.shard.toUpperCase())}</span><span>${esc(/jaccl/i.test(r.meta)?'RDMA':'RING')}</span><span>${r.nodes||1} node${(r.nodes||1)>1?'s':''}</span><span class="d">+${esc(gb1(r.delta))}</span></div>`).join('')
+          :'<div class="mx-prevnone">no viable placement — free some memory</div>');
+      }
       E.aside.innerHTML=
         (st.view==='chat'?`<div class="mx-ash"><i></i>TOPOLOGY<span class="n">${nodes().length} NODE${nodes().length>1?'S':''}</span></div><div class="mx-minitopo"><svg data-mx="minitopo"></svg></div>`:'')
         +(ins.length?`<div class="mx-ash"><i></i>INSTANCES</div>`+ins.map(instCard).join(''):'')
@@ -6533,6 +6561,7 @@ const Panels=(()=>{
             <div class="mx-chips"><span class="mx-chip">PIPELINE</span><span class="mx-chip">MLX RING</span></div>
             <div class="mx-dllbl">DOWNLOAD</div>
             <div class="mx-dlrow"><span>${esc(nodes()[0]?nodes()[0].name.slice(0,10):'node')}…</span><div class="mx-dlbar"><i style="width:${dlDone?100:0}%"></i></div><span>${dlDone?'100%':'—'}</span></div>
+            ${prevHTML}
             <button class="mx-launch${launchDim?' dim':''}" data-mx="launch">${launchLbl}</button>
           </div>`:'');
       const mini=root.querySelector('[data-mx="minitopo"]');if(mini)drawTopo(mini,true);
@@ -6576,6 +6605,22 @@ const Panels=(()=>{
         Toast.show('Launching '+m.name+' — watch INSTANCES.');
       }catch(err){Toast.show('Launch failed: '+((err&&err.message)||'error'))}
       st.launching=false;renderAside();
+    }
+    async function fetchPreview(modelId){ // where would this model land — the engine's dry-run placement
+      if(!st.online){st.preview=null;return}
+      try{
+        const r=await fetch(API+'/instance/previews?model_id='+encodeURIComponent(modelId),{signal:AbortSignal.timeout(4000)});
+        if(!r.ok)throw 0;
+        const j=await r.json();
+        const rows=(j.previews||[]).map(p=>{
+          const mdl=p.memory_delta_by_node||p.memoryDeltaByNode||null;
+          return {shard:String(p.sharding||''),meta:String(p.instance_meta||p.instanceMeta||''),
+            nodes:mdl?Object.keys(mdl).length:null,
+            delta:mdl?Object.values(mdl).reduce((a,b)=>a+b,0):0,err:p.error||null};
+        });
+        if(st.selModel&&st.selModel.id===modelId)st.preview={forId:modelId,rows};
+      }catch(_){st.preview=null}
+      renderAside();
     }
     function arm(key){ // two-click confirm for destructive ops; tick() clears stale arms
       if(st.armed&&st.armed.key===key)return true;
@@ -6647,8 +6692,16 @@ const Panels=(()=>{
           id=r.id;
         }
         const t=await RPC('models','testProvider',id);
+        // curate to the models actually on disk — a picker full of 123 unlaunchable ids is noise
+        let curated=null;
+        try{
+          const r=await fetch(API+'/models?status=downloaded',{signal:AbortSignal.timeout(3000)});
+          const j=await r.json();const ids=(j.data||j||[]).map(m=>m.id).filter(Boolean);
+          if(ids.length){const s=await RPC('models','setModels',id,ids);if(s&&s.ok)curated=s.count}
+        }catch(_){/* engine offline or old bridge without setModels — full catalog stays */}
         await refreshProv();
-        if(t&&t.ok)Toast.show('MATRIX registered — '+((t.models&&t.models.length)||0)+' model(s) now in your Terminal/Brain/Harness pickers.');
+        if(curated!==null)Toast.show('MATRIX registered — '+curated+' downloaded model(s) in your Terminal/Brain/Harness pickers.');
+        else if(t&&t.ok)Toast.show('MATRIX registered — '+((t.models&&t.models.length)||0)+' model(s) now in your Terminal/Brain/Harness pickers.');
         else Toast.show('Registered. Model sync pending — start the engine, then REFRESH MODELS.');
       }catch(e){Toast.show('Register failed: '+((e&&e.message)||'bridge error'))}
       if(st.view==='int')renderInt();
@@ -6720,7 +6773,7 @@ const Panels=(()=>{
           <div class="row"><button class="mx-provbtn" data-mx="provider">${st.prov?'↻ REFRESH MODELS':'⚡ REGISTER AS PROVIDER'}</button><span class="st">${st.prov?`<b>✓ registered</b> — ${st.prov.models} model(s) in the pickers`:'not registered yet'}</span></div>
         </div>
         <div class="mx-ttabs">${INT_TOOLS.map(t=>`<button data-mxtool="${t[0]}" class="${st.intTool===t[0]?'on':''}">${esc(t[1])}</button>`).join('')}</div>
-        <div class="mx-code"><div class="mx-codeh"><b>Shell Command</b><span>Run in terminal</span><button class="mx-copy" data-mx="copy">COPY</button></div>
+        <div class="mx-code"><div class="mx-codeh"><b>Shell Command</b><span>Run in terminal</span><button class="mx-copy" data-mx="runit">▸ OPEN IN iT</button><button class="mx-copy" data-mx="copy">COPY</button></div>
         <pre data-mx="cmdpre">${esc(intCmd(st.intTool))}</pre></div>`;
     }
     function setView(v){
@@ -6751,6 +6804,7 @@ const Panels=(()=>{
       if(st.armed&&performance.now()-st.armed.ts>3500)st.armed=null;
       st.tickN=(st.tickN||0)+1;
       if(st.tickN%8===1)refreshEng();
+      if(st.selModel&&st.online&&st.tickN%15===0)fetchPreview(st.selModel.id);
       renderStatus();
       if(st.view==='home')drawTopo(E.topo,false);
       if(st.view==='dl')renderDl();
@@ -6840,18 +6894,18 @@ const Panels=(()=>{
     function famList(){
       const fams=new Set((st.models||[]).map(m=>m.family));
       const rest=[...fams].filter(f=>!FAM_ORDER.includes(f)).sort();
-      return ['all',...FAM_ORDER.filter(f=>fams.has(f)),...rest];
+      return ['all',...(st.favs.size?['fav']:[]),...FAM_ORDER.filter(f=>fams.has(f)),...rest];
     }
     function fitClass(mb){const b=mb*1048576;if(b<=clusterFree())return '';if(b<=clusterTotal())return 'tight';return 'no'}
     function renderPicker(){
       const free=clusterFree(),total=clusterTotal();
       E.pmem.innerHTML=`<b>${esc(gb1(free))}</b>/${esc(gb1(total))}`;
-      E.fam.innerHTML=famList().map(f=>`<button data-mxfam="${esc(f)}" class="${st.famFilter===f?'on':''}">${esc(f==='all'?'All':f)}</button>`).join('');
+      E.fam.innerHTML=famList().map(f=>`<button data-mxfam="${esc(f)}" class="${st.famFilter===f?'on':''}">${esc(f==='all'?'All':f==='fav'?'★ Fav':f)}</button>`).join('');
       if(!st.models){E.plist.innerHTML=`<div class="mx-pempty">Engine offline — no catalog.<br>Start your MATRIX engine to browse ${st.online?'':'the '}models.</div>`;return}
       // token-AND search: "3.2 3b" must find "Llama-3.2-3B-…" (separators vary per model id)
       const toks=st.query.toLowerCase().split(/\s+/).filter(Boolean);
       let list=st.models.filter(m=>{
-        if(st.famFilter!=='all'&&m.family!==st.famFilter)return false;
+        if(st.famFilter!=='all'&&st.famFilter!=='fav'&&m.family!==st.famFilter)return false;
         if(!toks.length)return true;
         const hay=(m.id+' '+m.name+' '+m.base+' '+m.quant).toLowerCase();
         return toks.every(t=>hay.includes(t));
@@ -6859,17 +6913,18 @@ const Panels=(()=>{
       // group variants by base model
       const groups=new Map();
       for(const m of list){const k=m.base+'|'+m.family;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(m)}
-      const rows=[...groups.values()];
+      let rows=[...groups.values()];
+      if(st.famFilter==='fav')rows=rows.filter(g=>st.favs.has(g[0].base+'|'+g[0].family));
       const fits=g=>g.some(m=>fitClass(m.storage_size_megabytes)==='');
       const rec=rows.filter(fits),oth=rows.filter(g=>!fits(g));
       const rowHTML=g=>{
         const one=g.length===1,m0=g[0],key=m0.base+'|'+m0.family;
         const minMB=Math.min(...g.map(m=>m.storage_size_megabytes)),maxMB=Math.max(...g.map(m=>m.storage_size_megabytes));
         const sz=one?m0.gbLabel:`${g.length} variants (${mb2gb(minMB)}–${mb2gb(maxMB)})`;
-        const openG=st.open.has(key);
+        const openG=st.open.has(key),isFav=st.favs.has(key);
         return `<div class="mx-prow" data-mxpick="${esc(one?m0.id:'')}" data-mxgrp="${esc(one?'':key)}">
           <span class="car">${one?'':(openG?'▾':'▸')}</span><span class="nm">${esc(m0.base)}</span>
-          <span class="sz ${fitClass(minMB)}">${esc(sz)}</span><span class="star">☆</span>
+          <span class="sz ${fitClass(minMB)}">${esc(sz)}</span><span class="star${isFav?' on':''}" data-mxfav="${esc(key)}" title="Favorite">${isFav?'★':'☆'}</span>
         </div>${openG&&!one?g.map(v=>`<div class="mx-pvar" data-mxpick="${esc(v.id)}"><span class="q">${esc(v.quant||'default')}</span><span>${esc(v.name)}</span>${isDownloaded(v.id)?'<span class="dl">✓ on disk</span>':''}<span class="sz ${fitClass(v.storage_size_megabytes)}">${esc(v.gbLabel)}</span></div>`).join(''):''}`;
       };
       E.plist.innerHTML=
@@ -6879,8 +6934,8 @@ const Panels=(()=>{
     }
     function pickModel(id){
       const m=(st.models||[]).find(x=>x.id===id);if(!m)return;
-      st.selModel=m;st.chatModel=id;E.picker.classList.remove('on');
-      renderAside();updateComposer();
+      st.selModel=m;st.chatModel=id;st.preview=null;E.picker.classList.remove('on');
+      renderAside();updateComposer();fetchPreview(id);
     }
 
     // ---- events ----
@@ -6890,6 +6945,10 @@ const Panels=(()=>{
       const act=t.closest('[data-mx]');
       const frm=t.closest('[data-mxfrm]');
       if(frm){st.attach.splice(+frm.dataset.mxfrm,1);renderChips();return}
+      const cren=t.closest('[data-mxcren]');
+      if(cren){st.renaming=cren.dataset.mxcren;renderSide();
+        const inp=root.querySelector('[data-mxrenin]');if(inp){inp.focus();inp.select()}return}
+      if(t.closest('[data-mxrenin]'))return; // clicks inside the rename input never open the conversation
       const cdel=t.closest('[data-mxcdel]');
       if(cdel){const id=cdel.dataset.mxcdel;const c=st.convs.find(x=>x.id===id);
         st.convs=st.convs.filter(x=>x.id!==id);
@@ -6913,6 +6972,10 @@ const Panels=(()=>{
         else if(dla.dataset.mxdla==='disk'&&arm('disk:'+nid+'|'+mid))dlDelete(nid,mid);
         return;
       }
+      const favb=t.closest('[data-mxfav]');
+      if(favb){const k=favb.dataset.mxfav;st.favs.has(k)?st.favs.delete(k):st.favs.add(k);
+        if(st.famFilter==='fav'&&!st.favs.size)st.famFilter='all';
+        saveFavs();renderPicker();return}
       const pick=t.closest('[data-mxpick]');
       if(pick){
         if(pick.dataset.mxpick){pickModel(pick.dataset.mxpick);return}
@@ -6931,6 +6994,12 @@ const Panels=(()=>{
         case 'send':sendChat();break;
         case 'copy':{const pre=root.querySelector('[data-mx="cmdpre"]');
           navigator.clipboard.writeText(pre?pre.textContent:'').then(()=>Toast.show('Copied.'));break}
+        case 'runit':{const pre=root.querySelector('[data-mx="cmdpre"]');
+          openPanel('shell'); // open first — a failed clipboard write must never block the terminal
+          navigator.clipboard.writeText(pre?pre.textContent:'')
+            .then(()=>Toast.show('Command copied — paste it in iT (⌘V) and run.'))
+            .catch(()=>Toast.show('iT opened — copy the command from INTEGRATIONS.'));
+          break}
       }
     });
     E.picker.addEventListener('click',e=>{if(e.target===E.picker)E.picker.classList.remove('on')});
@@ -6943,6 +7012,18 @@ const Panels=(()=>{
     root.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;root.classList.remove('dropping');addFiles(e.dataTransfer&&e.dataTransfer.files)});
     E.pq.addEventListener('input',()=>{st.query=E.pq.value;renderPicker()});
     E.search.addEventListener('input',renderSide);
+    // rename commit/cancel — delegated so re-renders never drop the listeners
+    E.convs.addEventListener('keydown',e=>{
+      const inp=e.target.closest('[data-mxrenin]');if(!inp)return;
+      if(e.key==='Enter'){e.preventDefault();inp.blur()}
+      if(e.key==='Escape'){st.renaming=null;renderSide()}
+    });
+    E.convs.addEventListener('focusout',e=>{
+      const inp=e.target.closest('[data-mxrenin]');if(!inp||st.renaming!==inp.dataset.mxrenin)return;
+      const c=st.convs.find(x=>x.id===inp.dataset.mxrenin);
+      if(c&&inp.value.trim())c.title=inp.value.trim();
+      st.renaming=null;saveConvs();renderSide();
+    });
     E.input.addEventListener('input',()=>{E.input.style.height='auto';E.input.style.height=Math.min(150,E.input.scrollHeight)+'px';updateComposer()});
     E.input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendChat()}});
 

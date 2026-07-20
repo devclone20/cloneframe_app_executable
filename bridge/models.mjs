@@ -486,6 +486,26 @@ export function setDefault(capability, selection = {}) {
   return { ok: true };
 }
 
+/**
+ * Replaces a provider's model list. Used by integrations that curate which models are
+ * actually servable right now (e.g. MATRIX registers only the models on disk, not the
+ * engine's whole catalog).
+ * @returns {{ok:boolean, count?:number, error?:string}}
+ */
+export function setModels(id, models) {
+  if (!id || typeof id !== 'string') return { ok: false, error: 'id is required' };
+  if (!Array.isArray(models)) return { ok: false, error: 'models must be an array' };
+  const list = [...new Set(models.filter((m) => typeof m === 'string' && m.trim()).map((m) => m.trim()))].sort().slice(0, 500);
+  const store = loadStore();
+  const rec = store.providers.find((p) => p.id === id);
+  if (!rec) return { ok: false, error: 'not found' };
+  rec.models = list;
+  rec.lastTestedAt = Date.now();
+  rec.lastError = null;
+  try { saveStore(store); } catch (e) { return { ok: false, error: e.message || String(e) }; }
+  return { ok: true, count: list.length };
+}
+
 /** @returns {{ok:boolean, error?:string}} */
 export function setEnabled(id, enabled) {
   if (!id || typeof id !== 'string') return { ok: false, error: 'id is required' };
@@ -541,6 +561,7 @@ export const Models = {
   getDefaults,
   setDefault,
   setEnabled,
+  setModels,
   setModelEnabled,
   brainStatus,
   // server-only (RPC blocks _-prefixed): the bridge's /provider-chat uses these
