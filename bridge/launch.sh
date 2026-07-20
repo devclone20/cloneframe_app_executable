@@ -18,6 +18,7 @@ PORT="${HUB_BRIDGE_PORT:-8765}"
 URL="http://127.0.0.1:${PORT}"
 CONF="$HOME/.clone-frame-hub"
 mkdir -p "$CONF"
+umask 077                       # logs may hold hostnames/IPs — create them owner-only (0600)
 exec >> "$CONF/launch.log" 2>&1
 echo "── launch $(date '+%F %T') ──"
 
@@ -43,18 +44,18 @@ if ! /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1; then
 fi
 /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1 && echo "server up" || echo "server DID NOT come up"
 
-# ── DEFAULT: the NATIVE Electron shell (REAL in-app browser) ──────────────────
-# The daily driver is the Electron shell because the in-app Browser is a REAL top-level
-# WebContentsView — full pages, real navigation, no reader/proxy fallback. A Chrome --app
-# window can only embed sites in an iframe, so any site that forbids framing (GitHub, most
-# apps) degrades to a read-only preview — which is exactly what the owner does NOT want.
-# The whole app (terminal, LAB, panels, Gmail-via-OAuth) runs identically here.
-# Escape hatch: HUB_SHELL=chrome ./launch.sh  → the app in a Chrome --app window instead.
+# ── Optional: the NATIVE Electron shell (opt-in) ──────────────────────────────
+# The daily driver is now a Chrome --app window (below) — light, and it brings the
+# user's real Chrome profile (wallet extensions + Google session) into the app for
+# free. The Electron shell is heavier and only worth it for deep work ON the in-app
+# Browser: there it's a REAL top-level WebContentsView (full pages, real navigation)
+# instead of an iframe that degrades to a read-only preview on framing-blocked sites.
+# Opt in with:  HUB_SHELL=electron ./launch.sh
 # CFHUB_DEBUG=<port> adds a local remote-debugging port to Electron (testing only).
 APP_DIR="${SCRIPT_DIR:h}/electron"
 ELECTRON_APP="$APP_DIR/node_modules/electron/dist/Electron.app"
 ELECTRON_CLI="$APP_DIR/node_modules/electron/cli.js"
-if [ "${HUB_SHELL:-}" != "chrome" ] && [ -d "$ELECTRON_APP" ]; then
+if [ "${HUB_SHELL:-}" = "electron" ] && [ -d "$ELECTRON_APP" ]; then
   # `open` makes macOS treat it as a proper (self-responsible) app launch — needed for
   # any WebAuthn/Touch ID prompt inside the view; a nohup spawn makes the terminal the
   # responsible process and macOS silently refuses those prompts.
@@ -62,7 +63,7 @@ if [ "${HUB_SHELL:-}" != "chrome" ] && [ -d "$ELECTRON_APP" ]; then
   /usr/bin/open -na "$ELECTRON_APP" --args "$APP_DIR" ${CFHUB_DEBUG:+--remote-debugging-port=$CFHUB_DEBUG}
   echo "done"
   exit 0
-elif [ "${HUB_SHELL:-}" != "chrome" ] && [ -f "$ELECTRON_CLI" ]; then
+elif [ "${HUB_SHELL:-}" = "electron" ] && [ -f "$ELECTRON_CLI" ]; then
   # fallback: run cli.js through the resolved node (PATH-independent); no passkeys
   echo "launching native Electron shell (node cli fallback)"
   ( cd "$APP_DIR" && nohup "$NODE" "$ELECTRON_CLI" . >> "$CONF/electron.log" 2>&1 & )
@@ -70,7 +71,7 @@ elif [ "${HUB_SHELL:-}" != "chrome" ] && [ -f "$ELECTRON_CLI" ]; then
   exit 0
 fi
 
-# ── Fallback: Google Chrome app window ────────────────────────────────────────
+# ── DEFAULT: Google Chrome app window ─────────────────────────────────────────
 if [ -d "/Applications/Google Chrome.app" ]; then
   # HUB_PROFILE=app  (default) → the HUB's own dedicated Chrome profile at
   #                   $CONF/chrome (migrated from the retired CfT profile, so
