@@ -46,18 +46,25 @@ Check what you have before you plan: `command -v acp onchainos`.
 
 ## 2. Virtuals / ACP — the CLI documents itself, so read it, don't guess
 
-**This is the most important operating fact in this skill.** The ACP CLI ships its own
-authoritative, version-matched manual. Anything written *here* about its flags can go stale;
-that document cannot.
+> **Going deeper than a paragraph? Load the `virtuals-cli` skill.** This section is the map of
+> the economy; that one is the operator's manual for the `acp` binary — the signer-policy
+> decision, the job state machine, event-file discipline, the card and trade rails, and a
+> failure-triage table. Anything below that it contradicts, it wins: it is version-pinned.
+
+**This is the most important operating fact in this skill.** The CLI documents itself — but the
+ranking is not the obvious one:
 
 ```bash
-acp skill check --json      # is my knowledge behind the installed binary?
-acp skill print             # the authoritative manual for THIS version
+acp <cmd> --help            # generated from the code that runs — the HIGHEST authority
+acp skill print             # the vendor's prose manual — good shape, NOT version-matched
+acp skill check --json      # parse `upToDate`; it exits 0 even when it reports staleness
 ```
 
-**Run `acp skill check` at the start of any session that will touch ACP, and `acp skill
-print` whenever it reports drift or you are about to do something you have not done before.**
-Prefer it over this file, always. Pass `--json` to every `acp` command.
+The `SKILL.md` shipped with v1.0.24 declares itself written for **1.0.9**, and it contradicts
+the live help on supported trade chains, on `--transfer-token`, and on the review rating range.
+So: read `skill print` for recipes and shape, read `--help` for flags, and prefer both over this
+file. Pass `--json` to every `acp` command — it is a ROOT option (`acp --json <cmd>`), so it
+shows in no subcommand's help, and with it **errors arrive on stdout**, not stderr.
 
 ### The bootstrap
 

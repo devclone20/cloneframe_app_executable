@@ -60,16 +60,29 @@ for ext in clone-frame.ts goal.ts fleet.ts; do
   fi
 done
 
-# 4. skills (expect 5) ---------------------------------------------------------
+# 4. skills --------------------------------------------------------------------
+# Derived from the tree, never from a hardcoded list. The list used to be frozen at
+# five names and had silently fallen two behind — so it passed while it could not
+# see the skills that had been added. A check that enumerates a stale list can never
+# report what is missing from it; this one walks what is actually there, and fails
+# on a skill directory with no SKILL.md (a skill pi cannot load).
 SKILL_DIR="${ROOT}/.pi/skills"
-EXPECTED_SKILLS="clone-frame-orchestration git-memory github-research guardrails supabase-data"
-for sk in ${EXPECTED_SKILLS}; do
-  if [ -f "${SKILL_DIR}/${sk}/SKILL.md" ]; then
-    ok "skill present: ${sk}"
-  else
-    bad "skill MISSING: ${sk}"
-  fi
-done
+SKILL_N=0
+if [ -d "${SKILL_DIR}" ]; then
+  for d in "${SKILL_DIR}"/*/; do
+    [ -d "${d}" ] || continue                       # no globs matched → no skills
+    sk="$(basename "${d}")"
+    if [ -f "${d}SKILL.md" ]; then
+      SKILL_N=$((SKILL_N + 1))
+      ok "skill present: ${sk}"
+    else
+      bad "skill BROKEN: ${sk} (directory with no SKILL.md — pi cannot load it)"
+    fi
+  done
+  [ "${SKILL_N}" -eq 0 ] && bad "no skills found in ${SKILL_DIR}"
+else
+  bad "skills directory MISSING: ${SKILL_DIR}"
+fi
 
 # 5. panel count in the APP-MAP (AGENTS.md §3 AUTO PANELS table) ----------------
 AGENTS_MD="${ROOT}/AGENTS.md"
