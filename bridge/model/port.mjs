@@ -89,7 +89,13 @@ export function createModelPort({ registry, fetchImpl = fetch, envAnthropicKey =
       if (def?.providerId && registry._raw) { rec = registry._raw(def.providerId); if (!model) model = def.model; }
     }
     if (!rec && registry?.listProviders) {
-      const first = registry.listProviders().find((p) => p.enabled !== false && p.id) || registry.listProviders()[0];
+      const list = registry.listProviders().filter((p) => p.enabled !== false && p.id);
+      // A provider with NO model to run is not a brain. Auto-picking one (the local
+      // MATRIX cluster with nothing downloaded sorted first) resolved the model to the
+      // literal 'auto', and the owner's very first message came back "No instance found
+      // for model auto". Prefer a provider that can actually answer; the old behaviour
+      // stays as the last resort so an explicitly-configured-but-empty setup still works.
+      const first = list.find((p) => (p.models || []).length) || list[0] || registry.listProviders()[0];
       if (first && registry._raw) rec = registry._raw(first.id);
     }
     if (rec) {

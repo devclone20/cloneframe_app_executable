@@ -34,7 +34,10 @@ const WELL_KNOWN_ENV = [
   { env: 'DEEPSEEK_API_KEY',   provider: 'deepseek',   baseUrl: 'https://api.deepseek.com',                          model: 'deepseek-chat' },
   { env: 'OPENAI_API_KEY',     provider: 'openai',     baseUrl: 'https://api.openai.com/v1',                         model: 'gpt-4o-mini' },
   { env: 'GROQ_API_KEY',       provider: 'groq',       baseUrl: 'https://api.groq.com/openai/v1',                    model: 'llama-3.3-70b-versatile' },
-  { env: 'OPENROUTER_API_KEY', provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1',                      model: 'auto' },
+  // 'auto' alone is NOT a model id at OpenRouter (it 400s: "No instance found for model
+  // auto" — the first message every OpenRouter owner ever sent). The auto-router is
+  // 'openrouter/auto'. Verified against their public /models catalogue.
+  { env: 'OPENROUTER_API_KEY', provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1',                      model: 'openrouter/auto' },
   { env: 'XAI_API_KEY',        provider: 'xai',        baseUrl: 'https://api.x.ai/v1',                               model: 'grok-2-latest' },
   { env: 'MISTRAL_API_KEY',    provider: 'mistral',    baseUrl: 'https://api.mistral.ai/v1',                         model: 'mistral-large-latest' },
   { env: 'GEMINI_API_KEY',     provider: 'gemini',     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },

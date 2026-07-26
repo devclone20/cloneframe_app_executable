@@ -18,8 +18,8 @@
           <div class="qh"><span class="type">${T.label}</span><span>${escHtml(a.title)}</span><span class="stt">${stLabel}</span></div>
           <div class="qbody">${escHtml(a.body)}</div>
           <div class="safety ${a.safety.verdict==='VETO'?'veto':'ok'}"><svg width="12" height="12"><use href="#i-shield"/></svg>SAFETY: ${a.safety.verdict} — ${escHtml(a.safety.reason)}</div>
-          ${a.status==='pending'?`<div class="qbtns"><button class="btn" data-ap style="padding:6px 13px;font-size:9px">${a.fin?'APPROVE (sign)':'APPROVE'}</button><button class="btn" data-rj style="padding:6px 13px;font-size:9px">REJECT</button></div>`:''}
-          ${a.result?`<div style="font-size:9px;color:var(--ink-faint);margin-top:6px">${escHtml(a.result)}</div>`:''}
+          ${a.status==='pending'?`<div class="qbtns"><button class="btn" data-ap style="padding:6px 13px;font-size:10px">${a.fin?'APPROVE (sign)':'APPROVE'}</button><button class="btn" data-rj style="padding:6px 13px;font-size:10px">REJECT</button></div>`:''}
+          ${a.result?`<div style="font-size:10px;color:var(--ink-faint);margin-top:6px">${escHtml(a.result)}</div>`:''}
         </div>`;
       }).join('');
     }

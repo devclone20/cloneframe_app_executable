@@ -1,7 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CLONE FRAME · HUB — browser
-// In-app browser backend: search + reader view (via web.mjs), history, bookmarks,
-// quick-links. So the user never leaves CLONE FRAME to search/read the web.
+// In-app browser backend: search + reader view (via web.mjs), bookmarks, quick-links.
+// So the user never leaves CLONE FRAME to search/read the web.
+//
+// NO HISTORY. The browser keeps no record of where the owner has been (their order,
+// 2026-07-25): pages render in an off-the-record engine context that dies with the
+// window (bridge/webengine.mjs), and this module neither writes nor stores visits.
+// The `history` array older versions kept in browser.json is deleted on first load.
 // ─────────────────────────────────────────────────────────────────────────────
 import { openStore } from './platform/json-store.mjs';
 import { hubRoot } from './platform/hub-root.mjs';
@@ -10,16 +15,21 @@ import { hubRoot } from './platform/hub-root.mjs';
 // dir 0700 / file 0600, tmp-write-then-rename, read-per-call (no cached
 // singleton, so a second bridge process or a hand-edited file is never stale).
 // Every mutation below reads fresh, mutates, then saves in the same call.
-const store = openStore({ name: 'browser', version: 1, shape: { history: [], bookmarks: [] }, root: hubRoot() });
+const store = openStore({ name: 'browser', version: 1, shape: { bookmarks: [] }, root: hubRoot() });
 const load = () => store.read();
 // The old hand-rolled save() swallowed disk errors (catch {}) so a mutation
 // always reported ok; the port throws, so keep that swallow at the call site.
 const save = (o) => { try { store.write(o); } catch { /* best effort, matches pre-port behavior */ } };
 const rid = () => Math.random().toString(36).slice(2, 10);
 
+// One-shot: an install that used to record visits still has them on disk. Erase them
+// the first time this module loads — "no history" has to be true of the past too.
+(function dropLegacyHistory() {
+  try { const s = load(); if (s && s.history !== undefined) { delete s.history; save(s); } } catch { /* nothing to drop */ }
+})();
+
 const QUICK = [
   { label: 'Google', url: 'https://www.google.com/search?q=', search: true },
-  { label: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=', search: true },
   { label: 'GitHub', url: 'https://github.com' },
   { label: 'YouTube', url: 'https://youtube.com' },
   { label: 'X', url: 'https://x.com' },
@@ -42,21 +52,9 @@ export const Browser = {
     const W = await web(); if (!W) return { ok: false, error: 'web module unavailable' };
     try {
       const r = await W.fetchUrl(String(url || ''));
-      if (r && r.ok) {
-        // Record the visit BEST-EFFORT: a history-store read/write failure must
-        // never discard a page that was fetched successfully (the store now
-        // re-throws a genuine EACCES rather than the old swallow-to-empty).
-        try {
-          const s = load();
-          s.history.unshift({ id: rid(), url: r.url || url, title: r.title || url, ts: Date.now() });
-          if (s.history.length > 200) s.history.length = 200; save(s);
-        } catch { /* best-effort history; the fetched page still returns below */ }
-      }
       return r || { ok: false, error: 'falhou' };
     } catch (e) { return { ok: false, error: e.message }; }
   },
-  history({ limit = 30 } = {}) { return load().history.slice(0, limit); },
-  clearHistory() { const s = load(); s.history = []; save(s); return { ok: true }; },
   bookmarks() { return load().bookmarks.slice(); },
   addBookmark({ url, title } = {}) {
     if (!url) return { ok: false, error: 'no url' };
@@ -66,16 +64,5 @@ export const Browser = {
   },
   removeBookmark(id) { const s = load(); s.bookmarks = s.bookmarks.filter(b => b.id !== id); save(s); return { ok: true }; },
   quickLinks() { return QUICK.slice(); },
-  // fire-and-forget history write from the in-app browser (the proxy path sets the
-  // iframe src directly, so History would otherwise stay empty)
-  visit({ url, title } = {}) {
-    if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
-    const s = load();
-    const h = s.history;
-    if (h[0] && h[0].url === url) { if (title) h[0].title = title; save(s); return { ok: true }; }
-    h.unshift({ id: rid(), url, title: title || url, ts: Date.now() });
-    if (h.length > 200) h.length = 200; save(s);
-    return { ok: true };
-  },
 };
 export default Browser;

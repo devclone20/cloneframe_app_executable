@@ -29,6 +29,19 @@ try { const _ws = await import('ws'); WebSocketServer = _ws.WebSocketServer || (
 const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HUB_ROOT = path.dirname(BRIDGE_DIR); // the clone-frame-hub dir (serves the app)
 const VERSION = '0.2.0';
+// Any bridge/*.mjs newer on disk than this process = the daemon is serving old code
+// (it only reloads on relaunch, unlike the HTML's ⌘R). Reported by /health as `stale`.
+const STARTED_AT = Date.now();
+function bridgeStale() {
+  try {
+    for (const f of fs.readdirSync(BRIDGE_DIR, { recursive: true })) {
+      const name = String(f);
+      if (!name.endsWith('.mjs') || name.includes('node_modules')) continue;
+      if (fs.statSync(path.join(BRIDGE_DIR, name)).mtimeMs > STARTED_AT) return true;
+    }
+  } catch { /* best effort — never break health */ }
+  return false;
+}
 const HOST = process.env.HUB_BRIDGE_HOST || '127.0.0.1'; // bind addr; loopback only by default
 const PORT = Number(process.env.HUB_BRIDGE_PORT || 8765);
 // Container mode (opt-in, OFF by default). When the bridge runs inside a container whose port is
@@ -87,11 +100,20 @@ ensureContext();
 
 // ── tiny helpers ─────────────────────────────────────────────────────────────
 const j = (o) => JSON.stringify(o);
+// Same-machine app only: reflecting an arbitrary Origin would let any page the owner
+// visits read our responses the day a token leaks. No legitimate internet origin needs
+// to read 127.0.0.1:PORT — so allowlist ours and stay silent for everyone else.
+// CFHUB_EXTRA_ORIGIN opts a dev preview (other origin) in explicitly.
+const CORS_ALLOWED = new Set([
+  `http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`,
+  ...(process.env.CFHUB_EXTRA_ORIGIN ? [process.env.CFHUB_EXTRA_ORIGIN] : []),
+]);
 function cors(req, res) {
   const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  if (origin && CORS_ALLOWED.has(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  else if (!origin) res.setHeader('Access-Control-Allow-Origin', '*'); // curl / same-origin: no credentials to protect
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
   res.setHeader('Access-Control-Max-Age', '600');
 }
@@ -145,17 +167,20 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   cookbook: './cookbook.mjs', gallery: './gallery.mjs', compare: './compare.mjs', reminders: './reminders.mjs', admin: './admin.mjs',
   scheduled: './scheduled.mjs', oauth: './oauth.mjs', images: './images.mjs', search: './search.mjs', web: './web.mjs',
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
-  proxy: './proxy.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
+  webengine: './webengine.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
-  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs', assistant: './assistant.mjs',
+  pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs',
+  app: './app.mjs', pi: './pi.mjs',
   email: './domains/mail/mail.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
   cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
+  webengine: 'Webengine',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
-  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix', assistant: 'Assistant',
+  pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix',
+  app: 'App', pi: 'Pi',
   email: 'Email' };
 const _modCache = {};
 async function getMod(name) {
@@ -177,53 +202,9 @@ async function handleMod(req, res, name, body) {
   try { return ok(await f.apply(obj, Array.isArray(body.args) ? body.args : [])); }
   catch (e) { return fail(500, e); }
 }
-// ── in-app browser proxy ─────────────────────────────────────────────────────
-// GET /proxy?url=<http(s)> — renders a page for the HUB's sandboxed <iframe>.
-// TOKEN-LESS on purpose: the token must never appear in an iframe URL (the proxied
-// page's own JS can read location.search). Safe because: localOnly() still gates it,
-// web.mjs's SSRF guard blocks private/internal hosts (re-checked every redirect hop),
-// GET + http(s) only, size/time-capped, and it returns ONLY fetched public web content
-// (no token, no files, no secrets). The renderer is embedded sandboxed WITHOUT
-// allow-same-origin (opaque origin) so proxied JS can never reach the token or RPC.
-let proxyInFlight = 0;
-const PROXY_MAX_INFLIGHT = 8; // cap concurrent outbound fetches (anti-DoS / amplification)
-async function handleProxy(req, res, url) {
-  // GATE: only our own sandboxed <iframe> may drive this. A real Chromium iframe
-  // navigation always sends `Sec-Fetch-Dest: iframe`; a cross-origin fetch() from
-  // another browser tab sends `empty` (and can't forge Sec-Fetch-* — forbidden headers).
-  // This is what stops the token-less proxy from being a readable open proxy for any
-  // site the user visits, and stops it from being an SSRF pivot driven from the web.
-  const dest = req.headers['sec-fetch-dest'];
-  if (dest !== 'iframe') { res.writeHead(403, { 'Content-Type': 'text/plain' }); res.end('forbidden — proxy is only for the in-app browser'); return; }
-  // Never expose proxied bytes cross-origin: strip the reflected CORS this handler
-  // inherited from cors(). The legitimate iframe loads /proxy as a navigation (no CORS
-  // needed); anything relying on ACAO to READ the body is an attacker, so deny it.
-  res.removeHeader('Access-Control-Allow-Origin');
-  res.removeHeader('Access-Control-Allow-Methods');
-  res.removeHeader('Access-Control-Allow-Headers');
-  const target = url.searchParams.get('url') || '';
-  if (!/^https?:\/\//i.test(target)) { res.writeHead(400, { 'Content-Type': 'text/plain' }); res.end('bad url'); return; }
-  if (proxyInFlight >= PROXY_MAX_INFLIGHT) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('proxy busy'); return; }
-  let Proxy;
-  try { Proxy = await getMod('proxy'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('proxy unavailable'); return; }
-  proxyInFlight++;
-  try {
-    const fresh = url.searchParams.get('fresh') === '1';
-    const ua = url.searchParams.get('ua') || '';
-    const out = await Proxy.render(target, { fresh, ua });
-    // Deliberately NO X-Frame-Options and NO Content-Security-Policy → embeddable in
-    // our sandboxed iframe. Cross-origin isolation is provided by the iframe sandbox
-    // on the client (no allow-same-origin → opaque origin), not by headers here.
-    res.writeHead(out.status || 200, {
-      'Content-Type': out.contentType || 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'no-referrer',
-    });
-    res.end(out.binary ? out.body : Buffer.from(String(out.body || '')));
-  } catch (e) { res.writeHead(502, { 'Content-Type': 'text/plain' }); res.end('proxy error'); }
-  finally { proxyInFlight--; }
-}
+// The in-app browser is now a real Chromium engine driven over CDP (bridge/webengine.mjs)
+// through the token-gated POST /mod/webengine router — the old token-less GET /proxy
+// reader was removed with the panel rewrite (L1). No HTML-rewriting proxy remains.
 
 // boot the task scheduler once (best-effort; never blocks server start)
 async function bootTasks() {
@@ -233,6 +214,14 @@ async function bootTasks() {
   catch (e) { console.log('  folders    off (' + ((e && e.message) || e) + ')'); }
   try { const T = await getMod('tasks'); if (T.init) await T.init(); if (T.startScheduler) T.startScheduler(); console.log('  tasks      scheduler on'); }
   catch (e) { console.log('  tasks      off (' + ((e && e.message) || e) + ')'); }
+  // Pi agent: install/sync the workspace (AGENTS.md + extension + skills) and the `pi-clone`
+  // iT launcher, idempotently, so both are ready the moment the app opens. Best-effort.
+  try { const P = await getMod('pi'); const r = P.install(); const s = P.status(); console.log('  pi         ' + (r && r.ok ? ('ready · ' + (s.version || '?') + (s.webAccess ? ' · web' : '') + ' · pi-clone') : 'partial')); }
+  catch (e) { console.log('  pi         off (' + ((e && e.message) || e) + ')'); }
+  // The browser keeps no history (owner's order, 2026-07-25). Loading the module at boot
+  // is what erases a `history` array an older install left in browser.json — otherwise it
+  // would sit on disk until something happened to touch the module.
+  try { await getMod('browser'); } catch { /* the domain is optional at boot */ }
   // scheduled-email poller: send due emails every 60s (best-effort, never crashes)
   const sched = setInterval(async () => {
     try { const S = await getMod('scheduled'); if (S.tick) await S.tick(); } catch {}
@@ -250,15 +239,18 @@ const server = http.createServer(async (req, res) => {
 
   // /health is open (needed for probing) — deliberately minimal: no cwd (leaks the
   // macOS username), no brain/model. Those come from POST /pair, behind the token.
+  // `stale` says the bridge/*.mjs on disk is NEWER than this running process — a
+  // long-lived daemon serving old code was the real cause of "email → 404" (the UI
+  // reloads with ⌘R but the daemon only reloads on relaunch).
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(j({ ok: true, name: 'HUB Bridge', version: VERSION, host: HOST }));
+    res.end(j({ ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale() }));
     return;
   }
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
-  if (req.method === 'GET' && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: TOKEN })) return;
-  // in-app browser proxy — token-LESS by design (see handleProxy). localOnly() already passed.
-  if (req.method === 'GET' && url.pathname === '/proxy') { await handleProxy(req, res, url); return; }
+  // HEAD is served like GET (headers only) so probes never fall through to the 401/404
+  // gate and log a console error (audit BUG-L0-001: HEAD not served → COOP/401 on boot).
+  if ((req.method === 'GET' || req.method === 'HEAD') && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: TOKEN })) return;
   // everything else requires the pairing token
   if (!authed(req)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'unpaired' })); return; }
 
@@ -274,6 +266,9 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && url.pathname === '/chat') { await Chat.handleChat(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname === '/provider-chat') { await Chat.handleProviderChat(req, res, await readBody(req), { streamHead }); return; }
+  // CODE chat → the raw Pi agent: streams Pi's answer + tool activity as NDJSON. Pi drives the
+  // app through the clone-frame extension (op=app + /mod/*); BYOK, one hard limit (anti-wipe).
+  if (req.method === 'POST' && url.pathname === '/pi-chat') { let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; } await P.handlePiChat(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
   res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'not found' }));
 });
@@ -351,6 +346,13 @@ async function dispatchStream(ws, url) {
   // iT control plane — no PTY: the iT window parks one socket here and the `it` CLI's
   // commands are ferried over it. Same host/token gates as every stream (upgrade handler).
   if (op === 'it') { try { (await getMod('it')).attachCtl(ws); } catch { try { ws.close(1011, 'it unavailable'); } catch {} } return; }
+  // main-app control plane — the running window parks one socket here so the Pi agent (via
+  // /mod/app) can open panels + read the live screen. Sibling of op=it; same host/token gates.
+  if (op === 'app') { try { (await getMod('app')).attachCtl(ws); } catch { try { ws.close(1011, 'app unavailable'); } catch {} } return; }
+  // BROWSER data plane — the panel parks one socket here: screencast frames are PUSHED
+  // (no 30Hz HTTP polling) and pointer/keyboard input rides the same socket. Sibling of
+  // op=it/app; same host/token gates as every stream.
+  if (op === 'web') { try { (await getMod('webengine')).attachWs(ws); } catch { try { ws.close(1011, 'webengine unavailable'); } catch {} } return; }
   let Pty; try { Pty = await getMod('pty'); } catch { try { ws.close(1011, 'pty unavailable'); } catch {} return; }
   const cols = Math.max(1, Math.min(1000, Number(url.searchParams.get('cols')) || 80));
   const rows = Math.max(1, Math.min(1000, Number(url.searchParams.get('rows')) || 24));
@@ -407,6 +409,9 @@ async function dispatchStream(ws, url) {
 
 // refuse to run wide-open
 server.listen(PORT, HOST, async () => {
+  // one-time: move any plaintext provider keys into the macOS Keychain (BUG-L7-001);
+  // deliberately here — importing models.mjs must never exec `security` as a side effect
+  getMod('models').then((m) => { try { m._migrateKeys && m._migrateKeys(); } catch { /* best effort */ } }).catch(() => {});
   const endpoint = `http://${HOST}:${PORT}`;
   const pair = `${endpoint}#token=${TOKEN}`;
   const line = '─'.repeat(64);

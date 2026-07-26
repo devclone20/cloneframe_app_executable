@@ -6,7 +6,7 @@
       const groups=(res&&res.groups)||[];
       if(!groups.length){body.innerHTML='<div class="qempty">Nothing found.</div>';return}
       const MAP={notes:'notes',library:'library',contacts:'contacts',cookbook:'cookbook',tasks:'tasks',reminders:'reminders',research:'research'};
-      body.innerHTML=groups.map(g=>`<div class="flygrp">${escAttr(g.label||g.module)}</div>`+(g.results||[]).map(r=>`<div class="lprow" data-m="${escAttr(g.module)}"><div style="flex:1;min-width:0"><b>${escAttr(r.title||'')}</b><div class="dim" style="font-size:9px">${escAttr(String(r.snippet||'').slice(0,90))}</div></div></div>`).join('')).join('');
+      body.innerHTML=groups.map(g=>`<div class="flygrp">${escAttr(g.label||g.module)}</div>`+(g.results||[]).map(r=>`<div class="lprow" data-m="${escAttr(g.module)}"><div style="flex:1;min-width:0"><b>${escAttr(r.title||'')}</b><div class="dim" style="font-size:10px">${escAttr(String(r.snippet||'').slice(0,90))}</div></div></div>`).join('')).join('');
       body.querySelectorAll('.lprow').forEach(el=>el.addEventListener('click',()=>{const m=MAP[el.dataset.m];if(m)openPanel(m)}));}
     q.addEventListener('input',()=>{clearTimeout(q._t);q._t=setTimeout(run,300)});
     setTimeout(()=>q.focus(),60);run();

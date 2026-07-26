@@ -62,7 +62,7 @@ export const BRIDGE_HOST = '127.0.0.1';
  * /health is the ONE unauthenticated route (deliberately minimal — no cwd,
  * no brain/model — so an unauthenticated probe learns nothing; hub-bridge.mjs
  * L524-530). Everything past it requires `authed(req)` to pass (L536), except
- * GET of static files and GET /proxy (gated a different way — see below).
+ * GET of static files.
  */
 export const AUTH_HEADER = 'authorization';
 export const AUTH_SCHEME = 'Bearer';
@@ -220,7 +220,6 @@ export const MODULES = Object.freeze({
   nft:          { file: './nft.mjs',          exportName: 'NFT' },
   files:        { file: './files.mjs',        exportName: 'Files' },
   permissions:  { file: './permissions.mjs',  exportName: 'Permissions' },
-  proxy:        { file: './proxy.mjs',        exportName: undefined /* no MODEXPORT entry — falls back to m.default||m */ },
   folders:      { file: './folders.mjs',      exportName: undefined },
   servers:      { file: './servers.mjs',      exportName: undefined },
   acp:          { file: './acp.mjs',          exportName: 'Acp' },
@@ -234,10 +233,10 @@ export const MODULES = Object.freeze({
   matrix:       { file: './matrix.mjs',       exportName: 'Matrix' },
   assistant:    { file: './assistant.mjs',    exportName: 'Assistant' },
 });
-// NOTE: `folders`, `servers`, `proxy` appear in MODULES but have NO entry in
-// MODEXPORT (hub-bridge.mjs L426-432) — for those three, `getMod()` falls
-// through straight to `m.default || m` (the whole module namespace object).
-// This is byte-accurate to the source, not an omission in this file.
+// NOTE: `folders` and `servers` appear in MODULES but have NO entry in
+// MODEXPORT — for those, `getMod()` falls through straight to
+// `m.default || m` (the whole module namespace object). (The old `proxy`
+// module was retired with the proxy-reader browser — L1 CDP rebuild.)
 
 /**
  * ── Sibling, NON-RPC module routes on the SAME daemon ────────────────────
@@ -256,9 +255,7 @@ export const MODULES = Object.freeze({
  *                           message/attachment/send/flag/move/drafts/draft.save/
  *                           draft.delete/refresh), hub-bridge.mjs L293-320, wired L550-551
  *   GET  /health           → { ok, name, version, host }  — the ONLY unauthenticated route (L526-530)
- *   GET  /proxy?url=...    → in-app browser proxy — TOKEN-LESS by design, gated instead by
- *                           `Sec-Fetch-Dest: iframe` (hub-bridge.mjs L453-499, L534)
  */
 export const SIBLING_ROUTES = Object.freeze([
-  '/pair', '/shell', '/interrupt', '/chat', '/provider-chat', '/email/*', '/health', '/proxy',
+  '/pair', '/shell', '/interrupt', '/chat', '/provider-chat', '/email/*', '/health',
 ]);

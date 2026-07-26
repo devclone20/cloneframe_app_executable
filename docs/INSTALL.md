@@ -1,5 +1,3 @@
-The file is written to `/Users/you/Desktop/cloneframe_app_executable/docs/INSTALL.md`. Returning the markdown below.
-
 # Install CLONE FRAME · HUB
 
 **A visual interface between you and your machine — a Unix with a face.**

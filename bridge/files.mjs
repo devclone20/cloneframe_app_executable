@@ -36,6 +36,15 @@ function isSecret(f) {
 }
 const SECRET_ERR = { ok: false, error: 'refused: protected location (keys/tokens/secrets)' };
 
+// The two field guides mirrored into ~/.clone-frame-hub are PUBLIC docs — they ship in the
+// public repo, and the agent's own system prompt tells it to `read_file` them for depth.
+// Everything else in that dir is secret (tokens, JSON stores, logs). Allow READS of exactly
+// these two files, nothing more (list/write/delete stay fully blocked).
+const PUBLIC_HUB_FILES = new Set([
+  path.join(HOME, '.clone-frame-hub', 'AGENTS.md'),
+  path.join(HOME, '.clone-frame-hub', 'APP-MAP.md'),
+]);
+
 // Shallow, budgeted tree measurement for copy(). Uses lstat so symlinks are counted
 // as entries but never followed — no infinite loops, no accidental traversal into
 // linked secret stores. Bails the instant either budget is exceeded.
@@ -57,6 +66,17 @@ function measureTree(root, budget) {
   return { over: false, bytes, files };
 }
 
+// macOS TCC denies whole folders (Desktop, Documents, Downloads…) to a process that
+// was launched before the permission existed — and reports it as a bare EPERM, which
+// reads like a broken app. Name the real cause, and the fact that a restart is part
+// of the fix (TCC is evaluated at process start).
+function fsErr(e, target) {
+  const m = (e && e.message) || String(e);
+  if (e && (e.code === 'EPERM' || e.code === 'EACCES'))
+    return `macOS is blocking access to ${target} — grant Full Disk Access to node in System Settings → Privacy & Security, then relaunch the app (permissions apply at start-up)`;
+  return m;
+}
+
 export const Files = {
   list(dir, opts = {}) {
     const d = resolve(dir || '.', opts.cwd);
@@ -67,11 +87,13 @@ export const Files = {
         return { name: e.name, type: e.isDirectory() ? 'dir' : (e.isSymbolicLink() ? 'link' : 'file'), size };
       });
       return { ok: true, dir: d, entries };
-    } catch (e) { return { ok: false, error: e.message }; }
+    } catch (e) { return { ok: false, error: fsErr(e, d) }; }
   },
   read(p, opts = {}) {
+    // Default stays modest for agent/tool callers; the iT/FOLDERS file viewer passes its
+    // own big maxKB (65536) — the owner reads and edits large source files in-app.
     const f = resolve(p, opts.cwd); const maxKB = opts.maxKB || 512;
-    if (isSecret(f)) return SECRET_ERR;
+    if (!PUBLIC_HUB_FILES.has(f) && isSecret(f)) return SECRET_ERR;
     try {
       const st = fs.statSync(f);
       if (st.size > maxKB * 1024) return { ok: false, error: `file too large (${Math.round(st.size / 1024)}KB > ${maxKB}KB)` };
@@ -83,7 +105,9 @@ export const Files = {
     if (!f) return { ok: false, error: 'no path' };
     if (isSecret(f)) return SECRET_ERR;
     const s = String(content == null ? '' : content);
-    if (s.length > 8 * 1024 * 1024) return { ok: false, error: 'content too large (>8MB)' };
+    // 64MB — must at least match what the file viewer can OPEN, or a big file becomes
+    // read-only by accident (open at 64MB, fail to save at 8MB).
+    if (s.length > 64 * 1024 * 1024) return { ok: false, error: 'content too large (>64MB)' };
     try {
       fs.mkdirSync(path.dirname(f), { recursive: true });
       if (opts.append) fs.appendFileSync(f, s); else fs.writeFileSync(f, s);

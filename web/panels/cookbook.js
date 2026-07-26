@@ -150,7 +150,7 @@
         const chips=body.querySelector('#ckchips'),list=body.querySelector('#ckrl');
         chips.innerHTML=`<span class="tkchip ${cat===''?'on':''}" data-c="">all</span>`+cats.map(c=>`<span class="tkchip ${cat===c?'on':''}" data-c="${escAttr(c)}">${escAttr(c)}</span>`).join('');
         chips.querySelectorAll('.tkchip').forEach(el=>el.addEventListener('click',()=>{cat=el.dataset.c;load()}));
-        list.innerHTML=items.length?items.map(r=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(r.name)}</b> ${(r.builtin||r.isBuiltin)?'<span class="badge">built-in</span>':''}<div class="dim" style="font-size:9px">${escHtml(r.description||'')}</div></div><button class="btn mini" data-run="${r.id}">use</button></div>`).join(''):'<div class="qempty">No recipes.</div>';
+        list.innerHTML=items.length?items.map(r=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(r.name)}</b> ${(r.builtin||r.isBuiltin)?'<span class="badge">built-in</span>':''}<div class="dim" style="font-size:10px">${escHtml(r.description||'')}</div></div><button class="btn mini" data-run="${r.id}">use</button></div>`).join(''):'<div class="qempty">No recipes.</div>';
         list.querySelectorAll('[data-run]').forEach(b=>b.addEventListener('click',async()=>{const r=await RPC('cookbook','get',b.dataset.run);runForm(r)}));
         body.querySelector('#cknew').addEventListener('click',newForm);
       }

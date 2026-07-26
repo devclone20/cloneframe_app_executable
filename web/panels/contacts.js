@@ -2,7 +2,7 @@
     const body=p.querySelector('#ctbody'),search=p.querySelector('#ctsearch');
     if(!Bridge.on()){needBridge(body);return}
     async function load(){let items=[];try{items=await RPC('contacts','list',{search:search.value.trim()})}catch(e){showErr(body,e);return}
-      body.innerHTML=items.length?items.map(c=>`<div class="ctrow"><div><b>${escHtml(c.displayName||'(sem nome)')}</b><div class="dim" style="font-size:9px">${escHtml((c.emails||[]).join(', '))}${c.org?' · '+escHtml(c.org):''}</div></div><button class="btn mini" data-rm="${c.id}" style="margin-left:auto">✕</button></div>`).join(''):'<div class="qempty">No contacts. Import vCard/CSV or connect CardDAV.</div>';
+      body.innerHTML=items.length?items.map(c=>`<div class="ctrow"><div><b>${escHtml(c.displayName||'(sem nome)')}</b><div class="dim" style="font-size:10px">${escHtml((c.emails||[]).join(', '))}${c.org?' · '+escHtml(c.org):''}</div></div><button class="btn mini" data-rm="${c.id}" style="margin-left:auto">✕</button></div>`).join(''):'<div class="qempty">No contacts. Import vCard/CSV or connect CardDAV.</div>';
       body.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('contacts','remove',b.dataset.rm);load()}));
     }
     search.addEventListener('input',()=>{clearTimeout(search._t);search._t=setTimeout(load,250)});

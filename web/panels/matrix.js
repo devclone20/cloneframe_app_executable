@@ -67,7 +67,7 @@
       <div class="mx-dropov"><b>DROP TO ATTACH</b></div>
       <div class="mx-picker" data-mx="addpop">
         <div class="mx-pbox" style="height:auto;max-height:88%">
-          <div class="mx-phead"><span style="font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--accent)">＋ ADD A NODE TO YOUR MATRIX</span><span class="mx-pmem"></span><button class="mx-pclose" data-mx="addclose" title="Close">✕</button></div>
+          <div class="mx-phead"><span style="font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--accent)">＋ ADD A NODE TO YOUR MATRIX</span><span class="mx-pmem"></span><button class="mx-pclose" data-mx="addclose" title="Close">✕</button></div>
           <div class="mx-addbody">
             <p>Any Mac on the <b>same network</b> (Wi-Fi, Ethernet or a Thunderbolt cable) joins this cluster automatically — no pairing, no config. Nodes discover each other as long as they run the <b>same engine version</b> (the discovery namespace is the version itself).</p>
             <p>On the new Mac, run:</p>
@@ -78,7 +78,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --all-packages
 uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@leo/deepseek-v4"
 .venv/bin/exo</pre></div>
-            <p class="dim">The node appears on this canvas within seconds of starting. Full runbook (firewall, Thunderbolt, troubleshooting): <b>iFRAME/MATRIX_LAB/SECOND_NODE_SETUP.md</b> — a ready-to-run copy lives at <b>setup-second-node.sh</b> (AirDrop it to the new Mac).</p>
+            <p class="dim">The node appears on this canvas within seconds of starting. Full runbook (firewall, Thunderbolt, troubleshooting): <b>MATRIX_LAB/SECOND_NODE_SETUP.md</b> — a ready-to-run copy lives at <b>setup-second-node.sh</b> (AirDrop it to the new Mac).</p>
           </div>
         </div>
       </div>
@@ -177,18 +177,23 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
 
     // ---- topology (orbit layout, exo-style but ours) ----
     function deviceSVG(n,x,y,scale){
-      const s=scale,w=46*s,h=28*s,kb=7*s,fillH=Math.round((h-4)*Math.min(1,n.total?n.used/n.total:0));
-      const pct=n.total?Math.round(n.used/n.total*100):0;
+      // Legible + alive (audit Obj 8): readable name/metrics, the memory % ON the
+      // screen of the machine, the fill breathing faster under load, and the side
+      // tower showing its REAL fill (was a hardcoded "0%").
+      const s=scale,w=46*s,h=28*s,kb=7*s,ratio=Math.min(1,n.total?n.used/n.total:0),fillH=Math.round((h-4)*ratio);
+      const pct=n.total?Math.round(ratio*100):0;
+      const breathe=(3.4-2.4*ratio).toFixed(2); // idle 3.4s → loaded 1s pulse
+      const towerH=h+kb,towerFill=Math.round((towerH-4)*ratio);
       return `<g class="mx-node" transform="translate(${x},${y})">
-        <text x="0" y="${-h/2-14*s}" text-anchor="middle" style="fill:var(--accent)" font-size="${9*s}" font-weight="700" letter-spacing=".08em">${escHtml(n.name.length>22?n.name.slice(0,21)+'…':n.name)}</text>
+        <text x="0" y="${-h/2-14*s}" text-anchor="middle" style="fill:var(--accent)" font-size="${11*s}" font-weight="700" letter-spacing=".08em">${escHtml(n.name.length>22?n.name.slice(0,21)+'…':n.name)}</text>
         <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="${3*s}" style="fill:color-mix(in srgb,var(--panel) 80%,transparent);stroke:color-mix(in srgb,var(--fg) 45%,transparent);stroke-width:1.2"/>
-        <rect x="${-w/2+2}" y="${h/2-2-fillH}" width="${w-4}" height="${fillH}" rx="${2*s}" style="fill:color-mix(in srgb,var(--accent) 78%,transparent)"/>
+        <rect class="mx-nodefill" x="${-w/2+2}" y="${h/2-2-fillH}" width="${w-4}" height="${fillH}" rx="${2*s}" style="fill:color-mix(in srgb,var(--accent) 78%,transparent);animation-duration:${breathe}s"/>
+        <text x="0" y="${4*s}" text-anchor="middle" style="fill:var(--fg)" font-size="${11*s}" font-weight="700">${pct}%</text>
         <rect x="${-w/2-4*s}" y="${h/2}" width="${w+8*s}" height="${kb}" rx="${2*s}" style="fill:color-mix(in srgb,var(--panel) 92%,var(--fg));stroke:color-mix(in srgb,var(--fg) 40%,transparent);stroke-width:1"/>
-        <rect x="${-3*s}" y="${-3*s}" width="${6*s}" height="${6*s}" style="fill:color-mix(in srgb,var(--bg) 85%,transparent)"/>
-        <rect x="${w/2+7*s}" y="${-h/2}" width="${9*s}" height="${h+kb}" rx="${2*s}" style="fill:color-mix(in srgb,var(--panel) 85%,transparent);stroke:color-mix(in srgb,var(--fg) 30%,transparent);stroke-width:1"/>
-        <text x="${w/2+11.5*s}" y="${-h/2+8*s}" text-anchor="middle" style="fill:var(--ink-dim)" font-size="${6*s}">0%</text>
-        <text x="0" y="${h/2+kb+12*s}" text-anchor="middle" font-size="${7.5*s}"><tspan style="fill:var(--accent)" font-weight="700">${escHtml(gb1(n.used))}</tspan><tspan style="fill:var(--ink-dim)">/${escHtml(gb1(n.total))} (${pct}%)</tspan></text>
-        <text x="0" y="${h/2+kb+22*s}" text-anchor="middle" style="fill:var(--ink-faint)" font-size="${6.5*s}" letter-spacing=".06em">${escHtml(n.chip||'')}</text>
+        <rect x="${w/2+7*s}" y="${-h/2}" width="${9*s}" height="${towerH}" rx="${2*s}" style="fill:color-mix(in srgb,var(--panel) 85%,transparent);stroke:color-mix(in srgb,var(--fg) 30%,transparent);stroke-width:1"/>
+        <rect class="mx-nodefill" x="${w/2+7*s+2}" y="${-h/2+towerH-2-towerFill}" width="${9*s-4}" height="${towerFill}" rx="${1.5*s}" style="fill:color-mix(in srgb,var(--accent) 55%,transparent);animation-duration:${breathe}s"/>
+        <text x="0" y="${h/2+kb+13*s}" text-anchor="middle" font-size="${10.5*s}"><tspan style="fill:var(--accent)" font-weight="700">${escHtml(gb1(n.used))}</tspan><tspan style="fill:var(--ink-dim)">/${escHtml(gb1(n.total))}</tspan></text>
+        <text x="0" y="${h/2+kb+24*s}" text-anchor="middle" style="fill:var(--ink-faint)" font-size="${9*s}" letter-spacing=".06em">${escHtml(n.chip||'')}</text>
       </g>`;
     }
     function drawTopo(svg,compact){
@@ -219,7 +224,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         eb.style.display='';
         if(!e.avail){eb.className='mx-engbtn muted';eb.dataset.mode='connect';eb.textContent='◦ CONNECT MACHINE'}
         else if(st.online&&e.ownedPid){eb.className='mx-engbtn stop';eb.dataset.mode='stop';eb.textContent=(st.armed&&st.armed.key==='engine')?'SURE?':'■ STOP ENGINE'}
-        else if(st.online){eb.className='mx-engbtn live';eb.dataset.mode='live';eb.textContent='● ENGINE ONLINE'}
+        else if(st.online){eb.className='mx-engbtn live';eb.dataset.mode='takeover';eb.textContent=(st.armed&&st.armed.key==='engtake')?'SURE? — KILLS + RESTARTS':'● EXTERNAL — RESTART UNDER APP'}
+        else if(e.crashed){eb.className='mx-engbtn stop';eb.dataset.mode='start';eb.textContent='⟳ ENGINE CRASHED — RESTART'}
         else{eb.className='mx-engbtn';eb.dataset.mode='start';eb.textContent='▶ START ENGINE'}
       }
       const ab=root.querySelector('[data-mx="addnode"]');
@@ -245,14 +251,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       E.convcount.textContent=`${st.convs.length} CONVERSATION${st.convs.length===1?'':'S'}`;
     }
     function instCard(i){
+      const stuck=i.status!=='READY'&&i.status!=='FAILED'&&!i.demo&&st.instSeen&&st.instSeen[i.id]&&performance.now()-st.instSeen[i.id]>180000;
       const cls=i.status==='FAILED'?'bad':(i.status==='READY'?'':'wait');
-      const badge=i.status==='READY'?'<span class="mx-badge">READY</span>':i.status==='FAILED'?'<span class="mx-badge bad">FAILED</span>':'<span class="mx-badge wait">LOADING</span>';
+      const badge=i.status==='READY'?'<span class="mx-badge">READY</span>':i.status==='FAILED'?'<span class="mx-badge bad">FAILED</span>':stuck?'<span class="mx-badge bad">STUCK?</span>':'<span class="mx-badge wait">LOADING</span>';
       return `<div class="mx-inst ${cls}">
         <div class="idrow"><i></i><b>${escAttr(i.id.slice(0,8).toUpperCase())}</b>${i.demo?'<span class="mx-badge wait">DEMO</span>':''}<button class="mx-instdel" data-mxdel="${escAttr(i.id)}"${i.demo?' data-demo="1"':''}>${st.armed&&st.armed.key==='inst:'+i.id?'SURE?':'DELETE'}</button></div>
         <div class="mdl">${escHtml(i.model)}</div>
         <div class="meta">${escHtml(i.shard)} · ${escHtml(i.ring)} ${badge}</div>
         ${i.nodes&&i.nodes.length?`<div class="meta">on ${escHtml(i.nodes.slice(0,2).map(n=>n.length>14?n.slice(0,13)+'…':n).join(' · '))}${i.nodes.length>2?` +${i.nodes.length-2}`:''}</div>`:''}
-        <div class="foot">${i.status==='READY'?'Ready to chat!':i.status==='FAILED'?'Runner failed — check the engine log.':'Loading into memory…'}</div>
+        <div class="foot">${i.status==='READY'?'Ready to chat!':i.status==='FAILED'?'Runner failed — check the engine log.':stuck?'Loading for over 3 min — the engine may be wedged. DELETE this and restart the engine.':'Loading into memory…'}</div>
       </div>`;
     }
     function renderAside(){
@@ -373,13 +380,30 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     async function dlDelete(nodeId,modelId){
       // model ids contain "/" — the engine route takes them as a raw path segment
-      try{const r=await fetch(API+'/download/'+encodeURIComponent(nodeId)+'/'+modelId,{method:'DELETE'});if(!r.ok)throw 0;Toast.show('Removed from disk.')}
-      catch(_){Toast.show('Remove failed.')}
+      try{const r=await fetch(API+'/download/'+encodeURIComponent(nodeId)+'/'+modelId,{method:'DELETE'});if(!r.ok)throw 0;return true}
+      catch(_){return false}
+    }
+    // ONE honest delete: whatever state the model is in (READY, stuck LOADING, mid-
+    // download), this stops the instance, cancels the transfer, removes the weights
+    // from disk and reports the space freed — app and machine always end in sync.
+    async function deleteModelEverywhere(nodeId,modelId){
+      const m=(st.models||[]).find(x=>x.id===modelId);
+      const mb=m?m.storage_size_megabytes||0:0;
+      let steps=[];
+      for(const i of instances()){
+        if(i.model===modelId&&!i.demo){
+          try{const r=await fetch(API+'/instance/'+encodeURIComponent(i.id),{method:'DELETE'});if(r.ok)steps.push('instance stopped')}catch(_){}
+        }
+      }
+      try{const r=await fetch(API+'/download/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetNodeId:nodeId,modelId})});if(r.ok)steps.push('download cancelled')}catch(_){}
+      if(await dlDelete(nodeId,modelId))steps.push(mb?mb2gb(mb)+' freed from disk':'weights removed from disk');
+      Toast.show(steps.length?('Model deleted — '+steps.join(', ')+'.'):'Nothing to delete — already gone.');
       st.armed=null;
+      syncCluster(); // pickers must drop the model the moment the disk does
     }
     // ---- engine lifecycle (bridge/matrix.mjs — permission-gated daemon control) ----
     async function refreshEng(){ // just try the RPC — Bridge.on() lags the real pairing state
-      try{const s=await RPC('matrix','status');st.eng={avail:true,ownedPid:s.ownedPid,found:s.engineFound}}
+      try{const s=await RPC('matrix','status');st.eng={avail:true,ownedPid:s.ownedPid,external:s.externalPid,crashed:s.crashed,found:s.engineFound}}
       catch(_){st.eng={avail:false}}
       renderStatus(); // reflect the engine state as soon as it resolves
     }
@@ -400,6 +424,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         Toast.show(r&&r.ok?'Engine stopped.':('Stop failed: '+((r&&r.error)||'error')));
       }catch(e){Toast.show('Stop failed: '+((e&&e.message)||'bridge error'))}
       st.armed=null;refreshEng();
+    }
+    async function engTakeover(){ // external engine → kill by port + restart under app ownership
+      try{
+        const r=await RPC('matrix','stop',{force:true});
+        if(!(r&&r.ok)){Toast.show('Takeover failed: '+((r&&r.error)||'error'));st.armed=null;refreshEng();return}
+        Toast.show('External engine stopped — restarting under the app…');
+      }catch(e){Toast.show('Takeover failed: '+((e&&e.message)||'bridge error'));st.armed=null;refreshEng();return}
+      st.armed=null;
+      await engStart();
     }
     // ---- BYOK provider — the cluster's OpenAI-compatible endpoint in the Models registry,
     // so CODE · LAB · Brain · Compare · Harness pickers can run on the user's own cluster.
@@ -447,7 +480,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       E.msgs.innerHTML=c.msgs.map((m,i)=>{
         const t=m.t||'';
         if(m.role==='user'){
-          const fl=(m.files&&m.files.length)?`<div style="margin-top:5px;font-size:8px;color:var(--ink-faint)">⎘ ${m.files.map(escHtml).join(' · ')}</div>`:'';
+          const fl=(m.files&&m.files.length)?`<div style="margin-top:5px;font-size:10px;color:var(--ink-faint)">⎘ ${m.files.map(escHtml).join(' · ')}</div>`:'';
           return `<div class="mx-msg q"><div class="mx-mhead">${escHtml(t)} QUERY <i></i></div><div class="mx-bub">${escHtml(m.content)}${fl}</div></div>`;
         }
         const stats=m.stats?`<span class="mx-mstats">TTFT ${m.stats.ttft}ms · ${m.stats.tps} tok/s</span>`:'';
@@ -464,7 +497,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       if(!c||c.s==='wait')return `<td class="c">${act('start','⤓','Download to this node')}</td>`;
       if(c.s==='done'){const sz=c.bytes?gb1(c.bytes):mb2gb(m.storage_size_megabytes||0);
         const rm=st.armed&&st.armed.key==='disk:'+n.id+'|'+m.id?'SURE?':'RM';
-        return `<td class="c"><span class="ok">✓</span><span class="szl">${escHtml(sz)}</span>${act('disk',rm,'Remove from disk')}</td>`}
+        return `<td class="c"><span class="ok">✓</span><span class="szl">${escHtml(sz)}</span>${act('disk',rm,'Delete model — stops its instance, cancels any download, frees the disk')}</td>`}
       if(c.s==='run')return `<td class="c"><div class="mx-dlbar" style="width:56px;margin:0 auto 3px"><i style="width:${c.pct}%"></i></div><span class="szl">${c.pct}%</span>${act('cancel','✕','Cancel download')}</td>`;
       return `<td class="c"><span style="color:var(--mx-err)">✗</span>${act('start','↻','Retry download')}</td>`;
     }
@@ -541,15 +574,25 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         const was=st.online;st.online=true;
         if(!was){loadModels();syncCluster()} // just came online → register + sync the pickers
       }catch(_){st.fails++;if(st.fails>=2)st.online=false}
-      if(st.armed&&performance.now()-st.armed.ts>3500)st.armed=null;
+      if(st.armed&&performance.now()-st.armed.ts>6000)st.armed=null;
       st.tickN=(st.tickN||0)+1;
       if(st.tickN%8===1)refreshEng();
       if(st.online&&st.tickN%5===0)syncCluster(); // keep the pickers in sync with disk (download/delete)
       if(st.selModel&&st.online&&st.tickN%15===0)fetchPreview(st.selModel.id);
+      // stall tracking: an instance that sits non-READY for minutes means the engine
+      // wedged mid-load (seen killing WindowServer on 2026-07-21) — surface it honestly
+      st.instSeen=st.instSeen||{};
+      const now=performance.now(),liveIds=new Set();
+      for(const i of instances()){liveIds.add(i.id);if(i.status==='READY'||i.demo)delete st.instSeen[i.id];else if(!st.instSeen[i.id])st.instSeen[i.id]=now}
+      for(const id of Object.keys(st.instSeen))if(!liveIds.has(id))delete st.instSeen[id];
       renderStatus();
       if(st.view==='home')drawTopo(E.topo,false);
-      if(st.view==='dl')renderDl();
-      renderAside();
+      // while a destructive confirm is armed, keep the DOM still — re-rendering every
+      // second swapped the SURE? button from under the second click (BUG-L9-002)
+      if(!st.armed){
+        if(st.view==='dl')renderDl();
+        renderAside();
+      }
       updateComposer();
     }
     async function loadModels(){
@@ -589,6 +632,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       E.input.value='';st.streaming=true;setView('chat');renderSide();updateComposer();
       const t0=performance.now();let ttft=0,ntok=0;
       st.abort=new AbortController();
+      // stall watchdog: a local model must never hang the chat forever — if no first
+      // token lands in 90s, abort with an honest message instead of infinite silence
+      let stalled=false;
+      const stallTO=setTimeout(()=>{if(!ntok&&st.abort){stalled=true;try{st.abort.abort()}catch(_){}}},90000);
       try{
         const r=await fetch(API+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({model,messages:history,stream:true}),signal:st.abort.signal});
@@ -614,7 +661,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
               const j=JSON.parse(d);
               const delta=j.choices&&j.choices[0]&&j.choices[0].delta;
               const piece=delta&&delta.content;
-              if(piece){if(!ntok)ttft=Math.round(performance.now()-t0);ntok++;bot.content+=piece;bot.prefill=null;renderMsgs()}
+              if(piece){if(!ntok){ttft=Math.round(performance.now()-t0);clearTimeout(stallTO)}ntok++;bot.content+=piece;bot.prefill=null;renderMsgs()}
             }catch(_){}
           }
         }
@@ -622,9 +669,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         if(!bot.stats)bot.stats={ttft,tps:secs>0?(ntok/secs).toFixed(1):'—'};
         st.chat.stats=bot.stats;st.stats=bot.stats;
       }catch(err){
-        if(err&&err.name==='AbortError'){bot.content+=bot.content?'\n— stopped —':'— stopped —'}
+        if(stalled){bot.content='⚠ No response from the local model after 90s — it may still be warming up, or the engine is wedged. Check INSTANCES (a STUCK? badge means restart the engine).';Toast.show('Local model did not answer — see the chat for what to do.')}
+        else if(err&&err.name==='AbortError'){bot.content+=bot.content?'\n— stopped —':'— stopped —'}
         else{bot.content=bot.content||('⚠ '+(err&&err.message||'stream failed'));Toast.show('MATRIX chat failed: '+(err&&err.message||'stream error'))}
       }
+      clearTimeout(stallTO);
       bot.done=true;st.streaming=false;st.abort=null;
       saveConvs();
       renderMsgs();renderSide();updateComposer();
@@ -710,7 +759,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         if(!st.online){Toast.show('MATRIX engine is offline.');return}
         if(dla.dataset.mxdla==='start')dlStart(nid,mid);
         else if(dla.dataset.mxdla==='cancel')dlCancel(nid,mid);
-        else if(dla.dataset.mxdla==='disk'&&arm('disk:'+nid+'|'+mid))dlDelete(nid,mid);
+        else if(dla.dataset.mxdla==='disk'&&arm('disk:'+nid+'|'+mid))deleteModelEverywhere(nid,mid);
         return;
       }
       const opt=t.closest('[data-mxopt]');
@@ -739,7 +788,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         case 'engine':{
           const m=act.dataset.mode;
           if(m==='connect')Toast.show('To run the engine: relaunch the app so the bridge loads MATRIX control, then enable Settings → My Machine → “MATRIX engine control”.');
-          else if(m==='live')Toast.show('Engine is already running (started outside MATRIX). Stop it where you launched it.');
+          else if(m==='takeover'){if(arm('engtake'))engTakeover()}
           else if(m==='stop'){if(arm('engine'))engStop()}
           else engStart();
           break;

@@ -37,7 +37,8 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
   }
   if (file !== root && !file.startsWith(root + path.sep)) return false;
   // never expose dotfiles or the bridge source dir
-  if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404); res.end('not found'); return true; }
+  const isHead = req.method === 'HEAD';
+  if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404); res.end(isHead ? undefined : 'not found'); return true; }
   let data;
   try { if (fs.statSync(file).isDirectory()) return false; data = fs.readFileSync(file); }
   catch { return false; }
@@ -62,8 +63,8 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
     }
     data = Buffer.from(html, 'utf8');
   }
-  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-  res.end(data);
+  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': data.length });
+  res.end(isHead ? undefined : data); // HEAD: headers only, no body
   return true;
 }
 

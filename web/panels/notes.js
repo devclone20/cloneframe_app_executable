@@ -18,7 +18,7 @@
       body.classList.toggle('nts-grid',grid&&view.length>0);
       body.innerHTML=view.length?view.map(n=>{
         const td=todosOf(n.snippet),rest=restOf(n.snippet);
-        return `<div class="lprow nts-card" data-id="${n.id}">${selMode?`<span class="nts-ck ${sel.has(n.id)?'on':''}"></span>`:''}<div style="flex:1;min-width:0">${n.title?`<b>${escHtml(n.title)}</b>`:''}${td.map((t,i)=>`<div class="nts-todo ${t.done?'done':''}" data-td="${i}"><span class="nts-tck ${t.done?'on':''}"></span><span class="nts-ttx">${escHtml(t.text)}</span></div>`).join('')}<div class="dim" style="font-size:9px">${rest?escHtml(rest.slice(0,80))+' · ':''}${fmtTS(n.updatedAt||n.createdAt)}</div></div>${selMode?'':`<button class="btn mini" data-rm="${n.id}">✕</button>`}</div>`;
+        return `<div class="lprow nts-card" data-id="${n.id}">${selMode?`<span class="nts-ck ${sel.has(n.id)?'on':''}"></span>`:''}<div style="flex:1;min-width:0">${n.title?`<b>${escHtml(n.title)}</b>`:''}${td.map((t,i)=>`<div class="nts-todo ${t.done?'done':''}" data-td="${i}"><span class="nts-tck ${t.done?'on':''}"></span><span class="nts-ttx">${escHtml(t.text)}</span></div>`).join('')}<div class="dim" style="font-size:10px">${rest?escHtml(rest.slice(0,80))+' · ':''}${fmtTS(n.updatedAt||n.createdAt)}</div></div>${selMode?'':`<button class="btn mini" data-rm="${n.id}">✕</button>`}</div>`;
       }).join(''):`<div class="qempty">${archView?'No archived notes 🙂':(search.value.trim()||chip!=='all')?'No notes match 🙂':'No notes yet 🙂'}</div>`;
       body.querySelectorAll('.nts-card').forEach(el=>el.addEventListener('click',e=>{
         if(e.target.closest('[data-rm]')||e.target.closest('.nts-todo'))return;

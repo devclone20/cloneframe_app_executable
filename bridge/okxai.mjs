@@ -141,16 +141,25 @@ function writeDrafts(map) {
 
 export const OkxAi = {
   // ---- CLI presence + auth posture (never returns apiKey/tokens) ----
+  // `authenticated:false` was answering two very different questions with one word:
+  // "you never set this up" and "your session expired". The CLI knows which — it reports
+  // the account count, the email it belongs to and how that account last logged in — and
+  // the owner needs to know which one he is in, because the fix is different. `state` says
+  // it plainly; the raw fields are passed through so the UI can name the account.
   async status() {
     const b = gate.bin();
-    if (!b) return { ok: true, installed: false };
+    if (!b) return { ok: true, installed: false, state: 'not-installed' };
     const v = await gate.probe(['--version'], { timeoutMs: 8000 });
     const version = String(v.text ?? v.json ?? '').replace(/^onchainos\s+/i, '').trim();
     const s = await gate.probe(['wallet', 'status'], { timeoutMs: 15000 });
     const data = s.json && s.json.data;
     const authenticated = !!data && data.loggedIn === true;
     const address = (data && (data.address || data.evmAddress)) || undefined;
-    return { ok: true, installed: true, bin: b, version, authenticated, address };
+    const accounts = Number((data && data.accountCount) || 0);
+    const email = (data && data.email) || undefined;
+    const lastLoginMode = (data && data.lastLoginMode) || undefined;
+    const state = authenticated ? 'ready' : (accounts > 0 ? 'session-expired' : 'no-account');
+    return { ok: true, installed: true, bin: b, version, authenticated, address, accounts, email, lastLoginMode, state };
   },
 
   // ---- the single gate every CLI call goes through ----

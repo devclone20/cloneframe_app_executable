@@ -31,7 +31,7 @@ Emit one action per fenced block, then wait:
 | Tool | What it does |
 |---|---|
 | `open_panel{panel}` | Open a HUB tab (see §4) |
-| `open_settings{section}` | Settings — sections incl. `agenttools · itterm · personalassistant · addmodels · aidefaults · appearance · account · folders · servers · system · email · integrations · reminders · search` |
+| `open_settings{section}` | Settings — sections incl. `agenttools · itterm · addmodels · aidefaults · appearance · account · folders · servers · system · email · integrations · reminders · search` |
 | `open_terminal{cwd?,newWindow?}` | Live terminal; `newWindow:true` = a separate iT window |
 | `open_app{app}` | Open any macOS app by name |
 | `open_path{path}` | Reveal any file/folder in Finder |

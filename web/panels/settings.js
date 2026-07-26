@@ -9,9 +9,30 @@
     }
     function go(name){
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
-      if(['addmodels','added','aidefaults','integrations','email','reminders','agenttools','users','system','folders','servers','personalassistant'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,personalassistant:secPersonalAssistant,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,users:secUsers,system:secSystem};
+      if(['addmodels','added','aidefaults','piagent','integrations','email','reminders','agenttools','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
+    }
+    // ----- MAGIC FRAMES — the little frame squares that hold docked tabs & their figures.
+    // Frames = placement/distribution of those squares; the other rooms are announced here
+    // and arrive later (owner's roadmap 2026-07-25).
+    function secMagicFrames(){
+      const dist=((Store.get().magic||{}).dist)||'organized';
+      const selStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)';
+      const soon=n=>'<div class="setline"><b>'+n+'</b><span style="margin-left:auto" class="badge pending">COMING SOON</span></div>';
+      pane.innerHTML='<div class="sethead">MAGIC FRAMES</div>'
+        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">The <b>magic frames</b> are the little squares of the CLONE FRAME canvas — each one can hold a docked tab, app window or figure, and clicking it brings that window back. This room collects everything about how they behave.</div>'
+        +'<div class="sethead">FRAMES — DISTRIBUTION</div>'
+        +'<div class="setline">How docked tabs take their squares<span style="margin-left:auto"><select id="mfdist" style="'+selStyle+'">'
+          +'<option value="organized">Organized — one square apart</option>'
+          +'<option value="random">Random — nearest square (legacy)</option>'
+          +'<option value="cubic" disabled>Cubic view — coming soon</option>'
+          +'<option value="diagrams" disabled>Diagrams — coming soon</option>'
+        +'</select></span></div>'
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Organized fills a tidy lattice — every square keeps one empty square of breathing room horizontally and vertically, starting on screen. Random is the old scatter (nearest free square to the window).</div>'
+        +soon('Galaxies')+soon('Agentic Engineering')+soon('Magic');
+      const sel=pane.querySelector('#mfdist');sel.value=dist;
+      sel.addEventListener('change',()=>{const s=Store.get();s.magic=Object.assign({},s.magic,{dist:sel.value});Store.save();Toast.show('Frames: '+(sel.value==='organized'?'organized — one square apart':'random scatter'))});
     }
     function secIT(){
       const theme=localStorage.getItem('cfhub.shell.omz')||'robbyrussell';
@@ -31,11 +52,11 @@
         +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Notifications: commands taking 15s+ raise one when they finish (any agent, build or deploy — visible from other workspaces). Terminals can also send OSC 9/777, and <span class="path">it notify</span> works from scripts. <b>⌘I</b> opens the list.</div>'
         +'<div class="sethead">AGENT HOOKS — NOTIFICATIONS FROM YOUR CODING AGENTS</div>'
         +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Run <span class="path">it hooks setup</span> in any iT shell to wire <b>Claude Code</b> and <b>Codex</b> so every finished task raises an iT notification (⌘I) — like cmux\'s Automation. <span class="path">it hooks status</span> shows what\'s wired, <span class="path">it hooks remove</span> undoes it. Nothing is touched without you running the command.</div>'
-        +'<div class="setline">Hooks state<span class="dim" id="ithooks" style="margin-left:auto;font-size:9px">checking…</span></div>'
+        +'<div class="setline">Hooks state<span class="dim" id="ithooks" style="margin-left:auto;font-size:10px">checking…</span></div>'
         +'<div class="sethead">KEYBOARD — CMUX-COMPATIBLE · EVERY ROW REBINDABLE</div>'
         +'<div id="itkmap"></div>'
-        +'<div class="setline"><span class="dim" style="font-size:9.5px">⌘1…9 go to workspace · ⌃1…9 go to tab (fixed)</span><span style="margin-left:auto"><button class="btn mini" id="itkreset">RESET ALL</button></span></div>'
-        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:9px;line-height:1.6">Also by CLI, cmux-style: <span class="path">it shortcuts list</span> · <span class="path">it shortcuts set split-right cmd+e</span> · <span class="path">it shortcuts set new-workspace none</span> (unbind) · <span class="path">it shortcuts reset</span>.</div>';
+        +'<div class="setline"><span class="dim" style="font-size:10.5px">⌘1…9 go to workspace · ⌃1…9 go to tab (fixed)</span><span style="margin-left:auto"><button class="btn mini" id="itkreset">RESET ALL</button></span></div>'
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Also by CLI, cmux-style: <span class="path">it shortcuts list</span> · <span class="path">it shortcuts set split-right cmd+e</span> · <span class="path">it shortcuts set new-workspace none</span> (unbind) · <span class="path">it shortcuts reset</span>.</div>';
       const dt=pane.querySelector('#itdeftab');dt.value=deftab;dt.addEventListener('change',()=>localStorage.setItem('cfhub.it.deftab',dt.value));
       const om=pane.querySelector('#itomz');om.value=theme;om.addEventListener('change',()=>{localStorage.setItem('cfhub.shell.omz',om.value);Toast.show('Prompt theme: '+om.value)});
       const rs=pane.querySelector('#itrestore');rs.addEventListener('click',()=>{const on=!rs.classList.contains('on');rs.classList.toggle('on',on);localStorage.setItem('cfhub.it.restore',on?'1':'0')});
@@ -60,7 +81,7 @@
         const over=itKeymap.load();
         km.innerHTML=IT_ACTIONS.map(a=>{
           const c=itKeymap.comboOf(a[0],over),custom=over[a[0]]!=null;
-          return `<div class="itk-row" data-a="${a[0]}"><span class="a">${a[0]}<span class="dim" style="margin-left:8px;font-size:9px">${a[2]}</span></span><span class="c${custom?' custom':''}">${itKeymap.pretty(c)}</span><button data-k="re">REBIND</button><button data-k="un">UNBIND</button><button data-k="rs" ${custom?'':'disabled style="opacity:.35"'}>RESET</button></div>`;
+          return `<div class="itk-row" data-a="${a[0]}"><span class="a">${a[0]}<span class="dim" style="margin-left:8px;font-size:10px">${a[2]}</span></span><span class="c${custom?' custom':''}">${itKeymap.pretty(c)}</span><button data-k="re">REBIND</button><button data-k="un">UNBIND</button><button data-k="rs" ${custom?'':'disabled style="opacity:.35"'}>RESET</button></div>`;
         }).join('');
         km.querySelectorAll('.itk-row').forEach(row=>{
           const id=row.dataset.a;
@@ -95,7 +116,35 @@
       ];
       pane.innerHTML='<div class="sethead">OPEN-SOURCE LICENSES</div>'+
         '<div class="setline" style="line-height:1.6;color:var(--ink-dim);font-size:10.5px;display:block">CLONE FRAME is open source. Every bundled engine keeps its own license and travels with the app. iT is built on ideas from the open-source <b>cmux</b>, <b>tmux</b> and <b>exo</b> — cmux-compatible keys &amp; commands, clean-room code, none of their code bundled. Full texts live in <span class="path">THIRD-PARTY-NOTICES.md</span> and each <span class="path">apps/&lt;tool&gt;/NOTICE.md</span>.</div>'+
-        L.map(x=>`<div class="setline" style="align-items:flex-start"><svg style="width:13px;height:13px;color:var(--accent);flex:none;margin-top:2px"><use href="#i-shield"/></svg><span style="flex:1;margin-left:6px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escHtml(x[0])}</b> <span class="badge" style="font-size:8px">${escHtml(x[1])}</span><br><span class="dim" style="font-size:9px">${escHtml(x[3])}</span><br><span class="path" style="font-size:8.5px">${escHtml(x[2])}</span></span></div>`).join('');
+        L.map(x=>`<div class="setline" style="align-items:flex-start"><svg style="width:13px;height:13px;color:var(--accent);flex:none;margin-top:2px"><use href="#i-shield"/></svg><span style="flex:1;margin-left:6px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escHtml(x[0])}</b> <span class="badge" style="font-size:10px">${escHtml(x[1])}</span><br><span class="dim" style="font-size:10px">${escHtml(x[3])}</span><br><span class="path" style="font-size:10.5px">${escHtml(x[2])}</span></span></div>`).join('');
+    }
+    async function secPiAgent(){
+      // The raw Pi coding agent (pi.dev, MIT) — the app's first-class agent: pi is the mind,
+      // CLONE FRAME is its body (clone-frame extension + op=app channel). BYOK through pi's
+      // own login; ships as plain "pi" — naming/soul is done BY pi in chat, on request.
+      loading();
+      let s=null;try{s=await RPC('pi','status')}catch(_){}
+      const row=(label,ok,detail)=>'<div class="setline">'+label+'<span style="margin-left:auto;display:flex;align-items:center;gap:7px"><span class="dim" style="font-size:10px">'+escHtml(detail||'')+'</span><span class="brdot" style="background:'+(ok?'var(--ok,#37e05f)':'var(--accent)')+';box-shadow:0 0 6px '+(ok?'var(--ok,#37e05f)':'var(--accent)')+'"></span></span></div>';
+      pane.innerHTML='<div class="sethead">PI AGENT — THE APP\'S CODING AGENT</div>'
+        +'<div class="setline" style="line-height:1.7;color:var(--ink-dim);font-size:10.5px;display:block">The raw <b>Pi coding agent</b> (<span class="path">pi.dev</span>, MIT) is CLONE FRAME\'s first-class agent: <b>pi is the mind, this app is its body</b>. Through the <span class="path">clone-frame</span> extension it opens panels, reads the live screen, drives the iT terminal and reaches every bridge module — and its <b>bash runs free</b> (YOLO), with exactly one hard limit: the anti-wipe (<span class="path">rm -rf /</span> · <span class="path">mkfs</span> · <span class="path">dd</span> to a disk are refused, nothing else). Messages that ARE a command line run verbatim, like a terminal — everywhere.</div>'
+        +(s&&s.installed
+          ?(row('Pi engine',true,s.version||'installed')
+            +row('Agent workspace (curriculum + skills)',!!s.workspace,s.workspace?'~/.clone-frame-hub/agent':'missing')
+            +row('clone-frame extension (app tools + anti-wipe)',!!s.extension,s.extension?'loaded per launch':'missing')
+            +row('iT launcher',!!s.launcher,s.launcher?'pi-clone':'missing')
+            +row('Web access (search & fetch)',!!s.webAccess,s.webAccess?'pi-web-access':'not installed')
+            +row('Live chat sessions',true,String(s.sessions||0)))
+          :'<div class="setline" style="display:block;color:var(--accent);font-size:10.5px;line-height:1.6">Pi is not installed on this machine. Install it once, globally:<br><span class="path">npm i -g @earendil-works/pi-coding-agent</span><br>then hit INSTALL / REPAIR below.</div>')
+        +'<div class="setline" style="gap:8px;flex-wrap:wrap"><button class="btn" id="pirepair">INSTALL / REPAIR</button><button class="btn" id="picode">OPEN CODE — TALK TO PI</button><button class="btn" id="piit">LAUNCH IN iT</button><span class="dim" style="font-size:10px;margin-left:auto">workspace + launcher are re-synced on every app start</span></div>'
+        +'<div class="sethead">MIND — THE MODEL (BYOK)</div>'
+        +row('Current LLM model',!!(s&&s.model),(s&&s.model)?(s.model+(s.provider&&!String(s.model).includes('/')?' · '+s.provider:'')):'not set — run pi /login')
+        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">Pi thinks on <b>your own model</b>, configured in pi itself: run <span class="path">pi</span> in any terminal → <span class="path">/login</span> (API key or OAuth). The key lives in <span class="path">~/.pi/agent/auth.json</span> — it never enters this app, its HTML or its logs. Pick a different LLM for pi below in <b>CODE</b>, or here.</div>'
+        +'<div class="sethead">NAME &amp; SOUL — FACTORY: PLAIN “pi”</div>'
+        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">It ships as plain <b>pi</b> — no custom name, no persona. Want one? <b>Ask pi in chat</b> (“call yourself NAME”, “here is your soul: …”) and it writes its own identity layer (<span class="path">.pi/APPEND_SYSTEM.md</span> in its workspace) and answers to both names. Deleting that file resets it to factory. App updates never touch it.</div>';
+      const rf=()=>secPiAgent();
+      pane.querySelector('#pirepair').addEventListener('click',async()=>{try{const r=await RPC('pi','install');Toast.show(r&&r.ok?'Pi workspace + launcher installed':'Install had errors — see server.log')}catch(e){Toast.show('install failed: '+e.message)}rf()});
+      pane.querySelector('#picode').addEventListener('click',()=>{openPanel('terminal');Toast.show('CODE opened — new sessions default to pi')});
+      pane.querySelector('#piit').addEventListener('click',()=>{openPanel('shell');Toast.show('Type pi-clone in the iT shell to launch pi')});
     }
     async function secAddModels(){
       loading();
@@ -139,7 +188,7 @@
           <div class="sw3 ${pr.enabled!==false?'on':''}" data-en="${pr.id}" title="Enable / disable provider"><i></i></div>
           <button class="rm" data-rm="${pr.id}" title="Remove">✕</button>
           <div style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px;margin-top:7px">
-            ${(pr.models||[]).map(m=>{const on=!(pr.disabledModels||[]).includes(m);return `<span class="mmodel ${on?'on':''}" data-pid="${pr.id}" data-m="${escAttr(m)}" data-on="${on?1:0}"><i></i>${escAttr(m)}</span>`}).join('')||'<span class="dim" style="font-size:9px">No models listed yet — TEST the provider in Add Models to fetch them.</span>'}
+            ${(pr.models||[]).map(m=>{const on=!(pr.disabledModels||[]).includes(m);return `<span class="mmodel ${on?'on':''}" data-pid="${pr.id}" data-m="${escAttr(m)}" data-on="${on?1:0}"><i></i>${escAttr(m)}</span>`}).join('')||'<span class="dim" style="font-size:10px">No models listed yet — TEST the provider in Add Models to fetch them.</span>'}
           </div>
         </div>`).join(''):'<div class="qempty" style="padding:14px">No models added yet — add one in <b>Add Models</b>.</div>');
       pane.querySelectorAll('[data-en]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');try{await RPC('models','setEnabled',sw.dataset.en,on);sw.classList.toggle('on',on);Bus.emit('models:changed');Toast.show(on?'Provider enabled':'Provider disabled')}catch(e){Toast.show(e.message)}}));
@@ -151,12 +200,12 @@
       let defs={},provs=[];try{defs=await RPC('models','getDefaults');provs=await RPC('models','listProviders')}catch(e){return fail(e)}
       const caps=[['chat','Chat'],['email_summary','Email summary'],['email_reply','Email reply'],['email_tags','Email tags']];
       const opts=sel=>['<option value="">— default (machine) —</option>'].concat(provs.flatMap(pr=>(pr.models||[]).map(m=>`<option value="${pr.id}::${escAttr(m)}" ${sel&&sel.providerId===pr.id&&sel.model===m?'selected':''}>${escAttr(pr.label||pr.provider)} · ${escAttr(m)}</option>`))).join('');
-      pane.innerHTML='<div class="sethead">AI DEFAULTS — which model does what</div>'+caps.map(c=>`<div class="setline"><span style="flex:1">${c[1]}</span><select data-cap="${c[0]}" class="setsel">${opts(defs[c[0]])}</select></div>`).join('')+'<div style="font-size:9px;color:var(--ink-faint);padding:6px 2px">No selection → uses your machine\'s Anthropic key (default brain).</div>';
+      pane.innerHTML='<div class="sethead">AI DEFAULTS — which model does what</div>'+caps.map(c=>`<div class="setline"><span style="flex:1">${c[1]}</span><select data-cap="${c[0]}" class="setsel">${opts(defs[c[0]])}</select></div>`).join('')+'<div style="font-size:10px;color:var(--ink-faint);padding:6px 2px">No selection → uses your machine\'s Anthropic key (default brain).</div>';
       pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{const v=s.value;if(!v)await RPC('models','setDefault',s.dataset.cap,{providerId:null});else{const parts=v.split('::');await RPC('models','setDefault',s.dataset.cap,{providerId:parts[0],model:parts[1]})}Toast.show('Saved')}));
     }
     async function secSearch(){
       pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, docs, contacts…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · library · contacts · recipes · tasks · reminders · research).</div>';
-      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['personalassistant','Personal Assistant'],['itterm','iT — Terminal'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
+      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
       const inp=pane.querySelector('#ssq'),res=pane.querySelector('#ssres');let tmr=null;
       inp.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
         const q=inp.value.trim().toLowerCase();
@@ -172,15 +221,21 @@
     async function secIntegrations(){
       loading();
       let list=[];try{const r=await RPC('integrations','list');list=Array.isArray(r)?r:(r&&r.items)||[]}catch(e){return fail(e)}
-      pane.innerHTML='<div class="sethead">INTEGRATIONS</div>'+(list.length?list.map(it=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(it.name||it.type||'')}</b> <span class="dim" style="font-size:9px">${escHtml(it.type||'')} · ${escHtml(it.transport||'')}</span></span><span class="dim">${it.isDefault?'default':''}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No integrations yet.</div>')+
+      pane.innerHTML='<div class="sethead">INTEGRATIONS</div>'+(list.length?list.map(it=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(it.name||it.type||'')}</b> <span class="dim" style="font-size:10px">${escHtml(it.type||'')} · ${escHtml(it.transport||'')}</span></span><span class="dim">${it.isDefault?'default':''}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No integrations yet.</div>')+
         '<div class="btnrow" style="margin-top:10px"><button class="btn" id="sint">OPEN INTEGRATIONS</button></div>';
       pane.querySelector('#sint').addEventListener('click',()=>openPanel('integrations'));
     }
     async function secEmail(){
       loading();
       let acc=[];try{const r=await Mail.accounts();acc=Array.isArray(r)?r:(r&&r.accounts)||[]}catch(e){return fail(e)}
+      const AUT=[['off','Off','agents never send — you write and send yourself'],['show-first','Show first','the agent composes; you review, then it sends'],['direct','Direct','the agent composes and sends directly (factory default)'],['full-auto','Full-auto','autonomous email — the agent sends on its own, within your rules']];
+      const cur=(Store.get().email&&Store.get().email.autonomy)||'direct';
       pane.innerHTML='<div class="sethead">EMAIL ACCOUNTS</div>'+(acc.length?acc.map(a=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(a.email||a.name||'')}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}</span><span class="dim">${escHtml(a.kind||a.type||'imap/smtp')}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No accounts connected.</div>')+
-        '<div class="btnrow" style="margin-top:10px"><button class="btn" id="sem">OPEN EMAIL</button></div>';
+        '<div class="sethead" style="margin-top:14px">AGENT AUTONOMY</div>'+
+        '<div class="setline" style="display:block;padding:8px 12px"><div class="dim" style="font-size:10px;margin-bottom:8px">How much can an AI agent do with your email? Factory default is <b style="color:var(--fg)">Direct</b>.</div>'+
+        '<div class="emaut" style="display:flex;flex-direction:column;gap:6px">'+AUT.map(a=>`<button class="emautb" data-a="${a[0]}" style="all:unset;cursor:pointer;display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:9px;border:1px solid ${a[0]===cur?'var(--accent)':'var(--line)'};background:${a[0]===cur?'color-mix(in srgb,var(--accent) 12%,transparent)':'transparent'}"><span style="width:13px;height:13px;flex:none;margin-top:1px;border-radius:50%;border:2px solid ${a[0]===cur?'var(--accent)':'var(--ink-faint)'};background:${a[0]===cur?'var(--accent)':'transparent'}"></span><span><b style="font-size:11px;color:var(--fg)">${a[1]}</b><div class="dim" style="font-size:10px;margin-top:1px">${a[2]}</div></span></button>`).join('')+'</div></div>'+
+        '<div class="btnrow" style="margin-top:12px"><button class="btn" id="sem">OPEN EMAIL</button></div>';
+      pane.querySelectorAll('.emautb').forEach(b=>b.addEventListener('click',()=>{const s=Store.get();s.email=Object.assign({},s.email,{autonomy:b.dataset.a});Store.save();Toast.show('Email autonomy: '+b.dataset.a);secEmail()}));
       pane.querySelector('#sem').addEventListener('click',()=>{Caps.set('email',1);openPanel('email')});
     }
     async function secReminders(){
@@ -205,13 +260,13 @@
       ];
       const CAP=Store.get().caps;
       const capRow=(k,label,sub)=>`<div class="autotoggle"><div><b>${label}</b><div class="sub">${sub}</div></div><div class="sw3 ${CAP[k]?'on':''}" data-cap="${k}"><i></i></div></div>`;
-      pane.innerHTML='<div class="sethead">TOOLS</div>'+TOOLS.map(t=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="${t[3]}"/></svg><span style="flex:1;margin-left:4px"><b style="font-size:10.5px;color:var(--fg)">${t[1]}</b> <span class="dim" style="font-size:9px">${t[2]}</span></span><button class="btn mini" data-open="${t[0]}">OPEN</button></div>`).join('')
+      pane.innerHTML='<div class="sethead">TOOLS</div>'+TOOLS.map(t=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="${t[3]}"/></svg><span style="flex:1;margin-left:4px"><b style="font-size:10.5px;color:var(--fg)">${t[1]}</b> <span class="dim" style="font-size:10px">${t[2]}</span></span><button class="btn mini" data-open="${t[0]}">OPEN</button></div>`).join('')
         +'<div class="sethead">CAPABILITIES — enable only what you use</div>'
         +capRow('machine','My Machine','real shell + BYOK brain')
         +capRow('agents','My Agents','connect the real iCLONE / VEGETA')
         +capRow('email','Email','connect, write and send email')
         +capRow('automations','Automations','the agent proposes actions (with approval)')
-        +'<div style="font-size:9px;color:var(--ink-faint);margin:2px 0 4px">CODE · Harness · LAB are always available. Nothing starts on its own — every action passes Safety + your approval.</div>';
+        +'<div style="font-size:10px;color:var(--ink-faint);margin:2px 0 4px">CODE · Harness · LAB are always available. Nothing starts on its own — every action passes Safety + your approval.</div>';
       pane.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.open;openPanel(t==='__theme'?'theme':t)}));
       pane.querySelectorAll('[data-cap]').forEach(sw=>sw.addEventListener('click',()=>{const k=sw.dataset.cap,v=!Caps.on(k);Caps.set(k,v);sw.classList.toggle('on',v);Toast.show((v?'Enabled: ':'Disabled: ')+k)}));
     }
@@ -225,7 +280,7 @@
       pane.innerHTML='<div class="sethead">FULL MACHINE CONTROL</div>'+
         `<div class="autotoggle" style="border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)"><div><b style="color:var(--accent)">Full machine control</b><div class="sub">Let your agent do ANYTHING on this computer — open any app or folder, run any command, automate the machine. One prompt in CODE is enough. This is your whole workstation, fully driveable by the AI.</div></div><div class="sw3 ${mc?'on':''}" data-perm="machineControl"><i></i></div></div>`+
         `<div class="secnote" style="${mc?'':'display:none'}" id="mcnote">✓ Full machine control is ON — the agent can open apps, folders and run anything you ask. The catastrophic-command guard (rm -rf /, mkfs, dd to disk) stays active even now, to protect you from mistakes.</div>`+
-        '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
+        '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:10px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
         rows.map(r=>{const own=r[0]==='autoEmail'||r[0]==='ssh'||r[0]==='matrix';return `<div class="autotoggle" style="${mc&&!own?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&!own))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`}).join('')+
         '<div class="secnote">Root mode asks for your password at the moment (never stored). Catastrophic patterns (rm -rf /, mkfs, dd to disk) are ALWAYS blocked, even as root.</div>'+
         '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${escHtml(t.name)}</b><div class="sub">${escHtml(t.kind||'')} ${escHtml((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>');
@@ -236,13 +291,13 @@
       loading();
       let users=[];try{users=await RPC('admin','users')}catch(e){return fail(e)}
       pane.innerHTML='<div class="sethead">USERS</div>'+(users.length?users.map(u=>`<div class="setline"><span style="flex:1">${escHtml(u.name||'(local)')}</span><span class="dim">${escHtml(u.role||'owner')}</span></div>`).join(''):'<div class="setline"><span style="flex:1">Local profile</span><span class="dim">owner</span></div>')+
-        '<div style="font-size:9px;color:var(--ink-faint);margin-top:8px;line-height:1.5">This HUB is local-first: one owner on this machine. Multi-user comes with the OG PASS gate.</div>';
+        '<div style="font-size:10px;color:var(--ink-faint);margin-top:8px;line-height:1.5">This HUB is local-first: one owner on this machine. Multi-user comes with the OG PASS gate.</div>';
     }
     function secAppearance(){
       const cur=Store.get().theme,ALL=Themes.all();const curC=ALL[cur]||Themes.T.void;
       const sw=(names,rm)=>'<div class="swatches">'+names.map(n=>{const c=ALL[n];if(!c)return'';return `
         <div class="sw ${n===cur?'on':''} ${c.live?'live':''}" data-theme="${n}">
-          ${rm?`<span class="del" data-rmtheme="${n}" style="position:absolute;top:5px;right:7px;font-size:8px;color:var(--ink-faint);cursor:pointer">✕</span>`:''}
+          ${rm?`<span class="del" data-rmtheme="${n}" style="position:absolute;top:5px;right:7px;font-size:10px;color:var(--ink-faint);cursor:pointer">✕</span>`:''}
           <div class="dots"><i style="background:${c.bg}"></i><i style="background:${c.panel}"></i><i style="background:${c.accent}"></i></div>
           <span>${n.toUpperCase()}</span>
         </div>`}).join('')+'</div>';
@@ -252,7 +307,7 @@
         +(customs.length?'<div class="sethead">YOUR THEMES</div>'+sw(customs,true):'')
         +'<div class="sethead">CREATE THEME — dark mono + 1 accent</div>'
         +'<div class="tcustom">'+['bg','fg','panel','border','accent'].map(k=>`<label>${k.toUpperCase()}<input type="color" data-k="${k}" value="${curC[k]}"></label>`).join('')+'</div>'
-        +'<div class="trowsave"><input type="text" id="tname" placeholder="your theme name" maxlength="14"><button class="btn" id="tsave" style="padding:7px 12px;font-size:9px">SAVE</button></div>'
+        +'<div class="trowsave"><input type="text" id="tname" placeholder="your theme name" maxlength="14"><button class="btn" id="tsave" style="padding:7px 12px;font-size:10px">SAVE</button></div>'
         +`<div class="setline">Density<div class="densseg" id="densseg">${['compact','cosy','comfy'].map(d=>`<button data-d="${d}" class="${Store.get().density===d?'on':''}">${d.toUpperCase()}</button>`).join('')}</div></div>`
         +`<div class="setline">Proximity animation<button class="btn" id="motionbtn">${Store.get().motion?'ON':'OFF'}</button></div>`
         +`<div class="setline">Grid layout<button class="btn" id="resetbtn">RESET</button></div>`;
@@ -280,13 +335,13 @@
       const P=Store.get().profile,acc=WalletAuth.access();
       pane.innerHTML='<div class="sethead">PROFILE</div>'
         +`<div class="trowsave" style="margin-bottom:8px"><input type="text" id="pname" placeholder="your name" value="${escAttr(P.name||'')}" maxlength="28"></div>`
-        +`<div class="setline">Access<span style="margin-left:auto;font-size:9px;color:${acc.ok?'var(--ok)':'var(--ink-faint)'}">${acc.ok?'WALLET CONNECTED · '+WalletAuth.short(WalletAuth.addr()):'no wallet'}</span></div>`
-        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin:4px 0 10px">3 keys (one is enough): 100k $ICLONE staked · OG CARD · house iNFT. '+(acc.ok?'':'Connect the wallet in the top-right corner.')+'</div>'
+        +`<div class="setline">Access<span style="margin-left:auto;font-size:10px;color:${acc.ok?'var(--ok)':'var(--ink-faint)'}">${acc.ok?'WALLET CONNECTED · '+WalletAuth.short(WalletAuth.addr()):'no wallet'}</span></div>`
+        +'<div style="font-size:10px;color:var(--ink-faint);line-height:1.5;margin:4px 0 10px">3 keys (one is enough): 100k $ICLONE staked · OG CARD · house iNFT. '+(acc.ok?'':'Connect the wallet in the top-right corner.')+'</div>'
         +'<div class="sethead">DATA</div>'
-        +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:9.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:9.5px">IMPORT</button></span></div>'
-        +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:9.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
+        +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
+        +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Integrates Fabric (MIT), AgentView patterns (MIT); behavior inspired by Odysseus, rebuilt clean-room. iT terminal: built on ideas from cmux · tmux · exo, cmux-compatible, clean-room.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Integrates Fabric (MIT), AgentView patterns (MIT); behavior inspired by Odysseus, rebuilt clean-room. iT terminal: built on ideas from cmux · tmux · exo, cmux-compatible, clean-room.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -305,44 +360,6 @@
         setTimeout(()=>{if(e.target){delete e.target.dataset.armed;e.target.textContent='DELETE'}},3000);
       });
     }
-    async function secPersonalAssistant(){
-      loading();
-      let stt,soulr;
-      try{stt=await RPC('assistant','status');soulr=await RPC('assistant','getSoul')}catch(e){return fail(e)}
-      const pinned=Store.get().pinnedAgents||[],linked=stt.linked;
-      const FORGE='Be my CLONE FRAME assistant forge. Fetch, read the whole file, and follow its steps exactly (actually do them): https://raw.githubusercontent.com/devclone20/inft-i01/main/ASSISTANT.md — Ask me my agent name and a short profile, then wait.';
-      pane.innerHTML='<div class="sethead">PERSONAL ASSISTANT</div>'
-        +'<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:12px">Your own AI — a <b>name</b> on top, the <b>Pi</b> coding agent underneath, the <b>iCLONE</b> soul, your key (BYOK). It represents you and learns your way. It answers to its name, to <b>iclone</b>, and to <b>pi</b> — any case.</div>'
-        +'<div class="sethead">NAME</div>'
-        +`<div class="trowsave" style="margin-bottom:5px"><input type="text" id="paname" placeholder="iCLONE" value="${escAttr(stt.name||'')}" maxlength="60"></div>`
-        +'<div style="font-size:9px;color:var(--ink-faint);margin-bottom:12px">The name you type in the iT terminal to open your agent.</div>'
-        +'<div class="sethead">AGENT MONOREPO</div>'
-        +`<div class="trowsave" style="margin-bottom:5px"><input type="text" id="parepo" placeholder="~/my-agent   (empty = soul-only quick mode)" value="${escAttr(stt.repoPath||'')}"></div>`
-        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:12px">The folder where your agent lives — forge one from the iNFT template (below). Empty runs Pi with just the soul.</div>'
-        +'<div class="sethead">NEURAL SOUL <span style="color:var(--ink-faint);font-weight:400">· '+(soulr.custom?'custom':'iCLONE default')+'</span></div>'
-        +`<textarea id="pasoul" rows="10" spellcheck="false" style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--fg);background:color-mix(in srgb,var(--panel) 60%,transparent);border:1px solid var(--line);border-radius:8px;padding:9px;caret-color:var(--accent);resize:vertical">${escHtml(soulr.soul||'')}</textarea>`
-        +'<div class="setline" style="border:0;padding:6px 0"><span style="font-size:9px;color:var(--ink-faint)">Paste or write a new soul — it layers onto your agent.</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="pasoulsave" style="padding:5px 12px;font-size:9.5px">SAVE SOUL</button><button class="btn" id="pasoulreset" style="padding:5px 12px;font-size:9.5px">RESET</button></span></div>'
-        +'<div class="sethead">LINK AN iNFT <span style="color:var(--ink-faint);font-weight:400">· optional</span></div>'
-        +(pinned.length
-          ?`<div class="setline">Bind a token you own<select id="palink" class="setsel" style="margin-left:auto"><option value="">— none —</option>${pinned.map(a=>`<option value="${escAttr(a.contract+'::'+a.tokenId)}"${linked&&String(linked.tokenId)===String(a.tokenId)?' selected':''}>${escAttr(a.name||('#'+a.tokenId))}</option>`).join('')}</select></div>`
-          :'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5">No iNFT pinned yet. Buy one, pin it in <b>LAB → Agents</b>, and it appears here to bind. Your assistant works fully without one.</div>')
-        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin:4px 0 12px">Binding is your choice — whoever holds the token then owns the agent.</div>'
-        +'<div class="sethead">iT TERMINAL CALL</div>'
-        +`<div class="setline">${stt.launcherInstalled?('✓ type <b>'+escHtml(stt.command)+'</b> in the iT terminal'):'Install the launcher so typing the name opens your agent'}<button class="btn" id="painstall" style="margin-left:auto;padding:5px 12px;font-size:9.5px">${stt.launcherInstalled?'RE-INSTALL':'INSTALL iT COMMAND'}</button></div>`
-        +`<div style="font-size:9px;color:${stt.piInstalled?'var(--ok)':'var(--accent)'};margin:4px 0 12px">${stt.piInstalled?'✓ Pi is installed on this machine':'⚠ Pi not installed — run: npm i -g --ignore-scripts @earendil-works/pi-coding-agent'}</div>`
-        +'<div class="sethead">NO AGENT REPO YET?</div>'
-        +'<div style="font-size:9px;color:var(--ink-faint);line-height:1.5;margin-bottom:6px">Paste this to any AI assistant with a terminal (Pi · Claude Code · Cursor…) — it forges your agent from the iNFT template, no iNFT required:</div>'
-        +`<pre id="paforge" style="white-space:pre-wrap;font-family:var(--mono);font-size:9px;line-height:1.5;color:var(--ink-dim);background:color-mix(in srgb,var(--panel) 60%,transparent);border:1px solid var(--line);border-radius:8px;padding:9px;margin:0">${escHtml(FORGE)}</pre>`
-        +'<div class="setline" style="border:0;padding:6px 0"><span style="font-size:9px;color:var(--ink-faint)">github.com/devclone20/inft-i01</span><button class="btn" id="paforgecopy" style="margin-left:auto;padding:5px 12px;font-size:9.5px">COPY</button></div>';
-      const $q=s=>pane.querySelector(s);
-      $q('#paname').addEventListener('change',async e=>{try{await RPC('assistant','saveConfig',{name:e.target.value.trim()})}catch(_){}});
-      $q('#parepo').addEventListener('change',async e=>{try{const r=await RPC('assistant','saveConfig',{repoPath:e.target.value.trim()});if(r&&!r.ok)Toast.show(r.error||'invalid folder')}catch(_){}});
-      $q('#pasoulsave').addEventListener('click',async()=>{try{const r=await RPC('assistant','saveSoul',$q('#pasoul').value);Toast.show(r&&r.ok?'Soul saved — layered onto your agent.':((r&&r.error)||'failed'))}catch(e){Toast.show(e.message)}});
-      $q('#pasoulreset').addEventListener('click',async()=>{try{await RPC('assistant','saveSoul','');Toast.show('Reset to the iCLONE default.');secPersonalAssistant()}catch(e){Toast.show(e.message)}});
-      const lk=$q('#palink');if(lk)lk.addEventListener('change',async e=>{const v=e.target.value;let ln=null;if(v){const parts=v.split('::'),a=pinned.find(x=>x.contract===parts[0]&&String(x.tokenId)===String(parts[1]));ln={contract:parts[0],tokenId:parts[1],name:(a&&a.name)||''}}try{await RPC('assistant','saveConfig',{linked:ln});Toast.show(ln?'iNFT linked.':'iNFT unlinked.')}catch(_){}});
-      $q('#painstall').addEventListener('click',async()=>{try{const r=await RPC('assistant','install',{name:$q('#paname').value.trim(),repoPath:$q('#parepo').value.trim()});if(r&&r.ok){Toast.show('Installed — type "'+r.command+'" in the iT terminal.');secPersonalAssistant()}else Toast.show((r&&r.error)||'failed')}catch(e){Toast.show(e.message)}});
-      $q('#paforgecopy').addEventListener('click',()=>{navigator.clipboard.writeText(FORGE).then(()=>Toast.show('Copied — paste it to your assistant.')).catch(()=>Toast.show('Copy blocked — select the text manually.'))});
-    }
     async function secSystem(){
       loading();
       let sys={};try{sys=await RPC('admin','system')}catch(e){return fail(e)}
@@ -357,28 +374,67 @@
       const totals={};(st&&st.ok?st.totals:[]).forEach(t=>totals[t.rel]=t);
       const tops=s.nodes.filter(n=>!n.rel.includes('/'));
       pane.innerHTML='<div class="sethead">FOLDER SYSTEM</div>'+
-        '<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:10px">Everything the app installs and creates lives here — local & remote models, caches, data, and each agent\'s <b>neural_soul.md</b>. Edit it inside the app or straight in Finder. The empty structure ships with the app and is created on your machine automatically.</div>'+
+        '<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:10px">Everything the app installs and creates lives here — local & remote models, caches, data, and each agent\'s <b>neural_soul.md</b>. Click a folder to open it: its contents unfold right beneath it, and clicking a file opens it to read or edit. Edit inside the app or straight in Finder.</div>'+
         '<div class="setline"><span style="flex:1;font-family:var(--mono);font-size:10px;color:var(--fg);overflow:hidden;text-overflow:ellipsis">'+escHtml(s.root)+'</span><button class="btn mini" id="foreveal">Open in Finder ↗</button><button class="btn mini" id="forecreate">Re-create</button></div>'+
-        tops.map(n=>{const t=totals[n.rel]||{};return `<div class="setline folrow" data-rel="${escAttr(n.rel)}" style="cursor:pointer"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="#i-frame"/></svg><span style="flex:1;margin-left:4px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escAttr(n.rel)}</b> <span class="dim" style="font-size:9px">${escAttr(n.desc)}</span></span><span class="dim" style="font-size:9px;flex:none">${t.items||0} · ${fmtB(t.bytes||0)}</span><button class="btn mini" data-open="${escAttr(n.rel)}" title="Open in Finder">↗</button></div>`}).join('')+
-        '<div id="foltree" style="margin-top:8px"></div>';
+        '<div class="fldtree" id="fldtree"></div>'+
+        '<div class="fld-viewov" id="fldview" style="display:none"></div>';
+      const treeRoot=pane.querySelector('#fldtree'),viewOv=pane.querySelector('#fldview');
+      const chev='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+      const pad=d=>(6+d*15)+'px';
+      // open a file in the shared viewer (View / Diff / Edit) as a retractable overlay over the tree
+      function openFile(it){
+        if(!it._abs){Toast.show('cannot resolve path');return}
+        treeRoot.style.display='none';viewOv.style.display='';viewOv.innerHTML='';
+        const cwd=it._abs.slice(0,it._abs.lastIndexOf('/'))||it._abs;
+        openFileView(viewOv,it._abs,{cwd,onBack:()=>{viewOv.style.display='none';viewOv.innerHTML='';treeRoot.style.display=''}});
+      }
+      // one row = one folder or file; folders lazily unfold their children directly beneath them
+      function fldRow(it,depth){
+        const wrap=document.createElement('div');wrap.className='fld-node';
+        const isDir=it.type==='dir';
+        const row=document.createElement('div');row.className='fld-row'+(isDir?' dir':' file');row.style.paddingLeft=pad(depth);
+        const meta=isDir?(it.items!=null?(it.items+' · '+fmtB(it.bytes||0)):'folder'):fmtB(it.size||0);
+        row.innerHTML='<span class="fld-chev">'+(isDir?chev:'')+'</span>'+
+          '<svg class="fld-ic" style="color:'+(isDir?'var(--accent)':'var(--ink-faint)')+'"><use href="#i-'+(isDir?'frame':'harness')+'"/></svg>'+
+          '<span class="fld-nm"><b>'+escHtml(it.name)+'</b>'+(it.desc?' <span class="dim">'+escHtml(it.desc)+'</span>':'')+'</span>'+
+          '<span class="fld-mt dim">'+escHtml(meta)+'</span>'+
+          '<button class="btn mini fld-rev" title="Open in Finder">↗</button>';
+        wrap.appendChild(row);
+        const kids=document.createElement('div');kids.className='fld-kids';kids.style.display='none';wrap.appendChild(kids);
+        let loaded=false,open=false;
+        row.querySelector('.fld-rev').addEventListener('click',async e=>{e.stopPropagation();const rr=await RPC('folders','revealPath',it.rel);if(rr&&rr.ok&&Bridge.on())Bridge.shell('open '+JSON.stringify(rr.abs),()=>{})});
+        row.addEventListener('click',async()=>{
+          if(!isDir){openFile(it);return}
+          open=!open;wrap.classList.toggle('open',open);kids.style.display=open?'':'none';
+          if(open&&!loaded){
+            loaded=true;kids.innerHTML='<div class="fld-empty" style="padding-left:'+pad(depth+1)+'">…</div>';
+            const tr=await RPC('folders','tree',it.rel).catch(()=>null);
+            kids.innerHTML='';
+            if(!tr||!tr.ok){kids.innerHTML='<div class="fld-empty" style="padding-left:'+pad(depth+1)+'">could not read this folder</div>';return}
+            const items=(tr.items||[]).slice().sort((a,b)=>a.type===b.type?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));
+            if(!items.length){kids.innerHTML='<div class="fld-empty" style="padding-left:'+pad(depth+1)+'">Empty</div>';return}
+            items.forEach(ch=>{ch._abs=tr.abs+'/'+ch.name;kids.appendChild(fldRow(ch,depth+1))});
+          }
+        });
+        return wrap;
+      }
+      tops.forEach(n=>{const t=totals[n.rel]||{};treeRoot.appendChild(fldRow({name:n.rel,type:'dir',rel:n.rel,desc:n.desc,items:t.items,bytes:t.bytes},0))});
       pane.querySelector('#foreveal').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+JSON.stringify(s.root),()=>{});Toast.show('Opening '+s.root)});
       pane.querySelector('#forecreate').addEventListener('click',async()=>{const r=await RPC('folders','ensure');Toast.show('Structure ensured — '+((r&&r.created&&r.created.length)||0)+' created');secFolders()});
-      pane.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();const rr=await RPC('folders','revealPath',b.dataset.open);if(rr&&rr.ok&&Bridge.on())Bridge.shell('open '+JSON.stringify(rr.abs),()=>{})}));
-      pane.querySelectorAll('.folrow').forEach(c=>c.addEventListener('click',async()=>{const rel=c.dataset.rel,box=pane.querySelector('#foltree');box.innerHTML='<div class="qempty" style="padding:8px">…</div>';const tr=await RPC('folders','tree',rel);if(!tr||!tr.ok){box.innerHTML='';return}box.innerHTML='<div class="sethead">'+escHtml(rel)+'</div>'+(tr.items.length?tr.items.map(it=>`<div class="setline"><svg style="width:12px;height:12px;color:${it.type==='dir'?'var(--accent)':'var(--ink-faint)'};flex:none"><use href="#i-${it.type==='dir'?'frame':'harness'}"/></svg><span style="flex:1;margin-left:4px;font-size:10px;min-width:0;overflow:hidden;text-overflow:ellipsis">${escHtml(it.name)}</span><span class="dim" style="font-size:9px">${it.type==='dir'?'folder':fmtB(it.size)}</span></div>`).join(''):'<div class="qempty" style="padding:10px">Empty</div>')}));
     }
     async function secServers(){
       loading();
       let r;try{r=await RPC('servers','list')}catch(e){return fail(e)}
       const servers=(r&&r.ok?r.servers:[]);
       pane.innerHTML='<div class="sethead">ONLINE SERVERS</div>'+
-        '<div style="font-size:9.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:10px">Connect a DigitalOcean droplet (or any SSH server) and control it from inside CLONE FRAME — deploy your agent, run automations, all from <b>LAB → iNFT → Online Server</b> or by just asking in CODE.</div>'+
-        (servers.length?servers.map(s=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="#i-cosmos"/></svg><span style="flex:1;margin-left:4px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escAttr(s.name)}</b> <span class="dim" style="font-size:9px">${escAttr(s.host||s.provider||'')}${s.hasToken?' · DO token ✓':''}${s.hasKey?' · key ✓':''}</span></span><button class="btn mini" data-test="${escAttr(s.id)}">Test</button><button class="btn mini" data-rm="${escAttr(s.id)}">✕</button></div>`).join(''):'<div class="qempty" style="padding:12px">No servers yet — add one below.</div>')+
+        '<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:10px">Connect a DigitalOcean droplet (or any SSH server) and control it from inside CLONE FRAME — deploy your agent, run automations, all from <b>LAB → iNFT → Online Server</b> or by just asking in CODE.</div>'+
+        (servers.length?servers.map(s=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="#i-cosmos"/></svg><span style="flex:1;margin-left:4px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escAttr(s.name)}</b> <span class="dim" style="font-size:10px">${escAttr(s.host||s.provider||'')}${s.hasToken?' · DO token ✓':''}${s.hasKey?' · key ✓':''}</span></span><button class="btn mini" data-test="${escAttr(s.id)}">Test</button><button class="btn mini" data-rm="${escAttr(s.id)}">✕</button></div>`).join(''):'<div class="qempty" style="padding:12px">No servers yet — add one below.</div>')+
         '<div class="sethead">ADD A SERVER</div>'+
         '<div class="mcrow"><input id="svname" placeholder="Name (e.g. my droplet)"><input id="svhost" placeholder="IP or host (leave blank to provision)"></div>'+
         '<div class="mcrow"><input id="svuser" placeholder="SSH user" value="root"><input id="svkey" placeholder="SSH key path (~/.ssh/id_ed25519)"></div>'+
         '<div class="mcrow"><input id="svtoken" type="password" placeholder="DigitalOcean API token (optional — enables provisioning)"><button class="btn acc" id="svadd">✓ ADD</button></div>'+
         '<div class="mcmsg" id="svmsg"></div>'+
-        '<div style="font-size:9px;color:var(--ink-faint);line-height:1.6;margin-top:8px">Your keys and tokens are stored only on your machine (<span style="font-family:var(--mono)">~/.clone-frame-hub</span>, chmod 600) — never in the app UI, never in the cloud, never logged.</div>';
+        '<div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-top:8px">Your keys and tokens are stored only on your machine (<span style="font-family:var(--mono)">~/.clone-frame-hub</span>, chmod 600) — never in the app UI, never in the cloud, never logged.</div>';
       const msg=pane.querySelector('#svmsg');
       pane.querySelector('#svadd').addEventListener('click',async()=>{
         const svtok=pane.querySelector('#svtoken').value.trim();

@@ -185,17 +185,19 @@ test('read() fetches an off-chain http tokenURI via resolveTokenMeta', async () 
 
 // ── E. read() failover: dead first RPC, live second (port ethCall/rpcCall) ──
 
-test('read() fails soft to a placeholder when every RPC is unreachable', async () => {
+test('read() fails soft — and invents no art — when every RPC is unreachable', async () => {
   const { NFT } = await freshNft();
   const original = globalThis.fetch;
   globalThis.fetch = async () => { throw Object.assign(new Error('down'), { name: 'FetchError' }); };
   try {
     const r = await NFT.read({ contract: CONTRACT, tokenId: 55101 });
     // ethCall returns null for tokenURI → decodeAbiString('') = '' → parseTokenURI(null)=null
-    // → meta {} → image falls back to the svg placeholder; never throws.
+    // → meta {}. It must never throw, and it must never draw a picture: a generated card
+    // is indistinguishable from real art downstream, and it made empty third-party tokens
+    // look like CLONE FRAME agents. No metadata → no image; the panels render a neutral tile.
     assert.equal(r.ok, true);
     assert.equal(r.nft.tokenId, 55101);
-    assert.ok(r.nft.image.startsWith('data:image/svg+xml;utf8,'));
+    assert.equal(r.nft.image, '');
   } finally { globalThis.fetch = original; }
 });
 
@@ -219,4 +221,61 @@ test('balance() reports rpc unreachable when every endpoint fails', async () => 
   try {
     assert.deepEqual(await NFT.balance('0x000102030405060708090a0b0c0d0e0f10111213'), { ok: false, error: 'rpc unreachable' });
   } finally { globalThis.fetch = original; }
+});
+
+// ── G. isAgentNft — the one definition three panels depend on ────────────────
+// The wallet drawer, the LAB and MY AGENTS all read the `isAgent` tag scanWallet
+// writes. Get this wrong and either the owner's agents vanish or a stranger's
+// airdrop is presented as one, so the edges are pinned here.
+
+test('isAgentNft trusts contracts, not names', async () => {
+  const { NFT } = await freshNft();
+  const REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432'; // ERC-8004 AgentIdentity, Base
+
+  // an ERC-8004 identity is an agent on the strength of its address alone
+  assert.equal(NFT.isAgentNft({ contract: REGISTRY, tokenId: 55101 }), true);
+  assert.equal(NFT.isAgentNft({ contract: REGISTRY.toLowerCase(), tokenId: 55101 }), true);
+
+  // a collection NAME is attacker-controlled: anyone can deploy a contract, call it
+  // "iCLONE", and airdrop it into any wallet. Name alone must never buy its way in —
+  // this shape is what used to be shown as one of the connected wallet's own agents.
+  assert.equal(NFT.isAgentNft({ contract: '0x00000000000000000000000000000000000000ff', collection: 'Future iCLONE', symbol: 'FT-ICLONE', image: 'https://x/y.png' }), false);
+
+  // a self-declared agent collection is a weak signal — allowed, but only when the
+  // token carries an identity of its own. An empty token has no soul to work with.
+  assert.equal(NFT.isAgentNft({ contract: '0xabc', collection: 'CLONE FRAME iNFT', image: 'https://x/y.png' }), true);
+  assert.equal(NFT.isAgentNft({ contract: '0xabc', collection: 'CLONE FRAME iNFT' }), false);
+  assert.equal(NFT.isAgentNft({ contract: '0xabc', symbol: 'AGENT', attributes: [{ trait_type: 'x', value: 'y' }] }), true);
+
+  // plain holdings are not agents, and neither is nothing
+  assert.equal(NFT.isAgentNft({ contract: '0xabc', collection: 'Cool Cats', symbol: 'COOL', image: 'https://x/y.png' }), false);
+  assert.equal(NFT.isAgentNft(null), false);
+});
+
+test('isAgentNft accepts a collection the owner added by hand', async () => {
+  const { NFT } = await freshNft();
+  const MINE = '0x1111111111111111111111111111111111111111';
+  // no name, no art, nothing self-declared — it counts because the OWNER vouched for
+  // the address, which is the only thing on a chain that cannot be forged.
+  assert.equal(NFT.isAgentNft({ contract: MINE, tokenId: 7 }), false);
+  NFT.addCollection(MINE);
+  assert.equal(NFT.isAgentNft({ contract: MINE.toUpperCase().replace('0X', '0x'), tokenId: 7 }), true);
+  NFT.removeCollection(MINE);
+  assert.equal(NFT.isAgentNft({ contract: MINE, tokenId: 7 }), false);
+});
+
+test('isAgentNft reads BOTH symbol and collection for the same words', async () => {
+  const { NFT } = await freshNft();
+  // The owner's real iNFT collection is named ATLAS with symbol INFT. The first version of
+  // this predicate looked for "inft" only in the collection and "AGENT" only in the symbol,
+  // so it hid two genuine iNFTs and told him the wallet was empty. A contract declares
+  // itself in whichever field it likes.
+  const atlas = { contract: '0xabc', symbol: 'INFT', collection: 'ATLAS', attributes: [{ trait_type: 'x', value: 'y' }], image: 'https://x/y.png' };
+  assert.equal(NFT.isAgentNft(atlas), true);
+  assert.equal(NFT.isAgentNft({ ...atlas, symbol: 'X', collection: 'CLONE FRAME iNFT' }), true);
+  assert.equal(NFT.isAgentNft({ ...atlas, symbol: 'AGENT', collection: 'whatever' }), true);
+  // still no free pass: the word must stand on its own, and the token must have identity
+  assert.equal(NFT.isAgentNft({ contract: '0xabc', symbol: 'INFT', collection: 'ATLAS' }), false);
+  assert.equal(NFT.isAgentNft({ ...atlas, symbol: 'PAINT', collection: 'Paint' }), false);
+  assert.equal(NFT.isAgentNft({ ...atlas, symbol: 'FT-ICLONE', collection: 'Future iCLONE' }), false);
 });

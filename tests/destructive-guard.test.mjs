@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // T-006 · Characterization tests — the catastrophic-command guard
 // Targets (READ, never modified):
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/pty.mjs
+//   bridge/pty.mjs
 //     — function isDestructive(line), line ~106
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/ssh.mjs
+//   bridge/ssh.mjs
 //     — function destructive(line), line ~125
 //     (its own comment: "mirrors pty.mjs isDestructive()")
 //

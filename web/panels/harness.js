@@ -23,7 +23,7 @@
       return true;
     }
     function renderList(){
-      listEl.innerHTML='<div class="hnhead">HARNESSES<button class="btn mini" id="hnadd">＋ New</button></div>'+harnesses.map(h=>`<div class="hnitem ${sel&&h.id===sel.id?'on':''}" data-id="${h.id}"><b>${escHtml(h.name)}</b>${h.activeForTerminal?' <span class="badge sent">terminal</span>':''}<div class="dim" style="font-size:9px">${escHtml(h.kind||'')} · ${(h.roles||[]).length} agent${(h.roles||[]).length===1?'':'s'}</div></div>`).join('');
+      listEl.innerHTML='<div class="hnhead">HARNESSES<button class="btn mini" id="hnadd">＋ New</button></div>'+harnesses.map(h=>`<div class="hnitem ${sel&&h.id===sel.id?'on':''}" data-id="${h.id}"><b>${escHtml(h.name)}</b>${h.activeForTerminal?' <span class="badge sent">terminal</span>':''}<div class="dim" style="font-size:10px">${escHtml(h.kind||'')} · ${(h.roles||[]).length} agent${(h.roles||[]).length===1?'':'s'}</div></div>`).join('');
       listEl.querySelectorAll('.hnitem').forEach(el=>el.addEventListener('click',()=>{sel=harnesses.find(h=>h.id===el.dataset.id);renderList();renderDetail()}));
       listEl.querySelector('#hnadd').addEventListener('click',()=>addForm());
     }
@@ -31,7 +31,7 @@
       if(!sel){detEl.innerHTML='<div class="qempty">No harness.</div>';return}
       detEl.innerHTML=`<div class="hntitle">${escHtml(sel.name)} ${sel.isBuiltin?'<span class="badge">built-in</span>':''}</div><div class="dim" style="font-size:10px;margin:2px 0 10px">${escHtml(sel.description||'')}</div>
         <div class="hnroles">${(sel.roles||[]).map(r=>`<div class="hnrole ${r.gate?'gate':''}"><b>${escHtml(r.name)}</b><span>${escHtml(r.desc||'')}</span>${r.gate?'<span class="hngate">GATE</span>':'<span class="hngate spec">agent</span>'}</div>`).join('')||'<div class="qempty" style="padding:10px">No agents yet — click Edit crew to build the team.</div>'}</div>
-        <div class="dim" style="font-size:9px;margin:9px 2px">Non-collapsible gates: ${(sel.gates||[]).join(' · ')||'—'}</div>
+        <div class="dim" style="font-size:10px;margin:9px 2px">Non-collapsible gates: ${(sel.gates||[]).join(' · ')||'—'}</div>
         <div class="btnrow"><button class="btn" id="hnuse">${sel.activeForTerminal?'✓ IN TERMINAL':'USE IN TERMINAL'}</button><button class="btn" id="hnedit">${sel.isBuiltin?'⎘ Duplicate & edit':'✎ Edit crew'}</button>${sel.isBuiltin?'':'<button class="btn" id="hndel">remove</button>'}</div>`;
       detEl.querySelector('#hnuse').addEventListener('click',async()=>{const on=!sel.activeForTerminal;await RPC('harness','setActiveForTerminal',sel.id,on);Toast.show(on?'Harness active in CODE — pick it in the composer':'Removed from CODE');changed();await load()});
       detEl.querySelector('#hnedit').addEventListener('click',()=>{sel.isBuiltin?duplicateAndEdit(sel):editForm(sel)});
@@ -49,8 +49,8 @@
           <div class="af-row"><label>Type</label><input id="hnk" value="${escAttr(draft.kind)}"></div>
           <div class="af-row"><label>Description</label><input id="hnd" value="${escAttr(draft.description)}"></div>
           <div class="hnhead" style="padding:10px 0 5px">AGENT TEAM<button class="btn mini" id="hnaddrole">＋ Add agent</button></div>
-          <div class="hnedit-list">${roleRows()||'<div class="dim" style="font-size:9px;padding:4px 2px">No agents yet — add them, or load the Harness Engine crew below.</div>'}</div>
-          <div class="dim" style="font-size:9px;margin:7px 2px 11px">Flag an agent as <b>GATE</b> to make it a non-collapsible checkpoint (like SAFETY / OWNER) — nothing irreversible passes without it.</div>
+          <div class="hnedit-list">${roleRows()||'<div class="dim" style="font-size:10px;padding:4px 2px">No agents yet — add them, or load the Harness Engine crew below.</div>'}</div>
+          <div class="dim" style="font-size:10px;margin:7px 2px 11px">Flag an agent as <b>GATE</b> to make it a non-collapsible checkpoint (like SAFETY / OWNER) — nothing irreversible passes without it.</div>
           <div class="compose-actions"><button class="btn acc" id="hnsave">${draft.id?'SAVE':'CREATE'}</button><button class="btn" id="hnengine" title="Start from the Harness Engine spine">⚙ Harness Engine crew</button><button class="btn" id="hncancel">← back</button></div></div>`;
         detEl.querySelector('#hnn').addEventListener('input',e=>draft.name=e.target.value);
         detEl.querySelector('#hnk').addEventListener('input',e=>draft.kind=e.target.value);
@@ -100,6 +100,9 @@
       if(p&&d.cell)d.cell.dataset.panelKey=p.dataset.key;
       return;
     }
+    // BUG-L2-004 Part 2: a singleton reopened from its frame tile brings the window back,
+    // so the launcher tile has served its purpose — release the source cell (no orphan tile).
+    if(d.cell&&typeof Grid!=='undefined'&&Grid.release)Grid.release(d.cell);
     openPanel(type);
   });
   // Removing a square that holds a hidden docked window closes that window for real
@@ -137,7 +140,7 @@
   registerPanel('reminders',{def:DEFS.reminders,mount:wireReminders});
   registerPanel('brain',{def:DEFS.brain,mount:wireBrain});
   registerPanel('search',{def:DEFS.search,mount:wireSearch});
-  return{openPanel,registerPanel,has:(t)=>REG.has(t)||!!DEFS[t],layer,top:()=>topPanel};
+  return{openPanel,registerPanel,has:(t)=>REG.has(t)||!!DEFS[t],catalog:()=>Object.keys(DEFS).map(k=>({key:k,title:DEFS[k].title||k,sub:DEFS[k].sub||''})),layer,top:()=>topPanel};
 })();
 
 /* ---------- Snap ---------- */
@@ -210,11 +213,43 @@ const Tri=(()=>{
   setInterval(morph,30000);
   // ---- menu of EVERYTHING (MENU is a shared top-level const, defined above the Grid module) ----
   function buildMenu(){
-    menuEl.innerHTML=MENU.map(([grp,items])=>`<div class="flygrp">${grp}</div>`+items.map(([type,label,icon])=>{
+    // DOCK — present only while the owner has stashed the whole dock here (dragged it
+    // onto the ▲). Drag the entry back to the workspace (or click it) to bring it back;
+    // it never returns on its own.
+    const stashed=!!((Store.get().wdock||{}).stashed);
+    const dockHtml=stashed?('<div class="flygrp">DOCK</div>'+
+      '<button class="flyitem flydock" title="Drag it back to the workspace — or click to restore"><svg><use href="#i-frame"/></svg>Dock — drag it back out</button>'):'';
+    menuEl.innerHTML=dockHtml+MENU.map(([grp,items])=>`<div class="flygrp">${grp}</div>`+items.map(([type,label,icon])=>{
       const soon=type[0]!=='_'&&!Panels.has(type);
       return `<button class="flyitem${soon?' soon':''}" data-type="${type}"><svg><use href="${icon}"/></svg>${label}${soon?'<span class="badge">soon</span>':''}</button>`;
     }).join('')).join('');
-    menuEl.querySelectorAll('.flyitem').forEach(b=>b.addEventListener('click',()=>{
+    // drop the "more below" fade once the reader has actually reached the end
+    const fade=()=>menuEl.classList.toggle('atend',menuEl.scrollTop+menuEl.clientHeight>=menuEl.scrollHeight-4);
+    if(!menuEl._fadeWired){menuEl._fadeWired=true;menuEl.addEventListener('scroll',fade,{passive:true})}
+    fade();
+    const fd=menuEl.querySelector('.flydock');
+    if(fd)fd.addEventListener('pointerdown',e=>{
+      e.preventDefault();e.stopPropagation();
+      const sx=e.clientX,sy=e.clientY;let ghost=null;
+      const mm=ev=>{
+        if(!ghost&&Math.hypot(ev.clientX-sx,ev.clientY-sy)<6)return;
+        if(!ghost){ghost=document.createElement('div');ghost.className='flydock-ghost';ghost.textContent='DOCK';document.body.appendChild(ghost)}
+        ghost.style.left=(ev.clientX-24)+'px';ghost.style.top=(ev.clientY-14)+'px';
+      };
+      const mu=ev=>{
+        removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);
+        if(ghost){
+          ghost.remove();
+          const fb=fly.getBoundingClientRect();
+          const outside=ev.clientX<fb.left||ev.clientX>fb.right||ev.clientY<fb.top||ev.clientY>fb.bottom;
+          if(outside){toggleFly(false);Bus.emit('wdock:unstash',{x:ev.clientX-30,y:ev.clientY-16});return}
+          buildMenu();return; // dropped back inside the menu — stays stashed
+        }
+        toggleFly(false);Bus.emit('wdock:unstash',{}); // plain click also brings it back
+      };
+      addEventListener('pointermove',mm);addEventListener('pointerup',mu);
+    });
+    menuEl.querySelectorAll('.flyitem:not(.flydock)').forEach(b=>b.addEventListener('click',()=>{
       const t=b.dataset.type;toggleFly(false);
       if(t==='__search'){openSearch();return}
       if(t==='__theme'){Panels.openPanel('theme');return}
@@ -222,6 +257,7 @@ const Tri=(()=>{
       Panels.openPanel(t);
     }));
   }
+  Bus.on('wdock:changed',()=>{if(flyOpen)buildMenu()});
   function openSearch(){
     if(Bridge.on()&&Panels.has('search')){Panels.openPanel('search');return}
     const p=document.getElementById('pal');if(p){p.style.display='block';const i=document.getElementById('palinput');if(i){i.value='';setTimeout(()=>i.focus(),30)}}
@@ -284,9 +320,28 @@ const Tri=(()=>{
       ghost:()=>{const g=document.createElement('div');g.className='fitghost';g.innerHTML='<svg><use href="#i-guide"/></svg>GUIDE';return g},
       onDrop:restore,onTap:restore});
   })();
-  document.getElementById('t-zin').addEventListener('click',()=>{if(Camera.isNav())Camera.zoomAt(innerWidth/2,innerHeight/2,1.45)});
-  document.getElementById('t-zout').addEventListener('click',()=>{if(Camera.isNav())Camera.zoomAt(innerWidth/2,innerHeight/2,1/1.45)});
+  // BUG-L2-003: the +/- buttons must never be silently dead. If navigation is locked
+  // (build mode), an explicit zoom click turns navigation on first (one-time hint), then zooms.
+  const zoomBtn=(f)=>{if(!Camera.isNav()){Camera.setNav(true);try{Cosmos.prewarm()}catch(_){}Toast.show('Navigation on — zooming')}Camera.zoomAt(innerWidth/2,innerHeight/2,f)};
+  document.getElementById('t-zin').addEventListener('click',()=>zoomBtn(1.45));
+  document.getElementById('t-zout').addEventListener('click',()=>zoomBtn(1/1.45));
+  // Traffic vs Focus (audit L10). Traffic ON: zooming out tucks the floating panels away
+  // (fade + shrink, non-destructive — CSS only, they return on zoom-in). Focus keeps them.
+  (()=>{
+    const tb=document.getElementById('t-traffic'),lb=document.getElementById('t-traffic-label');if(!tb)return;
+    const on=()=>!!Store.get().trafficMode;
+    function syncTraffic(){tb.classList.toggle('on',on());lb.textContent=on()?'Traffic mode':'Focus mode'}
+    function applyTuck(s){document.documentElement.classList.toggle('traffic-tucked',on()&&s<0.5)} // 0.5 = grid starts fading in
+    tb.addEventListener('click',()=>{
+      Store.get().trafficMode=!on();Store.save();syncTraffic();
+      if(!on())document.documentElement.classList.remove('traffic-tucked');
+      Toast.show(on()?'TRAFFIC — zoom out to tuck panels away':'FOCUS — panels stay open');
+    });
+    Bus.on('camera',c=>applyTuck(c&&c.s!=null?c.s:1));
+    syncTraffic();
+  })();
   addEventListener('pointerdown',e=>{if(flyOpen&&!e.target.closest('#tri')&&!e.target.closest('#triflyout'))toggleFly(false)},true);
+  addEventListener('keydown',e=>{if(e.key==='Escape'&&flyOpen)toggleFly(false)}); // BUG-L0-002: ESC closes the tri fly-menu
   addEventListener('resize',place);
   Bus.on('mode',syncLock);
   place();
@@ -351,22 +406,24 @@ const Guide=(()=>{
 const Palette=(()=>{
   const pal=document.getElementById('pal'),input=document.getElementById('palinput'),list=document.getElementById('pallist');
   let openF=false,sel=0,filtered=[];
+  // Panel entries are GENERATED from the real panel registry (DEFS), so the palette
+  // always covers every panel — BUG-L0-003: it listed 7, "notes" found nothing. A few
+  // extra search keywords per key sharpen matching. All copy is English (owner, 2026-07-11).
+  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer tmux ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',contacts:'address book vcard carddav',calendar:'events caldav month',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',library:'documents research archive',research:'browser web navigate url search',search:'find global',brain:'memory skills',cookbook:'local models recipes download launch',compare:'model comparison side by side',gallery:'photos albums images',integrations:'connections connect services',theme:'themes appearance colors',settings:'settings preferences config'};
+  const PANEL_ICON={terminal:'#i-term',shell:'#i-term2',harness:'#i-harness',lab:'#i-lab',matrix:'#i-cosmos',machine:'#i-chip',agents:'#i-agent',email:'#i-mail',automations:'#i-bolt',settings:'#i-gear'};
+  const panelEntries=(()=>{
+    const defs=(typeof DEFS!=='undefined'&&DEFS)?DEFS:null;
+    const keys=defs?Object.keys(defs):Object.keys(PANEL_KW);
+    return keys.map(k=>({l:'Open '+((defs&&defs[k]&&defs[k].title)||k.toUpperCase()),h:'panel',k:(k+' '+(PANEL_KW[k]||'')).toLowerCase(),i:PANEL_ICON[k]||'#i-frame',run:()=>Panels.openPanel(k)}));
+  })();
   const A=[
-    {l:'Open Code',h:'panel',k:'code terminal open shell chat',i:'#i-term',run:()=>Panels.openPanel('terminal')},
-    {l:'Open Harness',h:'panel',k:'harness open crew',i:'#i-harness',run:()=>Panels.openPanel('harness')},
-    {l:'Open LAB',h:'panel',k:'lab bancada soul',i:'#i-lab',run:()=>Panels.openPanel('lab')},
-    {l:'Open My Machine',h:'panel',k:'machine exo cluster modelos cerebro byok',i:'#i-chip',run:()=>Panels.openPanel('machine')},
-    {l:'Open My Agents',h:'panel',k:'agentes iclone vegeta on-chain bridge',i:'#i-agent',run:()=>Panels.openPanel('agents')},
-    {l:'Open Automations',h:'agent',k:'automacoes autonomia aprovacoes acoes',i:'#i-bolt',run:()=>Panels.openPanel('automations')},
-    {l:'Open Email',h:'panel',k:'email mail write compose send inbox',i:'#i-mail',run:()=>Panels.openPanel('email')},
-    {l:'Write email',h:'email',k:'escrever compor email novo mail',i:'#i-mail',run:()=>Panels.openPanel('email')},
+    ...panelEntries,
     {l:'Sign in with wallet',h:'access',k:'wallet login siwe sign in connect',i:'#i-wallet',run:()=>WalletAuth.addr()?Toast.show('Already signed in: '+WalletAuth.short(WalletAuth.addr())):PrivyLogin.open()},
-    {l:'Open Settings',h:'panel',k:'settings theme density',i:'#i-gear',run:()=>Panels.openPanel('settings')},
-    {l:'Atalhos de teclado',h:'ajuda',k:'atalhos teclado keys shortcuts ?',i:'#i-frame',run:()=>Shortcuts.toggle(true)},
-    {l:'Desbloquear / bloquear zoom',h:'universo',k:'zoom navegar triangulo',i:'#i-cosmos',run:()=>Camera.setNav(!Camera.isNav())},
-    {l:'Enquadrar',h:'universo',k:'enquadrar reset fit centro',i:'#i-fit',run:()=>Camera.fit()},
-    {l:'Reset grid layout',h:'layout',k:'repor reset grelha limpar',i:'#i-frame',run:()=>{Grid.reset();Toast.show('Layout reset')}},
-    {l:'Show / hide guide',h:'ajuda',k:'guia ajuda rodape instrucoes',i:'#i-frame',run:()=>document.getElementById('guidetab').click()},
+    {l:'Keyboard shortcuts',h:'help',k:'keyboard shortcuts keys help ?',i:'#i-frame',run:()=>Shortcuts.toggle(true)},
+    {l:'Lock / unlock zoom',h:'universe',k:'zoom navigate lock pan',i:'#i-cosmos',run:()=>Camera.setNav(!Camera.isNav())},
+    {l:'Fit to screen',h:'universe',k:'fit reset center frame',i:'#i-fit',run:()=>Camera.fit()},
+    {l:'Reset grid layout',h:'layout',k:'reset grid clear layout',i:'#i-frame',run:()=>{Grid.reset();Toast.show('Layout reset')}},
+    {l:'Show / hide guide',h:'help',k:'guide help footer hints',i:'#i-frame',run:()=>document.getElementById('guidetab').click()},
     ...Object.keys(Themes.T).map(n=>({l:'Theme: '+n.toUpperCase(),h:Themes.T[n].live?'live':'base',k:'theme '+n,i:'#i-gear',run:()=>Themes.apply(n)})),
   ];
   function renderL(){
@@ -510,8 +567,11 @@ const Shortcuts=(()=>{
     try{const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');const j=await r.json();if(j&&j.ethereum&&j.ethereum.usd)ethUsd={v:j.ethereum.usd,ts:Date.now()}}catch(_){}
     return ethUsd.v||0;
   }
-  async function fillAcct(){
+  // `fresh` is the Rescan button: it bypasses the bridge's 10-minute metadata cache and
+  // this panel's spot-price cache, so asking again actually asks again.
+  async function fillAcct({fresh=false}={}){
     const a=WalletAuth.addr();if(!a)return;
+    if(fresh)ethUsd={v:0,ts:0};
     document.getElementById('waname').textContent=(walletLabel(a)||WalletAuth.name()||'WALLET').toUpperCase();
     document.getElementById('waaddr').textContent=WalletAuth.short(a);
     const bal=document.getElementById('wabal'),usdEl=document.getElementById('wausd');bal.textContent='…';usdEl.textContent='';
@@ -522,20 +582,41 @@ const Shortcuts=(()=>{
       bal.textContent=eth===null?'—':(+eth.toFixed(5)).toString();
       if(eth!==null){const p=await ethPrice();if(p)usdEl.textContent='≈ $'+(eth*p).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}
     }catch(_){bal.textContent='—'}
+    // The collection's own OpenSea page — whatever is listed there is what a buyer sees.
+    const INFT_OPENSEA='https://opensea.io/icloneframe';
+    // The way to get one is part of the section, not a consolation prize for an empty
+    // wallet: it closes the strip whether the owner holds ten iNFTs or none.
+    const buyHTML='<a class="btn wabuy" id="wabuy" href="'+escAttr(INFT_OPENSEA)+'" target="_blank" rel="noopener">GET AN iNFT ON OPENSEA</a>';
     const box=document.getElementById('wanfts');box.innerHTML='<span class="waempty">Loading…</span>';
     try{
       if(!Bridge.on())throw new Error('bridge off');
-      // every collection the wallet holds (keyless indexer; falls back to configured collections)
-      const r=await RPC('nft','scanWallet',a,{});
-      const nfts=(r&&r.ok&&r.agents)||[];
+      // Every token the wallet holds (keyless indexer; falls back to configured collections).
+      // This section is about iNFTs, so it shows iNFTs: the bridge tags each token with
+      // `isAgent` — one definition, shared with the LAB and MY AGENTS — and a wallet's
+      // airdrops, PFPs and empty test contracts stay out of it. They are not lost: the
+      // LAB is the room that lists everything the wallet holds.
+      const r=await RPC('nft','scanWallet',a,fresh?{fresh:true}:{});
+      const list=(r&&r.ok&&r.agents)||[];
+      // FAIL OPEN on version skew. A bridge started before the definition existed answers
+      // without the tag, and filtering on a field that is simply absent would empty this
+      // strip on a wallet full of iNFTs — which is exactly what it did. A missing filter
+      // is cosmetic; a hidden iNFT is the app lying about the owner's property.
+      const nfts=(r&&typeof r.inftCount==='number')?list.filter(n=>n&&n.isAgent):list;
       if(nfts.length){
         box.innerHTML=nfts.slice(0,8).map(n=>{
           const iu=safeImageUrl(n.image);const img=iu?`<img src="${escAttr(iu)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wafall',textContent:'${escAttr((n.name||'N')[0].toUpperCase())}'}))">`:`<span class="wafall">${escAttr((n.name||'N')[0].toUpperCase())}</span>`;
           return `<div class="wanft" title="Open in LAB">${img}<span>${escHtml(n.name||('#'+n.tokenId))}</span></div>`;
-        }).join('')+(nfts.length>8?`<span class="waempty" style="align-self:center">+${nfts.length-8} more in LAB</span>`:'');
+        }).join('')+(nfts.length>8?`<span class="waempty" style="align-self:center">+${nfts.length-8} more in LAB</span>`:'')+buyHTML;
         box.querySelectorAll('.wanft').forEach(el=>el.addEventListener('click',()=>{wacct.classList.remove('open');Panels.openPanel('lab')}));
-      }else box.innerHTML='<span class="waempty">No NFTs found in this wallet yet.</span>';
-    }catch(_){box.innerHTML='<span class="waempty">Connect the HUB Bridge (MY MACHINE) to read NFTs and balance on-chain.</span>'}
+      }else{
+        box.innerHTML='<span class="waempty">No iNFT in this wallet yet.</span>'+buyHTML;
+      }
+      // Open it INSIDE CLONE FRAME — the app has a browser; sending the owner out to
+      // another one would be the app giving up on itself.
+      const b=box.querySelector('#wabuy');
+      if(b)b.addEventListener('click',e=>{e.preventDefault();wacct.classList.remove('open');Panels.openPanel('research');Bus.emit('web:open',{url:INFT_OPENSEA,newTab:true})});
+      return{ok:true,inft:nfts.length};
+    }catch(_){box.innerHTML='<span class="waempty">Connect the HUB Bridge (MY MACHINE) to read NFTs and balance on-chain.</span>';return{ok:false}}
   }
   // rename: the wallet title swaps to an inline input; Enter/blur saves, Esc cancels
   document.getElementById('waedit').addEventListener('click',()=>{
@@ -546,6 +627,18 @@ const Shortcuts=(()=>{
     const done=save=>{if(save)setWalletLabel(a,inp.value);const b=document.createElement('b');b.id='waname';inp.replaceWith(b);fillAcct()};
     inp.addEventListener('keydown',e=>{if(e.key==='Enter')done(true);else if(e.key==='Escape')done(false)});
     inp.addEventListener('blur',()=>done(true));
+  });
+  // Rescan. A keyless indexer can trail a fresh mint by minutes, and a reveal changes a
+  // token's metadata without changing what the wallet holds — so the owner needs to ask
+  // again without closing the drawer. Reports what it actually found, and stays quiet
+  // about counts when the bridge never answered.
+  const rescanBtn=document.getElementById('warescan');
+  rescanBtn.addEventListener('click',async()=>{
+    if(rescanBtn.disabled)return;
+    rescanBtn.disabled=true;rescanBtn.classList.add('spin');
+    let res=null;try{res=await fillAcct({fresh:true})}catch(_){}
+    rescanBtn.disabled=false;rescanBtn.classList.remove('spin');
+    if(res&&res.ok)Toast.show(res.inft?('Rescanned — '+res.inft+' iNFT'+(res.inft===1?'':'s')+' in this wallet'):'Rescanned — no iNFT in this wallet yet');
   });
   document.getElementById('wagear').addEventListener('click',()=>{
     wacct.classList.remove('open');Panels.openPanel('settings');
@@ -615,6 +708,71 @@ const Shortcuts=(()=>{
   Themes.apply(Store.get().theme);
   Density.apply(Store.get().density); // builds the grid with the density's pitch
   Camera.render();
+
+  // ── op=app — the main-app control plane. The running window parks ONE socket here so an
+  //    outside agent (Pi, via /mod/app) can OPEN panels and READ the live screen — the things
+  //    the browser can do but the bridge cannot see. Sibling of iT's op=it; only the always-on
+  //    App controller parks it, so it is alive whenever the app is open. Reconnects on drop.
+  const APP_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell','it terminal':'shell',code:'terminal',connections:'integrations','my machine':'machine','my agents':'agents','model comparison':'compare',web:'research'};
+  function appResolveKey(name){
+    let t=String(name||'').trim().toLowerCase().replace(/\b(the|open|please|panel|tab|window)\b/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+    if(!t)return null;
+    if(Panels.has(t))return t;
+    if(APP_ALIASES[t])return APP_ALIASES[t];
+    const cat=Panels.catalog(),sq=t.replace(/\s+/g,'');
+    const byTitle=cat.find(pp=>String(pp.title||'').toLowerCase()===t)||cat.find(pp=>String(pp.title||'').toLowerCase().replace(/\s+/g,'')===sq);
+    if(byTitle)return byTitle.key;
+    const pre=cat.find(pp=>pp.key.startsWith(t))||cat.find(pp=>String(pp.title||'').toLowerCase().startsWith(t));
+    return pre?pre.key:null;
+  }
+  function appScreen(){
+    const top=Panels.top(),panels=[];
+    Panels.layer.querySelectorAll('.panel').forEach(el=>{
+      const key=el.dataset.key||el.dataset.type||'?';const hb=el.querySelector('header b');
+      panels.push({key,title:hb?hb.textContent.trim():key,docked:el.style.display==='none'||el.dataset.docked==='1',focused:el===top});
+    });
+    return {open:panels.filter(x=>!x.docked).map(x=>x.key),focused:top?(top.dataset.key||top.dataset.type):null,panels};
+  }
+  function appExec(action,params){
+    params=params||{};
+    try{
+      if(action==='ping')return{ok:true,app:'CLONE FRAME'};
+      if(action==='read_screen')return{ok:true,screen:appScreen()};
+      if(action==='list_panels')return{ok:true,panels:Panels.catalog()};
+      if(action==='open_panel'||action==='focus_panel'){
+        const key=appResolveKey(params.panel);
+        if(!key)return{ok:false,error:'no panel matches "'+(params.panel||'')+'" — use list_panels for keys'};
+        const el=Panels.openPanel(key);
+        return el?{ok:true,key,out:(action==='focus_panel'?'focused ':'opened ')+key}:{ok:false,error:'could not open "'+key+'" (may be under construction)'};
+      }
+      if(action==='close_panel'){
+        const key=appResolveKey(params.panel);if(!key)return{ok:false,error:'no panel matches "'+(params.panel||'')+'"'};
+        if(key==='terminal')return{ok:false,error:'refusing to close CODE — it may host the agent'};
+        let target=null;Panels.layer.querySelectorAll('.panel').forEach(el=>{if((el.dataset.key||el.dataset.type)===key)target=el});
+        if(!target)return{ok:false,error:'panel "'+key+'" is not open'};
+        const x=target.querySelector('.pbtns .x');if(x)x.click();else target.remove();
+        return{ok:true,out:'closed '+key};
+      }
+      return{ok:false,error:'unknown app action: '+action};
+    }catch(e){return{ok:false,error:String((e&&e.message)||e)}}
+  }
+  let appCtlWs=null;
+  function appCtlConnect(){
+    if(appCtlWs)return;
+    const b=window.__CFHUB_BRIDGE__;if(!b||!b.token||!Bridge.on())return;
+    let s;try{s=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?op=app',['cfhub','cfhub.bearer.'+b.token])}catch(_){return}
+    appCtlWs=s;
+    s.onmessage=e=>{
+      let m=null;try{m=JSON.parse(e.data)}catch(_){}
+      if(!m||!m.id)return;
+      Promise.resolve().then(()=>appExec(m.action,m.params)).catch(err=>({ok:false,error:String((err&&err.message)||err)}))
+        .then(res=>{try{s.send(JSON.stringify({id:m.id,result:res}))}catch(_){}});
+    };
+    s.onclose=()=>{if(appCtlWs===s)appCtlWs=null;setTimeout(appCtlConnect,3000)};
+    s.onerror=()=>{};
+  }
+  Bus.on('bridge:changed',()=>appCtlConnect());
+  appCtlConnect();
   (window.requestIdleCallback||(f=>setTimeout(f,900)))(()=>Brain.detect());
   // seed the agent at the center only once the grid has its final dimensions
   function seedIfEmpty(){

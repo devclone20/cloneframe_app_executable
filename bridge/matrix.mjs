@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import Permissions from './permissions.mjs';
 import { openStore } from './platform/json-store.mjs';
 import { hubRoot } from './platform/hub-root.mjs';
@@ -22,6 +22,7 @@ import { hubRoot } from './platform/hub-root.mjs';
 const DIR = path.join(os.homedir(), '.clone-frame-hub');
 const PIDFILE = path.join(DIR, 'matrix-engine.pid');
 const LOGFILE = path.join(DIR, 'matrix-engine.log');
+const CRASHFILE = path.join(DIR, 'matrix-engine.crashed');
 const API = 'http://127.0.0.1:52415';
 const DEFAULT_BIN = path.join(os.homedir(), 'exo', '.venv', 'bin', 'exo');
 
@@ -56,6 +57,41 @@ function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 function clearPid() { try { fs.unlinkSync(PIDFILE); } catch { /* gone */ } }
+function writePidAtomic(pid) {
+  const tmp = PIDFILE + '.tmp';
+  fs.writeFileSync(tmp, String(pid), { mode: 0o600 });
+  fs.renameSync(tmp, PIDFILE);
+}
+
+// Honest crash reporting: when a pid WE recorded is found dead with the API down,
+// leave a marker (with the log tail) so the UI can say "engine crashed" instead of
+// showing an eternal "Loading…". Cleared on the next successful start()/stop().
+function logTail(n = 6) {
+  try {
+    const buf = fs.readFileSync(LOGFILE, 'utf8');
+    const tail = buf.length > 32768 ? buf.slice(-32768) : buf;
+    return tail.split('\n').filter(Boolean).slice(-n);
+  } catch { return []; }
+}
+function writeCrash(pid) {
+  try { fs.writeFileSync(CRASHFILE, JSON.stringify({ pid, at: new Date().toISOString(), logTail: logTail() }), { mode: 0o600 }); } catch { /* best effort */ }
+}
+function readCrash() {
+  try { return JSON.parse(fs.readFileSync(CRASHFILE, 'utf8')); } catch { return null; }
+}
+function clearCrash() { try { fs.unlinkSync(CRASHFILE); } catch { /* gone */ } }
+
+// Resolve the pid listening on the engine port — the only honest way to identify
+// an engine this bridge did not start (external / survived a previous bridge).
+function portPid() {
+  return new Promise((res) => {
+    execFile('/usr/sbin/lsof', ['-t', '-iTCP:52415', '-sTCP:LISTEN'], { timeout: 4000 }, (err, out) => {
+      const n = parseInt(String(out || '').trim().split('\n')[0], 10);
+      res(Number.isInteger(n) && n > 1 ? n : null);
+    });
+  });
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function apiUp(timeoutMs = 900) {
   try {
@@ -67,10 +103,16 @@ async function apiUp(timeoutMs = 900) {
 async function status() {
   const pid = readPid();
   const owned = pid !== null && pidAlive(pid);
-  if (pid !== null && !owned) clearPid(); // stale pidfile from a previous boot
+  const up = await apiUp();
+  if (pid !== null && !owned) {
+    if (!up) writeCrash(pid); // we started it and it died — say so, don't just forget
+    clearPid();
+  }
   return {
-    running: await apiUp(),
+    running: up,
     ownedPid: owned ? pid : null,       // non-null only when WE started it
+    externalPid: up && !owned ? await portPid() : null,
+    crashed: up ? null : readCrash(),   // {pid, at, logTail} until the next start
     enginePath: enginePath(),
     engineFound: binOk(enginePath()),
     api: API,
@@ -95,7 +137,8 @@ async function start() {
   }
   try { fs.closeSync(out); } catch { /* child holds its own fd */ }
   if (!child.pid) return { ok: false, error: 'spawn failed (no pid)' };
-  try { fs.writeFileSync(PIDFILE, String(child.pid), { mode: 0o600 }); } catch { /* stop() will refuse without it — still report */ }
+  try { writePidAtomic(child.pid); } catch { /* stop() will refuse without it — still report */ }
+  clearCrash(); // a fresh start supersedes any previous crash report
   // wait briefly for the API so the caller gets an honest first status
   for (let i = 0; i < 12; i++) {
     if (await apiUp(700)) return { ok: true, pid: child.pid, up: true };
@@ -104,21 +147,28 @@ async function start() {
   return { ok: true, pid: child.pid, up: false, note: 'spawned — API not up yet, keep polling' };
 }
 
-async function stop() {
+async function stop(opts = {}) {
   if (!Permissions.can('matrix')) return { ok: false, error: 'matrix permission is off' };
-  const pid = readPid();
-  if (pid === null || !pidAlive(pid)) {
-    clearPid();
-    return { ok: false, error: (await apiUp()) ? 'engine was not started by MATRIX — stop it where you launched it' : 'engine is not running' };
+  const force = opts && opts.force === true;
+  let pid = readPid();
+  if (pid !== null && !pidAlive(pid)) { clearPid(); pid = null; }
+  if (pid === null) {
+    if (!(await apiUp())) return { ok: false, error: 'engine is not running' };
+    // External engine (not started by this bridge). Only an explicit force from the
+    // owner's confirm takes it over — resolved by port, the one honest identity it has.
+    if (!force) return { ok: false, external: true, error: 'engine was not started by MATRIX — use RESTART UNDER APP to take it over' };
+    pid = await portPid();
+    if (pid === null) return { ok: false, error: 'cannot resolve the external engine pid' };
   }
   try { process.kill(pid, 'SIGTERM'); } catch (e) { return { ok: false, error: e.message || String(e) }; }
   for (let i = 0; i < 8; i++) {
-    if (!pidAlive(pid)) { clearPid(); return { ok: true }; }
-    await new Promise((r) => setTimeout(r, 350));
+    if (!pidAlive(pid)) { clearPid(); clearCrash(); return { ok: true, pid }; }
+    await sleep(350);
   }
   try { process.kill(pid, 'SIGKILL'); } catch { /* raced to exit */ }
   clearPid();
-  return { ok: true, forced: true };
+  clearCrash();
+  return { ok: true, forced: true, pid };
 }
 
 function logs(lines = 60) {

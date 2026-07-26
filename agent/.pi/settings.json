@@ -1,0 +1,6 @@
+{
+  "packages": ["npm:pi-web-access"],
+  "extensions": ["extensions/clone-frame.ts", "extensions/goal.ts", "extensions/fleet.ts"],
+  "skills": ["skills"],
+  "enableSkillCommands": true
+}

@@ -5,6 +5,7 @@
     if(inftSub==='myinft')inftSub='turbo'; // legacy stored value — normalize to the default server view
     let load={sharding:'pipeline',interconnect:'tcp',minDevices:1};
     let chat={model:'',msgs:[],streaming:false,ctl:null};
+    let _lastLabChat=null; // scroll: first render jumps to bottom, later renders respect the reader
     let agView='list';                       // Agents tab: 'list' | 'detail' (the full AGENT view lives here now)
     const deck={i:0,list:[],el:null,ct:null}; // Chat tab: the draggable stack of selected agents
     const gb=n=>n>=1?n.toFixed(1)+'GB':Math.round(n*1024)+'MB';
@@ -56,17 +57,35 @@
       const i=st0.pinnedAgents.findIndex(x=>x.contract===a.contract&&String(x.tokenId)===String(a.tokenId));
       if(i>=0){st0.pinnedAgents.splice(i,1);Toast.show(a.name+' removed from the terminal')}
       else{st0.pinnedAgents.push({contract:a.contract,tokenId:a.tokenId,name:a.name,collection:a.collection,image:a.image,animation:a.animation,mediaType:a.mediaType,description:a.description,attributes:a.attributes});Toast.show('✓ '+a.name+' — pick it in CODE\'s agent selector')}
-      Store.save();if(tab==='agents')renderAgents();
+      Store.save();WalletPins.commit(); // the selection is this wallet's, not the app's
+      if(tab==='agents')renderAgents();
     }
 
     // ---- AGENTS — detect EVERY iNFT the connected wallet holds ----
-    let scan={loading:false,agents:[],source:'',done:false};
+    let scan={loading:false,addr:'',agents:[],source:'',done:false};
+    // The bridge tags each scanned token with `isAgent`. A bridge started before that
+    // definition existed answers without it, and filtering on an absent field would hide
+    // every holding — so when the tag is missing we FAIL OPEN and treat the scan as agents.
+    const tagged=()=>typeof scan.inftCount==='number';
+    const inftOf=()=>tagged()?(scan.agents||[]).filter(a=>a&&a.isAgent):(scan.agents||[]).slice();
+    const agentKey=a=>String((a&&a.contract)||'').toLowerCase()+':'+String((a&&a.tokenId)??'');
+    // What the CONNECTED wallet actually holds — or null when we cannot say yet. Null means
+    // "filter nothing": an unanswered scan must never be read as "you own none of these".
+    function heldSet(){
+      const addr=WalletAuth.addr();
+      if(!addr||!scan.done||scan.addr!==addr||scan.source==='error'||scan.source==='no-wallet')return null;
+      return new Set(inftOf().map(agentKey));
+    }
     // labInft is the ONE active-agent object every iNFT card reads (Cluster · Chat ·
     // agentview). A freshly scanned on-chain agent carries the real art (3D .glb / 2D
     // image); a locally-created or stale labInft does not. Reconcile merges the scanned
     // media onto the active agent so its art shows everywhere — one source of truth.
     function reconcileInft(){
-      const st0=Store.get(),list=scan.agents||[];
+      // Only agents may become the active agent. This used to reconcile against every
+      // token in the wallet and fall back to list[0], so a stranger's empty contract
+      // became the card the whole app showed — the wallet's first NFT impersonating the
+      // owner's agent everywhere at once.
+      const st0=Store.get(),list=inftOf();
       if(!list.length)return false;
       const sameTok=(a,b)=>String(a.tokenId)===String(b.tokenId)&&(!a.contract||!b.contract||String(a.contract).toLowerCase()===String(b.contract).toLowerCase());
       let cur=st0.labInft,match=null;
@@ -100,11 +119,14 @@
     }
     async function scanAgents(force){
       const addr=WalletAuth.addr();
-      if(!addr||!Bridge.on()){scan={loading:false,agents:[],source:'no-wallet',done:true};if(tab==='agents')renderAgents();return}
-      if(scan.done&&!force){afterScan();return}
+      if(!addr||!Bridge.on()){scan={loading:false,addr:'',agents:[],source:'no-wallet',done:true};if(tab==='agents')renderAgents();return}
+      // A finished scan belongs to the address it was run for. Without that, connecting a
+      // second wallet re-used the first one's result and this panel showed agents the
+      // connected wallet does not hold — the same class of lie as the rest of this wave.
+      if(scan.done&&!force&&scan.addr===addr){afterScan();return}
       scan.loading=true;if(tab==='agents')renderAgents();
-      try{const r=await RPC('nft','scanWallet',addr,{});scan={loading:false,agents:(r&&r.agents)||[],source:(r&&r.source)||'',needsConfig:r&&r.needsConfig,done:true};Store.get().walletAgents=scan.agents;Store.save()}
-      catch(e){scan={loading:false,agents:[],source:'error',err:e.message,done:true}}
+      try{const r=await RPC('nft','scanWallet',addr,force?{fresh:true}:{});scan={loading:false,addr,agents:(r&&r.agents)||[],inftCount:r&&r.inftCount,source:(r&&r.source)||'',needsConfig:r&&r.needsConfig,done:true};Store.get().walletAgents=scan.agents;Store.save()}
+      catch(e){scan={loading:false,addr,agents:[],source:'error',err:e.message,done:true}}
       afterScan();
     }
     // ---- full AGENT view (identity · attributes · soul) — INSIDE the Agents tab ----
@@ -168,11 +190,16 @@
       if(scan.loading){body.innerHTML='<div class="qempty" style="padding:22px">scanning '+escHtml(WalletAuth.short(addr))+' on-chain…</div>';return}
       const pinned=Store.get().pinnedAgents||[];
       const isPinned=a=>pinned.some(x=>x.contract===a.contract&&String(x.tokenId)===String(a.tokenId));
-      let html='<div class="labaghead"><div><b>YOUR AGENTS</b> <span class="dim">'+scan.agents.length+' iNFT'+(scan.agents.length===1?'':'s')+' · ✓ to use in the terminal</span></div><button class="btn mini" id="agrescan">↻ Rescan</button></div>';
-      if(!scan.agents.length){
+      // A wallet holds more than agents, and this panel shows ONLY the agents. The rest —
+      // airdrops, PFPs, empty test contracts — is not listed anywhere: the owner's call,
+      // and the right one. A wallet with no iNFT shows nothing rather than a consolation
+      // grid of tokens that are not what this room is for.
+      const inft=inftOf();
+      let html='<div class="labaghead"><div><b>YOUR AGENTS</b> <span class="dim">'+inft.length+' iNFT'+(inft.length===1?'':'s')+' · ✓ to use in the terminal</span></div><button class="btn mini" id="agrescan">↻ Rescan</button></div>';
+      if(!inft.length){
         html+='<div class="qempty" style="padding:20px;line-height:1.7">No iNFTs found in this wallet'+(scan.needsConfig?' — add your collection address below to scan it directly.':'.')+'</div>';
       }else{
-        html+='<div class="labaggrid">'+scan.agents.map((a,i)=>`
+        html+='<div class="labaggrid">'+inft.map((a,i)=>`
           <div class="labag ${isPinned(a)?'on':''}" data-i="${i}">
             <div class="labagcb ${isPinned(a)?'on':''}" title="Use in the terminal">${isPinned(a)?'✓':''}</div>
             <div class="labagart">${artHTML(a)}</div>
@@ -182,7 +209,7 @@
       }
       html+='<div class="labagadd"><input id="agcol" placeholder="Add a collection address (0x…) to scan"><button class="btn mini" id="agcoladd">ADD</button></div>';
       body.innerHTML=html;
-      body.querySelectorAll('.labag').forEach(el=>el.addEventListener('click',()=>pickAgent(scan.agents[+el.dataset.i])));
+      body.querySelectorAll('.labag').forEach(el=>el.addEventListener('click',()=>pickAgent(inft[+el.dataset.i])));
       body.querySelector('#agpinhint')&&0;
       body.querySelector('#agrescan').addEventListener('click',()=>scanAgents(true));
       body.querySelector('#agcoladd').addEventListener('click',async()=>{const v=body.querySelector('#agcol').value.trim();if(!v)return;const r=await RPC('nft','addCollection',v);if(r&&r.ok){Toast.show('Collection added — rescanning');scanAgents(true)}else Toast.show((r&&r.error)||'invalid address')});
@@ -222,7 +249,13 @@
       const list=(Array.isArray(st0.pinnedAgents)?st0.pinnedAgents:[]).slice();
       const cur=st0.labInft;
       if(cur&&cur.name&&!list.some(x=>sameAgent(x,cur)))list.unshift(cur);
-      return list.filter(a=>a&&a.name);
+      const out=list.filter(a=>a&&a.name);
+      // Second guard, after the per-wallet pins: a pin can also go stale inside its own
+      // wallet (the token was sold or moved). The deck is what you can work with, so it
+      // shows only what THIS wallet's scan actually found — and filters nothing at all
+      // until that scan has answered, so a slow bridge never empties the chat.
+      const held=heldSet();
+      return held?out.filter(a=>held.has(agentKey(a))):out;
     }
     function deckFrontIndex(list){
       const cur=Store.get().labInft;
@@ -269,12 +302,21 @@
       }
       applyDeck(0);
     }
+    // card opacity: read from storage, apply to the deck container, toggle the control
+    const DECK_OP_KEY='cfhub.lab.deckopacity';
+    function deckOpacity(){const v=parseInt(localStorage.getItem(DECK_OP_KEY)||'100',10);return isNaN(v)?100:Math.max(20,Math.min(100,v))}
+    function applyDeckOpacity(){
+      const chatEl=deck.el&&deck.el.closest('.labchat');if(chatEl)chatEl.style.setProperty('--deck-op',(deckOpacity()/100).toFixed(2));
+    }
     function renderDeck(){
       if(!deck.el)return;
       deck.list=deckList();
       const list=deck.list;
-      if(!list.length){deck.el.style.display='none';syncPad();return}
+      const opc=deck.el.parentElement&&deck.el.parentElement.querySelector('#labopac');
+      if(!list.length){deck.el.style.display='none';if(opc)opc.classList.remove('show');syncPad();return}
       deck.el.style.display='';
+      if(opc)opc.classList.add('show');
+      applyDeckOpacity();
       deck.i=deckFrontIndex(list);
       deck.el.innerHTML=list.map((a,i)=>{
         const isF=i===deck.i;
@@ -358,6 +400,7 @@
       const draft=(()=>{const i=body.querySelector('#labcin');return i?i.value:''})(); // never destroy what the user was typing
       body.innerHTML=`<div class="labchat">
         <div class="labct" id="labct"></div>
+        <div class="labopac" id="labopac" title="Card opacity — see the chat underneath"><svg width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2 A6 6 0 0 1 8 14 Z" fill="currentColor"/></svg><input type="range" id="labopacr" min="20" max="100" step="5"></div>
         <div class="labdeck" id="labdeck"></div>
         <div class="labcbar">
           <select id="labcmodel">${opts.map(o=>`<option value="${escAttr(o.v)}" ${o.v===chat.model?'selected':''}>${escAttr(o.label)}</option>`).join('')}</select>
@@ -368,8 +411,10 @@
       renderDeck();
       const ct=deck.ct;
       ct.innerHTML=chat.msgs.length?chat.msgs.map(msgHTML).join(''):'<div class="qempty labhint" style="padding:24px;text-align:center;line-height:1.7">Chat with any model — an API provider or your machine.<br>Pick the model below and start.</div>';
-      ct.scrollTop=ct.scrollHeight;
+      if(_lastLabChat!==(chat&&chat.id)){_lastLabChat=chat&&chat.id;forceBottom(ct)}else stickBottom(ct);
       body.querySelector('#labcmodel').addEventListener('change',e=>{chat.model=e.target.value;try{localStorage.setItem('cfhub.lab.chatmodel',chat.model)}catch(_){}});
+      const opr=body.querySelector('#labopacr');
+      if(opr){opr.value=String(deckOpacity());opr.addEventListener('input',()=>{try{localStorage.setItem(DECK_OP_KEY,opr.value)}catch(_){}applyDeckOpacity()})}
       const inp=body.querySelector('#labcin');
       if(draft)inp.value=draft;
       inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();labSend(inp.value)}});
@@ -397,7 +442,7 @@
       const onTok=t=>{bot.content+=t;
         if(!botRef||!botRef.isConnected){ctEl=deck.ct||body.querySelector('#labct')||ctEl;botRef=ctEl?ctEl.lastElementChild:null}
         if(botRef)botRef.innerHTML=MDLite.render(bot.content);
-        if(ctEl)ctEl.scrollTop=ctEl.scrollHeight};
+        if(ctEl)stickBottom(ctEl)};
       const hist=chat.msgs.filter(m=>m!==bot).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}));
       const sys='You are running inside the CLONE FRAME LAB. Answer helpfully and directly.';
       try{
@@ -407,7 +452,7 @@
         if(mv.includes('::')){const k=mv.indexOf('::');const r=await Bridge.providerChat(mv.slice(0,k),mv.slice(k+2),hist,onTok,chat.ctl.signal,{system:sys});if(r&&r.err)throw new Error(r.err)}
         else if(mv==='machine'&&Bridge.brainReady()){const r=await Bridge.chat(hist,onTok,chat.ctl.signal,{system:sys});if(r&&r.err)throw new Error(r.err)}
         else{await Brain.stream([{role:'system',content:sys}].concat(hist),onTok,chat.ctl.signal)} // bridge → BYOK → mock: never dead
-      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||'')){bot.content+=(bot.content?'\n':'')+'⚠ '+(e.message||'request failed');Toast.show('Chat error — '+(e.message||'request failed'))}}
+      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||'')){const fe=friendlyErr(e.message||'request failed');bot.content+=(bot.content?'\n':'')+'⚠ '+fe;Toast.show('Chat error — '+fe)}}
       chat.streaming=false;chat.ctl=null;
       if(botRef&&botRef.isConnected)botRef.innerHTML=MDLite.render(bot.content||'…');
       else{const c2=deck.ct||body.querySelector('#labct');if(c2&&c2.lastElementChild)c2.lastElementChild.innerHTML=MDLite.render(bot.content||'…')}
@@ -473,10 +518,11 @@
     const head=extra=>`<div class="fv-head">${opts.onBack?'<button class="fv-back" id="fvback" title="Back">‹</button>':''}<span class="fv-name">${fesc(name)}</span>${extra||''}${(opts.onClose&&!opts.onBack)?'<button class="fv-back" id="fvclose" title="Close">✕</button>':''}</div>`;
     function bindHead(){const b=host.querySelector('#fvback');if(b&&opts.onBack)b.addEventListener('click',opts.onBack);const c=host.querySelector('#fvclose');if(c&&opts.onClose)c.addEventListener('click',opts.onClose)}
     host.innerHTML=`<div class="fv">${head('')}<div class="fv-note">Loading ${fesc(name)}…</div></div>`;bindHead();
-    // 6MB ceiling (was 512KB) so real source files — the 1MB index.html included — open.
-    // Above HEAVY_BYTES we skip syntax highlighting: it is O(n) and would freeze the DOM.
+    // 64MB ceiling (owner's order: a size limit only ever got in the way of reading and
+    // editing big source files). Above HEAVY_BYTES syntax highlighting is skipped — it is
+    // O(n) and would freeze the DOM; the file still opens, reads and saves fine.
     const HEAVY_BYTES=260*1024;
-    const r=await RPC('files','read',filePath,{maxKB:6144}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
+    const r=await RPC('files','read',filePath,{maxKB:65536}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
     if(!r||!r.ok){host.querySelector('.fv').innerHTML=head('')+`<div class="fv-note">${fesc((r&&r.error)||'could not open this file')}${/large|too/i.test((r&&r.error)||'')?'':' — it may be a binary file. Reveal it in Finder or open it in the terminal instead.'}</div>`;bindHead();return}
     text=orig=r.text;
     if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" status --porcelain -- "'+String(filePath).replace(/"/g,'')+'" 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}

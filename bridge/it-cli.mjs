@@ -28,12 +28,24 @@ const SHORTCUTS = [
 ];
 
 function welcome() {
+  // The mark: the iT wordmark in big blocks beside the CLONE FRAME triangle (the ▲ of
+  // the app's menu), on a soft violet→red 256-color ramp. Colorful, never loud — and
+  // pure ASCII/ANSI so every terminal since 1995 renders it the same.
+  const P = (n) => `\x1b[38;5;${n}m`;                  // 256-color foreground
+  const ramp = [183, 177, 176, 170, 169, 168, 167];    // violet → magenta → red, one per row
+  const tri = P(203);                                  // the triangle keeps the accent red
+  const rows = [
+    { i: '██', t: '          ', y: '       ' },
+    { i: '  ', t: '          ', y: '   ▲   ' },
+    { i: '██', t: '██████████', y: '  ▲▲▲  ' },
+    { i: '██', t: '    ██    ', y: ' ▲▲▲▲▲ ' },
+    { i: '██', t: '    ██    ', y: '▲▲▲▲▲▲▲', x: `${C.b}iT${C.x} ${C.d}·${C.x} the CLONE FRAME terminal` },
+    { i: '██', t: '    ██    ', y: '       ', x: `${C.d}workspaces · splits · agents${C.x}` },
+    { i: '██', t: '    ██    ', y: '       ' },
+  ];
   const l = [];
   l.push('');
-  l.push(`  ${C.a}██${C.x}`);
-  l.push(`  ${C.a}██${C.x}  ${C.a}████████${C.x}      ${C.b}iT${C.x}`);
-  l.push(`  ${C.a}██${C.x}     ${C.a}██${C.x}         the CLONE FRAME terminal`);
-  l.push(`  ${C.a}██${C.x}     ${C.a}██${C.x}         workspaces · splits · agents`);
+  rows.forEach((r, k) => l.push(`   ${P(ramp[k])}${r.i}    ${r.t}${C.x}   ${tri}${r.y}${C.x}   ${r.x || ''}`));
   l.push('');
   l.push(`  ${C.b}Shortcuts${C.x}`);
   l.push('');

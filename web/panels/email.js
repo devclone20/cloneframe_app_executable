@@ -50,7 +50,7 @@
         <div class="afh">Add email account</div>
         <div style="border:1px solid var(--line);border-radius:9px;padding:9px;margin-bottom:8px">
           <button class="btn" id="afgoogle" style="width:100%">⟢ Connect Gmail with Google (OAuth)</button>
-          <div id="afgmsg" style="font-size:9px;color:var(--ink-faint);margin-top:6px;line-height:1.5">Full inbox + sending, no App Password. Sign-in opens in your system browser (the only place Google allows it); your account then lives here over a secure token. Needs your own OAuth Client (Desktop).</div>
+          <div id="afgmsg" style="font-size:10px;color:var(--ink-faint);margin-top:6px;line-height:1.5">Full inbox + sending, no App Password. Sign-in opens in your system browser (the only place Google allows it); your account then lives here over a secure token. Needs your own OAuth Client (Desktop).</div>
         </div>
         <div class="af-row"><label>Provider</label>
           <select id="afprov"><option value="gmail">Gmail</option><option value="custom">Custom…</option></select></div>
@@ -65,11 +65,11 @@
         <div class="af-sec">➤ SMTP (send)</div>
         <div class="af-row"><label>Host</label><input id="afshost" placeholder="smtp.gmail.com"></div>
         <div class="af-row"><label>Port</label><input id="afsport" value="465" style="max-width:90px"></div>
-        <div class="af-row"><label>SSL</label><input type="checkbox" id="afssl" checked style="width:auto"><span style="font-size:9px;color:var(--ink-faint)">465=SSL · 587=STARTTLS (uncheck)</span></div>
+        <div class="af-row"><label>SSL</label><input type="checkbox" id="afssl" checked style="width:auto"><span style="font-size:10px;color:var(--ink-faint)">465=SSL · 587=STARTTLS (uncheck)</span></div>
         <div class="af-row"><label>Default</label><input type="checkbox" id="afdef" style="width:auto"></div>
         <div id="afmsg" style="font-size:10px;min-height:14px;margin:2px 0"></div>
         <div class="compose-actions"><button class="btn" id="aftest">TEST</button><button class="btn" id="afcreate">CREATE</button>${accounts.length?'<button class="btn" id="afcancel">CANCEL</button>':''}</div>
-        <div style="font-size:9px;color:var(--ink-faint);line-height:1.5">Gmail requires an <b>App Password</b> (Google Account → Security → App Passwords, with 2FA). Credentials live in <code>~/.clone-frame-hub/accounts.json</code> on your machine.</div>
+        <div style="font-size:10px;color:var(--ink-faint);line-height:1.5">Gmail requires an <b>App Password</b> (Google Account → Security → App Passwords, with 2FA). Credentials live in <code>~/.clone-frame-hub/accounts.json</code> on your machine.</div>
       </div>`;
       const g=id=>listEl.querySelector('#'+id),v=id=>g(id).value.trim();
       const prov=g('afprov'),msg=g('afmsg');
@@ -89,7 +89,7 @@
         const gm=listEl.querySelector('#afgmsg');
         let st={configured:false};try{st=await RPC('oauth','status')}catch(e){}
         if(!st.configured){
-          gm.innerHTML='<div style="margin-top:6px"><input id="ogid" placeholder="Google Client ID" style="all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:7px;padding:6px;font-size:10px;color:var(--fg);caret-color:var(--accent);margin-bottom:4px"><input id="ogsec" type="password" placeholder="Client Secret" style="all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:7px;padding:6px;font-size:10px;color:var(--fg);caret-color:var(--accent);margin-bottom:5px"><button class="btn mini" id="ogsave">save creds</button> <span style="font-size:8px">Google Console → Desktop-type OAuth client</span></div>';
+          gm.innerHTML='<div style="margin-top:6px"><input id="ogid" placeholder="Google Client ID" style="all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:7px;padding:6px;font-size:10px;color:var(--fg);caret-color:var(--accent);margin-bottom:4px"><input id="ogsec" type="password" placeholder="Client Secret" style="all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:7px;padding:6px;font-size:10px;color:var(--fg);caret-color:var(--accent);margin-bottom:5px"><button class="btn mini" id="ogsave">save creds</button> <span style="font-size:10px">Google Console → Desktop-type OAuth client</span></div>';
           gm.querySelector('#ogsave').addEventListener('click',async()=>{const r=await RPC('oauth','config',{clientId:gm.querySelector('#ogid').value.trim(),clientSecret:gm.querySelector('#ogsec').value.trim()});if(r.ok){Toast.show('Creds saved');g('afgoogle').click()}else Toast.show(r.error||'failed')});
           return;
         }
@@ -111,7 +111,7 @@
     function renderAccounts(){
       inList=false;hidePane();
       listEl.innerHTML='<div class="acctform"><div class="afh">Accounts</div>'+
-        accounts.map(a=>`<div class="acctrow"><div><b>${escHtml(a.display||a.email)}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}<div style="font-size:9px;color:var(--ink-faint)">${escHtml(a.email)}</div></div><div style="margin-left:auto;display:flex;gap:6px">${a.isDefault?'':`<button class="btn mini" data-def="${a.id}">make default</button>`}<button class="btn mini" data-rm="${a.id}">remove</button></div></div>`).join('')+
+        accounts.map(a=>`<div class="acctrow"><div><b>${escHtml(a.display||a.email)}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}<div style="font-size:10px;color:var(--ink-faint)">${escHtml(a.email)}</div></div><div style="margin-left:auto;display:flex;gap:6px">${a.isDefault?'':`<button class="btn mini" data-def="${a.id}">make default</button>`}<button class="btn mini" data-rm="${a.id}">remove</button></div></div>`).join('')+
         '<div class="compose-actions"><button class="btn" id="acadd">+ ADD ACCOUNT</button><button class="btn" id="acback">BACK</button></div></div>';
       listEl.querySelector('#acadd').addEventListener('click',()=>renderAddForm());
       listEl.querySelector('#acback').addEventListener('click',()=>folder?openFolder(folder):boot());

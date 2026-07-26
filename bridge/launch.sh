@@ -44,6 +44,37 @@ if ! /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1; then
 fi
 /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1 && echo "server up" || echo "server DID NOT come up"
 
+# ── macOS privacy permissions the app silently needs ─────────────────────────
+# TCC is evaluated per process AT LAUNCH, so a permission granted later does
+# nothing until the bridge restarts — and a missing one fails deep inside a
+# command ("Operation not permitted", "could not create image from display")
+# with no hint of the real cause. Probe both here, once, and say it plainly.
+PERM_MISSING=""
+# stderr kept in $CONF/perm-probe.err — "denied" here has had ≥2 distinct causes
+# (wrong TCC grantee, then something else); never debug it blind again.
+if /usr/sbin/screencapture -x /tmp/.cfhub-perm-probe.png >/dev/null 2>"$CONF/perm-probe.err"; then
+  rm -f /tmp/.cfhub-perm-probe.png "$CONF/perm-probe.err"
+else
+  PERM_MISSING="Screen Recording"
+fi
+ls "$HOME/Desktop" >/dev/null 2>&1 || PERM_MISSING="${PERM_MISSING:+$PERM_MISSING and }Full Disk Access"
+if [ -n "$PERM_MISSING" ]; then
+  # TCC attributes these permissions to the RESPONSIBLE process at the top of the
+  # launch tree — the .app bundle the user double-clicked — not to $NODE or this
+  # shell. Naming node here sent the user to grant the wrong binary (2026-07-25).
+  APP_BUNDLE="$HOME/Applications/CLONE FRAME HUB.app"
+  echo "macOS permission missing: $PERM_MISSING (grant to: $APP_BUNDLE)"
+  osascript -e "display alert \"CLONE FRAME HUB\" message \"macOS is withholding: $PERM_MISSING.
+The agent's screenshots and file access will fail until you grant it.
+
+System Settings → Privacy & Security → $PERM_MISSING → add the APP itself:
+$APP_BUNDLE
+
+(Not node — macOS attributes the permission to the app you double-clicked.)
+
+Then quit and relaunch the app (permissions only apply at start-up).\"" >/dev/null 2>&1 || true
+fi
+
 # ── Optional: the NATIVE Electron shell (opt-in) ──────────────────────────────
 # The daily driver is now a Chrome --app window (below) — light, and it brings the
 # user's real Chrome profile (wallet extensions + Google session) into the app for

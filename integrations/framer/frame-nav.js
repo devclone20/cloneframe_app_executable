@@ -5,7 +5,7 @@
 // sandboxed `allow-scripts allow-same-origin allow-forms` (NO allow-popups). Because
 // it is cross-origin, the HUB parent cannot see the page's window.open / link clicks,
 // so target="_blank" and window.open() links are dead. This script — the DIRECT-mode
-// twin of bridge/proxy.mjs's injected CONTROLLER — runs INSIDE each framed page and
+// twin of the retired proxy-reader's injected CONTROLLER — runs INSIDE each framed page and
 // re-routes those "new browsing context" navigations to the HUB via postMessage, using
 // the exact contract the parent already speaks: {__cfhub:1,type:'navigate',url,newTab,gesture}.
 //

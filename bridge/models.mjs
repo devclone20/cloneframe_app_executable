@@ -21,8 +21,45 @@
 // solely by testProvider()/listModels() to perform the live probe.
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { openStore } from './platform/json-store.mjs';
 import { hubRoot } from './platform/hub-root.mjs';
+
+// ── Keychain-backed API keys (BUG-L7-001: plaintext keys in models.json) ─────
+// Keys live in the macOS Keychain (service "CLONE FRAME HUB", account = provider
+// id); models.json keeps only the sentinel below. Reads are cached per process.
+// Fallback: if `security` is unavailable/fails, the key stays in the 0600 store
+// exactly as before — never lose a key to make a point. Keys are never logged.
+const KC_SERVICE = 'CLONE FRAME HUB';
+const KC_SENTINEL = 'keychain:v1';
+const kcCache = new Map();
+// The Keychain is ONLY for the real user store. A test pointing the data tree at a
+// throwaway root (CLONE_FRAME_HUB_ROOT) must never read or write the user's Keychain.
+const kcEnabled = () => !process.env.CLONE_FRAME_HUB_ROOT;
+function kcStore(id, key) {
+  if (!kcEnabled()) return false;
+  try {
+    // -U updates in place; argv (not shell) so the key is never shell-parsed.
+    execFileSync('/usr/bin/security', ['add-generic-password', '-U', '-a', id, '-s', KC_SERVICE, '-w', key], { stdio: 'ignore' });
+    kcCache.set(id, key);
+    return true;
+  } catch { return false; }
+}
+function kcLoad(id) {
+  if (!kcEnabled()) return '';
+  if (kcCache.has(id)) return kcCache.get(id);
+  try {
+    const k = execFileSync('/usr/bin/security', ['find-generic-password', '-a', id, '-s', KC_SERVICE, '-w'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().replace(/\n$/, '');
+    kcCache.set(id, k);
+    return k;
+  } catch { return ''; }
+}
+function kcDelete(id) {
+  kcCache.delete(id);
+  if (!kcEnabled()) return;
+  try { execFileSync('/usr/bin/security', ['delete-generic-password', '-a', id, '-s', KC_SERVICE], { stdio: 'ignore' }); } catch { /* absent */ }
+}
+function resolveKey(r) { return r && r.apiKey === KC_SENTINEL ? kcLoad(r.id) : ((r && r.apiKey) || ''); }
 
 // ── persistence ──────────────────────────────────────────────────────────────
 const PROBE_TIMEOUT_MS = 10_000;
@@ -106,7 +143,7 @@ function streamConfig(id) {
     provider: r.provider,
     kind: r.kind,
     baseUrl: r.baseUrl || '',
-    apiKey: r.apiKey || '',
+    apiKey: resolveKey(r),
     models: Array.isArray(r.models) ? r.models : [],
     anthropic: isAnthropic(r.provider, r.baseUrl),
   };
@@ -320,6 +357,7 @@ export function addProvider(input = {}) {
     lastError: null,
     createdAt: Date.now(),
   };
+  if (record.apiKey && kcStore(record.id, record.apiKey)) record.apiKey = KC_SENTINEL;
   store.providers.push(record);
   try {
     saveStore(store);
@@ -357,7 +395,8 @@ export function updateProvider(id, patch = {}) {
   if (patch.apiKey !== undefined) {
     if (rec.kind !== 'api') return { ok: false, error: 'local providers do not take an apiKey' };
     if (typeof patch.apiKey !== 'string' || !patch.apiKey.trim()) return { ok: false, error: 'apiKey must be a non-empty string' };
-    rec.apiKey = patch.apiKey.trim();
+    const nk = patch.apiKey.trim();
+    rec.apiKey = kcStore(rec.id, nk) ? KC_SENTINEL : nk;
     rec.lastTestedAt = null;
     rec.lastError = null;
   }
@@ -377,6 +416,7 @@ export function removeProvider(id) {
   const store = loadStore();
   const idx = store.providers.findIndex((p) => p.id === id);
   if (idx === -1) return { ok: false, error: 'not found' };
+  kcDelete(id); // the Keychain entry must not outlive the provider
   store.providers.splice(idx, 1);
   for (const cap of Object.keys(store.defaults)) {
     if (store.defaults[cap] && store.defaults[cap].providerId === id) store.defaults[cap] = null;
@@ -402,7 +442,7 @@ export async function testProvider(cfgOrId) {
   if (byId) {
     const rec = getRecord(cfgOrId);
     if (!rec) return { ok: false, error: 'not found' };
-    cfg = { kind: rec.kind, provider: rec.provider, baseUrl: rec.baseUrl, apiKey: rec.apiKey };
+    cfg = { kind: rec.kind, provider: rec.provider, baseUrl: rec.baseUrl, apiKey: resolveKey(rec) };
   } else if (cfgOrId && typeof cfgOrId === 'object') {
     cfg = normalizeCfg(cfgOrId);
   } else {
@@ -443,7 +483,7 @@ export async function listModels(id) {
   if (!rec) return [];
   if (Array.isArray(rec.models) && rec.models.length) return rec.models.slice();
   try {
-    const result = await probeModels({ kind: rec.kind, provider: rec.provider, baseUrl: rec.baseUrl, apiKey: rec.apiKey });
+    const result = await probeModels({ kind: rec.kind, provider: rec.provider, baseUrl: rec.baseUrl, apiKey: resolveKey(rec) });
     if (result.ok && Array.isArray(result.models) && result.models.length) {
       const store = loadStore();
       const r2 = store.providers.find((p) => p.id === id);
@@ -574,5 +614,25 @@ export const Models = {
   _baseUrl: (u) => normalizeBaseUrl(u),
   _streamConfig: streamConfig,
 };
+
+// One-time migration: any provider still carrying a plaintext key moves it into
+// the Keychain. Called by the DAEMON at startup — never at import time (an import
+// side effect that execs `security` hung the test suite and littered the user's
+// Keychain with test entries). Lossless: a Keychain failure keeps the key in the
+// 0600 store as before. Counts are logged, keys never are.
+function migrateKeysToKeychain() {
+  try {
+    const store = loadStore();
+    let moved = 0;
+    for (const r of store.providers || []) {
+      if (r.kind === 'api' && r.apiKey && r.apiKey !== KC_SENTINEL) {
+        if (kcStore(r.id, r.apiKey)) { r.apiKey = KC_SENTINEL; moved++; }
+      }
+    }
+    if (moved) { saveStore(store); console.log(`[models] moved ${moved} provider key(s) into the macOS Keychain`); }
+    return { ok: true, moved };
+  } catch (e) { return { ok: false, error: e.message || String(e) }; }
+}
+Models._migrateKeys = migrateKeysToKeychain; // server-only (RPC blocks _-prefixed)
 
 export default Models;

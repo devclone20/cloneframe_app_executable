@@ -10,6 +10,11 @@
 import { isAddress, encodeUint, decodeAbiString, ethCall, SELECTORS } from './platform/evm.mjs';
 
 const API = 'https://api.virtuals.io/api';
+// The ACP (Agent Commerce Protocol) side — a DIFFERENT service from the token catalog
+// above, and the one where an owner's real working agents live. Public reads, no key:
+//   /agents/wallet/<address>  → the agent that wallet belongs to
+//   /agents/<uuid>/jobs       → its ACP job history (who it traded with, and whether)
+const ACP_API = 'https://api.acp.virtuals.io';
 const BLOCKSCOUT = 'https://base.blockscout.com/api';
 // ERC-8004 identity registry on Base — AgentRegistered(uint256 agentId, address owner) topic0
 const ERC8004_CONTRACT = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432';
@@ -155,6 +160,17 @@ async function readIdentity(agentId) {
   return out;
 }
 
+// Is this agent actually trading? An agent with completed ACP jobs is a working business,
+// not a listing — the owner should see that at a glance instead of having to go look.
+async function acpJobs(acpId) {
+  const r = await fetchJson(`${ACP_API}/agents/${encodeURIComponent(acpId)}/jobs`, { timeoutMs: 8000 }).catch(() => ({ ok: false }));
+  const rows = (r.ok && r.data && Array.isArray(r.data.data)) ? r.data.data : null;
+  if (!rows) return null;
+  const done = rows.filter((j) => String(j.jobStatus || '').toUpperCase() === 'COMPLETED').length;
+  const open = rows.filter((j) => ['OPEN', 'NEGOTIATION', 'TRANSACTION'].includes(String(j.jobStatus || '').toUpperCase())).length;
+  return { total: rows.length, completed: done, open };
+}
+
 export const Virtuals = {
   // Agents created by a wallet — GET /api/virtuals?filters[walletAddress][$eq]=<addr>
   async byWallet(address, { limit = 24, fresh = false } = {}) {
@@ -272,6 +288,103 @@ export const Virtuals = {
     const result = { ok: true, total: regs.length, enriched, remaining: Math.max(0, regs.length - head.length) };
     cacheSet(ercCache, key, result, ERC_TTL);
     return result;
+  },
+
+  // ── the identity graph ──────────────────────────────────────────────────────
+  // A person's agents are almost never held by the wallet they log in with. On
+  // Virtuals each agent gets its OWN wallet, and that is what owns the agent's
+  // ERC-8004 identity NFT and what the catalog stores in `walletAddress`. Proven on
+  // the owner's own account, 2026-07-25:
+  //     login  0xb480…a739 → ERC-8004 registrations: []      ← what we used to scan
+  //     agent  0x44Cc…6664 → agentId 55101 (iCLONE)          ← where it actually lives
+  // so scanning only the login wallet found nothing and reported "no agents", which
+  // was false. /api/profile/<wallet> is the public endpoint that maps a login wallet to
+  // every wallet linked to that person — including each agent's. Scan them all.
+  //
+  // (Do NOT be tempted by filters[creator][…]: the catalog silently IGNORES relation
+  // filters it cannot resolve and answers with the ENTIRE 70k-agent catalog, which a
+  // naive caller would happily show as "your agents".)
+  async profile(address) {
+    const addr = String(address || '');
+    if (!isAddress(addr)) return { ok: false, error: 'bad address' };
+    const key = 'prof:' + addr.toLowerCase();
+    const hit = cacheGet(walletCache, key, false);
+    if (hit) return hit;
+    const r = await fetchJson(`${API}/profile/${addr}`);
+    if (!r.ok) return { ok: false, error: r.error, wallets: [addr] };
+    const d = (r.data && r.data.data) || {};
+    const wallets = [addr];
+    for (const s of (Array.isArray(d.userSocials) ? d.userSocials : [])) {
+      const w = String(s && s.walletAddress || '');
+      if (isAddress(w) && !wallets.some((x) => x.toLowerCase() === w.toLowerCase())) wallets.push(w);
+    }
+    const result = { ok: true, id: d.id ?? null, displayName: d.displayName || null, wallets };
+    cacheSet(walletCache, key, result, WALLET_TTL);
+    return result;
+  },
+
+  // Every agent this PERSON holds, across every wallet their profile links — the
+  // catalog's tokenised agents and the on-chain ERC-8004 identities together. Each
+  // result says which wallet it came from, because "yours" should be inspectable.
+  async holdings(address, opts = {}) {
+    const { fresh = false } = opts;
+    const addr = String(address || '');
+    if (!isAddress(addr)) return { ok: false, error: 'bad address' };
+    // The caller may already hold the identity graph (MY AGENTS resolves it once and hands
+    // the same set to every economy) — don't pay for the profile lookup twice.
+    let wallets = (Array.isArray(opts.wallets) ? opts.wallets.filter(isAddress) : []);
+    if (!wallets.length) {
+      const prof = await this.profile(addr);
+      wallets = (prof.wallets && prof.wallets.length) ? prof.wallets : [addr];
+    }
+    // Read every wallet CONCURRENTLY — this walk used to be serial across up to 12
+    // wallets with three round trips each, and the panel sat on a spinner for the sum
+    // of all of them. The wallets are independent reads; only the merge below needs
+    // order, and it gets it by iterating the results in wallet order.
+    const per = await Promise.all(wallets.slice(0, 12).map(async (w) => {
+      const [cat, acp, erc] = await Promise.all([
+        this.byWallet(w, { fresh }).catch(() => ({ ok: false })),
+        // ACP — the commerce side of Virtuals, and the ONLY place an agent that was
+        // created but never activated can be seen at all: it has no token in the catalog
+        // and no ERC-8004 identity on chain, yet it exists and belongs to this person.
+        // Both endpoints are public reads (measured 2026-07-25).
+        fetchJson(`${ACP_API}/agents/wallet/${w}`, { timeoutMs: 8000 }).catch(() => ({ ok: false })),
+        // read ONCE per wallet: activation below and the identity list share this answer
+        this.erc8004ByOwner(w, { fresh }).catch(() => ({ ok: false })),
+      ]);
+      const a = acp.ok && acp.data && acp.data.data;
+      const jobs = a && a.id ? await acpJobs(a.id) : null;
+      return { w, cat, acp: a, jobs, regs: erc.registrations || [] };
+    }));
+    const agents = [];
+    const seen = new Set();
+    let catalogOk = true;
+    for (const { w, cat, acp: a, jobs, regs } of per) {
+      if (!cat.ok) catalogOk = false;
+      for (const a2 of (cat.agents || [])) {
+        const k = 'v:' + (a2.virtualId || a2.id || a2.name);
+        if (seen.has(k)) continue; seen.add(k);
+        agents.push({ ...a2, source: 'Virtuals', wallet: w });
+      }
+      if (a && a.id && !seen.has('a:' + a.id)) {
+        seen.add('a:' + a.id);
+        const reg = regs[0] || null;
+        if (reg) seen.add('e:' + reg.agentId);
+        agents.push({
+          acpId: a.id, name: a.name || 'agent', image: a.imageUrl || null, role: a.role || null,
+          rating: a.rating ?? null, source: 'ACP', wallet: w,
+          activated: !!reg, agentId: reg ? reg.agentId : null, jobs,
+        });
+      }
+      for (const r of regs) {
+        const k = 'e:' + r.agentId;
+        if (seen.has(k)) continue; seen.add(k);
+        let name = null;
+        try { const id = await readIdentity(r.agentId); name = id && id.name; } catch { /* bare id is still true */ }
+        agents.push({ agentId: r.agentId, name: name || ('agent #' + r.agentId), source: 'ERC-8004', wallet: w, activated: true, txHash: r.txHash });
+      }
+    }
+    return { ok: true, wallets, linked: wallets.length - 1, catalogOk, agents, total: agents.length };
   },
 
   // Primary wallet discovery — fast and authoritative via the Virtuals catalog.

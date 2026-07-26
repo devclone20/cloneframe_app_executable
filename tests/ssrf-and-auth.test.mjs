@@ -2,10 +2,10 @@
 // T-006 · Characterization tests — web SSRF guard + hub-bridge's constant-time
 // token compare / loopback-only guard
 // Targets (READ, never modified):
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/web.mjs
+//   bridge/web.mjs
 //     — isPrivateIPv4/isPrivateIPv6/isBlockedHost/assertSafeUrl (all private),
 //       exercised through the exported fetchUrl()
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/hub-bridge.mjs
+//   bridge/hub-bridge.mjs
 //     — authed() line ~116-126 (constant-time-ish bearer/query token compare)
 //     — localOnly() line ~107-115 (anti DNS-rebinding Host+socket check)
 //

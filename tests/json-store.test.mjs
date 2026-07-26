@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // T-006 · Characterization tests — atomic 0600 json-store idiom
 // Targets (READ, never modified):
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/permissions.mjs
-//   /Users/you/Desktop/iFRAME/apps/clone-frame-hub/bridge/notes.mjs
+//   bridge/permissions.mjs
+//   bridge/notes.mjs
 //
 // Both modules share the SAME persistence idiom (this is exactly what Wave-2 is
 // expected to extract into one shared "jsonStore" helper):

@@ -113,3 +113,24 @@ test('a corrupt store degrades to the seeded builtin instead of throwing', async
   assert.equal(H.add({ name: 'Recovered' }).ok, true);
   assert.equal(H.list().length, 2);
 });
+
+// A delete answers for what it ACTUALLY did. remove() used to return {ok:true} for an id
+// that was not in the store — and write the store back unchanged — so a caller (or a
+// person watching a panel) was told a deletion happened that never did. Every other data
+// module in the bridge says "not found"; this one now does too.
+test('removing an id that is not there is refused, not reported as done', async () => {
+  const { H } = await freshHarness();
+  const before = H.list().length;
+  const ghost = H.remove('no-such-harness-id');
+  assert.equal(ghost.ok, false);
+  assert.match(ghost.error, /not found/i);
+  assert.equal(H.list().length, before, 'and nothing was touched');
+
+  // the real thing still deletes, and the built-in still refuses for its own reason
+  const made = H.add({ name: 'Doomed' });
+  assert.equal(H.remove(made.id).ok, true);
+  assert.equal(H.list().length, before);
+  const builtin = H.remove('harness-engine');
+  assert.equal(builtin.ok, false);
+  assert.match(builtin.error, /built-in/i);
+});

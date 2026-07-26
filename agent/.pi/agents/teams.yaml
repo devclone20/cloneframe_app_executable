@@ -1,0 +1,14 @@
+# teams.yaml — named agent groups for the `fleet` tool.
+#
+#   fleet{team:"research", task:"…"}   →   every member runs the SAME task in parallel,
+#                                           then the caller synthesizes their reports.
+#
+# Format is an inline flow list per team (parsed by fleet.ts): <name>: [a, b, c]
+# Members must be agent files that exist in this directory (agents/<name>.md).
+teams:
+  # The whole fleet — broad coverage: recon, comprehension, build, verify, senior review.
+  full: [scout, reader, builder, critic, consult]
+  # Read-only intelligence gathering — fan out research + reading, cheap and fast.
+  research: [scout, reader]
+  # Ship + check — build a piece and immediately have it torn apart.
+  build-verify: [builder, critic]

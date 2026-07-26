@@ -75,7 +75,7 @@
     function renderAlbums(){
       view.innerHTML=`<div class="glbar"><span class="glhd">Albums</span><span style="flex:1"></span><button class="btn mini" id="glnal">+ album</button></div><div id="glalist"></div>`;
       const list=view.querySelector('#glalist');
-      function draw(){list.innerHTML=G.albums.length?G.albums.map(a=>`<div class="lprow" data-al="${a.id}"><div style="flex:1;min-width:0"><b>${escHtml(a.name)}</b><div class="dim" style="font-size:9px">${a.ids.length} photo${a.ids.length===1?'':'s'}</div></div><button class="btn mini" data-rm="${a.id}">✕</button></div>`).join(''):'<div class="qempty">No albums yet. Create one to organize your photos.</div>';
+      function draw(){list.innerHTML=G.albums.length?G.albums.map(a=>`<div class="lprow" data-al="${a.id}"><div style="flex:1;min-width:0"><b>${escHtml(a.name)}</b><div class="dim" style="font-size:10px">${a.ids.length} photo${a.ids.length===1?'':'s'}</div></div><button class="btn mini" data-rm="${a.id}">✕</button></div>`).join(''):'<div class="qempty">No albums yet. Create one to organize your photos.</div>';
         list.querySelectorAll('.lprow').forEach(el=>el.addEventListener('click',e=>{if(e.target.dataset.rm)return;const a=G.albums.find(x=>x.id===el.dataset.al);if(a)renderAlbum(a)}));
         list.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();G.albums=G.albums.filter(a=>a.id!==b.dataset.rm);Store.save();draw()}));}
       view.querySelector('#glnal').addEventListener('click',()=>{const bar=view.querySelector('.glbar');
@@ -89,18 +89,13 @@
     }
     function renderAlbum(a){
       const ids=Bridge.on()?a.ids.filter(id=>items.some(i=>i.id===id)):a.ids.slice();
-      view.innerHTML=`<div class="glbar"><button class="btn mini" id="glbk">← albums</button><span class="glhd">${escHtml(a.name)}</span><span class="dim" style="font-size:9px">${ids.length} photo${ids.length===1?'':'s'}</span></div>${ids.length?'<div class="glgrid">'+ids.map(id=>`<div class="glcell" data-id="${id}"><img alt=""><button class="btn mini" data-out="${id}">✕</button></div>`).join('')+'</div>':'<div class="qempty">Empty album. Select photos in the Photos tab, then “+ album”.</div>'}`;
+      view.innerHTML=`<div class="glbar"><button class="btn mini" id="glbk">← albums</button><span class="glhd">${escHtml(a.name)}</span><span class="dim" style="font-size:10px">${ids.length} photo${ids.length===1?'':'s'}</span></div>${ids.length?'<div class="glgrid">'+ids.map(id=>`<div class="glcell" data-id="${id}"><img alt=""><button class="btn mini" data-out="${id}">✕</button></div>`).join('')+'</div>':'<div class="qempty">Empty album. Select photos in the Photos tab, then “+ album”.</div>'}`;
       view.querySelector('#glbk').addEventListener('click',renderAlbums);
       view.querySelectorAll('.glcell').forEach(c=>thumb(c));
       view.querySelectorAll('[data-out]').forEach(b=>b.addEventListener('click',()=>{a.ids=a.ids.filter(x=>x!==b.dataset.out);Store.save();renderAlbum(a)}));
     }
-    function renderEdit(){
-      view.innerHTML=`<div class="gled"><svg class="gledico"><use href="#i-pal"/></svg><div class="gledh">Image Editor <span class="badge pending">ALPHA</span></div><div class="gledsub">Start a blank canvas, or open a photo from your gallery to edit it.</div><div class="gledbtns"><button class="btn" id="glnc">New canvas…</button><button class="btn" id="glbp">Browse photos</button></div><div class="sethead" style="margin-top:14px">OR PICK A TEMPLATE</div><select id="gltpl" class="gltpl"><option value="">Select a size…</option><option value="1024x1024">1024 × 1024 — square</option><option value="1536x1024">1536 × 1024 — landscape</option><option value="1024x1536">1024 × 1536 — portrait</option><option value="1920x1080">1920 × 1080 — widescreen</option></select><div class="gldiv"></div><div class="sethead" style="align-self:flex-start">SAVED PROJECTS</div><div class="glbar" style="width:100%"><input id="glpq" placeholder="Search projects…"><button class="btn mini" id="glps">Select</button></div><div class="qempty" style="width:100%">No saved projects yet.</div></div>`;
-      view.querySelector('#glnc').addEventListener('click',()=>Toast.show('Canvas editor — coming soon'));
-      view.querySelector('#glbp').addEventListener('click',()=>setTab('photos'));
-      view.querySelector('#gltpl').addEventListener('change',e=>{if(e.target.value){Toast.show('Canvas templates — coming soon');e.target.value=''}});
-      view.querySelector('#glps').addEventListener('click',()=>Toast.show('No saved projects yet'));
-    }
+    // Canvas editing REMOVED (owner's decision 2026-07-25): the gallery is photos +
+    // albums + settings — no image editor is planned for CLONE FRAME.
     async function renderSettings(){
       view.innerHTML=`<div class="glcard"><div class="glcardh">AI Tagging</div><div class="glcardtx">Auto-tag photos by content with your <a id="glvm">vision model</a>. Your own tags are kept.</div><div class="glcardbtns"><button class="btn mini" id="glct">Clear AI tags</button><button class="btn mini" id="glst"><svg class="glbico"><use href="#i-chip"/></svg>Start AI tag</button></div></div><div class="glcard"><div class="glcardh">Image provider (BYOK)</div><div class="glcardtx" id="glpst">checking…</div><div class="glcardbtns"><button class="btn mini" id="glpc">Configure…</button><button class="btn mini" id="glpr" style="display:none">Remove key</button></div></div>`;
       view.querySelector('#glvm').addEventListener('click',()=>openPanel('brain'));
@@ -113,7 +108,7 @@
       try{const r=await RPC('images','status');if(r.configured){st.textContent='Configured: '+r.provider+(r.model?' · '+r.model:'');rm.style.display=''}else st.textContent='No provider configured. Generation asks for a key on first use.'}catch(e){st.textContent='status unavailable'}
     }
     function setTab(t){tab=t;sel=null;p.querySelectorAll('.gltab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-      if(t==='photos')renderPhotos();else if(t==='albums')renderAlbums();else if(t==='edit')renderEdit();else renderSettings()}
+      if(t==='photos')renderPhotos();else if(t==='albums')renderAlbums();else renderSettings()}
     p.querySelectorAll('.gltab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.t)));
     setCount();
     if(Bridge.on())refresh().then(()=>setTab(tab));else setTab(tab);

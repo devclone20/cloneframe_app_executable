@@ -262,36 +262,6 @@ async function safeFetchFollow(url, headers) {
   throw new Error('too-many-redirects');
 }
 
-// Trusted, hardcoded (non-user-supplied) endpoint fetch — used for search
-// backends only, no SSRF guard needed, but still capped/timed-out.
-async function rawFetchText(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'user-agent': UA, accept: 'text/html,application/json;q=0.9,*/*;q=0.8' },
-    });
-    if (!res.ok) return null;
-    return await readCapped(res.body, MAX_BODY_BYTES);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function rawFetchJson(url) {
-  const text = await rawFetchText(url);
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 // ── HTML → text ──────────────────────────────────────────────────────────
 
 const NAMED_ENTITIES = {
@@ -371,76 +341,17 @@ export async function fetchUrl(url) {
   }
 }
 
-// ── DuckDuckGo parsing ───────────────────────────────────────────────────
-
-function resolveDdgHref(href) {
-  try {
-    const u = new URL(href, 'https://duckduckgo.com');
-    if (u.pathname === '/l/' && u.searchParams.has('uddg')) return u.searchParams.get('uddg');
-    return u.toString();
-  } catch {
-    return href;
-  }
-}
-
-function parseDdgHtml(html, cap) {
-  const titleRe = /<a[^>]+class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetRe =
-    /<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>|<div[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-
-  const titles = [];
-  let m;
-  while (titles.length < cap && (m = titleRe.exec(html))) {
-    titles.push({ href: m[1], title: cleanInline(m[2]) });
-  }
-  const snippets = [];
-  while (snippets.length < titles.length && (m = snippetRe.exec(html))) {
-    snippets.push(cleanInline(m[1] || m[2] || ''));
-  }
-
-  return titles
-    .map((t, i) => ({ title: t.title, url: resolveDdgHref(t.href), snippet: snippets[i] || '' }))
-    .filter((r) => r.url && /^https?:\/\//i.test(r.url));
-}
-
-function parseDdgInstantAnswer(json, cap) {
-  const out = [];
-  if (json.AbstractURL && json.AbstractText) {
-    out.push({ title: json.Heading || json.AbstractURL, url: json.AbstractURL, snippet: json.AbstractText });
-  }
-  const walk = (topics) => {
-    for (const t of topics || []) {
-      if (out.length >= cap) return;
-      if (t.FirstURL && t.Text) {
-        out.push({ title: t.Text.split(' - ')[0] || t.Text, url: t.FirstURL, snippet: t.Text });
-      } else if (Array.isArray(t.Topics)) {
-        walk(t.Topics);
-      }
-    }
-  };
-  walk(json.RelatedTopics);
-  return out.slice(0, cap);
-}
-
 // ── public: search ───────────────────────────────────────────────────────
+// Delegates to the web ENGINE (bridge/webengine.mjs): the owner's real Chrome
+// asks Google and reads the results off the DOM. The DuckDuckGo HTML scrape
+// that used to live here is gone — it rotted with DDG's markup, and the owner
+// asked for it to be removed. Same public contract: {ok, results:[{title,url,snippet}]}.
 
 export async function search(query, { limit = 6 } = {}) {
   try {
     if (typeof query !== 'string' || !query.trim()) return { ok: false, results: [], error: 'invalid-query' };
-    const cap = Math.max(1, Math.min(20, Number(limit) || 6));
-
-    const html = await rawFetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
-    let results = html ? parseDdgHtml(html, cap) : [];
-
-    if (!results.length) {
-      const json = await rawFetchJson(
-        `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
-      );
-      if (json) results = parseDdgInstantAnswer(json, cap);
-    }
-
-    if (!results.length) return { ok: false, results: [], error: 'no-results' };
-    return { ok: true, results: results.slice(0, cap) };
+    const { Webengine } = await import('./webengine.mjs');
+    return await Webengine.search({ q: query, limit });
   } catch (err) {
     return { ok: false, results: [], error: String(err?.message || err) };
   }
@@ -554,5 +465,8 @@ export async function frameable(url) {
   return val;
 }
 
-export const Web = { fetchUrl, search, research, fetchRaw, frameable };
+// `frameable` (iframe-embeddability probe) is retired: the in-app browser is now a
+// real CDP engine, not an iframe, so nothing probes framing anymore. fetchUrl/search/
+// fetchRaw stay — they back the agent's web_search / fetch_content.
+export const Web = { fetchUrl, search, research, fetchRaw };
 export default Web;

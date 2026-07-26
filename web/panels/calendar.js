@@ -52,7 +52,7 @@
     async function agenda(){const body=root.querySelector('#c2body');
       if(!conn.connected){body.innerHTML='<div class="qempty">Connect a CalDAV calendar to see your events.</div>';return}
       let ev=[];try{ev=await RPC('calendar','upcoming',{limit:30})}catch(e){showErr(body,e);return}
-      body.innerHTML=ev.length?ev.map(e=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escAttr(e.summary||'(event)')}</b><div class="dim" style="font-size:9px">${fmtTS(e.start)}${e.location?' · '+escAttr(e.location):''}</div></div><button class="btn mini" data-del="${escAttr(e.uid)}">✕</button></div>`).join(''):'<div class="qempty">No upcoming events.</div>';
+      body.innerHTML=ev.length?ev.map(e=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escAttr(e.summary||'(event)')}</b><div class="dim" style="font-size:10px">${fmtTS(e.start)}${e.location?' · '+escAttr(e.location):''}</div></div><button class="btn mini" data-del="${escAttr(e.uid)}">✕</button></div>`).join(''):'<div class="qempty">No upcoming events.</div>';
       body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{await RPC('calendar','deleteEvent',b.dataset.del);agenda()}));}
     async function quickAdd(t){let title=t,d=new Date(sel),h=9,mi=0;
       const tm=t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)||t.match(/\b(\d{1,2}):(\d{2})\b/);
@@ -71,7 +71,7 @@
       root.innerHTML=`<div class="cal2set">
         <div class="cal2sethd"><button class="btn mini" id="csback">←</button><span>Calendar Settings</span></div>
         <div class="sethead">YOUR CALENDARS</div>
-        ${conn.connected?`<div class="cal2calrow"><span class="cal2dot"></span><input id="csname" value="${escAttr(calName())}"><button class="btn mini" id="csdel" title="Remove calendar">✕</button></div><div class="dim" style="font-size:9px;margin-top:3px">${escAttr(conn.url||'')}</div>`:'<div class="qempty" style="padding:10px 0">No calendar connected.</div>'}
+        ${conn.connected?`<div class="cal2calrow"><span class="cal2dot"></span><input id="csname" value="${escAttr(calName())}"><button class="btn mini" id="csdel" title="Remove calendar">✕</button></div><div class="dim" style="font-size:10px;margin-top:3px">${escAttr(conn.url||'')}</div>`:'<div class="qempty" style="padding:10px 0">No calendar connected.</div>'}
         <button class="btn mini" id="csnew" style="margin-top:8px">+ New calendar</button>
         <div class="sethead">IMPORT CALENDAR</div>
         <button class="btn mini" id="csimp">↥ Import .ics</button><div class="cal2help">Add events from an .ics file into your connected calendar.</div>

@@ -72,7 +72,7 @@ Columns: **key** (what `open_panel{panel}` takes) · UI title · what the user d
 | `gallery` | GALLERY | photos/albums/edit | `wireGallery` | gallery, images |
 | `integrations` | CONNECTIONS | connect/disconnect external service integrations | `wireIntegrations` | integrations |
 | `theme` | THEME | pick/customize themes | `wireTheme` | — |
-| `settings` | SETTINGS | full settings hub (`#setnav` sections — see §3) | `wireSettings` | pty, models, search, integrations, reminders, permissions, admin, assistant, folders, servers |
+| `settings` | SETTINGS | full settings hub (`#setnav` sections — see §3) | `wireSettings` | pty, models, search, integrations, reminders, permissions, admin, folders, servers |
 
 **Gone (do not reference):** `economyos` (CLI ECONOMY OS), `wallet`, `integrate` — these panel
 keys no longer exist; `open_panel` with them shows a "Coming soon" toast. The bridge modules
@@ -90,8 +90,7 @@ sign-in, settings).
 ## 3. Settings sections (for `open_settings{section}`)
 
 Canonical handles (the `SECS` array / `SEC` map anchors): `agenttools` (agent permissions — alias
-`agent`, `permissions`) · `itterm` (iT — alias `it`) · `personalassistant` (Personal Assistant:
-name, repo, soul, iNFT link, iT name-call install) · `addmodels` (alias `models`; DeepSeek/custom
+`agent`, `permissions`) · `itterm` (iT — alias `it`) · `addmodels` (alias `models`; DeepSeek/custom
 cloud preset) · `added` · `aidefaults` · `tools` · `appearance` (alias `theme`) · `account` ·
 `folders` · `servers` · `system` · `email` · `integrations` · `reminders` · `search` ·
 `shortcuts` · `licenses` · `users`.
@@ -129,7 +128,6 @@ Three channels, all local. **Never guess screen state — read it.**
 | `matrix.status` / `.logs` | cluster engine running? owned pid? engine log tail |
 | `models.listProviders` / `.brainStatus` | BYOK provider roster + defaults; is a brain live |
 | `harness.list` / `.activeForTerminal` | crews and which one CODE is running as |
-| `assistant.status` | Personal Assistant install state, name, soul |
 | `files.list/stat/read` · `folders.surfaces` | disk contents (secret paths refused) · surface folders |
 | `servers.list` · `ssh.list` | saved droplets · saved SSH hosts (secrets masked) |
 | `web.search/fetchUrl/frameable` | web eyes: search, readable page text, will-it-frame |
@@ -142,7 +140,7 @@ Three channels, all local. **Never guess screen state — read it.**
 
 Live logs: `server.log` (bridge, tail via `admin.logs`) · `launch.log` · `matrix-engine.log`.
 Key stores: `permissions.json` (what you may do) · `harness.json` · `models.json` ·
-`assistant.json` + `assistant-soul.md` · `ssh.json` · `servers.json` · `accounts.json` (email) ·
+`ssh.json` · `servers.json` · `accounts.json` (email) ·
 per-panel `{notes,tasks,approvals,…}.json` · `bridge.token` (pairing token — never print it).
 Client-side state lives in the app's localStorage under `cfhub.*` keys (e.g.
 `cfhub.matrix.convs.v1`, `cfhub.it.persist`, `cfhub.v3` Store: cells, pinnedAgents, guideDocked).
@@ -177,7 +175,7 @@ clone-frame-hub/
 ├─ bridge/               # local daemon (127.0.0.1:8765) — one .mjs per domain, ~36 RPC modules
 │  ├─ hub-bridge.mjs     #   router: /mod dispatch, /shell, /chat, /provider-chat, WS /stream
 │  ├─ pty.mjs · keeper.mjs · ssh.mjs      # iT: live PTYs · persistence · remote hosts
-│  ├─ matrix.mjs · assistant.mjs          # cluster engine lifecycle · personal assistant
+│  ├─ matrix.mjs          # cluster engine lifecycle
 │  ├─ email.mjs · calendar.mjs · …        # one module per panel domain
 │  └─ launch.sh          #   the double-click launcher (Chrome --app default; HUB_SHELL=electron)
 ├─ electron/             # optional native shell (real in-app browser views)

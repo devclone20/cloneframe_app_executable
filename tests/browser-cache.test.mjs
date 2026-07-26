@@ -18,11 +18,35 @@ async function freshBrowser() {
   return { root, B: mod.Browser, file: path.join(root, 'browser.json') };
 }
 
-test('empty store: history/bookmarks read clean with no file present', async () => {
+test('empty store: bookmarks read clean with no file present', async () => {
   const { B, file } = await freshBrowser();
-  assert.deepEqual(B.history(), []);
   assert.deepEqual(B.bookmarks(), []);
   assert.equal(fs.existsSync(file), false); // pure reads never create the file
+});
+
+// The browser keeps NO history (owner's order, 2026-07-25): there is no api to write
+// or read one, and an install that has one on disk from an older version loses it the
+// first time the module loads.
+test('no history surface at all, and a legacy history array is dropped on load', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cfhub-browser-'));
+  const file = path.join(root, 'browser.json');
+  fs.writeFileSync(file, JSON.stringify({
+    version: 1,
+    history: [{ id: 'aaaaaaaa', url: 'https://private.example', title: 'Private', ts: 1 }],
+    bookmarks: [{ id: 'bbbbbbbb', url: 'https://keep.example', title: 'Keep', ts: 2 }],
+  }));
+  process.env.CLONE_FRAME_HUB_ROOT = root;
+  const mod = await import('../bridge/browser.mjs?ctx=' + Math.random().toString(36).slice(2));
+  const B = mod.Browser;
+
+  assert.equal(typeof B.history, 'undefined');
+  assert.equal(typeof B.visit, 'undefined');
+  assert.equal(typeof B.clearHistory, 'undefined');
+
+  const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(onDisk.history, undefined);      // the past is erased too
+  assert.equal(onDisk.bookmarks.length, 1);     // everything else survives untouched
+  assert.deepEqual(B.bookmarks().map((b) => b.url), ['https://keep.example']);
 });
 
 test('bookmarks round-trip through disk, dedupe, and file is 0600', async () => {
@@ -43,7 +67,6 @@ test('bookmarks round-trip through disk, dedupe, and file is 0600', async () => 
   const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.equal(onDisk.version, 1);
   assert.equal(onDisk.bookmarks.length, 1);
-  assert.ok(Array.isArray(onDisk.history));
   // atomic 0600 file perms (the gain over the old hand-rolled writer)
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 
@@ -51,26 +74,6 @@ test('bookmarks round-trip through disk, dedupe, and file is 0600', async () => 
   assert.equal(B.removeBookmark(marks[0].id).ok, true);
   assert.deepEqual(B.bookmarks(), []);
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).bookmarks.length, 0);
-});
-
-test('visit() writes history, coalesces the head url, and clearHistory wipes it', async () => {
-  const { B } = await freshBrowser();
-  assert.deepEqual(B.visit({ url: 'ftp://nope' }), { ok: false }); // non-http rejected
-  assert.equal(B.visit({ url: 'https://stripe.com', title: 'Stripe' }).ok, true);
-  assert.equal(B.visit({ url: 'https://vercel.com' }).ok, true);
-  let h = B.history();
-  assert.equal(h.length, 2);
-  assert.equal(h[0].url, 'https://vercel.com'); // most-recent first
-
-  // same head url updates the title in place, does not add a row
-  B.visit({ url: 'https://vercel.com', title: 'Vercel' });
-  h = B.history();
-  assert.equal(h.length, 2);
-  assert.equal(h[0].title, 'Vercel');
-
-  assert.equal(B.history({ limit: 1 }).length, 1); // limit projection honored
-  assert.deepEqual(B.clearHistory(), { ok: true });
-  assert.deepEqual(B.history(), []);
 });
 
 test('read-per-call sees an out-of-band write (the stale-singleton fix)', async () => {
@@ -89,7 +92,6 @@ test('a corrupt store degrades to empty instead of throwing, and writes recover 
   const { B, file } = await freshBrowser();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, '{ this is not json');
-  assert.deepEqual(B.history(), []);
   assert.deepEqual(B.bookmarks(), []);
   assert.equal(B.addBookmark({ url: 'https://ok.example' }).ok, true);
   assert.equal(B.bookmarks().length, 1);

@@ -19,11 +19,23 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { genAppMap } from './gen-app-map.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(ROOT, 'web');
 const SRC = path.join(WEB, 'index.html');
 const OUT = path.join(ROOT, 'dist', 'index.html');
+
+// Keep the agent's app map in step with the panel registry: writes context/app-map.json and
+// refreshes the AUTO PANELS block in agent/AGENTS.md from the real DEFS. Best-effort — it never
+// touches dist/index.html, so the golden identity is untouched, and it never fails the build.
+try { genAppMap({ silent: true }); } catch (e) { console.warn('app-map skipped:', e.message); }
+// The agent's self-map: agent/STRUCTURE.md — a branch tree of the whole body, read from the
+// real sources, restamped on every build (this IS pi's change-awareness signal). Runs after
+// genAppMap so the panel branch can reuse the fresh context/app-map.json. Same contract:
+// never touches dist, never fails the build.
+try { const { genStructureTree } = await import('./gen-structure-tree.mjs'); genStructureTree({ silent: true }); }
+catch (e) { console.warn('structure-tree skipped:', e.message); }
 
 let html = readFileSync(SRC, 'utf8');
 

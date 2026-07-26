@@ -84,7 +84,7 @@
     async function scoreboard(){
       let runs=[];try{runs=await RPC('compare','history',{limit:20})}catch(e){showErr(body,e);return}
       body.innerHTML='<div class="cmpv2rev"><span class="dim">scoreboard — past runs (click to view)</span></div>'+
-        (runs.length?runs.map(r=>`<div class="lprow" data-id="${escAttr(r.id)}"><div style="flex:1;min-width:0"><b>${escAttr((r.prompt||'').slice(0,80))}</b><div class="dim" style="font-size:9px">${(r.models||[]).length} models · ${fmtTS(r.createdAt)}</div></div><button class="btn mini" data-del="${escAttr(r.id)}">✕</button></div>`).join(''):'<div class="qempty">No runs yet. Press Start to create the first.</div>');
+        (runs.length?runs.map(r=>`<div class="lprow" data-id="${escAttr(r.id)}"><div style="flex:1;min-width:0"><b>${escAttr((r.prompt||'').slice(0,80))}</b><div class="dim" style="font-size:10px">${(r.models||[]).length} models · ${fmtTS(r.createdAt)}</div></div><button class="btn mini" data-del="${escAttr(r.id)}">✕</button></div>`).join(''):'<div class="qempty">No runs yet. Press Start to create the first.</div>');
       body.querySelectorAll('.lprow[data-id]').forEach(row=>row.addEventListener('click',async()=>{try{const run=await RPC('compare','get',row.dataset.id);if(run)renderResults(run.results||[])}catch(e){showErr(body,e)}}));
       body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('compare','remove',b.dataset.del);scoreboard()}));}
     renderCfg();

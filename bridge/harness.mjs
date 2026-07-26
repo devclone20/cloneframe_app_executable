@@ -79,7 +79,18 @@ export const Harness = {
     copy.createdAt = Date.now();
     s.harnesses.push(copy); save(s); return { ok: true, id: copy.id };
   },
-  remove(id) { const s = load(); const h = s.harnesses.find(x => x.id === id); if (h && h.isBuiltin) return { ok: false, error: 'built-in cannot be removed' }; s.harnesses = s.harnesses.filter(x => x.id !== id); save(s); return { ok: true }; },
+  // Answers for what it actually did: removing an id that is not here used to report
+  // {ok:true} and write the store back unchanged — a caller (or a person) was told a
+  // deletion happened that never did. Every other module in the bridge says "not found".
+  remove(id) {
+    const s = load();
+    const h = s.harnesses.find(x => x.id === id);
+    if (!h) return { ok: false, error: 'remove: harness not found' };
+    if (h.isBuiltin) return { ok: false, error: 'built-in cannot be removed' };
+    s.harnesses = s.harnesses.filter(x => x.id !== id);
+    save(s);
+    return { ok: true };
+  },
   setActiveForTerminal(id, on) {
     const s = load();
     s.harnesses.forEach(h => { h.activeForTerminal = false; });

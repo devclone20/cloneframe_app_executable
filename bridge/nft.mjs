@@ -31,6 +31,39 @@ const INDEXER_BASE = 'https://base.blockscout.com/api/v2';
 function gw(u) { u = String(u || ''); return u.startsWith('ipfs://') ? 'https://ipfs.io/ipfs/' + u.slice(7).replace(/^ipfs\//, '') : u; }
 const KNOWN = [{ label: 'iCLONE', tokenId: 55101 }, { label: 'VEGETA', tokenId: 58099 }];
 
+// ── what makes a token an iNFT ───────────────────────────────────────────────
+// A wallet holds all kinds of tokens: airdrops, PFPs, spam, half-finished test
+// contracts. Only some of them are agents, and the app must be able to tell the
+// difference in ONE place — the wallet drawer, the LAB and MY AGENTS all read the
+// `isAgent` tag this puts on every scanned token.
+//
+// Identity is address-based, never name-based. A collection NAME is attacker-
+// controlled: anyone can deploy a contract, call it "iCLONE" and airdrop it into a
+// wallet. So the trusted set is contracts — the ERC-8004 AgentIdentity registry, the
+// configured CLONE FRAME collection, and collections the owner added by hand. A
+// collection that merely calls itself an agent is a weak signal, accepted only when
+// the token also carries an identity of its own (art or traits or a description);
+// an empty token has no soul to work with, whatever its collection is called.
+const AGENT_REGISTRY = '0x8004a169fb4a3325136eb29fa0ceb6d2e539a432'; // ERC-8004 AgentIdentity, Base
+function isAgentNft(a) {
+  if (!a) return false;
+  const c = String(a.contract || '').toLowerCase();
+  if (c && c === AGENT_REGISTRY) return true;
+  if (c && c === String(store.contract || '').toLowerCase()) return true;
+  if (c && (store.collections || []).includes(c)) return true;
+  // Self-declaration: check BOTH fields for BOTH signals. The first version of this only
+  // read `inft` out of the collection and `AGENT` out of the symbol, and promptly hid the
+  // owner's real ATLAS iNFTs — collection "ATLAS", symbol "INFT" — because the one word
+  // that mattered was in the field it wasn't looking at. A contract declares itself in
+  // whichever of the two it likes; read them the same way.
+  const fields = [String(a.symbol || ''), String(a.collection || '')].map((s) => s.toLowerCase());
+  const selfDeclared = fields.some((f) => /(^|[^a-z])(inft|agent|agentidentity)([^a-z]|$)/.test(f));
+  // `name` is not evidence: fromIndexer synthesises one from the collection when the
+  // token has no metadata at all, so it is never empty and never proves anything.
+  const hasIdentity = !!(a.image || a.animation || (a.attributes && a.attributes.length) || String(a.description || '').trim());
+  return selfDeclared && hasIdentity;
+}
+
 // ── neural soul ──────────────────────────────────────────────────────────────
 // The soul becomes a SYSTEM PROMPT — privileged input. Only these origins may
 // ever serve soul text; an arbitrary NFT's tokenURI is attacker-controlled.
@@ -137,9 +170,13 @@ export const NFT = {
   addCollection(contract) { const c = String(contract || '').trim().toLowerCase(); if (!/^0x[0-9a-f]{40}$/.test(c)) return { ok: false, error: 'invalid contract address' }; if (!store.collections.includes(c)) store.collections.push(c); save(store); return { ok: true, collections: store.collections.slice() }; },
   removeCollection(contract) { const c = String(contract || '').trim().toLowerCase(); store.collections = (store.collections || []).filter(x => x !== c); save(store); return { ok: true, collections: store.collections.slice() }; },
   placeholder,
+  isAgentNft, // the one definition — panels read the `isAgent` tag scanWallet puts on each token
   // Detect EVERY iNFT the connected wallet holds. Primary: open Blockscout indexer (keyless, all collections).
   // Fallback: enumerate configured collections over raw RPC (balanceOf + tokenOfOwnerByIndex).
-  async scanWallet(address, { limit = 60 } = {}) {
+  // `fresh` makes the wallet's Rescan button mean something: it bypasses the 10-minute
+  // metadata cache, so a token minted or revealed a minute ago is re-read from its
+  // tokenURI instead of coming back exactly as stale as it did the first time.
+  async scanWallet(address, { limit = 60, fresh = false } = {}) {
     if (!isAddress(address)) return { ok: false, error: 'bad address' };
     const base = store.indexerUrl || INDEXER_BASE;
     // 1) indexer
@@ -156,7 +193,7 @@ export const NFT = {
         const bare = agents.filter(a => !a.image && !a.animation).slice(0, 12);
         await Promise.all(bare.map(async (a) => {
           try {
-            const rr = await this.read({ contract: a.contract, tokenId: a.tokenId });
+            const rr = await this.read({ contract: a.contract, tokenId: a.tokenId, fresh });
             if (rr && rr.ok && rr.nft) {
               a.image = rr.nft.image; a.animation = a.animation || rr.nft.animation;
               a.mediaType = a.mediaType || rr.nft.mediaType;
@@ -165,12 +202,16 @@ export const NFT = {
             }
           } catch {}
         }));
-        return { ok: true, source: 'indexer', agents };
+        // Tag AFTER the on-chain resolution pass: a fresh mint the indexer hasn't crawled
+        // deserves to be judged on the metadata its tokenURI actually returns, not on the
+        // blank the indexer happened to have.
+        agents.forEach((a) => { a.isAgent = isAgentNft(a); });
+        return { ok: true, source: 'indexer', agents, inftCount: agents.filter(a => a.isAgent).length };
       }
     } catch {}
     // 2) fallback: enumerate configured collections
     const cols = store.collections || [];
-    if (!cols.length) return { ok: true, source: 'none', agents: [], needsConfig: true };
+    if (!cols.length) return { ok: true, source: 'none', agents: [], inftCount: 0, needsConfig: true };
     const agents = [];
     for (const c of cols) {
       try {
@@ -180,12 +221,13 @@ export const NFT = {
           const tidHex = await ethCall(c, SELECTORS.tokenOfOwnerByIndex + encodeAddr(address) + encodeUint(i), store.rpcUrl);
           if (!tidHex) continue;
           const tokenId = parseInt(tidHex, 16);
-          const rr = await this.read({ contract: c, tokenId });
+          const rr = await this.read({ contract: c, tokenId, fresh });
           if (rr.ok) agents.push({ ...rr.nft, collection: '', animation: '' });
         }
       } catch {}
     }
-    return { ok: true, source: 'rpc', agents };
+    agents.forEach((a) => { a.isAgent = isAgentNft(a); });
+    return { ok: true, source: 'rpc', agents, inftCount: agents.filter(a => a.isAgent).length };
   },
   async read({ contract, tokenId, rpcUrl, fresh = false } = {}) {
     const c = contract || store.contract;
@@ -204,7 +246,11 @@ export const NFT = {
       const animation = resolveMediaUrl(meta.animation_url || meta.animation || '');
       const nft = {
         name: meta.name || `#${tokenId}`, description: meta.description || '',
-        image: image || (meta.image_data ? 'data:image/svg+xml;utf8,' + encodeURIComponent(String(meta.image_data)) : svgPlaceholder(tokenId, 'iNFT')),
+        // A token with no art gets NO art. This used to fall through to a generated
+        // CLONE FRAME card, which painted our brand onto strangers' empty contracts and
+        // then read back as "this token has identity". The panels all degrade to a
+        // neutral tile on an empty image; an invented picture is a lie they can't see.
+        image: image || (meta.image_data ? 'data:image/svg+xml;utf8,' + encodeURIComponent(String(meta.image_data)) : ''),
         animation, mediaType: mediaKind(animation),
         attributes: Array.isArray(meta.attributes) ? meta.attributes : [], owner, tokenId, contract: c, external: meta.__external || null,
         fetchedAt: Date.now(),

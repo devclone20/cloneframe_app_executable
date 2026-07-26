@@ -23,6 +23,31 @@
 export const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 export const escAttr = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Auto-scroll that respects the reader. stickBottom only snaps to the bottom when the
+// user is ALREADY near it — so scrolling up during a streaming reply is never yanked
+// back down (owner: "scroll barely works" — it was forced on every token). forceBottom
+// always jumps (use on open / session switch / the user's own just-sent message).
+export const stickBottom = (el, threshold = 90) => {
+  if (el && el.scrollHeight - el.scrollTop - el.clientHeight < threshold) el.scrollTop = el.scrollHeight;
+};
+export const forceBottom = (el) => { if (el) el.scrollTop = el.scrollHeight; };
+
+// friendlyErr(raw) → the human sentence inside a provider/API failure. Raw API bodies
+// (JSON with error.message etc.) must never reach a chat bubble as-is — extract the
+// message; fall back to the original string when it isn't JSON.
+export const friendlyErr = (raw) => {
+  const s = String(raw == null ? '' : raw).trim();
+  const dig = (j) => j && (j.error && (j.error.message || j.error.type) || j.message || j.detail);
+  try { const m = dig(JSON.parse(s)); if (m) return String(m); } catch { /* not pure JSON */ }
+  const i = s.indexOf('{');
+  let out = s;
+  if (i >= 0) { try { const m = dig(JSON.parse(s.slice(i))); if (m) out = String(m); } catch { /* no embedded JSON */ } }
+  // Provider vocabulary the owner never chose ("instance", model ids) → what to DO about it.
+  if (/no (instance|endpoints?|provider).*found|model.*not found|unknown model/i.test(out))
+    return out + ' — pick a working model in the ⌄ selector at the bottom of this panel.';
+  return out;
+};
+
 // ── time (T-046) ─────────────────────────────────────────────────────────────
 // relTime(ts) → compact "3m ago" relative label. Accepts a ms epoch, an ISO/date string,
 // or a Date. Returns '' for missing/invalid/future input (the safe common core of the three
@@ -185,5 +210,5 @@ export const dragGesture = (el, opts = {}) => {
 // In the built single-file document this module is an IIFE; publish the primitives as bare
 // globals for the classic inline app script. (No-op under node import — exports are used there.)
 if (typeof window !== 'undefined') {
-  Object.assign(window, { escHtml, escAttr, relTime, fetchWithTimeout, persisted, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
+  Object.assign(window, { escHtml, escAttr, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
 }

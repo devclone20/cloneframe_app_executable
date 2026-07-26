@@ -1,0 +1,141 @@
+{
+  "generated": "tools/gen-app-map.mjs",
+  "count": 27,
+  "panels": [
+    {
+      "key": "terminal",
+      "title": "CODE",
+      "sub": "chat · terminal · diff · web"
+    },
+    {
+      "key": "machine",
+      "title": "MY MACHINE",
+      "sub": "bridge · brain"
+    },
+    {
+      "key": "agents",
+      "title": "MY AGENTS",
+      "sub": "your wallet · every economy"
+    },
+    {
+      "key": "email",
+      "title": "EMAIL",
+      "sub": "IMAP · SMTP · real"
+    },
+    {
+      "key": "tasks",
+      "title": "TASKS",
+      "sub": "cron · the agent works on its own"
+    },
+    {
+      "key": "approval",
+      "title": "APPROVAL",
+      "sub": "agent emails waiting for you"
+    },
+    {
+      "key": "contacts",
+      "title": "CONTACTS",
+      "sub": "address book · vCard · CSV · CardDAV"
+    },
+    {
+      "key": "integrations",
+      "title": "CONNECTIONS",
+      "sub": "all service connections in one place"
+    },
+    {
+      "key": "notes",
+      "title": "NOTES",
+      "sub": "markdown · to-dos · search"
+    },
+    {
+      "key": "library",
+      "title": "LIBRARY",
+      "sub": "documents · research · archive"
+    },
+    {
+      "key": "cookbook",
+      "title": "COOKBOOK",
+      "sub": "local models · launch · download"
+    },
+    {
+      "key": "research",
+      "title": "BROWSER",
+      "sub": "the whole web, inside CLONE FRAME"
+    },
+    {
+      "key": "matrix",
+      "title": "MATRIX",
+      "sub": "distributed AI cluster · your devices, one brain"
+    },
+    {
+      "key": "gallery",
+      "title": "GALLERY",
+      "sub": "photos · albums"
+    },
+    {
+      "key": "compare",
+      "title": "MODEL COMPARISON",
+      "sub": "same prompt · side-by-side"
+    },
+    {
+      "key": "calendar",
+      "title": "CALENDAR",
+      "sub": "CalDAV · month view"
+    },
+    {
+      "key": "reminders",
+      "title": "REMINDERS",
+      "sub": "time-based · the agent reminds you"
+    },
+    {
+      "key": "brain",
+      "title": "BRAIN",
+      "sub": "memories · skills · models"
+    },
+    {
+      "key": "search",
+      "title": "SEARCH",
+      "sub": "everything — notes · docs · contacts…"
+    },
+    {
+      "key": "automations",
+      "title": "AUTOMATIONS",
+      "sub": "agent actions · human approval"
+    },
+    {
+      "key": "harness",
+      "title": "HARNESS",
+      "sub": "crew list · use in the terminal"
+    },
+    {
+      "key": "lab",
+      "title": "LAB",
+      "sub": "chat · agents"
+    },
+    {
+      "key": "agentview",
+      "title": "AGENT",
+      "sub": "iNFT identity · traits · soul"
+    },
+    {
+      "key": "folders",
+      "title": "FOLDERS",
+      "sub": "your files · browse · create · edit · organize"
+    },
+    {
+      "key": "shell",
+      "title": "iT",
+      "sub": "terminal multiplexer · workspaces · splits · tmux"
+    },
+    {
+      "key": "theme",
+      "title": "THEME",
+      "sub": "themes · customize"
+    },
+    {
+      "key": "settings",
+      "title": "SETTINGS",
+      "sub": "models · agent · appearance · account"
+    }
+  ]
+}

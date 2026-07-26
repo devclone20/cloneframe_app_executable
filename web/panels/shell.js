@@ -1,7 +1,24 @@
   function wireShell(p){
     const treeEl=p.querySelector('#shtree'),wsEl=p.querySelector('#itws'),mainEl=p.querySelector('#itmain');
     if(!treeEl||!wsEl||!mainEl)return;
-    const primary=instancesOf('shell').length<=1; // only the first iT window restores/saves the layout
+    // Exactly ONE iT in the WHOLE app owns the saved layout. instancesOf() only sees panels
+    // in this document, so two app windows each believed they were the first: both restored
+    // the same workspaces (duplicate shells for one set of folders) and both saved — the last
+    // writer silently replaced the other window's layout. A short lease in localStorage settles
+    // it across windows; a stale lease (crashed window) is simply taken over. Everyone else
+    // runs live-only: fully usable, just not the one writing the layout down.
+    const IT_OWNER='cfhub.it.owner',IT_LEASE=9000;
+    const itSelf=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    const itLeaseHeld=()=>{try{const o=JSON.parse(localStorage.getItem(IT_OWNER)||'null');return (o&&Date.now()-o.ts<IT_LEASE)?o:null}catch(_){return null}};
+    const itClaim=()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)return false;try{localStorage.setItem(IT_OWNER,JSON.stringify({id:itSelf,ts:Date.now()}))}catch(_){}return true};
+    let primary=instancesOf('shell').length<=1&&itClaim();
+    if(primary){
+      // Two windows opening in the same tick can both claim; whoever's write landed last
+      // owns it, and the other stands down here.
+      setTimeout(()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)primary=false},300);
+      const hb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else clearInterval(hb)},3000);
+      if(hb.unref)hb.unref();
+    }
     const strip=s=>String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g,'').replace(/\r(?!\n)/g,'');
     const base=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
     const parent=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
@@ -73,7 +90,13 @@
     const paneCur=()=>{const w=wsCur();return w?(w.panes.find(x=>x.id===w.focus)||w.panes[0]||null):null};
     const activeTab=()=>{const pn=paneCur();return pn?pn.surfaces[pn.active]:null};
     const leaves=n=>n.sp?[...leaves(n.a),...leaves(n.b)]:[n];
-    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.sess)return '⟳ '+(t.sessName||t.sess);if(t.host)return '⚡ '+t.host;if(t.attach)return 'tmux:'+t.attach;if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
+    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.sess)return '⟳ '+(t.sessName||t.sess);if(t.host)return '⚡ '+t.host;if(t.attach)return 'tmux:'+t.attach;
+      // A workspace the owner NAMED names its plain shells too: renaming a workspace and
+      // leaving its tab showing the home folder's name is the app disagreeing with itself
+      // about what the thing is called. Tabs with an identity of their own (a diff, a
+      // browser, an ssh host, a tmux session, a tab the owner renamed) keep it.
+      const wn=t.pn&&t.pn.w&&t.pn.w.name;if(wn)return wn;
+      if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
     function wsLabel(w){return (w&&(w.name||w.autoName||base(w.cwd)))||'~'}
     function curCwd(){const t=activeTab();return (t&&t.cwd)||(wsCur()&&wsCur().cwd)||homeAbs}
     // a surface is "seen" when its window is visible, its workspace is active and it is its pane's front tab
@@ -126,6 +149,49 @@
       return t;
     }
     function newTab(cwd,kind,attach){const pn=paneCur();return pn?newSurface(pn,cwd,kind,attach):null} // legacy name — smart-shell keys + tmux menu call this
+    // ── attachments in iT: paste an image / drop files onto a terminal pane — they are
+    // saved under the agent workspace (attachments/) and the shell-quoted paths are TYPED
+    // at the prompt (no Enter — the owner decides the command). Max 5 per gesture.
+    let _itAtt='';
+    async function itAttachDir(){ // owner-visible tree — ~/.clone-frame-hub is write-protected
+      if(_itAtt)return _itAtt;
+      try{const st=await RPC('pi','status');const ws=(st&&st.workspacePath)||'';
+        const home=ws.replace(/\/\.clone-frame-hub\/agent\/?$/,'');
+        _itAtt=home?home+'/CloneFrame/Attachments':'';
+      }catch(_){_itAtt=''}
+      return _itAtt;
+    }
+    const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+    async function itSaveFile(f){
+      const dir=await itAttachDir();if(!dir){Toast.show('Bridge offline — could not save '+(f.name||'file'));return null}
+      const safe=String(f.name||'pasted.png').replace(/\.\.+/g,'.').replace(/[^\w./-]+/g,'_');
+      const path=dir+'/'+Date.now().toString(36)+'-'+safe;
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result||'').split(',')[1]||'');r.onerror=rej;r.readAsDataURL(f)});
+      try{const r=await RPC('files','writeB64',path,b64,{overwrite:true});if(r&&r.ok!==false)return path}catch(_){}
+      Toast.show('Could not save '+(f.name||'file'));return null;
+    }
+    function wireTtyAttach(t,pane){
+      const typePaths=paths=>{if(paths.length&&t.termApi&&t.termApi.send){t.termApi.send(paths.map(shq).join(' '));Toast.show(paths.length+' file'+(paths.length>1?'s':'')+' saved — path typed at the prompt')}};
+      ['dragover','dragenter'].forEach(ev=>pane.addEventListener(ev,e=>{
+        if([...(e.dataTransfer&&e.dataTransfer.types||[])].includes('Files')){e.preventDefault();e.stopPropagation()}
+      }));
+      pane.addEventListener('drop',async e=>{
+        const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];if(!fs.length)return;
+        e.preventDefault();e.stopPropagation();
+        if(fs.length>5)Toast.show('Max 5 files per drop — extra skipped');
+        const paths=[];for(const f of fs.slice(0,5)){const q=await itSaveFile(f);if(q)paths.push(q)}
+        typePaths(paths);
+      });
+      // capture-phase: xterm's own textarea handles text pastes; only FILE pastes are ours
+      pane.addEventListener('paste',async e=>{
+        const items=[...((e.clipboardData&&e.clipboardData.items)||[])].filter(it=>it.kind==='file');
+        if(!items.length)return;
+        e.preventDefault();e.stopPropagation();
+        if(items.length>5)Toast.show('Max 5 files per paste — extra skipped');
+        const paths=[];for(const it of items.slice(0,5)){const f=it.getAsFile();if(!f)continue;const q=await itSaveFile(f);if(q)paths.push(q)}
+        typePaths(paths);
+      },true);
+    }
     // The live tty Term for a surface (local shell / ssh / keeper). Extracted so a dead
     // remote/keeper surface can be RECONNECTED in place without rebuilding the whole pane.
     function makeTtyTerm(t,pane){
@@ -136,7 +202,7 @@
         onCwd:dir=>{t.cwd=dir;t.hasCwd=true;const w=pn.w;if(isWsLead(t)){w.cwd=dir;refreshWsGit(w)}schedule();markHere();saveState()},
         onTitle:s=>{const v=String(s||'').trim();if(v&&!t.attach&&!t.host&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
         onExit:()=>{t.dead=true;schedule()},
-        onOutput:()=>{if(!surfVisible(t)){const had=t.unread;t.unread=++unreadStamp;if(!had)schedule()}},
+        onOutput:()=>{if(!surfVisible(t)){const had=t.unread;t.unread=++unreadStamp;if(!had)schedule()}markFired(t)},
         onNotify:(ti,bo)=>noteAdd(t,ti,bo),
         onChunk:d=>pipeFeed(t,d) // Layer 2: `it pipe` tees output to a file when armed
       });
@@ -155,24 +221,27 @@
       const pane=document.createElement('div');pane.className='sh-pane '+t.kind;t.pane=pane;pn.body.appendChild(pane);
       if(t.kind==='tty'){
         t.termApi=makeTtyTerm(t,pane);
+        wireTtyAttach(t,pane);
       }else if(t.kind==='web'){
-        // browser surface (⌘⇧L) — the page beside the terminal, cmux-style. Hybrid load like
-        // the BROWSER panel: search → DDG through the proxy; sites → direct when frameable.
-        pane.innerHTML='<div class="it-webbar"><input class="it-webin" placeholder="Search or enter address" spellcheck="false" autocomplete="off"><button class="sh-treetog" data-wa="go" title="Go">→</button><button class="sh-treetog" data-wa="re" title="Reload">↻</button><button class="sh-treetog" data-wa="pop" title="Open in the BROWSER window">⧉</button></div><iframe class="it-webif" sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer"></iframe>';
+        // browser surface (⌘⇧L) — a page beside the terminal, cmux-style. The full browser
+        // is now a real Chromium CDP engine (the BROWSER panel); this split stays lightweight:
+        // localhost / dev-server origins render in a direct iframe (native scroll, own JS),
+        // and everything else hands off to the BROWSER window — no proxy-reader anymore.
+        pane.innerHTML='<div class="it-webbar"><input class="it-webin" placeholder="localhost URL, or a site to open in BROWSER" spellcheck="false" autocomplete="off"><button class="sh-treetog" data-wa="go" title="Go">→</button><button class="sh-treetog" data-wa="re" title="Reload">↻</button><button class="sh-treetog" data-wa="pop" title="Open in the BROWSER window">⧉</button></div><iframe class="it-webif" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer"></iframe>';
         t.el={in:pane.querySelector('.it-webin'),fr:pane.querySelector('.it-webif')};
-        const endpoint=(window.__CFHUB_BRIDGE__&&window.__CFHUB_BRIDGE__.endpoint)||'';
-        const prox=u=>endpoint+'/proxy?url='+encodeURIComponent(u);
-        const wnorm=q=>{q=String(q||'').trim();if(!q)return '';if(/^https?:\/\//i.test(q))return q;if(/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(q))return 'https://'+q;return 'https://html.duckduckgo.com/html/?q='+encodeURIComponent(q)};
-        const wload=async q=>{
+        const isLocal=u=>{try{const h=new URL(u).hostname;return h==='localhost'||h==='127.0.0.1'||h==='[::1]'||/\.localhost$/.test(h)}catch(_){return false}};
+        const wnorm=q=>{q=String(q||'').trim();if(!q)return '';if(/^https?:\/\//i.test(q))return q;if(/^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(q))return 'http://'+q;if(/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(q))return 'https://'+q;return 'https://'+q};
+        const wload=q=>{
           const u=wnorm(q);if(!u)return;
           t.url=u;try{t.ptitle=new URL(u).hostname.replace(/^www\./,'')}catch(_){t.ptitle='browser'}
           t.el.in.value=u;schedule();
-          let direct=false;
-          if(!/^https:\/\/html\.duckduckgo\.com\//i.test(u)){
-            try{const r=await Promise.race([RPC('web','frameable',u),new Promise(res=>setTimeout(()=>res(null),900))]);direct=!!(r&&r.ok&&r.frameable)}catch(_){}
+          if(isLocal(u)){t.el.fr.style.display='';t.el.fr.src=u;}
+          else{
+            // hand off to the real browser; keep this pane as an honest signpost
+            t.el.fr.style.display='none';
+            webOpen(u,{newTab:true});
+            Toast&&Toast.show('Opened in the BROWSER window');
           }
-          t.el.fr.setAttribute('sandbox',direct?'allow-scripts allow-same-origin allow-forms allow-downloads':'allow-scripts allow-forms allow-downloads');
-          t.el.fr.src=direct?u:prox(u);
           saveState();
         };
         t.el.in.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')wload(t.el.in.value)});
@@ -502,6 +571,7 @@
       (w.panes||[]).forEach(pn=>{pn.surfaces.forEach(t=>disposeSurf(t,true));pn.surfaces=[]}); // closing a workspace reaps its shells
       try{w.grid&&w.grid.remove()}catch(_){}
       const i=workspaces.indexOf(w);if(i>=0)workspaces.splice(i,1);
+      pruneGroups(); // closing the last member of a group takes the group with it
       if(!workspaces.length){newWorkspace(homeAbs);return}
       selectWs(Math.min(i,workspaces.length-1));
     }
@@ -524,21 +594,126 @@
     function groupOf(w){return w&&w.group?wsGroups.find(g=>g.id===w.group):null}
     function newGroup(){
       const w=wsCur();
-      const g={id:'g'+(++grpSeq),name:'Group '+(wsGroups.length+1),color:w?w.color:'',collapsed:false};
-      wsGroups.push(g);if(w)w.group=g.id;
+      if(!w)return; // a group is a container FOR something — there is nothing to group
+      const g={id:'g'+(++grpSeq),name:'Group '+(wsGroups.length+1),color:w.color,collapsed:false};
+      wsGroups.push(g);w.group=g.id;
       schedule();saveState();
       textPrompt('Name the group',g.name,v=>{g.name=v.slice(0,32);schedule();saveState()});
     }
     function toggleGroupCollapsed(gid){const g=wsGroups.find(x=>x.id===gid)||groupOf(wsCur());if(!g)return;g.collapsed=!g.collapsed;schedule();saveState()}
+    // A group with nothing left in it is a leftover, not a container: the moment its last
+    // workspace leaves or closes, the header goes with it. Without this, dragging the last
+    // member out (or closing it) left an empty header sitting in the sidebar forever.
+    function pruneGroups(){
+      const used=new Set(workspaces.map(w=>w.group).filter(Boolean));
+      const n=wsGroups.length;
+      wsGroups=wsGroups.filter(g=>used.has(g.id));
+      return wsGroups.length!==n;
+    }
+    // Ungroup: the container goes, its workspaces stay (and leave the group, obviously).
     function dissolveGroup(gid){workspaces.forEach(w=>{if(w.group===gid)w.group=null});wsGroups=wsGroups.filter(g=>g.id!==gid);schedule();saveState()}
-    function moveWsToGroup(w,gid){if(!w)return;w.group=gid||null;schedule();saveState()}
+    // Close group: the container goes AND what is inside it goes with it. Deleting a folder
+    // that leaves its files behind is not what deleting means (owner's rule, 2026-07-25).
+    function closeGroup(gid){
+      if(!wsGroups.some(g=>g.id===gid))return;
+      workspaces.filter(w=>w.group===gid).slice().forEach(closeWorkspace);
+      wsGroups=wsGroups.filter(g=>g.id!==gid);
+      schedule();saveState();
+    }
+    function moveWsToGroup(w,gid){if(!w)return;w.group=gid||null;pruneGroups();schedule();saveState()}
+    // ---- workspace order (cmux): drag rows to reorder / into groups; menu Move Up/Down/Top.
+    // wsActive is an INDEX, so every splice recomputes it from the selected OBJECT.
+    function reorderWs(from,to,gid){
+      if(from<0||from>=workspaces.length)return;
+      const cur=wsCur();
+      const [w]=workspaces.splice(from,1);
+      if(gid!==undefined)w.group=gid||null;
+      workspaces.splice(Math.max(0,Math.min(to,workspaces.length)),0,w);
+      wsActive=Math.max(0,workspaces.indexOf(cur));
+      pruneGroups(); // dragging the last member out empties its group — the header goes too
+      schedule();saveState();
+    }
+    // Siblings = workspaces sharing the row's list partition (same group, or ungrouped).
+    function wsSiblings(w){const g=w.group||null;return workspaces.map((x,i)=>({x,i})).filter(e=>(e.x.group||null)===g)}
+    function moveWsBy(w,dir){ // -1 = up · +1 = down · 0 = top of its partition
+      const sib=wsSiblings(w),pos=sib.findIndex(e=>e.x===w);if(pos<0)return;
+      const tgt=dir===0?sib[0]:sib[pos+dir];
+      if(!tgt||tgt.x===w)return;
+      const cur=wsCur();
+      workspaces.splice(workspaces.indexOf(w),1);
+      const ti=workspaces.indexOf(tgt.x);
+      workspaces.splice(dir>0?ti+1:ti,0,w);
+      wsActive=Math.max(0,workspaces.indexOf(cur));
+      schedule();saveState();
+    }
+    // ---- right-click menus (cmux): one tiny builder, positioned inside the panel ----
+    let ctxEl=null;
+    function closeCtx(){if(ctxEl){ctxEl.remove();ctxEl=null}}
+    function ctxMenu(x,y,items){
+      closeCtx();
+      const el=document.createElement('div');el.className='it-ctx';
+      el.innerHTML=items.map(it=>it?`<button ${it.disabled?'disabled':''}class="${it.danger?'danger':''}">${escHtml(it.label)}${it.key?`<span class="k">${escHtml(it.key)}</span>`:''}</button>`:'<div class="dv"></div>').join('');
+      p.appendChild(el);ctxEl=el;
+      const bs=el.querySelectorAll('button');
+      items.filter(Boolean).forEach((it,i)=>bs[i].addEventListener('click',()=>{closeCtx();if(!it.disabled&&it.fn)it.fn()}));
+      const pr=p.getBoundingClientRect(),w=el.offsetWidth,h=el.offsetHeight;
+      let L=x-pr.left,T=y-pr.top;
+      if(L+w>pr.width-8)L=pr.width-w-8;if(T+h>pr.height-8)T=pr.height-h-8;
+      el.style.left=Math.max(4,L)+'px';el.style.top=Math.max(4,T)+'px';
+    }
+    function wsCtxItems(w){
+      const sib=wsSiblings(w),pos=sib.findIndex(e=>e.x===w);
+      const groups=wsGroups.map(g=>({label:'Move to '+g.name,disabled:w.group===g.id,fn:()=>moveWsToGroup(w,g.id)}));
+      return [
+        {label:'Rename Workspace…',key:'⌘⇧R',fn:()=>renameWs(w)},
+        {label:'Cycle Color',fn:()=>cycleWsColor(w)},
+        ...(w.color?[{label:'Clear Color',fn:()=>setWsColor(w,'none')}]:[]),
+        null,
+        {label:'New Group from Workspace',key:'⌃⌘G',fn:()=>{selectWs(workspaces.indexOf(w));newGroup()}},
+        ...groups,
+        ...(w.group?[{label:'Remove from Group',fn:()=>moveWsToGroup(w,null)}]:[]),
+        null,
+        {label:'Move Up',disabled:pos<=0,fn:()=>moveWsBy(w,-1)},
+        {label:'Move Down',disabled:pos<0||pos>=sib.length-1,fn:()=>moveWsBy(w,+1)},
+        {label:'Move to Top',disabled:pos<=0,fn:()=>moveWsBy(w,0)},
+        null,
+        {label:'Close Workspace',danger:true,fn:()=>closeWorkspace(w)},
+        {label:'Close Other Workspaces',danger:true,disabled:workspaces.length<2,fn:()=>{workspaces.filter(x=>x!==w).slice().forEach(closeWorkspace)}},
+      ];
+    }
+    function grpCtxItems(g){
+      return [
+        {label:'Rename Group…',fn:()=>textPrompt('Rename group',g.name,v=>{g.name=v.slice(0,32);schedule();saveState()})},
+        {label:'Cycle Color',fn:()=>{const i=WS_COLORS.findIndex(c=>c[1]===g.color);g.color=WS_COLORS[(i+1)%WS_COLORS.length][1];schedule();saveState()}},
+        ...(g.color?[{label:'Clear Color',fn:()=>{g.color='';schedule();saveState()}}]:[]),
+        {label:g.collapsed?'Expand':'Collapse',fn:()=>toggleGroupCollapsed(g.id)},
+        null,
+        // Two different things, named for what they do: one keeps the workspaces, the
+        // other takes them with it. The ✕ on the header is the second one.
+        {label:'Ungroup — keep the workspaces',fn:()=>dissolveGroup(g.id)},
+        {label:'Close Group and its Workspaces',danger:true,fn:()=>closeGroup(g.id)},
+      ];
+    }
+    function tabCtxItems(pn,ti){
+      const t=pn.surfaces[ti];if(!t)return[];
+      const pick=()=>{pn.w.focus=pn.id;pn.active=ti;syncPanes();schedule()};
+      return [
+        {label:'Rename Tab…',key:'⌘R',fn:()=>{pick();renameTab()}},
+        {label:'Break into Pane',fn:()=>{pick();breakPane()}},
+        {label:'Send to Frame Square',fn:()=>popSurf(pn,ti)},
+        ...(t.dead&&(t.host||t.sess)?[{label:'Reconnect',fn:()=>reconnectSurface(t)}]:[]),
+        null,
+        {label:'Close Tab',key:'⌘W',danger:true,fn:()=>closeSurface(pn,ti)},
+        {label:'Close Other Tabs',danger:true,disabled:pn.surfaces.length<2,fn:()=>{for(let i=pn.surfaces.length-1;i>=0;i--)if(pn.surfaces[i]!==t)closeSurface(pn,i)}},
+      ];
+    }
     function wsRowHTML(w,i,inGroup){
       const un=(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread));
       const git=w.git&&w.git.branch?`<span class="br">⎇ ${escHtml(w.git.branch)}${w.git.dirty?'*':''}</span>`:'';
       const st=Object.entries(w.status||{}).sort((a,b)=>((b[1].priority||0)-(a[1].priority||0)));
       const pills=st.length?`<span class="it-wspills">${st.map(([k,s])=>`<span class="it-pill" style="--pc:${escAttr(s.color||'#5aa0e6')}" title="${escAttr(k)}">${s.icon?escAttr(s.icon)+' ':''}${escAttr(s.value)}</span>`).join('')}</span>`:'';
       const prog=w.progress?`<span class="it-wsprog"><i style="width:${Math.round(Math.max(0,Math.min(1,w.progress.v))*100)}%"></i>${w.progress.label?`<span>${escHtml(w.progress.label)}</span>`:''}</span>`:'';
-      return `<div class="it-wsrow ${i===wsActive?'on':''}${w.color?' tinted':''}${inGroup?' grp':''}" data-w="${i}" title="${escAttr(w.cwd)}"${w.color?` style="--wsc:${escAttr(w.color)}"`:''}><span class="nm"><span class="it-wsdot" data-cdot="${i}" title="Workspace color — click cycles · ⌥-click clears"${w.color?` style="--wsc:${escAttr(w.color)}"`:''}></span>${un?'<span class="it-ud"></span>':''}<span style="overflow:hidden;text-overflow:ellipsis">${escAttr(wsLabel(w))}</span><span class="x" data-cw="${i}" title="Close workspace">✕</span></span><span class="meta">${git}<span class="pth">${escAttr(contract(w.cwd))}</span></span>${pills}${prog}</div>`;
+      return `<div class="it-wsrow ${i===wsActive?'on':''}${w.color?' tinted':''}${inGroup?' grp':''}" data-w="${i}" draggable="true" title="${escAttr(w.cwd)}"${w.color?` style="--wsc:${escAttr(w.color)}"`:''}><span class="nm"><span class="it-wsdot" data-cdot="${i}" title="Workspace color — click cycles · ⌥-click clears"${w.color?` style="--wsc:${escAttr(w.color)}"`:''}></span>${un?'<span class="it-ud"></span>':''}<span style="overflow:hidden;text-overflow:ellipsis">${escAttr(wsLabel(w))}</span><span class="x" data-cw="${i}" title="Close workspace">✕</span></span><span class="meta">${git}<span class="pth">${escAttr(contract(w.cwd))}</span></span>${pills}${prog}</div>`;
     }
     function renderWs(){
       const idx=workspaces.map((w,i)=>({w,i}));
@@ -547,7 +722,7 @@
       let rows='';
       wsGroups.forEach(g=>{
         const items=inG(g.id);
-        rows+=`<div class="it-grphd${g.collapsed?' col':''}" data-g="${escAttr(g.id)}"${g.color?` style="--gc:${escAttr(g.color)}"`:''}><span class="chev">${g.collapsed?'▸':'▾'}</span><span class="gdot" data-gdot="${escAttr(g.id)}" title="Group color"></span><span class="gnm">${escAttr(g.name)}</span><span class="gct">${items.length}</span><span class="gx" data-gx="${escAttr(g.id)}" title="Dissolve group">✕</span></div>`;
+        rows+=`<div class="it-grphd${g.collapsed?' col':''}" data-g="${escAttr(g.id)}"${g.color?` style="--gc:${escAttr(g.color)}"`:''}><span class="chev">${g.collapsed?'▸':'▾'}</span><span class="gdot" data-gdot="${escAttr(g.id)}" title="Group color"></span><span class="gnm">${escAttr(g.name)}</span><span class="gct">${items.length}</span><span class="gx" data-gx="${escAttr(g.id)}" title="Close this group and the ${items.length} workspace${items.length===1?'':'s'} in it — right-click for Ungroup">✕</span></div>`;
         if(!g.collapsed)rows+=items.map(x=>wsRowHTML(x.w,x.i,true)).join('');
       });
       rows+=idx.filter(x=>!x.w.group||!validGid.has(x.w.group)).map(x=>wsRowHTML(x.w,x.i,false)).join('');
@@ -555,15 +730,55 @@
       wsEl.querySelectorAll('.it-wsrow').forEach(r=>{
         r.addEventListener('click',e=>{if(e.target.dataset.cw!=null||e.target.dataset.cdot!=null)return;selectWs(+r.dataset.w)});
         r.addEventListener('dblclick',()=>{selectWs(+r.dataset.w);renameWs()});
+        r.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();const w=workspaces[+r.dataset.w];if(w)ctxMenu(e.clientX,e.clientY,wsCtxItems(w))});
+        // drag to reorder / drop INTO a group: dropping on a row lands BEFORE it and
+        // adopts its group; dropping on a group header appends to that group.
+        r.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/it-ws',r.dataset.w);e.dataTransfer.effectAllowed='move';r.classList.add('dragging')});
+        r.addEventListener('dragend',()=>{r.classList.remove('dragging');wsEl.querySelectorAll('.dropb,.dropin').forEach(x=>x.classList.remove('dropb','dropin'))});
+        r.addEventListener('dragover',e=>{if(![...e.dataTransfer.types].includes('text/it-ws'))return;e.preventDefault();e.dataTransfer.dropEffect='move';r.classList.add('dropb')});
+        r.addEventListener('dragleave',()=>r.classList.remove('dropb'));
+        r.addEventListener('drop',e=>{
+          const from=+e.dataTransfer.getData('text/it-ws');if(isNaN(from))return;
+          e.preventDefault();r.classList.remove('dropb');
+          const tgt=workspaces[+r.dataset.w];if(!tgt||workspaces[from]===tgt)return;
+          let to=workspaces.indexOf(tgt);if(from<to)to--;    // index shifts after removal
+          reorderWs(from,to,tgt.group||null);
+        });
       });
       wsEl.querySelectorAll('[data-cw]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const w=workspaces[+b.dataset.cw];if(w)closeWorkspace(w)}));
       wsEl.querySelectorAll('[data-cdot]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const w=workspaces[+b.dataset.cdot];if(!w)return;if(e.altKey)setWsColor(w,'none');else cycleWsColor(w,e.shiftKey)}));
       wsEl.querySelectorAll('.it-grphd').forEach(h=>{
         h.addEventListener('click',e=>{if(e.target.dataset.gx!=null||e.target.dataset.gdot!=null)return;toggleGroupCollapsed(h.dataset.g)});
         h.addEventListener('dblclick',()=>{const g=wsGroups.find(x=>x.id===h.dataset.g);if(g)textPrompt('Rename group',g.name,v=>{g.name=v.slice(0,32);schedule();saveState()})});
+        h.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();const g=wsGroups.find(x=>x.id===h.dataset.g);if(g)ctxMenu(e.clientX,e.clientY,grpCtxItems(g))});
+        h.addEventListener('dragover',e=>{if(![...e.dataTransfer.types].includes('text/it-ws'))return;e.preventDefault();e.dataTransfer.dropEffect='move';h.classList.add('dropin')});
+        h.addEventListener('dragleave',()=>h.classList.remove('dropin'));
+        h.addEventListener('drop',e=>{
+          const from=+e.dataTransfer.getData('text/it-ws');if(isNaN(from))return;
+          e.preventDefault();h.classList.remove('dropin');
+          const g=wsGroups.find(x=>x.id===h.dataset.g),w=workspaces[from];if(!g||!w)return;
+          if(g.collapsed)g.collapsed=false;              // show where it landed
+          moveWsToGroup(w,g.id);
+        });
       });
-      wsEl.querySelectorAll('[data-gx]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();dissolveGroup(b.dataset.gx)}));
+      wsEl.querySelectorAll('[data-gx]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();closeGroup(b.dataset.gx)}));
       wsEl.querySelectorAll('[data-gdot]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const g=wsGroups.find(x=>x.id===b.dataset.gdot);if(!g)return;const i=WS_COLORS.findIndex(c=>c[1]===g.color);g.color=e.altKey?'':(WS_COLORS[(i+1)%WS_COLORS.length][1]);schedule();saveState()}));
+      // Dropping anywhere in the list that is NOT a row or a group header = leave the
+      // group and go to the end. This used to require hitting the list element itself —
+      // one bare pixel below the last row, which a full sidebar simply does not have, so
+      // dragging a workspace OUT of a group was impossible whenever the list was full.
+      const list=wsEl.querySelector('.it-wslist');
+      if(list){
+        const free=e=>!(e.target&&e.target.closest&&e.target.closest('.it-wsrow,.it-grphd'));
+        list.addEventListener('dragover',e=>{if(!free(e)||![...e.dataTransfer.types].includes('text/it-ws'))return;e.preventDefault();e.dataTransfer.dropEffect='move';list.classList.add('dropout')});
+        list.addEventListener('dragleave',e=>{if(e.target===list||free(e))list.classList.remove('dropout')});
+        list.addEventListener('drop',e=>{
+          if(!free(e))return;
+          const from=+e.dataTransfer.getData('text/it-ws');if(isNaN(from))return;
+          e.preventDefault();list.classList.remove('dropout');
+          reorderWs(from,workspaces.length,null);
+        });
+      }
       const act=(k,fn)=>{const b=wsEl.querySelector('[data-act="'+k+'"]');if(b)b.addEventListener('click',fn)};
       act('nw',()=>newWorkspace(homeAbs));
       act('grp',newGroup);
@@ -574,7 +789,10 @@
     function renderPaneTabs(pn){
       pn.strip.innerHTML=pn.surfaces.map((t,i)=>`<div class="sh-tab ${i===pn.active?'on':''}" data-ti="${i}" title="${escAttr(t.cwd)}"><span class="sh-dot ${t.dead?'dead':(t.busy?'busy':'')}${t.kind==='tty'?' live':''}"></span>${t.unread?'<span class="it-ud"></span>':''}${escAttr(tabLabel(t))}${(t.dead&&(t.host||t.sess))?`<span class="sh-trecon" data-recon="${i}" title="Reconnect">↻</span>`:''}<span class="sh-tpop" data-pop="${i}" title="Send this terminal to a frame square">⤢</span><span class="sh-tclose" data-close="${i}" title="Close tab">✕</span></div>`).join('')
         +`<button class="sh-newtab" data-act="new" title="New tab (⌘T) · ⌥-click: smart shell">＋</button><button class="sh-treetog" data-act="tmux" title="Attach a tmux session">⌗</button><button class="sh-treetog" data-act="host" title="Remote hosts (SSH)">⚡</button><button class="sh-treetog" data-act="sess" title="Persistent sessions (survive disconnect)">⟳</button><span class="sh-tspacer"></span><button class="sh-treetog" data-act="omz" title="Prompt theme (smart tabs · Oh My Zsh): ${escAttr(omzTheme)}">◈</button><button class="sh-treetog" data-act="sr" title="Split right (⌘D)">◫</button><button class="sh-treetog" data-act="sd" title="Split down (⌘⇧D)">⊟</button><button class="sh-treetog" data-act="pc" title="Close pane">✕</button>`;
-      pn.strip.querySelectorAll('.sh-tab').forEach(el=>el.addEventListener('click',e=>{if(e.target.dataset.close!=null||e.target.dataset.pop!=null||e.target.dataset.recon!=null)return;pn.w.focus=pn.id;pn.active=+el.dataset.ti;syncPanes();schedule();markHere()}));
+      pn.strip.querySelectorAll('.sh-tab').forEach(el=>{
+        el.addEventListener('click',e=>{if(e.target.dataset.close!=null||e.target.dataset.pop!=null||e.target.dataset.recon!=null)return;pn.w.focus=pn.id;pn.active=+el.dataset.ti;syncPanes();schedule();markHere()});
+        el.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();ctxMenu(e.clientX,e.clientY,tabCtxItems(pn,+el.dataset.ti))});
+      });
       pn.strip.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();closeSurface(pn,+b.dataset.close)}));
       pn.strip.querySelectorAll('[data-pop]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();popSurf(pn,+b.dataset.pop)}));
       pn.strip.querySelectorAll('[data-recon]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();reconnectSurface(pn.surfaces[+b.dataset.recon])}));
@@ -593,7 +811,17 @@
     const renderTabs=schedule; // legacy name — the smart-shell machinery calls this
     function syncFocus(){
       const w=wsCur();if(!w)return;const fp=paneCur();
-      w.panes.forEach(pn=>pn.el.classList.toggle('focus',pn===fp&&w.panes.length>1));
+      w.panes.forEach(pn=>{pn.el.classList.toggle('focus',pn===fp&&w.panes.length>1);if(pn===fp)pn.el.classList.remove('fired')});
+    }
+    // The pane whose terminal/agent spoke LAST while unfocused wears a quiet accent
+    // ring (.fired) — cmux's "who just answered" cue. Exactly one pane wears it;
+    // focusing that pane takes it off (syncFocus).
+    function markFired(t){
+      const pn=t&&t.pn;if(!pn||!pn.el||!pn.el.isConnected)return;
+      if(pn===paneCur()&&document.hasFocus())return;
+      if(pn.el.classList.contains('fired'))return;
+      pn.w.panes.forEach(x=>{if(x.el)x.el.classList.remove('fired')});
+      pn.el.classList.add('fired');
     }
     function syncPanes(){
       const w=wsCur();if(!w)return;
@@ -622,7 +850,10 @@
       inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();done(true)}else if(e.key==='Escape'){e.preventDefault();done(false)}});
       ov.addEventListener('pointerdown',e=>{if(e.target===ov)done(false)});
     }
-    function renameWs(){const w=wsCur();if(!w)return;textPrompt('Rename workspace',wsLabel(w),v=>{w.name=v.slice(0,40);schedule();saveState()})}
+    // One rename for both entry points (⌘⇧R and the row's menu) so they cannot drift apart.
+    // schedule() re-renders the pane tabs as well as the sidebar, which is how the new name
+    // reaches the tabs (see tabLabel).
+    function renameWs(w){w=w||wsCur();if(!w)return;textPrompt('Rename workspace',wsLabel(w),v=>{w.name=v.slice(0,40);schedule();saveState()})}
     function renameTab(){const t=activeTab();if(!t)return;textPrompt('Rename tab',tabLabel(t),v=>{t.ptitle=v.slice(0,40);t.named=true;schedule();saveState()})}
     function cycleSurf(d){const pn=paneCur();if(!pn||pn.surfaces.length<2)return;pn.active=(pn.active+d+pn.surfaces.length)%pn.surfaces.length;syncPanes();schedule();markHere()}
     function toggleZoom(){const pn=paneCur();if(!pn)return;pn.zoom=!pn.zoom;pn.el.classList.toggle('zoom',pn.zoom);if(pn.w.canvasOn)renderGrid(pn.w)}
@@ -1356,7 +1587,8 @@
     // Closing this window (✕ or a docked square's remove) reaps every live pty session across
     // ALL workspaces — else docked-then-removed terminals would leak bridge sessions until the
     // idle reaper, against the 24-session cap.
-    p._dispose=()=>{ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
+    p.addEventListener('pointerdown',e=>{if(ctxEl&&!e.target.closest('.it-ctx'))closeCtx()},true); // any click outside dismisses the right-click menu
+    p._dispose=()=>{closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
     // Restored from its frame square: re-sync panes (the resize observer refits xterm).
     p._onundock=()=>{renderAll()};
     panelBus(p).on('bridge:changed',()=>{if(Bridge.on()&&homeAbs==='~'){(async()=>{try{let o='';const m=await Bridge.shell('pwd',x=>{o+=x});homeAbs=(m&&m.cwd)||o.trim()||'~';try{canTTY=!!(await RPC('pty','available'))}catch(_){}tree.root=homeAbs;workspaces.forEach(w=>{if(w.cwd==='~')w.cwd=homeAbs;(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.cwd==='~')t.cwd=homeAbs}))});renderAll();renderTree()}catch(_){}})()}});

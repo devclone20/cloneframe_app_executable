@@ -1,0 +1,23 @@
+# chains.yaml — named sequential pipelines for the `fleet` tool.
+#
+#   fleet{pipeline:"research-build-verify", task:"…"}
+#
+# Steps run in order; each step's output is threaded into the next via {previous}.
+# {input} = the caller's original task (available in every step). Task strings are
+# double-quoted single lines with \n escapes (parsed by fleet.ts).
+chains:
+  # Research → build → adversarial verify: the engineer's loop as a fleet pipeline.
+  research-build-verify:
+    - agent: scout
+      task: "Research the objective thoroughly (web + GitHub). Return the facts, exact URLs/paths, versions, APIs, and constraints needed to implement it. Objective:\n{input}"
+    - agent: builder
+      task: "Implement the objective using the research below. Make the smallest correct change, match the surrounding code, and verify it builds/tests. Report the files you changed and how you verified. Objective:\n{input}\n\nResearch:\n{previous}"
+    - agent: critic
+      task: "Adversarially verify the implementation below against the objective. Try to break it; run build/tests. Return an explicit PASS or FAIL, every defect (file:line + repro), and the concrete evidence. Objective:\n{input}\n\nWork to verify:\n{previous}"
+
+  # Read a body of code/docs, then get a senior second opinion on it.
+  read-and-consult:
+    - agent: reader
+      task: "Read and summarize the relevant files/repos for this question. Faithful, structured, with file:line references. Question:\n{input}"
+    - agent: consult
+      task: "Using the summary below, give your senior verdict and recommended approach for the question, with reasoning. Ground it in the actual code where needed. Question:\n{input}\n\nSummary:\n{previous}"
