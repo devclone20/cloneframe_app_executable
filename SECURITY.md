@@ -45,7 +45,8 @@ autonomous e-mail, autonomous automations, file write, web access. Two
 semantics worth knowing:
 
 - **"Full machine control" is a master switch**: when ON it implies shell,
-  file-write and web access (e-mail autonomy stays separate).
+  file-write and web access. **E-mail, SSH and MATRIX stay separate** — reaching
+  your remote servers is never implied by controlling this computer.
 - **Root mode**: typing `sudo` does *not* enable it — the bridge refuses until
   you switch Root mode on in Settings. The sudo password is asked per command
   and is never stored or logged.
@@ -54,6 +55,37 @@ Catastrophic patterns (`rm -rf /`, `rm -rf /*`, `rm -rf ~`, `mkfs`, `dd` to a
 device, fork bombs) are refused **even in root mode**. This blocklist is a
 best-effort seatbelt against accidents, not a sandbox — the boundary remains
 who reaches the bridge, not which commands exist.
+
+## The pi agent ships in YOLO — deliberately, and here is how to narrow it
+
+CLONE FRAME runs the [pi](https://pi.dev) coding agent with **no sandbox and no
+per-command approval**. Its bash is free. That is the owner's choice, not an
+oversight, and it is what makes the app what it is: one prompt drives the whole
+machine. Exactly **one** hard limit is wired in and cannot be turned off — the
+anti-wipe: `rm -rf /` (root, a top-level system directory, or your whole home),
+`mkfs`, and `dd` to a raw device are always refused, even with root mode on.
+
+If you want a narrower agent, you have two independent layers, and they compose:
+
+1. **pi's own guardrails — recommended.** They live *inside* the agent, so they
+   apply to everything it does rather than to one tool. Install and configure them
+   from [pi.dev](https://pi.dev); CLONE FRAME does not override them, and the
+   in-app `guardrails` skill can set them up for you on request.
+2. **The `app_rpc` allowlist — in-app, zero setup.** Through `app_rpc` the agent
+   can call any bridge module. **It ships wide open.** In
+   *Settings → Agent Tools → app_rpc allowlist* you write your own policy:
+   leave it open and block specific entries, or flip it to allowlist mode where
+   nothing is reachable except what you name. Entries are `module` or
+   `module.fn`, one per line. It constrains **the agent's** calls only — the app's
+   own interface drives the same route and is never restricted by it, so a narrow
+   list can never brick your UI.
+
+Be clear about what layer 2 is: **a guardrail on the agent's own tool, not a
+security boundary.** It keys off a header the agent sets on its own calls, so it
+shapes what the agent reaches for — the realistic risk being a prompt injection
+in a page it reads. Anything that already holds the pairing token can call a
+module directly and skip it entirely. That is not a weakness of the allowlist; it
+is the first line of this document — whoever has the token already has a shell.
 
 The agent's file tools cannot read secret stores: `~/.clone-frame-hub`,
 `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, Keychains, `~/.env*`,

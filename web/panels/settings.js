@@ -272,9 +272,10 @@
     }
     async function secAgentTools(){
       loading();
-      let perms={},tools=[];
+      let perms={},tools=[],rpcp={mode:'open',allow:[],deny:[]};
       try{perms=await RPC('permissions','get')}catch(e){return fail(e)}
       try{tools=await RPC('admin','tools')}catch(_){}
+      try{const r=await RPC('rpcallow','get');if(r&&r.ok)rpcp=r}catch(_){}
       const mc=!!perms.machineControl;
       const rows=[['fullAccess','Full app access','the LLM can open any tab and act inside the HUB'],['rootMode','Root mode (sudo)','allows sudo commands in the terminal (asks your password each time)'],['autoAutomations','Automations without approval','the agent runs services/automations on its own'],['fileWrite','Write files','the agent can create and edit files on your machine'],['webAccess','Browse the web','the agent can search and open pages'],['autoEmail','Send email without approval','the agent sends email automatically'],['ssh','Remote servers (SSH)','open SSH sessions to your own saved servers/VMs — kept separate from full machine control (remote reach ≠ local)'],['matrix','MATRIX engine control','start and stop the local cluster engine from the MATRIX tab — its own gate, a resident daemon is a deliberate choice']];
       pane.innerHTML='<div class="sethead">FULL MACHINE CONTROL</div>'+
@@ -283,9 +284,23 @@
         '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:10px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
         rows.map(r=>{const own=r[0]==='autoEmail'||r[0]==='ssh'||r[0]==='matrix';return `<div class="autotoggle" style="${mc&&!own?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&!own))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`}).join('')+
         '<div class="secnote">Root mode asks for your password at the moment (never stored). Catastrophic patterns (rm -rf /, mkfs, dd to disk) are ALWAYS blocked, even as root.</div>'+
-        '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${escHtml(t.name)}</b><div class="sub">${escHtml(t.kind||'')} ${escHtml((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>');
+        '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${escHtml(t.name)}</b><div class="sub">${escHtml(t.kind||'')} ${escHtml((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>')+
+        '<div class="sethead">app_rpc ALLOWLIST — yours to write</div>'+
+        '<div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">Through <span class="path">app_rpc</span> the agent can call any bridge module — that is the point, and CLONE FRAME ships it <b>wide open</b>. If you want a narrower agent, write your own list here. It applies to <b>the agent\'s</b> calls only; this interface is never constrained by it.<br><span style="color:var(--ink-dim)">One entry per line: <span class="path">module</span> for a whole module, or <span class="path">module.fn</span> for one function.</span></div>'+
+        `<div class="autotoggle"><div><b>Restrict the agent to a list</b><div class="sub">Off = everything is allowed except what you block. On = nothing is allowed except what you allow.</div></div><div class="sw3 ${rpcp.mode==='allowlist'?'on':''}" id="rpcmode"><i></i></div></div>`+
+        `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>'+
+        '<div class="secnote">This is a guardrail on the agent, not a security boundary — anything already holding the bridge token can call a module directly. For confinement inside the agent itself, install the guardrails from <span class="path">pi.dev</span>.</div>';
       pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
+      // app_rpc allowlist. The textarea edits whichever list the current mode uses, so the
+      // owner never has to reason about two lists at once; flipping the mode re-renders.
+      const rpcLines=()=>String((pane.querySelector('#rpclist')||{}).value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+      const rpcMode=pane.querySelector('#rpcmode');
+      if(rpcMode)rpcMode.addEventListener('click',async()=>{const on=!rpcMode.classList.contains('on');try{await RPC('rpcallow','set',{mode:on?'allowlist':'open'});Toast.show(on?'app_rpc restricted to your allowlist':'app_rpc open — only your blocked entries are refused');secAgentTools()}catch(e){Toast.show(e.message)}});
+      const rpcSave=pane.querySelector('#rpcsave');
+      if(rpcSave)rpcSave.addEventListener('click',async()=>{const list=rpcLines();const patch=rpcp.mode==='allowlist'?{allow:list}:{deny:list};try{const r=await RPC('rpcallow','set',patch);const kept=(rpcp.mode==='allowlist'?r.allow:r.deny)||[];Toast.show(kept.length===list.length?'Saved — '+kept.length+' entr'+(kept.length===1?'y':'ies'):'Saved '+kept.length+' of '+list.length+' — the rest were not valid module or module.fn names');secAgentTools()}catch(e){Toast.show(e.message)}});
+      const rpcReset=pane.querySelector('#rpcreset');
+      if(rpcReset)rpcReset.addEventListener('click',async()=>{try{await RPC('rpcallow','reset');Toast.show('app_rpc back to the shipped default — wide open');secAgentTools()}catch(e){Toast.show(e.message)}});
     }
     async function secUsers(){
       loading();

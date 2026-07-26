@@ -186,7 +186,7 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   webengine: './webengine.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
   pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs',
-  app: './app.mjs', pi: './pi.mjs',
+  app: './app.mjs', pi: './pi.mjs', rpcallow: './rpcallow.mjs',
   email: './domains/mail/mail.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
@@ -196,7 +196,7 @@ const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', cont
   webengine: 'Webengine',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
   pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix',
-  app: 'App', pi: 'Pi',
+  app: 'App', pi: 'Pi', rpcallow: 'RpcAllow',
   email: 'Email' };
 const _modCache = {};
 async function getMod(name) {
@@ -211,6 +211,17 @@ async function handleMod(req, res, name, body) {
   if (!MODULES[name]) return fail(404, 'unknown module');
   const fn = String(body.fn || '');
   if (!fn || fn[0] === '_' || fn === 'constructor') return fail(400, 'bad fn');
+  // The owner's own app_rpc allowlist. Applies ONLY to calls the agent marks as its own
+  // (the pi extension sets x-cfhub-caller: agent) — the app's UI drives the same route and
+  // is never constrained by it, so a narrow list can never brick the interface. Ships
+  // wide open; see bridge/rpcallow.mjs for exactly what this is and is not.
+  if (String(req.headers['x-cfhub-caller'] || '').toLowerCase() === 'agent' && name !== 'rpcallow') {
+    try {
+      const { RpcAllow } = await import('./rpcallow.mjs');
+      const verdict = RpcAllow.check(name, fn);
+      if (!verdict.allowed) return fail(403, verdict.reason);
+    } catch { /* policy unreadable → fail OPEN, matching the shipped default */ }
+  }
   let obj;
   try { obj = await getMod(name); } catch (e) { return fail(503, name + ' unavailable: ' + ((e && e.message) || e)); }
   const f = obj[fn];

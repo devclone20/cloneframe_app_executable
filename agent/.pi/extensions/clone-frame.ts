@@ -45,7 +45,11 @@ async function callModule(module: string, fn: string, args: unknown[] = []): Pro
 	try {
 		res = await fetch(`${ENDPOINT}/mod/${module}`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+			// Marks this call as the AGENT's, so the owner's app_rpc allowlist applies to it
+			// (Settings → Agent Tools). The owner's own UI calls the same route without it and
+			// is never constrained. This is a guardrail on the agent, not a boundary: anything
+			// already holding the token can simply omit the header — see bridge/rpcallow.mjs.
+			headers: { "Content-Type": "application/json", Authorization: "Bearer " + t, "X-CFHub-Caller": "agent" },
 			body: JSON.stringify({ fn, args }),
 		});
 	} catch {
