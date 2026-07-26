@@ -249,3 +249,30 @@ test('tokens — an RPC outage fails OPEN: the holding still shows, uncorrected'
   assert.equal(sgov.balance, '3354.940422680995371336', 'raw balance survives rather than blanking a real holding');
   assert.equal(sgov.stockToken, undefined);
 });
+
+// The headline case, from live mainnet 2026-07-26: CrowdStrike's uiMultiplier is 4.0 (a 4:1
+// split). Its top holder's balanceOf reads 0.15 while balanceOfUI reads 0.6 — reporting the raw
+// value tells the owner he holds a QUARTER of his position. Only 3 of the 96 Stock Tokens have
+// a multiplier other than 1.0, so this is the case a correction must be tested against.
+const CRWD = '0xea72Ecca2d0f6bFA1394DBBCff85b52CD4233931';
+
+test('tokens — a 4x split multiplier quadruples the reported balance, not rounds it', async () => {
+  const { R } = await freshRobinhood();
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (!opts || opts.method !== 'POST') {
+      return { ok: true, status: 200, json: async () => ([
+        { value: '150000000000000000', token: { symbol: 'CRWD', name: 'CrowdStrike Holdings • Robinhood Token', decimals: '18', address: CRWD, type: 'ERC-20' } },
+      ]) };
+    }
+    const body = JSON.parse(opts.body);
+    return { ok: true, status: 200, json: async () => ({ jsonrpc: '2.0', id: body.id, result: '0x' + (4n * 10n ** 18n).toString(16).padStart(64, '0') }) };
+  };
+  let r;
+  try { r = await R.tokens(HOLDER); } finally { globalThis.fetch = original; }
+  const crwd = r.tokens.find((t) => t.symbol === 'CRWD');
+  assert.equal(crwd.balanceRaw, '0.15', 'what the explorer reports');
+  assert.equal(crwd.balance, '0.6', 'what the holder actually owns — matches on-chain balanceOfUI');
+  assert.equal(crwd.uiMultiplier, '4');
+  assert.equal(crwd.stockToken, true);
+});

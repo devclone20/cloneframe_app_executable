@@ -157,6 +157,10 @@ Verified addresses (mainnet, 2026-07-26 — re-check before quoting):
 | AAPL `0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9` | TSLA `0x322F0929c4625eD5bAd873c95208D54E1c003b2d` | NVDA `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | MSFT `0xe93237C50D904957Cf27E7B1133b510C669c2e74` |
 | GOOGL `0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3` | AMZN `0x12f190a9F9d7D37a250758b26824B97CE941bF54` | SPY `0x117cc2133c37B721F49dE2A7a74833232B3B4C0C` | GME `0x1b0E319c6A659F002271B69dB8A7df2F911c153E` |
 | COIN `0x6330D8C3178a418788dF01a47479c0ce7CCF450b` | AMD `0x86923f96303D656E4aa86D9d42D1e57ad2023fdC` | MU `0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD` | SGOV `0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5` |
+| **CRWD `0xea72Ecca2d0f6bFA1394DBBCff85b52CD4233931`** — multiplier **4.0**, the one to test against | | | |
+
+Better than any hardcoded table: `curl -s https://api.robinhood.com/rhj/assets` enumerates all
+96 first-hand (§3c). Use it rather than trusting the list above, which is a snapshot.
 
 ### 3b. `balanceOf` is not what the holder owns
 
@@ -176,25 +180,55 @@ cast call <token> "balanceOfUI(address)(uint256)" <holder> --rpc-url $RH   # the
 cast call <token> "totalSupplyUI()(uint256)"                --rpc-url $RH
 ```
 
-Measured on SGOV's largest holder:
+Measured on the largest holder of each, 2026-07-26:
 
 ```
-balanceOf   = 3354.940422680995371336
-balanceOfUI = 3358.152844868801231394     ← 3.21 tokens more, +0.0957%
+CRWD   balanceOf = 0.15   balanceOfUI = 0.6                     ← multiplier 4.0 (a 4:1 split)
+SGOV   balanceOf = 3354.940422…   balanceOfUI = 3358.152844…    ← multiplier 1.000957…
 ```
+
+**CrowdStrike is the case that should frighten you.** Its multiplier is exactly **4.0**, so
+`balanceOf` reports **a quarter** of what the holder owns. Not a rounding difference — a 300%
+under-report of somebody's position.
 
 **Explorers report the raw value.** Blockscout's `token-balances` is `balanceOf`, so anything
 built on it under-reports a Stock Token holder. CLONE FRAME's own `robinhood` module did exactly
 that until 2026-07-26; it now reads `uiMultiplier()` per token, caches it for an hour, and
 corrects — while leaving ordinary ERC-20s untouched.
 
-**Why this trap survives review:** the multiplier is *exactly* 1.0 on almost every ticker — 12 of
-14 sampled. Test on AAPL and the correction looks like dead code. It is not dead; it is
-invisible until it matters. When you write a rule, test it on the case that is supposed to
-*trigger* it (AGENTS.md §16.4b), which here means SGOV or MU, not AAPL.
+**Why this trap survives review: only 3 of the 96 Stock Tokens have a multiplier other than
+1.0.** Test on AAPL, or on any random handful, and the correction looks like dead code. It is
+not dead; it is invisible until it lands on CRWD. This is AGENTS.md §16.4b with money attached —
+**test a rule on the case meant to trigger it**, and here you have to go looking for that case.
 
-`currentMultiplier()` and `multiplier()` **do not exist** — both revert. The function is
-`uiMultiplier()` (selector `0xa60bf13d`).
+**Two names for one concept, and both are real:**
+
+- **On the contract** the function is **`uiMultiplier()`** (selector `0xa60bf13d`).
+  `currentMultiplier()` and `multiplier()` revert — they are not contract functions.
+- **In the REST API** (§3c) the field is called **`currentMultiplier`**.
+
+So "currentMultiplier does not exist" is wrong, and so is calling `uiMultiplier` a REST field.
+Say which surface you mean. The two agree exactly — verified on CRWD, SGOV and MU.
+
+### 3c. The one genuinely first-party surface — use it to enumerate
+
+Robinhood publishes no CLI and no SDK, but it does publish a **keyless read-only REST API**:
+
+```bash
+curl -s https://api.robinhood.com/rhj/assets      # every Stock Token, authoritative
+```
+
+96 assets, each with `tokenSymbol`, `tokenName`, `deployments[].contractAddress` + `chainId`,
+`currentMultiplier`, **`pendingMultiplier`**, `status` and `tradingCapabilities`. Documented at
+60 req/s and cached.
+
+**Prefer this over searching the explorer** when you need the list or the multiplier: it is
+first-party, it enumerates cleanly, and it sidesteps the impostor problem entirely — an address
+that appears here is a real Stock Token by definition.
+
+`pendingMultiplier` is the one to watch: a non-empty value means a corporate action is **about
+to** change every holder's balance. It is empty across all 96 today. If you ever see one
+populated, that is worth telling the owner unprompted.
 
 ---
 

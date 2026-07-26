@@ -866,12 +866,17 @@ The third economy in §17, and the one where you are a **reader**, not an operat
 
 3. **`balanceOf` is not what a Stock Token holder owns.** The true figure is
    **`balanceOfUI(addr)`** — the contract's own `mulDiv(balanceOf, uiMultiplier(), 1e18)`.
-   Explorers serve the raw value, so anything built on them under-reports. Measured: an SGOV
-   holder reads 3354.94 raw against 3358.15 true.
+   Explorers serve the raw value, so anything built on them under-reports. CrowdStrike's
+   multiplier is **4.0**: its top holder reads `balanceOf` 0.15 and actually owns 0.6. Reporting
+   the raw number there tells the owner he has **a quarter** of his position.
 
-4. **And it is invisible until it is not.** The multiplier is exactly 1.0 on almost every ticker
-   — 12 of 14 sampled — so a correction tested on AAPL looks like dead code. That is §16.4b in
-   the wild: **test a rule on the case meant to trigger it**, not on the case where it is a no-op.
+4. **And it is invisible until it is not.** Only **3 of the 96** Stock Tokens have a multiplier
+   other than 1.0, so a correction tested on AAPL — or on any random handful — looks like dead
+   code. That is §16.4b in the wild: **test a rule on the case meant to trigger it**, and here
+   you have to go hunting for that case. Robinhood's own keyless REST API,
+   `api.robinhood.com/rhj/assets`, lists all 96 with their multipliers and is the fastest way to
+   find it. Note the naming: the contract function is `uiMultiplier()`, the REST field is
+   `currentMultiplier` — same concept, two surfaces, and neither name works on the other.
 
 5. **Units, again.** The explorer's `average_block_time` is in **milliseconds** — `91.0` means
    0.091 s, not 91 s. Blocks are ~0.1 s apart; measure two timestamps rather than trusting a
