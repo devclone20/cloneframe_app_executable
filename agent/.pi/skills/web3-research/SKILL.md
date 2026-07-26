@@ -28,7 +28,9 @@ app_rpc{module:'virtuals',  fn:'profile',    args:[address]}      → the person
 app_rpc{module:'virtuals',  fn:'holdings',   args:[address,{}]}   → agents across ALL those wallets:
                                 catalog + ACP (incl. created-but-never-activated) + ERC-8004,
                                 each with its source wallet, activation, and real ACP job counts
-app_rpc{module:'robinhood', fn:'tokens'|'nfts', args:[address]}
+app_rpc{module:'robinhood', fn:'tokens'|'nfts', args:[address]}   → Stock Token balances already
+                                corrected by uiMultiplier — see the `robinhood-chain` skill;
+                                a raw `balanceOf` from an explorer under-reports the holder
 app_rpc{module:'okxai',     fn:'status'|'agents'}
 ```
 

@@ -43,7 +43,8 @@ const CHAINS = {
 
 // ── cache ────────────────────────────────────────────────────────────────────
 // Public RPC + Blockscout are rate-limited — cache aggressively, in memory only.
-const TTL = { status: 15_000, balance: 30_000, list: 5 * 60_000 };
+// A Stock Token's uiMultiplier only moves on a corporate action, so it is worth caching hard.
+const TTL = { status: 15_000, balance: 30_000, list: 5 * 60_000, multiplier: 60 * 60_000 };
 const _cache = new Map();
 function _cacheGet(key) {
   const hit = _cache.get(key);
@@ -147,9 +148,59 @@ function _normalizeToken(it) {
     name: tok.name || '',
     decimals,
     balance: _formatUnits(raw, decimals),
+    rawUnits: String(raw),                 // integer units — the scaling pass needs full precision
     address: tok.address || tok.address_hash || '',
     type: tok.type || '',
   };
+}
+
+// ── Stock Tokens: the balance the explorer reports is NOT what the holder owns ────────────
+// Robinhood's tokenised equities carry a `uiMultiplier()` that absorbs corporate actions
+// (splits, and the daily accrual of income instruments). The contract's own
+// `balanceOfUI(a) = mulDiv(balanceOf(a), uiMultiplier(), 1e18)` is the true display balance —
+// Blockscout's token-balances endpoint returns the RAW value, so showing it directly
+// under-reports the holder. Measured 2026-07-26: SGOV's top holder owns 3358.152844… but the
+// raw value reads 3354.940422… — 3.21 tokens missing, and that gap widens every day it accrues.
+//
+// The trap is that the multiplier is exactly 1.0 on almost every ticker (12 of 14 sampled), so
+// testing on AAPL "proves" this code is unnecessary. It is not; it is only invisible.
+const UI_MULTIPLIER_SELECTOR = '0xa60bf13d';       // uiMultiplier()
+const ONE = 10n ** 18n;                            // the contract's DENOMINATOR (1 ether)
+
+// Reads uiMultiplier() for one token. Returns null when the token does not implement it —
+// which is the normal case for every ordinary ERC-20 and the cheapest way to tell a real
+// Stock Token from an impostor sharing its ticker (there are several on this chain).
+async function _uiMultiplier(tokenAddr, testnet) {
+  const key = 'mult:' + (testnet ? 't' : 'm') + ':' + String(tokenAddr).toLowerCase();
+  const hit = _cacheGet(key);
+  if (hit !== undefined && hit !== null) return hit.value;
+  const r = await _rpc('eth_call', [{ to: tokenAddr, data: UI_MULTIPLIER_SELECTOR }, 'latest'], testnet);
+  // A plain ERC-20 reverts here. That is an answer, not a failure — cache it so we ask once.
+  let value = null;
+  if (r.ok && typeof r.result === 'string' && /^0x[0-9a-fA-F]{2,}$/.test(r.result)) {
+    try { const v = BigInt(r.result); if (v > 0n) value = v.toString(); } catch { /* not a uint */ }
+  }
+  _cacheSet(key, { value }, TTL.multiplier);
+  return value;
+}
+
+// Scale a normalized token list in place. Fails OPEN: an RPC hiccup leaves the raw balance
+// showing rather than blanking a holding the owner really has.
+async function _applyStockMultipliers(list, testnet) {
+  for (const t of list) {
+    if (!t || !t.address || t.type === 'ERC-721' || t.type === 'ERC-1155') continue;
+    let mult = null;
+    try { mult = await _uiMultiplier(t.address, testnet); } catch { continue; }
+    if (!mult || mult === ONE.toString()) continue;   // absent or exactly 1.0 → nothing to correct
+    try {
+      const scaled = (BigInt(t.rawUnits) * BigInt(mult)) / ONE;
+      t.balanceRaw = t.balance;                        // keep what the explorer said, for auditing
+      t.balance = _formatUnits(scaled.toString(), t.decimals);
+      t.uiMultiplier = _formatUnits(mult, 18);
+      t.stockToken = true;
+    } catch { /* leave the raw balance in place */ }
+  }
+  return list;
 }
 
 // Blockscout nft item → normalized shape (best-effort field mapping)
@@ -233,7 +284,9 @@ async function tokens(address, { testnet = false } = {}) {
     return { ok: false, error: r.error };
   }
   const arr = Array.isArray(r.data) ? r.data : [];
-  const result = { ok: true, tokens: arr.map(_normalizeToken).filter(Boolean) };
+  const list = arr.map(_normalizeToken).filter(Boolean);
+  await _applyStockMultipliers(list, testnet);      // Stock Tokens: raw ≠ what the holder owns
+  const result = { ok: true, tokens: list };
   _cacheSet(key, result, TTL.list);
   return result;
 }

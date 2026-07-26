@@ -30,6 +30,24 @@ function headline(file, max = 96) {
   return '';
 }
 
+// A skill's one-line purpose, read from its own SKILL.md frontmatter `description`.
+// The tree used to list skill directories by name alone, which told a reader (and the
+// agent) nothing about when to reach for one. Deriving it here keeps the map honest:
+// edit a skill's description and the body tree follows on the next build.
+function skillNote(dir, max = 78) {
+  let text = '';
+  try { text = readFileSync(path.join(ROOT, 'agent/.pi/skills', dir, 'SKILL.md'), 'utf8').slice(0, 4000); } catch { return ''; }
+  const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return '';
+  // description: may wrap over several indented lines before the next `key:`
+  const m = fm[1].match(/^description:\s*([\s\S]*?)(?=\n[A-Za-z_-]+:|$)/m);
+  if (!m) return '';
+  const one = m[1].replace(/\s+/g, ' ').trim();
+  // keep the first clause — enough to route on, short enough for a tree
+  const cut = (one.split(/(?<=[.—])\s|\s[-–]\s/)[0] || one).replace(/[\s.,;:—–-]+$/, '');
+  return cut.length > max ? cut.slice(0, max - 1).replace(/[\s,;:]+$/, '') + '…' : cut;
+}
+
 function listFiles(dir, ext) {
   try { return readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith(ext)).sort(); } catch { return []; }
 }
@@ -71,7 +89,7 @@ export function genStructureTree({ silent = false } = {}) {
   const bridge = listFiles('bridge', '.mjs').map((f) => [f, headline(path.join(ROOT, 'bridge', f))]);
   const tools = listFiles('tools', '.mjs').map((f) => [f, headline(path.join(ROOT, 'tools', f))]);
   const exts = listFiles('agent/.pi/extensions', '.ts').map((f) => [f, headline(path.join(ROOT, 'agent/.pi/extensions', f))]);
-  const skills = listDirs('agent/.pi/skills').map((d) => [d + '/', '']);
+  const skills = listDirs('agent/.pi/skills').map((d) => [d + '/', skillNote(d)]);
   const lessons = listFiles('agent/LESSONS', '.md').filter((f) => f !== 'README.md').map((f) => [f, '']);
   const integrations = listDirs('integrations').map((d) => [d + '/', '']);
   const testCount = listFiles('tests', '.test.mjs').length + listFiles('tools', '.test.mjs').length;

@@ -137,3 +137,115 @@ test('pure getters (chains / launchInfo / explorerUrl) are unchanged', async () 
   assert.equal(R.explorerUrl('address', '0xabc'), 'https://robinhoodchain.blockscout.com/address/0xabc');
   assert.equal(R.explorerUrl('tx', '0xhash', { testnet: true }), 'https://explorer.testnet.chain.robinhood.com/tx/0xhash');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stock Tokens — the explorer's balance is NOT what the holder owns.
+//
+// Robinhood's tokenised equities scale their display balance by uiMultiplier():
+// balanceOfUI(a) = mulDiv(balanceOf(a), uiMultiplier(), 1e18). Blockscout's
+// token-balances serves the RAW value, so reporting it under-reports the holder.
+// Measured on live mainnet 2026-07-26: SGOV's top holder reads 3354.940422680995371336
+// raw against a true 3358.152844868801231394 — the vectors below are those numbers.
+//
+// The reason this needs a test at all: the multiplier is exactly 1.0 on nearly every
+// ticker (12 of 14 sampled live), so a happy-path test on AAPL would pass whether the
+// correction ran or not. Each case below is chosen to FAIL if the code is removed.
+const UI_MULT_SEL = '0xa60bf13d';                        // uiMultiplier()
+const SGOV = '0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5';
+const PLAIN = '0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34';   // Ethena USDe — an ordinary ERC-20
+const HOLDER = '0x9c856e12a12689f18109aa2B6728ffb41a65D664';
+const SGOV_RAW = '3354940422680995371336';
+const SGOV_TRUE = '3358.152844868801231394';             // == on-chain balanceOfUI()
+const SGOV_MULT = 1000957519890990718n;
+
+// Serve one Blockscout token-balances list + canned eth_call answers.
+// `multByToken` maps token address → bigint multiplier, or 'revert' for a plain ERC-20.
+function stubChain(multByToken, { rpcFails = false } = {}) {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    if (!opts || opts.method !== 'POST') {
+      return { ok: true, status: 200, json: async () => ([
+        { value: SGOV_RAW, token: { symbol: 'SGOV', name: 'iShares 0-3 Month Treasury • Robinhood Token', decimals: '18', address: SGOV, type: 'ERC-20' } },
+        { value: '1000000000000000000', token: { symbol: 'USDE', name: 'Ethena USDe', decimals: '18', address: PLAIN, type: 'ERC-20' } },
+      ]) };
+    }
+    const body = JSON.parse(opts.body);
+    const to = body.params[0].to;
+    calls.push({ to, data: body.params[0].data });
+    if (rpcFails) return { ok: false, status: 503 };
+    const m = multByToken[to];
+    if (m === 'revert') return { ok: true, status: 200, json: async () => ({ jsonrpc: '2.0', id: body.id, error: { message: 'execution reverted' } }) };
+    return { ok: true, status: 200, json: async () => ({ jsonrpc: '2.0', id: body.id, result: '0x' + m.toString(16).padStart(64, '0') }) };
+  };
+  return { calls, restore: () => { globalThis.fetch = original; } };
+}
+
+test('tokens — a Stock Token balance is corrected by uiMultiplier, and the raw value is kept', async () => {
+  const { R } = await freshRobinhood();
+  const s = stubChain({ [SGOV]: SGOV_MULT, [PLAIN]: 'revert' });
+  let r;
+  try { r = await R.tokens(HOLDER); } finally { s.restore(); }
+  assert.equal(r.ok, true);
+  const sgov = r.tokens.find((t) => t.symbol === 'SGOV');
+  assert.equal(sgov.balance, SGOV_TRUE, 'must match the contract\'s own balanceOfUI()');
+  assert.equal(sgov.balanceRaw, '3354.940422680995371336', 'the explorer value stays available for auditing');
+  assert.equal(sgov.stockToken, true);
+  assert.equal(sgov.uiMultiplier, '1.000957519890990718');
+  assert.notEqual(sgov.balance, sgov.balanceRaw, 'correction must actually change the number');
+});
+
+// The three cases below all assert that a balance was NOT changed — which is equally true
+// when the correction never ran at all, so asserting only the absence would leave them
+// passing against a deleted _applyStockMultipliers: tests that cannot fail (AGENTS.md §16.4d).
+// Each therefore also asserts the probe HAPPENED, which is what separates "looked, and
+// correctly left it alone" from "never looked".
+test('tokens — an ordinary ERC-20 reverts on uiMultiplier and is left completely untouched', async () => {
+  const { R } = await freshRobinhood();
+  const s = stubChain({ [SGOV]: SGOV_MULT, [PLAIN]: 'revert' });
+  let r;
+  try { r = await R.tokens(HOLDER); } finally { s.restore(); }
+  assert.ok(s.calls.some((c) => c.to === PLAIN && c.data === UI_MULT_SEL), 'the plain token must actually be probed');
+  const plain = r.tokens.find((t) => t.symbol === 'USDE');
+  assert.equal(plain.balance, '1', 'a plain ERC-20 keeps its balance');
+  assert.equal(plain.stockToken, undefined, 'and is never tagged as a Stock Token');
+  assert.equal(plain.balanceRaw, undefined);
+  assert.equal(plain.uiMultiplier, undefined);
+});
+
+test('tokens — a multiplier of exactly 1.0 leaves the token untouched (no cosmetic mutation)', async () => {
+  const { R } = await freshRobinhood();
+  const s = stubChain({ [SGOV]: 10n ** 18n, [PLAIN]: 'revert' });
+  let r;
+  try { r = await R.tokens(HOLDER); } finally { s.restore(); }
+  assert.ok(s.calls.some((c) => c.to === SGOV && c.data === UI_MULT_SEL), 'the multiplier must be read before concluding it is 1.0');
+  const sgov = r.tokens.find((t) => t.symbol === 'SGOV');
+  assert.equal(sgov.balance, '3354.940422680995371336');
+  assert.equal(sgov.stockToken, undefined, '1.0 is not a correction — do not tag it');
+});
+
+test('tokens — the multiplier is cached per token, not re-read for every holder', async () => {
+  const { R } = await freshRobinhood();
+  const s = stubChain({ [SGOV]: SGOV_MULT, [PLAIN]: 'revert' });
+  try {
+    await R.tokens(HOLDER);
+    const first = s.calls.filter((c) => c.to === SGOV && c.data === UI_MULT_SEL).length;
+    assert.equal(first, 1, 'one uiMultiplier read on the first pass');
+    await R.tokens('0x1111111111111111111111111111111111111111');   // different holder, same token
+    const total = s.calls.filter((c) => c.to === SGOV && c.data === UI_MULT_SEL).length;
+    assert.equal(total, 1, 'the second holder must reuse the cached multiplier');
+  } finally { s.restore(); }
+});
+
+test('tokens — an RPC outage fails OPEN: the holding still shows, uncorrected', async () => {
+  const { R } = await freshRobinhood();
+  const s = stubChain({}, { rpcFails: true });
+  let r;
+  try { r = await R.tokens(HOLDER); } finally { s.restore(); }
+  assert.ok(s.calls.length > 0, 'the correction must have been attempted, not skipped');
+  assert.equal(r.ok, true, 'a multiplier outage must never fail the whole listing');
+  const sgov = r.tokens.find((t) => t.symbol === 'SGOV');
+  assert.equal(sgov.balance, '3354.940422680995371336', 'raw balance survives rather than blanking a real holding');
+  assert.equal(sgov.stockToken, undefined);
+});

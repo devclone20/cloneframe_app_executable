@@ -762,9 +762,19 @@ in the curriculum because they are laws, not details:
    read `--help` for flags. And `acp skill check` **exits 0 even when it reports staleness** —
    parse its `upToDate` field, never its exit code.
 
-And one correction worth carrying: there is no `onchainos login`. It is `onchainos wallet
-login` (OTP to email) then `onchainos wallet verify`. The app told the owner otherwise for
-weeks — a wrong command in a helpful sentence is still a wrong command.
+**One map, three manuals — and each command lives in exactly one of them.** Load
+`agentic-economy` first: it carries this law, which stack does what, the cross-cutting units
+table and the open protocols underneath. It then routes you to the one skill that owns the
+commands:
+
+| Economy | Command | Skill | Deeper in |
+|---|---|---|---|
+| Virtuals / ACP | `acp` | **`virtuals-cli`** | §18 |
+| OKX / onchainos | `onchainos` | **`okx-cli`** | — |
+| Robinhood Chain | `cast` (there is no RH CLI) | **`robinhood-chain`** | §19 |
+
+Nothing is documented twice, so nothing can drift out of step. If you find the same command
+described in two places, that is a bug worth fixing rather than a second opinion.
 
 ---
 
@@ -830,6 +840,50 @@ the description, and say the unit out loud before he approves.
 full command surface, the traps, and a triage table. The ranking of sources is in its §0 and it
 is not the obvious one: the installed binary's `--help` outranks the vendor's prose manual,
 which outranks the skill, which outranks your memory.
+
+---
+
+## 19. Robinhood Chain — reading a real chain correctly
+
+The third economy in §17, and the one where you are a **reader**, not an operator. Six laws.
+
+1. **There is no Robinhood CLI, and that is not a gap — `cast` is the CLI.** It is a standard
+   Arbitrum Nitro L2 (mainnet **4663**, testnet **46630**, ETH for gas), so Foundry is the whole
+   toolchain. And keep two things apart that the press does not: **Robinhood Chain** is this L2;
+   **Robinhood "Agentic Trading"** is a brokerage-account product over MCP with no on-chain
+   registry and no connection to it. Ask which one he means.
+
+   **"Official" is a word anyone can type.** npm carries `robinhood-chain-sdk`, described as the
+   *"Official TypeScript SDK for the Robinhood Chain"* — published by a personal Gmail account,
+   with no repository, on a homepage that is not a robinhood.com domain. A package description is
+   marketing written by its publisher, never a credential. Before installing anything that will
+   touch the owner's chain reads or a wallet, check the maintainer, the repo and the domain.
+
+2. **A ticker is not an identity.** Three different contracts on this chain answer to `TSLA`.
+   The official Stock Tokens are named `Tesla • Robinhood Token`, but the test that actually
+   holds is on-chain: **the real ones answer `uiMultiplier()` and impostors revert.** Resolve by
+   that, never by the first search hit.
+
+3. **`balanceOf` is not what a Stock Token holder owns.** The true figure is
+   **`balanceOfUI(addr)`** — the contract's own `mulDiv(balanceOf, uiMultiplier(), 1e18)`.
+   Explorers serve the raw value, so anything built on them under-reports. Measured: an SGOV
+   holder reads 3354.94 raw against 3358.15 true.
+
+4. **And it is invisible until it is not.** The multiplier is exactly 1.0 on almost every ticker
+   — 12 of 14 sampled — so a correction tested on AAPL looks like dead code. That is §16.4b in
+   the wild: **test a rule on the case meant to trigger it**, not on the case where it is a no-op.
+
+5. **Units, again.** The explorer's `average_block_time` is in **milliseconds** — `91.0` means
+   0.091 s, not 91 s. Blocks are ~0.1 s apart; measure two timestamps rather than trusting a
+   field. A number without its unit is not a fact.
+
+6. **You read; he signs.** `cast send`, `forge create` and every wallet subcommand are his.
+   Ask the app first — `app_rpc{module:'robinhood', …}` already caches and already applies the
+   multiplier — and if your number disagrees with the app's, report the difference instead of
+   quietly preferring your own (§16.10).
+
+**Depth in the `robinhood-chain` skill** — verified addresses, the explorer API, the impostor
+tests, the arithmetic, and the docs-site soft-404 trap that makes `curl` lie about what exists.
 
 ---
 
