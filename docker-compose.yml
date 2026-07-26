@@ -20,6 +20,11 @@ services:
       HUB_BRIDGE_HOST: "0.0.0.0"
       HUB_BRIDGE_CONTAINER: "1"
       HUB_BRIDGE_PORT: "8765"
+      # The bridge refuses a non-loopback bind unless this says the exposure is intended.
+      # It belongs HERE and not in the Dockerfile, because it is only true next to the
+      # loopback-only publish above. Change that "127.0.0.1:" prefix and this consent is
+      # a lie — you would be handing an unauthenticated shell to your network.
+      HUB_BRIDGE_ALLOW_PUBLIC: "1"
       CLONE_FRAME_HUB_ROOT: "/data"
     volumes:
       - cfhub-state:/data              # app state — agents, harnesses, settings, notes …

@@ -31,7 +31,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { serveStatic } from '../bridge/transport/static.mjs';
+import { serveStatic, armPairing } from '../bridge/transport/static.mjs';
 import { isDestructive } from '../bridge/platform/shell-guard.mjs';
 
 const { fetchUrl } = await import(new URL('../bridge/web.mjs', import.meta.url));
@@ -59,8 +59,22 @@ function fakeRes() {
     end(data) { rec.body = data; rec.ended = true; },
   };
 }
+// The full fingerprint of a real top-level, user-initiated navigation. `dest` alone is NOT
+// enough any more and that is the point: Sec-Fetch-* is forbidden to page JS but free to
+// any program, so `curl -H 'Sec-Fetch-Dest: document'` used to walk away with the pairing
+// token and, through it, POST /shell. Measured 2026-07-26. See bridge/transport/static.mjs.
+function navHeaders(dest) {
+  if (dest === undefined) return {};
+  return {
+    'sec-fetch-dest': dest,
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    accept: 'text/html,application/xhtml+xml',
+  };
+}
 function fakeReq(dest) {
-  return { headers: dest === undefined ? {} : { 'sec-fetch-dest': dest } };
+  return { headers: navHeaders(dest) };
 }
 function staticRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cfhub-static-'));
@@ -68,6 +82,7 @@ function staticRoot() {
   return root;
 }
 function serveIndex(dest) {
+  armPairing(); // one-shot latch: arm before each expected pair
   const root = staticRoot();
   try {
     const res = fakeRes();
@@ -108,10 +123,11 @@ test('INV-1 — the injected call-back endpoint is the browser Host (loopback), 
   // Container mode binds 0.0.0.0, but a browser cannot fetch/WebSocket 0.0.0.0. serveStatic must
   // hand the page the origin the browser actually opened (its validated Host header), so RPC + the
   // terminal WS point at a real loopback. Regression guard for the container-mode endpoint fix.
+  armPairing();
   const root = staticRoot();
   try {
     const res = fakeRes();
-    serveStatic({ headers: { 'sec-fetch-dest': 'document', host: '127.0.0.1:8765' } }, res, '/index.html',
+    serveStatic({ headers: { ...navHeaders('document'), host: '127.0.0.1:8765' } }, res, '/index.html',
       { root, host: '0.0.0.0', port: 8765, token: FAKE_TOKEN });
     const body = res._rec.body ? Buffer.from(res._rec.body).toString('utf8') : '';
     assert.ok(body.includes('"endpoint":"http://127.0.0.1:8765"'), 'endpoint must be the loopback Host the browser opened');
@@ -318,4 +334,52 @@ test('INV-6 — pty.mjs and ssh.mjs call the guard UNCONDITIONALLY; rootMode can
   // owned exclusively by permissions.mjs and must never reach the exec path here).
   assert.ok(!/rootMode/.test(ptySrc), 'pty.mjs must not reference rootMode near the exec/guard path');
   assert.ok(!/rootMode/.test(sshSrc), 'ssh.mjs must not reference rootMode near the exec/guard path');
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// INV-1b · The forged-header token grab. This is the test whose absence let a
+// pre-auth local RCE ship: the old gate read ONE header, `Sec-Fetch-Dest`, and the
+// suite only ever asserted that a browser-shaped request GETS the token. Nobody
+// asked what a program sending that same header gets — and the answer was: the
+// pairing token, then POST /shell, then arbitrary code as the owner. Measured with
+// two curl commands on 2026-07-26.
+// The boundary this defends is CROSS-USER. A process running as the owner can read
+// ~/.clone-frame-hub/bridge.token directly and never needed this route.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function serveWith(headers) {
+  armPairing(); // arm, so a refusal proves the FINGERPRINT refused it — not a spent latch
+  const root = staticRoot();
+  try {
+    const res = fakeRes();
+    const handled = serveStatic({ headers }, res, '/index.html', {
+      root, host: '127.0.0.1', port: 8765, token: FAKE_TOKEN,
+    });
+    return { handled, body: res._rec.body ? Buffer.from(res._rec.body).toString('utf8') : '' };
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+
+test('INV-1b — forging Sec-Fetch-Dest alone does NOT yield the pairing token', () => {
+  // literally `curl -H 'Sec-Fetch-Dest: document'`
+  const { handled, body } = serveWith({ 'sec-fetch-dest': 'document' });
+  assert.equal(handled, true, 'the page itself is not secret — it is still served');
+  assert.ok(!body.includes(FAKE_TOKEN), 'a single forged header must never be enough to obtain the token');
+});
+
+test('INV-1b — a partial fingerprint is refused; every part is required', () => {
+  const full = {
+    'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none', 'sec-fetch-user': '?1', accept: 'text/html',
+  };
+  for (const missing of Object.keys(full)) {
+    const partial = { ...full };
+    delete partial[missing];
+    const { body } = serveWith(partial);
+    assert.ok(!body.includes(FAKE_TOKEN), `dropping ${missing} must still refuse the token`);
+  }
+  // and the shapes a page CAN produce are refused even when otherwise complete
+  for (const dest of ['iframe', 'empty', 'script', 'image']) {
+    const { body } = serveWith({ ...full, 'sec-fetch-dest': dest });
+    assert.ok(!body.includes(FAKE_TOKEN), `sec-fetch-dest:${dest} must never receive the token`);
+  }
 });

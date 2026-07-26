@@ -31,11 +31,21 @@ COPY . .
 #                               real client through the gateway); Host-header +
 #                               pairing-token gates still apply.
 #   CLONE_FRAME_HUB_ROOT=/data  keep app state on a mounted volume.
+#   HUB_BRIDGE_ALLOW_PUBLIC     NOT set here, on purpose. The bridge refuses a non-loopback
+#                               bind without it, so `docker run -p 8765:8765 …` fails loudly
+#                               instead of quietly serving an unauthenticated shell to the
+#                               LAN. docker-compose.yml sets it alongside the loopback-only
+#                               publish, which is the supported way to run this.
 ENV HUB_BRIDGE_HOST=0.0.0.0 \
     HUB_BRIDGE_CONTAINER=1 \
     HUB_BRIDGE_PORT=8765 \
     CLONE_FRAME_HUB_ROOT=/data \
     NODE_ENV=production
+
+# Never root. The image mounts the owner's app state at /data; a container escape or an
+# in-container RCE should not also start with uid 0.
+RUN mkdir -p /data && chown -R node:node /data /app
+USER node
 
 EXPOSE 8765
 WORKDIR /app/bridge

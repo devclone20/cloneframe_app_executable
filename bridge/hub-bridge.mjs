@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Shell from './domains/chat/shell.mjs';
 import Chat from './domains/chat/chat.mjs';
-import { serveStatic } from './transport/static.mjs';
+import { serveStatic, armPairing } from './transport/static.mjs';
 // guarded (never crash the daemon if 'ws' is absent — /stream just becomes unavailable).
 // ws is CommonJS: the WebSocketServer lives on the default export, not as a named ESM export.
 let WebSocketServer = null;
@@ -51,6 +51,22 @@ const PORT = Number(process.env.HUB_BRIDGE_PORT || 8765);
 // still enforce the anti-rebind Host check and the pairing-token gate. Unset → nothing changes on a
 // normal host install. Never publish the container port to 0.0.0.0 when this is on.
 const CONTAINER = process.env.HUB_BRIDGE_CONTAINER === '1';
+// A non-loopback bind is a decision, never a side effect of one env var. In container mode
+// the socket-loopback check cannot apply, so the boundary degrades to the Host header — a
+// string the client controls. That is fine behind a loopback-only publish
+// ("127.0.0.1:8765:8765") and catastrophic without one: the most natural command a user
+// types, `docker run -p 8765:8765`, would otherwise hand the LAN an unauthenticated bridge.
+// So binding wide requires saying so out loud, and the process refuses rather than assumes.
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '']);
+if (!LOOPBACK_HOSTS.has(HOST) && process.env.HUB_BRIDGE_ALLOW_PUBLIC !== '1') {
+  console.error(`\n  CLONE FRAME · HUB — refusing to start.\n`
+    + `  HUB_BRIDGE_HOST is "${HOST}", which is not loopback. This bridge runs a real shell,\n`
+    + `  your files and your wallets; exposing it beyond this machine is never a default.\n\n`
+    + `  If the port is published to the host loopback only (compose does this), that is the\n`
+    + `  supported setup and the bind is safe — confirm it with HUB_BRIDGE_ALLOW_PUBLIC=1.\n`
+    + `  If you are about to publish it to a LAN or the internet: don't.\n`);
+  process.exit(1);
+}
 const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
 
 // ── pairing token (persistent, chmod 600) ───────────────────────────────────
@@ -255,6 +271,11 @@ const server = http.createServer(async (req, res) => {
   if (!authed(req)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'unpaired' })); return; }
 
   if (req.method === 'POST' && url.pathname === '/pair') {
+    // Reaching here means this client already holds the token (the authed() gate is above),
+    // so it may arm ONE more auto-pair — that is how a second app window still pairs after
+    // the launcher's first one spent the latch. An unauthenticated attacker cannot re-arm,
+    // which is the entire point: the thing they lack is exactly the thing this requires.
+    armPairing();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     const b = await Chat.brain();
     res.end(j({ ok: true, cwd: Shell.cwd(), brain: b.ready ? (b.provider || 'ready') : 'none', model: b.model, provider: b.provider || null })); return;
