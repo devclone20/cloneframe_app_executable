@@ -59,6 +59,34 @@ function isUserNavigation(req) {
       && String(h.accept || '').includes('text/html');
 }
 
+// ── security headers ─────────────────────────────────────────────────────────
+// The bridge shipped NONE of these until 2026-07-26. Every response now carries the
+// set below, and the choice of WHICH directives is deliberate.
+//
+// Included, because none of them can break a same-origin single-file app:
+//   nosniff          — a response typed text/plain can never be executed as script
+//   no-referrer      — the app's local URLs never leak to a third-party site
+//   frame-ancestors  — clickjacking: nobody else may embed the app (the app does
+//                      embed ITSELF in four panels, hence 'self', not 'none')
+//   object-src none  — no plugin/embed vector at all
+//   base-uri self    — an injected <base> cannot re-point every relative URL
+//   form-action self — an injected form cannot POST the owner's input off-box
+//
+// DELIBERATELY ABSENT: script-src, connect-src, default-src. This app is one large
+// inline script and it calls external APIs directly (api.coingecko.com among others),
+// so those three cannot be set correctly without measuring every call site first —
+// and a CSP that silently breaks a panel is worse than an honest gap. That work is
+// real and still outstanding: until script-src lands, a stored-XSS in the UI is still
+// script execution, and these headers do not change that. They close clickjacking,
+// MIME confusion, base-tag hijack, referrer leakage and form exfiltration, and nothing
+// more. Said plainly so nobody reads this block as "CSP: done".
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Content-Security-Policy': "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
+};
+
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.map': 'application/json', '.txt': 'text/plain; charset=utf-8' };
 
 // serveStatic(req, res, pathname, {root, host, port, token}) -> boolean
@@ -80,7 +108,7 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
   if (file !== root && !file.startsWith(root + path.sep)) return false;
   // never expose dotfiles or the bridge source dir
   const isHead = req.method === 'HEAD';
-  if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404); res.end(isHead ? undefined : 'not found'); return true; }
+  if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404, { ...SECURITY_HEADERS }); res.end(isHead ? undefined : 'not found'); return true; }
   let data;
   try { if (fs.statSync(file).isDirectory()) return false; data = fs.readFileSync(file); }
   catch { return false; }
@@ -104,7 +132,7 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
     }
     data = Buffer.from(html, 'utf8');
   }
-  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': data.length });
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': data.length });
   res.end(isHead ? undefined : data); // HEAD: headers only, no body
   return true;
 }

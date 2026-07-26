@@ -3,11 +3,18 @@
 // The gate the bridge consults before privileged agent actions. All DEFAULT OFF.
 // Nothing here stores a password; rootMode only means "sudo is permitted".
 // ─────────────────────────────────────────────────────────────────────────────
-import { homedir } from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+import { hubRoot } from './platform/hub-root.mjs';
 
-const DIR = path.join(homedir(), '.clone-frame-hub');
+// Resolved through the shared hub-root seam like every other store. This module was
+// missed when the ~19 hardcoded `path.join(homedir(), '.clone-frame-hub')` copies were
+// migrated, and the omission had teeth: with no seam, a test that exercised the
+// permission gate wrote to the DEVELOPER'S REAL permissions.json — silently flipping a
+// live security setting on the machine running the suite. Production behavior is
+// unchanged (hubRoot() is `~/.clone-frame-hub` when the env is unset); what changes is
+// that the gate can now be tested without touching the owner's own configuration.
+const DIR = hubRoot();
 const FILE = path.join(DIR, 'permissions.json');
 // machineControl = the master switch: when ON, the agent may do anything on this machine
 // (shell, root/sudo, files, web, open apps/folders, automations). Email stays separate —

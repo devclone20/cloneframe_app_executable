@@ -13,11 +13,21 @@ security model therefore concentrates on *who can reach the bridge*:
 
 | Control | Enforced by |
 |---|---|
-| Listens on `127.0.0.1` only, never `0.0.0.0` | `bridge/hub-bridge.mjs` (`HOST` constant, `listen`) |
+| Listens on `127.0.0.1` only, never `0.0.0.0` | `bridge/hub-bridge.mjs` (`HOST` constant, `listen`); a non-loopback bind refuses to start unless `HUB_BRIDGE_ALLOW_PUBLIC=1` says the exposure is intended |
 | Pairing token on every route except `/health` | persistent token file `~/.clone-frame-hub/bridge.token` (0600, dir 0700); bearer check before routing |
 | Anti DNS-rebinding | `Host` header allowlist + loopback `remoteAddress` check, before any route |
-| Token never in iframe-reachable URLs | token injected only on `Sec-Fetch-Dest: document`; `/proxy` accepts only `Sec-Fetch-Dest: iframe` and strips reflected CORS |
+| Token reaches only a real browser navigation | the **full** `Sec-Fetch-*` fingerprint of a top-level, user-initiated navigation — `dest:document` + `mode:navigate` + `site:none` + `user:?1` + an HTML `Accept` — fired **once** per bridge start inside a short launch window; `/proxy` accepts only `Sec-Fetch-Dest: iframe` and strips reflected CORS |
+| Remote servers need their own explicit yes | `bridge/servers.mjs` gates `run` / `test` / `runAutomation` / `deployAgent` / `provision` / `powerAction` on `Permissions.can('ssh')`, which the `machineControl` master switch deliberately does **not** imply |
+| Security headers on every response | `nosniff`, `no-referrer`, `X-Frame-Options: SAMEORIGIN`, and a CSP carrying `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'` |
 | `/health` (token-less) reveals nothing about the machine | returns name/version/host only — cwd, brain and model moved behind `POST /pair` |
+
+> **Two of those rows are corrections, not features.** Until 2026-07-26 the token row read
+> *"injected only on `Sec-Fetch-Dest: document`"* — a single header, which is forbidden to page
+> JavaScript but free to any program, so `curl -H 'Sec-Fetch-Dest: document'` walked away with
+> the pairing token and, through it, a shell. And the servers row did not exist at all: that
+> module reached the owner's production machines with no permission check whatsoever. Both are
+> closed and covered by tests. They are listed here as history because a security document that
+> quietly edits away what it used to claim is not one you should trust.
 
 ## Bring your own key
 

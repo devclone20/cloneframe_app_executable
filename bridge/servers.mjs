@@ -5,10 +5,26 @@
 // view logs, and (advanced) provision a brand-new droplet. Also backs the Code
 // terminal tool so an LLM can operate the droplet by prompt.
 //
-// SECURITY: secrets (SSH private-key PATH, DigitalOcean token) are persisted 0o600
-// but NEVER returned to the client — every server leaves this module through
-// _public(), which masks them. Command execution is spawn(argv) only — no shell,
-// no string interpolation into sh -c — so there is no LOCAL shell-injection surface.
+// SECURITY — two separate concerns, and the second one used to be missing entirely.
+//
+// (1) Confidentiality: secrets (SSH private-key PATH, DigitalOcean token) are persisted
+// 0o600 but NEVER returned to the client — every server leaves this module through
+// _public(), which masks them. Command execution is spawn(argv) only — no shell, no
+// string interpolation into sh -c — so there is no LOCAL shell-injection surface.
+//
+// (2) AUTHORIZATION. Everything above is about how carefully we run a command; none of
+// it asks WHETHER WE MAY. This module reaches the owner's production machines: run()
+// executes arbitrary commands over SSH, provision() creates a paid droplet, and
+// powerAction() can switch one off. Until 2026-07-26 every one of them was reachable
+// with no permission check at all — while ssh.mjs, doing strictly less, gated on
+// Permissions.can('ssh'). Anything that could reach the RPC surface owned the owner's
+// infrastructure. They now share that gate (see _mayTouchServers).
+//
+// `ssh` is the right key, and deliberately so: Permissions.can() lets the machineControl
+// master switch imply almost everything EXCEPT ssh, email and matrix. So turning on
+// "full machine control" for this computer does not silently hand over the droplets —
+// remote servers stay a separate, explicit yes.
+//
 // Zero deps: node built-ins + global fetch. Binds nothing; the bridge owns the port.
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn } from 'node:child_process';
@@ -17,6 +33,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openStore } from './platform/json-store.mjs';
 import { hubRoot } from './platform/hub-root.mjs';
+import { Permissions } from './permissions.mjs';
+
+// The one authorization check for this module. Returns null when allowed, or the
+// refusal to hand straight back to the caller. Reads (list/get/automations) and local
+// config edits stay open; anything that touches a REMOTE machine or spends money goes
+// through here. Shaped like the rest of the module's returns so callers need no
+// special case — and worded so the UI can say "ssh is off", not "unreachable".
+function _mayTouchServers() {
+  if (Permissions.can('ssh')) return null;
+  return { ok: false, error: 'ssh permission is off — enable it in Settings → Agent Tools' };
+}
 
 const CMD_TIMEOUT = 60_000;        // per SSH command
 const DEPLOY_TIMEOUT = 180_000;    // file sync / deploy
@@ -300,6 +327,8 @@ function remove(id) {
 }
 
 async function test(id) {
+  const denied = _mayTouchServers();
+  if (denied) return { ok: true, reachable: false, detail: 'ssh permission is off' };
   try {
     const s = _find(load(), id);
     if (!s) return { ok: true, reachable: false, detail: 'server not found' };
@@ -314,6 +343,8 @@ async function test(id) {
 // The power primitive the Code agent tool calls. `cmd` is a SINGLE argv element to
 // ssh; the remote shell runs it. ok:true means we ran it — inspect `exit` for result.
 async function run(id, cmd) {
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     const s = _find(load(), id);
     if (!s) return { ok: false, error: 'server not found' };
@@ -329,6 +360,8 @@ function automations() {
 }
 
 async function runAutomation(id, key) {
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     const script = REMOTE[String(key)];
     if (!script) return { ok: false, error: 'unknown automation: ' + key };
@@ -338,6 +371,8 @@ async function runAutomation(id, key) {
 }
 
 async function deployAgent(id, opts = {}) {
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     const s = _find(load(), id);
     if (!s) return { ok: false, error: 'server not found' };
@@ -374,6 +409,8 @@ async function deployAgent(id, opts = {}) {
 }
 
 async function provision(cfg = {}) {
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     const name = String(cfg.name || '').trim();
     if (!name) return { ok: false, error: 'name required' };
@@ -446,6 +483,8 @@ async function dropletStatus(id) {
 
 const POWER = new Set(['power_on', 'power_off', 'reboot', 'shutdown']);
 async function powerAction(id, action) {
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     if (!POWER.has(String(action))) return { ok: false, error: 'invalid action' };
     const s = _find(load(), id);

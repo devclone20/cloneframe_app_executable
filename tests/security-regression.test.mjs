@@ -383,3 +383,62 @@ test('INV-1b — a partial fingerprint is refused; every part is required', () =
     assert.ok(!body.includes(FAKE_TOKEN), `sec-fetch-dest:${dest} must never receive the token`);
   }
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// INV-4 — SECURITY HEADERS. The bridge shipped none of these until 2026-07-26:
+// no CSP, no nosniff, no framing policy, no referrer policy. Every response now
+// carries the set that cannot break a same-origin single-file app.
+//
+// These tests also pin what is DELIBERATELY absent. script-src / connect-src are
+// not set, because the app is one inline script that calls external APIs, and a
+// CSP that silently breaks a panel is worse than an honest gap. If someone later
+// adds them, the last test here fails — and that is correct: it should be a
+// deliberate change with the call sites measured, not an accident.
+function headersFor(pathname) {
+  armPairing();
+  const root = staticRoot();
+  try {
+    const res = fakeRes();
+    const handled = serveStatic({ headers: {} }, res, pathname, {
+      root, host: '127.0.0.1', port: 8765, token: FAKE_TOKEN,
+    });
+    return { handled, status: res._rec.status, headers: res._rec.headers || {} };
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+
+test('INV-4 — a served page carries nosniff, no-referrer, a framing policy and a CSP', () => {
+  const { handled, status, headers } = headersFor('/index.html');
+  assert.equal(handled, true);
+  assert.equal(status, 200);
+  assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(headers['Referrer-Policy'], 'no-referrer');
+  assert.equal(headers['X-Frame-Options'], 'SAMEORIGIN');
+  assert.match(headers['Content-Security-Policy'], /frame-ancestors 'self'/);
+  assert.match(headers['Content-Security-Policy'], /object-src 'none'/);
+  assert.match(headers['Content-Security-Policy'], /base-uri 'self'/);
+  assert.match(headers['Content-Security-Policy'], /form-action 'self'/);
+});
+
+test('INV-4 — a REFUSED path carries them too (a 404 is still a response an attacker sees)', () => {
+  const { handled, status, headers } = headersFor('/.env');
+  assert.equal(handled, true);
+  assert.equal(status, 404);
+  assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+  assert.match(headers['Content-Security-Policy'], /object-src 'none'/);
+});
+
+test('INV-4 — frame-ancestors is self, not none: four panels embed the app in itself', () => {
+  const { headers } = headersFor('/index.html');
+  assert.doesNotMatch(headers['Content-Security-Policy'], /frame-ancestors 'none'/,
+    "'none' would break agentview/email/lab/shell, which iframe the same origin");
+  assert.notEqual(headers['X-Frame-Options'], 'DENY', 'DENY would break those same panels');
+});
+
+test('INV-4 — script-src/connect-src are still absent, and that gap is deliberate', () => {
+  const { headers } = headersFor('/index.html');
+  const csp = headers['Content-Security-Policy'];
+  assert.doesNotMatch(csp, /script-src/, 'adding script-src must be a measured change, not a drive-by');
+  assert.doesNotMatch(csp, /connect-src/, 'the app calls external APIs directly — measure them first');
+  // Until script-src lands, XSS in the UI is still script execution. Stated in the
+  // assertion so nobody reads a green suite as "CSP: done".
+});
