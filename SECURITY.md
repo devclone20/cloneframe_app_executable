@@ -14,11 +14,15 @@ security model therefore concentrates on *who can reach the bridge*:
 | Control | Enforced by |
 |---|---|
 | Listens on `127.0.0.1` only, never `0.0.0.0` | `bridge/hub-bridge.mjs` (`HOST` constant, `listen`); a non-loopback bind refuses to start unless `HUB_BRIDGE_ALLOW_PUBLIC=1` says the exposure is intended |
-| Pairing token on every route except `/health` | persistent token file `~/.clone-frame-hub/bridge.token` (0600, dir 0700); bearer check before routing |
+| Pairing token on every route except `/health` | token file `~/.clone-frame-hub/bridge.token` (0600, dir 0700); constant-time bearer check before routing. The `Authorization` header is the **only** carrier — a `?token=` query param was accepted until 2026-07-26 and is not any more |
+| The token can be given a lifetime, and can be replaced | `bridge/session.mjs` — permanent by default; *Settings → Session* offers an owner-chosen expiry and a rotate button. An expired token is refused **and retired**, so the failed secret never works again |
 | Anti DNS-rebinding | `Host` header allowlist + loopback `remoteAddress` check, before any route |
+| CORS names our own origin and nobody else's | only `http://127.0.0.1:<port>` / `localhost` / `[::1]` are echoed back. A request with no `Origin` at all (curl, the `it` CLI, the agent) used to be answered with `*`; now it gets no such header |
 | Token reaches only a real browser navigation | the **full** `Sec-Fetch-*` fingerprint of a top-level, user-initiated navigation — `dest:document` + `mode:navigate` + `site:none` + `user:?1` + an HTML `Accept` — fired **once** per bridge start inside a short launch window; `/proxy` accepts only `Sec-Fetch-Dest: iframe` and strips reflected CORS |
 | Remote servers need their own explicit yes | `bridge/servers.mjs` gates `run` / `test` / `runAutomation` / `deployAgent` / `provision` / `powerAction` on `Permissions.can('ssh')`, which the `machineControl` master switch deliberately does **not** imply |
+| The native shell loads web pages only | `electron/url-guard.js` — `cfhub:web:navigate` accepts `http`/`https` (and `about:blank`) and refuses `file:`, `javascript:`, `data:`, `blob:`, `chrome:` and every custom scheme. The OAuth-popup gate parses the URL instead of substring-matching it |
 | Security headers on every response | `nosniff`, `no-referrer`, `X-Frame-Options: SAMEORIGIN`, and a CSP carrying `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'` |
+| Persistent terminal sessions authenticate their socket | `bridge/keeper.mjs` — the socket directory must be a real, owner-owned, 0700 directory or keeper refuses to run, and every client must open with a per-session secret kept in the 0600 meta file. Sessions started by an older build have no secret and keep working unauthenticated until they end |
 | `/health` (token-less) reveals nothing about the machine | returns name/version/host only — cwd, brain and model moved behind `POST /pair` |
 
 > **Two of those rows are corrections, not features.** Until 2026-07-26 the token row read
@@ -37,6 +41,39 @@ returned to the browser, and is scrubbed from log output (literal-secret
 redaction plus pattern scrubbers for `sk-ant-…`, JWTs, bearer tokens and
 common cloud credentials). BYOK keys entered in the UI live in
 `sessionStorage` only — gone when the window closes.
+
+## The session token — permanent by default, yours to shorten
+
+One secret authenticates every window, terminal and agent on this machine. It is
+minted here, kept at `~/.clone-frame-hub/bridge.token` (0600), and never leaves
+the computer. **It is permanent unless you say otherwise** — a local app you open
+twenty times a day must not log you out, so an install that never visits this
+screen behaves exactly as it always did.
+
+In *Settings → Session* you can instead give it a lifetime you choose (from 15
+minutes to a year) or replace it on the spot:
+
+- **Expiry** is enforced on the first request that presents a stale token: the
+  token is refused **and immediately replaced**, so the secret that just failed is
+  dead for everyone holding a copy. Your window stops being paired; relaunching
+  the app pairs it again (the launcher reads the new token — it runs as you — and
+  arms exactly one auto-pair). An unauthenticated caller cannot arm anything.
+- **Rotate now** hands the new token to the caller that asked for it, so the
+  window you clicked it in keeps working while every other copy stops.
+
+Read it as key rotation, not as a login. A process running as you can read the
+token file directly and always could; what a lifetime bounds is how long a token
+that *got away* — a stale tab, a copied link, a backup, a shared screen — keeps
+working.
+
+## Sign-in with Google (optional, for e-mail)
+
+The Gmail integration is BYOK: your own Google **Desktop** OAuth client. The flow
+is the RFC 8252 loopback redirect with **PKCE (S256)** — the authorization code is
+bound to a verifier that never leaves this process, so a code observed in a URL
+or grabbed by another local listener cannot be redeemed elsewhere. The `state`
+parameter is single-use. Tokens live in `~/.clone-frame-hub/oauth.json` (0600)
+and are never returned to the browser.
 
 ## Permissions — default OFF
 
@@ -102,6 +139,15 @@ re-validates **every redirect hop**. Navigation is parent-authoritative: the
 address bar always matches the content actually fetched, so a page cannot
 spoof its own URL.
 
+The iT panel's split preview is a different frame: it renders **loopback dev
+servers** directly (`allow-scripts allow-same-origin`, which a real dev server
+needs for its own cookies, storage and HMR), and hands every other address to the
+BROWSER window. For every origin but one, the browser's same-origin policy still
+stands between that frame and the app. The exception is the app's *own* origin —
+a page served from the bridge's port would share this document's origin and could
+reach through `parent` for the pairing token — so that one address, in every
+spelling, is refused.
+
 ## Known residual risks (accepted, documented)
 
 - **SSRF DNS TOCTOU** — the guard resolves a hostname to check it, then the
@@ -114,6 +160,16 @@ spoof its own URL.
   protected by file permissions (0600 in a 0700 dir), not by the macOS
   Keychain. It is never returned to the client (masked on read-back).
 - **The blocklist is not a sandbox** — see above.
+- **No `script-src` / `connect-src` in the CSP** — the app is one large inline
+  script that calls external APIs directly, so neither can be set correctly
+  without measuring every call site first, and a CSP that silently breaks a
+  panel is worse than an honest gap. Until `script-src` lands, a stored-XSS in
+  the UI is still script execution; the headers that *are* set close
+  clickjacking, MIME confusion, base-tag hijack, referrer leakage and form
+  exfiltration, and nothing more.
+- **Terminal sessions started before the socket-auth change** keep running with
+  no socket authentication until they end. Closing that for a live session would
+  mean killing the user's shell out from under them; new sessions are gated.
 
 ## Reporting
 

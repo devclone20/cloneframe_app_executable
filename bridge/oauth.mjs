@@ -1,10 +1,20 @@
-// Gmail OAuth2 (loopback / installed-app flow) for the CLONE FRAME hub bridge.
+// Gmail OAuth2 (loopback / installed-app flow, RFC 8252 + PKCE S256) for the
+// CLONE FRAME hub bridge.
 //
 // Why this exists: Google is retiring App Passwords for many accounts and
 // treats "less secure" auth as deprecated. This module lets a user sign in
 // with real Google OAuth (RFC 8252 loopback redirect — no fixed redirect URI,
 // no client-side secret exposure beyond the user's own machine) and then send
 // mail over SMTP with XOAUTH2.
+//
+// PKCE (RFC 7636, S256): each beginAuth() mints a fresh code_verifier and
+// sends its SHA-256 code_challenge in the authorization URL. This binds the
+// authorization code to THIS process's ephemeral secret, so a code observed
+// off-process (browser history/sync, a stray log line, another local app
+// reading the loopback URL) cannot be redeemed by anything but this exact
+// sign-in attempt. It does NOT make client_secret confidential — no desktop
+// binary can keep a secret, which is why PKCE is added alongside it, not
+// instead of it.
 //
 // BYOK: the user brings their own Google OAuth *Desktop app* Client ID +
 // Secret. Creds and tokens live in ~/.clone-frame-hub/oauth.json (dir 0700,
@@ -200,6 +210,11 @@ function beginAuth() {
     clearPending(); // supersede any prior in-flight sign-in
 
     const state = randomBytes(24).toString('base64url');
+    // PKCE (RFC 7636): verifier lives only in this closure — never persisted,
+    // logged, or sent anywhere except the authorization_code exchange below.
+    const verifier = randomBytes(32).toString('base64url');
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    let stateUsed = false; // single-use guard: closes the duplicate-redirect race window
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, 'http://127.0.0.1');
       if (url.pathname !== '/') { respondHtml(res, 404, 'not found'); return; }
@@ -207,10 +222,13 @@ function beginAuth() {
       if (!url.searchParams.has('code') && !url.searchParams.has('error')) {
         res.writeHead(204); res.end(); return;
       }
-      if (url.searchParams.get('state') !== state) {
+      if (url.searchParams.get('state') !== state || stateUsed) {
         respondHtml(res, 400, 'state mismatch');
         return;
       }
+      // Consumed synchronously, before any await below — a duplicate redirect
+      // arriving while this callback is still mid-exchange must not pass again.
+      stateUsed = true;
       const err = url.searchParams.get('error');
       if (err) {
         pending.error = `authorization denied: ${err}`;
@@ -229,6 +247,7 @@ function beginAuth() {
           client_secret: store.clientSecret,
           redirect_uri: redirectUri,
           grant_type: 'authorization_code',
+          code_verifier: verifier,
         });
         const email = await fetchUserEmail(tok.access_token);
 
@@ -280,6 +299,8 @@ function beginAuth() {
         access_type: 'offline',
         prompt: 'consent',
         state,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
       }).toString()}`;
 
       const timer = setTimeout(() => {

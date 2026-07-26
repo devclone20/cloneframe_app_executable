@@ -45,3 +45,31 @@ test('A4 injection anchor — one literal <head> and it accepts the token inject
   const headBlock = injected.slice(injected.indexOf('<head>'), injected.indexOf('</head>'));
   assert.ok(headBlock.includes('__CFHUB_BRIDGE__'), 'inject did not land inside <head>');
 });
+
+// A7 — the built document's own JavaScript must COMPILE.
+//
+// The gap this closes, learned the hard way on 2026-07-26: a settings section was written
+// opening with a backtick and closing with a single quote. Every existing check stayed green
+// — the build concatenates text, the suite exercises bridge modules, and A1 only proves the
+// bytes are the same bytes it was told to expect. The app shipped with an inline script that
+// threw `SyntaxError: Unexpected token 'class'` at load, which kills the ENTIRE block: no
+// pairing, no panels, no agent control plane. The window opened, the top bar rendered from
+// HTML, and everything behind it was dead. Nothing caught it until a debugger was attached
+// to the real window.
+//
+// vm.Script compiles without executing, so no browser global is touched.
+test('A7 parse — every inline script in dist compiles', async () => {
+  const { Script } = await import('node:vm');
+  const blocks = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+  assert.ok(blocks.length > 0, 'a document with no inline script would make this test vacuous');
+  let checked = 0;
+  for (const [, attrs, body] of blocks) {
+    if (/\ssrc=/.test(attrs)) continue;
+    const type = (attrs.match(/\stype=["']([^"']+)["']/) || [, ''])[1].toLowerCase();
+    if (type && !/^(text\/javascript|application\/javascript)$/.test(type)) continue;
+    if (!body.trim()) continue;
+    checked++;
+    assert.doesNotThrow(() => new Script(body), `inline script #${checked} does not parse — the app would boot dead`);
+  }
+  assert.ok(checked > 0, 'no classic inline script was actually checked');
+});

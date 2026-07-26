@@ -37,9 +37,11 @@ export const BRIDGE_HOST = '127.0.0.1';
 
 /**
  * ── Auth ─────────────────────────────────────────────────────────────────
- * A single long-lived bearer token, persisted at ~/.clone-frame-hub/bridge.token
- * (chmod 600), minted once with `randomBytes(24).toString('base64url')`
- * (hub-bridge.mjs loadToken(), L36-46).
+ * A bearer token, persisted at ~/.clone-frame-hub/bridge.token (chmod 600),
+ * minted with `randomBytes(24).toString('base64url')` by bridge/session.mjs,
+ * which also owns its lifetime. Permanent by default; the owner may give it an
+ * expiry or rotate it on demand in Settings → Session, and either one mints a
+ * replacement — so no client may cache the token beyond the current window.
  *
  * The token reaches the browser one of two ways:
  *   1. Auto-pair: a real top-level navigation (`Sec-Fetch-Dest: document`)
@@ -54,10 +56,12 @@ export const BRIDGE_HOST = '127.0.0.1';
  *
  * Every authenticated request carries the token as:
  *   Authorization: Bearer <token>
- * (index.html RPC IIFE reads it from `sessionStorage['cfhub.bridge.tok']`,
- * ~L4115-4118; server-side `authed(req)` accepts either the Authorization
- * header OR a `?token=` query param, compared with a constant-time XOR loop
- * — hub-bridge.mjs L116-126.)
+ * and ONLY that way. (index.html RPC IIFE reads it from
+ * `sessionStorage['cfhub.bridge.tok']`; server-side `authed(req)` parses the
+ * header and hands the value to `Session._verify` — bridge/session.mjs — which
+ * does the constant-time XOR compare and applies the owner's lifetime policy.)
+ * A `?token=` query param was accepted until 2026-07-26; no client ever sent
+ * one, and a URL is the wrong place for a secret (history, logs, Referer).
  *
  * /health is the ONE unauthenticated route (deliberately minimal — no cwd,
  * no brain/model — so an unauthenticated probe learns nothing; hub-bridge.mjs
@@ -66,7 +70,7 @@ export const BRIDGE_HOST = '127.0.0.1';
  */
 export const AUTH_HEADER = 'authorization';
 export const AUTH_SCHEME = 'Bearer';
-export const TOKEN_QUERY_PARAM = 'token'; // alternate carrier, checked when no Bearer header
+// (there is no query-param carrier: the header is the only one)
 export const TOKEN_STORAGE_KEY = 'cfhub.bridge.tok'; // sessionStorage key on the client
 export const AUTO_PAIR_GLOBAL = '__CFHUB_BRIDGE__'; // window.__CFHUB_BRIDGE__ = {endpoint, token}
 

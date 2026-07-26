@@ -24,17 +24,17 @@
     const parent=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
     const join=(a,b)=>a.replace(/\/+$/,'')+'/'+b;
     const qpath=pth=>'"'+String(pth).replace(/"/g,'')+'"';
-    // The cmux model: workspace (sidebar row) ▸ pane (split) ▸ surface (a tab inside a pane).
+    // The iT model: workspace (sidebar row) ▸ pane (split) ▸ surface (a tab inside a pane).
     // Two kinds of surface share a pane:
     //   tty   — a REAL interactive terminal (xterm ↔ WS /stream ↔ node-pty): vim, htop,
-    //           ssh, claude, tmux all work; each surface is its own process with its own cwd.
+    //           ssh, coding agents and editors all work; each surface is its own process with its own cwd.
     //           The zsh integration emits OSC 7, so the folder tree follows the shell.
     //   smart — the line shell (ghost suggestions · Tab-complete · OMZ prompt themes).
     // ＋ opens a live tty (⌥-click for a smart shell); if node-pty isn't available the
     // window quietly falls back to smart so it never dead-ends.
     let workspaces=[],wsActive=0,wsSeq=0,seq=0,homeAbs='~',canTTY=false;
     let leftHidden=false,treeHidden=false,unreadStamp=0;
-    let wsGroups=[],grpSeq=0; // workspace groups (cmux): {id,name,color,collapsed}
+    let wsGroups=[],grpSeq=0; // workspace groups: {id,name,color,collapsed}
     // Phase 4 — persistent sessions: stable per-shell id + the opt-in toggle (default ON)
     const newPsid=()=>{try{if(crypto&&crypto.randomUUID)return crypto.randomUUID().replace(/-/g,'')}catch(_){}return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)};
     const itPersist=()=>localStorage.getItem('cfhub.it.persist')!=='0';
@@ -90,11 +90,11 @@
     const paneCur=()=>{const w=wsCur();return w?(w.panes.find(x=>x.id===w.focus)||w.panes[0]||null):null};
     const activeTab=()=>{const pn=paneCur();return pn?pn.surfaces[pn.active]:null};
     const leaves=n=>n.sp?[...leaves(n.a),...leaves(n.b)]:[n];
-    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.sess)return '⟳ '+(t.sessName||t.sess);if(t.host)return '⚡ '+t.host;if(t.attach)return 'tmux:'+t.attach;
+    function tabLabel(t){if(t.named&&t.ptitle)return t.ptitle;if(t.kind==='web')return t.ptitle||'browser';if(t.kind==='diff')return 'diff · '+(base(t.cwd)||'~');if(t.kind==='code')return 'code · '+(base(t.cwd)||'~');if(t.sess)return '⟳ '+(t.sessName||t.sess);if(t.host)return '⚡ '+t.host;
       // A workspace the owner NAMED names its plain shells too: renaming a workspace and
       // leaving its tab showing the home folder's name is the app disagreeing with itself
       // about what the thing is called. Tabs with an identity of their own (a diff, a
-      // browser, an ssh host, a tmux session, a tab the owner renamed) keep it.
+      // browser, an ssh host, a persistent session, a tab the owner renamed) keep it.
       const wn=t.pn&&t.pn.w&&t.pn.w.name;if(wn)return wn;
       if(t.hasCwd)return base(t.cwd)||'shell';return t.ptitle||base(t.cwd)||'shell'} // once OSC 7 speaks, the folder name IS the tab
     function wsLabel(w){return (w&&(w.name||w.autoName||base(w.cwd)))||'~'}
@@ -114,15 +114,15 @@
       if(w.grid)return;
       const g=document.createElement('div');g.className='it-grid';w.grid=g;mainEl.appendChild(g);
       if(w.spec){w.layout=hydrate(w.spec,w);w.spec=null}
-      else{const pn=makePane(w);w.layout={pane:pn};newSurface(pn,w.cwd,undefined,null,true)}
+      else{const pn=makePane(w);w.layout={pane:pn};newSurface(pn,w.cwd,undefined,true)}
       if(!w.focus&&w.panes.length)w.focus=w.panes[0].id;
       renderGrid(w);
     }
     function hydrate(spec,w){ // rebuild a saved split tree; each tty surface reopens a fresh shell at its cwd
       if(spec&&spec.sp)return{sp:spec.sp,ratio:spec.ratio||.5,a:hydrate(spec.a,w),b:hydrate(spec.b,w)};
       const pn=makePane(w);
-      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>{const nt=newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,s.attach||null,true,s.psid,s.host||null,s.sess||null);if(nt&&s.sessName)nt.sessName=s.sessName;});
-      if(!pn.surfaces.length)newSurface(pn,w.cwd,undefined,null,true);
+      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>{const nt=newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,true,s.psid,s.host||null,s.sess||null);if(nt&&s.sessName)nt.sessName=s.sessName;});
+      if(!pn.surfaces.length)newSurface(pn,w.cwd,undefined,true);
       pn.active=Math.max(0,Math.min((spec&&spec.active)||0,pn.surfaces.length-1));
       return{pane:pn};
     }
@@ -135,20 +135,20 @@
       wireCanvasPane(w,pn);
       w.panes.push(pn);return pn;
     }
-    function newSurface(pn,cwd,kind,attach,quiet,psid,host,sess){
+    function newSurface(pn,cwd,kind,quiet,psid,host,sess){
       kind=kind||((canTTY&&Bridge.on()&&localStorage.getItem('cfhub.it.deftab')!=='smart')?'tty':'smart');
-      const t={id:'sh'+(++seq),kind,attach:attach||null,host:host||null,sess:sess||null,cwd:cwd||homeAbs,ptitle:'',named:false,dead:false,unread:0,out:'',hist:[],hi:-1,busy:false,ctl:null,termApi:null,el:null,pane:null,pn};
-      // Phase 4: a shell tab (not a tmux attach) gets a stable session id so its pty can
+      const t={id:'sh'+(++seq),kind,host:host||null,sess:sess||null,cwd:cwd||homeAbs,ptitle:'',named:false,dead:false,unread:0,out:'',hist:[],hi:-1,busy:false,ctl:null,termApi:null,el:null,pane:null,pn};
+      // Phase 4: a shell tab gets a stable session id so its pty can
       // survive a reload — reattach + scrollback replay instead of being killed. On restore
       // we keep the SAVED id so the reattach finds the still-live pty.
-      if(kind==='tty'&&!attach)t.psid=psid||newPsid();
+      if(kind==='tty')t.psid=psid||newPsid();
       if(kind==='web'){t.url=String(cwd||'');t.cwd=homeAbs} // web surfaces carry a URL, not a cwd
       pn.surfaces.push(t);pn.active=pn.surfaces.length-1;
       buildSurface(pn,t);
       if(!quiet){renderAll();saveState()}
       return t;
     }
-    function newTab(cwd,kind,attach){const pn=paneCur();return pn?newSurface(pn,cwd,kind,attach):null} // legacy name — smart-shell keys + tmux menu call this
+    function newTab(cwd,kind){const pn=paneCur();return pn?newSurface(pn,cwd,kind):null} // legacy name — the smart-shell keys call this
     // ── attachments in iT: paste an image / drop files onto a terminal pane — they are
     // saved under the agent workspace (attachments/) and the shell-quoted paths are TYPED
     // at the prompt (no Enter — the owner decides the command). Max 5 per gesture.
@@ -197,10 +197,10 @@
     function makeTtyTerm(t,pane){
       const pn=t.pn;
       return Term(pane,{
-        op:t.sess?'keeper':(t.host?'ssh':(t.attach?'attach':'shell')),session:t.attach||undefined,host:t.host||undefined,sess:t.sess||undefined,cwd:t.cwd,ids:{ws:pn.w.id,surf:t.id},
-        sid:t.attach?undefined:t.psid,persist:t.attach?false:itPersist(),
+        op:t.sess?'keeper':(t.host?'ssh':'shell'),host:t.host||undefined,sess:t.sess||undefined,cwd:t.cwd,ids:{ws:pn.w.id,surf:t.id},
+        sid:t.psid,persist:itPersist(),
         onCwd:dir=>{t.cwd=dir;t.hasCwd=true;const w=pn.w;if(isWsLead(t)){w.cwd=dir;refreshWsGit(w)}schedule();markHere();saveState()},
-        onTitle:s=>{const v=String(s||'').trim();if(v&&!t.attach&&!t.host&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
+        onTitle:s=>{const v=String(s||'').trim();if(v&&!t.host&&!t.named){t.ptitle=v.slice(0,40);schedule()}},
         onExit:()=>{t.dead=true;schedule()},
         onOutput:()=>{if(!surfVisible(t)){const had=t.unread;t.unread=++unreadStamp;if(!had)schedule()}markFired(t)},
         onNotify:(ti,bo)=>noteAdd(t,ti,bo),
@@ -223,16 +223,25 @@
         t.termApi=makeTtyTerm(t,pane);
         wireTtyAttach(t,pane);
       }else if(t.kind==='web'){
-        // browser surface (⌘⇧L) — a page beside the terminal, cmux-style. The full browser
+        // browser surface (⌘⇧L) — a page beside the terminal. The full browser
         // is now a real Chromium CDP engine (the BROWSER panel); this split stays lightweight:
         // localhost / dev-server origins render in a direct iframe (native scroll, own JS),
         // and everything else hands off to the BROWSER window — no proxy-reader anymore.
         pane.innerHTML='<div class="it-webbar"><input class="it-webin" placeholder="localhost URL, or a site to open in BROWSER" spellcheck="false" autocomplete="off"><button class="sh-treetog" data-wa="go" title="Go">→</button><button class="sh-treetog" data-wa="re" title="Reload">↻</button><button class="sh-treetog" data-wa="pop" title="Open in the BROWSER window">⧉</button></div><iframe class="it-webif" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer"></iframe>';
         t.el={in:pane.querySelector('.it-webin'),fr:pane.querySelector('.it-webif')};
         const isLocal=u=>{try{const h=new URL(u).hostname;return h==='localhost'||h==='127.0.0.1'||h==='[::1]'||/\.localhost$/.test(h)}catch(_){return false}};
+        // Never frame the HUB itself. This pane is sandboxed allow-scripts + allow-same-origin,
+        // which a real dev server needs (its own cookies, storage, same-origin fetch/HMR) and
+        // which is harmless for every OTHER origin — the browser's same-origin policy still
+        // stands between the frame and this window. Our own origin is the single exception:
+        // a page served from the bridge's own port shares this document's origin, so scripts
+        // in it could reach through `parent` for the pairing token, sandbox or no sandbox.
+        // Port equality catches every spelling of it (127.0.0.1, localhost, [::1]).
+        const isSelf=u=>{try{const x=new URL(u);const h=x.hostname;return (h==='localhost'||h==='127.0.0.1'||h==='[::1]')&&x.port===location.port}catch(_){return false}};
         const wnorm=q=>{q=String(q||'').trim();if(!q)return '';if(/^https?:\/\//i.test(q))return q;if(/^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(q))return 'http://'+q;if(/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(q))return 'https://'+q;return 'https://'+q};
         const wload=q=>{
           const u=wnorm(q);if(!u)return;
+          if(isSelf(u)){Toast&&Toast.show('That address is CLONE FRAME itself — it does not open inside its own pane');return}
           t.url=u;try{t.ptitle=new URL(u).hostname.replace(/^www\./,'')}catch(_){t.ptitle='browser'}
           t.el.in.value=u;schedule();
           if(isLocal(u)){t.el.fr.style.display='';t.el.fr.src=u;}
@@ -250,7 +259,7 @@
         pane.querySelector('[data-wa="pop"]').addEventListener('click',()=>{if(t.url)webOpen(t.url,{newTab:true});else openPanel('research')});
         if(t.url)wload(t.url);else setTimeout(()=>{try{t.el.in.focus()}catch(_){}},40);
       }else if(t.kind==='diff'){
-        // diff viewer (⌃⌘⇧D, cmux) — a live `git diff` of the surface's folder, colored
+        // diff viewer (⌃⌘⇧D) — a live `git diff` of the surface's folder, colored
         pane.innerHTML='<div class="it-diffbar"><b>DIFF</b><span class="br"></span><span class="fs dim"></span><span class="sp"></span><button class="sh-treetog" data-da="re" title="Refresh">↻</button></div><div class="it-diffout"><span class="dim">loading…</span></div>';
         t.el={br:pane.querySelector('.br'),fs:pane.querySelector('.fs'),out:pane.querySelector('.it-diffout')};
         const colorDiff=txt=>strip(txt).split('\n').map(l=>{
@@ -286,7 +295,7 @@
         render();
       }else if(t.kind==='code'){
         // code editor surface — open a FOLDER: file tree (left) + view/edit/save (right).
-        // Unlike cmux (which only opens a single file), this opens the whole folder to browse.
+        // Opens the WHOLE folder to browse, not a single file.
         const root=t.cwd&&t.cwd!=='~'?t.cwd:homeAbs;t.cwd=root;
         t._copen=t._copen||new Set();t._ckids=t._ckids||new Map();
         pane.innerHTML='<div class="it-codetree"><div class="it-codehd"><b>'+escHtml(base(root)||root)+'</b><span class="up" title="Up one level">↑</span></div><div class="it-codelist"></div></div><div class="it-codeed"><div class="it-codeblank">Pick a file on the left to view or edit it.<br>Save writes straight to disk.</div></div>';
@@ -352,7 +361,7 @@
       const w=pn.w;if(pn.surfaces.length>1||w.panes.length>1||workspaces.length>1)closeSurface(pn,i);
     }
 
-    // ---- split tree (binary, cmux-style: ⌘D right · ⌘⇧D down) ----
+    // ---- split tree (binary: ⌘D right · ⌘⇧D down) ----
     function leafOf(n,pn){if(!n)return null;if(!n.sp)return n.pane===pn?n:null;return leafOf(n.a,pn)||leafOf(n.b,pn)}
     function parentOf(n,child){if(!n||!n.sp)return null;if(n.a===child||n.b===child)return n;return parentOf(n.a,child)||parentOf(n.b,child)}
     // insert an EMPTY pane beside pn in the split tree; returns it (caller fills it)
@@ -367,7 +376,7 @@
     function splitPane(pn,dir,before,kind){ // dir 'h'|'v' · before=true → new pane lands left/up · kind 'web' = browser split (⌘⇧L)
       const cur=pn.surfaces[pn.active];
       const npn=spawnPane(pn,dir,before);if(!npn)return;
-      newSurface(npn,kind==='web'?'':((cur&&cur.cwd)||pn.w.cwd),kind,null,true);
+      newSurface(npn,kind==='web'?'':((cur&&cur.cwd)||pn.w.cwd),kind,true);
       pn.w.focus=npn.id;
       renderGrid(pn.w);renderAll();saveState();
     }
@@ -381,7 +390,7 @@
       toPn.w.focus=toPn.id;
       if(!fromPn.surfaces.length)closePane(fromPn);else{renderGrid(toPn.w);renderAll();saveState()}
     }
-    // break-pane (cmux): the active tab leaves its pane for a fresh split
+    // break-pane: the active tab leaves its pane for a fresh split
     function breakPane(){
       const pn=paneCur();if(!pn||pn.surfaces.length<2)return; // a lone tab already owns its pane
       const npn=spawnPane(pn,'h',false);if(!npn)return;
@@ -405,7 +414,7 @@
       const leaf=leafOf(w.layout,pn),par=leaf?parentOf(w.layout,leaf):null;
       if(!par){ // it was the last pane of this workspace
         if(workspaces.length>1){closeWorkspace(w);return}
-        const npn=makePane(w);w.layout={pane:npn};newSurface(npn,w.cwd,undefined,null,true);w.focus=npn.id;
+        const npn=makePane(w);w.layout={pane:npn};newSurface(npn,w.cwd,undefined,true);w.focus=npn.id;
       }else{
         const sib=par.a===leaf?par.b:par.a,gp=parentOf(w.layout,par);
         if(!gp)w.layout=sib;else if(gp.a===par)gp.a=sib;else gp.b=sib;
@@ -440,7 +449,7 @@
       return box;
     }
 
-    // ---- canvas mode (⌃⌘C, cmux) — panes float free on a zoom/pan space. Rects are
+    // ---- canvas mode (⌃⌘C) — panes float free on a zoom/pan space. Rects are
     // FRACTIONS of the space; a `.it-cspace` wrapper carries translate()+scale(), so the
     // whole board zooms and pans without touching any pane. The split tree stays intact
     // underneath (canvas is presentation only) — toggling back restores the exact tiling.
@@ -575,7 +584,7 @@
       if(!workspaces.length){newWorkspace(homeAbs);return}
       selectWs(Math.min(i,workspaces.length-1));
     }
-    // workspace colors — 16 named (cmux's list), shown as the row's left rail; the dot cycles them
+    // workspace colors — 16 named, shown as the row's left rail; the dot cycles them
     const WS_COLORS=[['red','#e0564f'],['crimson','#c62f52'],['orange','#e2803a'],['amber','#d9a621'],['olive','#9aa337'],['green','#3fae5d'],['teal','#2fa38c'],['aqua','#3fb6c9'],['blue','#4f8fe0'],['navy','#4560b8'],['indigo','#6a5fd6'],['purple','#8e4fd0'],['magenta','#c34fc0'],['rose','#d66a95'],['brown','#a1704a'],['charcoal','#6d7680']];
     function setWsColor(w,v){ // name · #hex · '' / none
       const s=String(v||'').trim().toLowerCase();
@@ -590,7 +599,7 @@
       w.color=(n<0||n>=WS_COLORS.length)?'':WS_COLORS[n][1];
       schedule();saveState();
     }
-    // ---- workspace groups (cmux): collapsible sections in the sidebar ----
+    // ---- workspace groups: collapsible sections in the sidebar ----
     function groupOf(w){return w&&w.group?wsGroups.find(g=>g.id===w.group):null}
     function newGroup(){
       const w=wsCur();
@@ -621,7 +630,7 @@
       schedule();saveState();
     }
     function moveWsToGroup(w,gid){if(!w)return;w.group=gid||null;pruneGroups();schedule();saveState()}
-    // ---- workspace order (cmux): drag rows to reorder / into groups; menu Move Up/Down/Top.
+    // ---- workspace order: drag rows to reorder / into groups; menu Move Up/Down/Top.
     // wsActive is an INDEX, so every splice recomputes it from the selected OBJECT.
     function reorderWs(from,to,gid){
       if(from<0||from>=workspaces.length)return;
@@ -646,7 +655,7 @@
       wsActive=Math.max(0,workspaces.indexOf(cur));
       schedule();saveState();
     }
-    // ---- right-click menus (cmux): one tiny builder, positioned inside the panel ----
+    // ---- right-click menus: one tiny builder, positioned inside the panel ----
     let ctxEl=null;
     function closeCtx(){if(ctxEl){ctxEl.remove();ctxEl=null}}
     function ctxMenu(x,y,items){
@@ -726,7 +735,7 @@
         if(!g.collapsed)rows+=items.map(x=>wsRowHTML(x.w,x.i,true)).join('');
       });
       rows+=idx.filter(x=>!x.w.group||!validGid.has(x.w.group)).map(x=>wsRowHTML(x.w,x.i,false)).join('');
-      wsEl.innerHTML=`<div class="it-wshd"><b>iT</b><span class="it-wsbtns"><button data-act="nw" title="New workspace (⌘N)">＋</button><button data-act="grp" title="Group current workspace (⌃⌘G)">▤▾</button><button data-act="win" title="New iT window — work side by side">⧉</button><button data-act="tree" title="Show / hide files (⌥⌘B)">▤</button><button data-act="help" title="Keyboard & help">?</button></span></div><div class="it-wslist">${rows}</div><div class="it-wsfoot">CMUX-COMPATIBLE KEYS · ⌘⇧P</div>`;
+      wsEl.innerHTML=`<div class="it-wshd"><b>iT</b><span class="it-wsbtns"><button data-act="nw" title="New workspace (⌘N)">＋</button><button data-act="grp" title="Group current workspace (⌃⌘G)">▤▾</button><button data-act="win" title="New iT window — work side by side">⧉</button><button data-act="tree" title="Show / hide files (⌥⌘B)">▤</button><button data-act="help" title="Keyboard & help">?</button></span></div><div class="it-wslist">${rows}</div><div class="it-wsfoot">COMMAND PALETTE · ⌘⇧P</div>`;
       wsEl.querySelectorAll('.it-wsrow').forEach(r=>{
         r.addEventListener('click',e=>{if(e.target.dataset.cw!=null||e.target.dataset.cdot!=null)return;selectWs(+r.dataset.w)});
         r.addEventListener('dblclick',()=>{selectWs(+r.dataset.w);renameWs()});
@@ -788,7 +797,7 @@
     }
     function renderPaneTabs(pn){
       pn.strip.innerHTML=pn.surfaces.map((t,i)=>`<div class="sh-tab ${i===pn.active?'on':''}" data-ti="${i}" title="${escAttr(t.cwd)}"><span class="sh-dot ${t.dead?'dead':(t.busy?'busy':'')}${t.kind==='tty'?' live':''}"></span>${t.unread?'<span class="it-ud"></span>':''}${escAttr(tabLabel(t))}${(t.dead&&(t.host||t.sess))?`<span class="sh-trecon" data-recon="${i}" title="Reconnect">↻</span>`:''}<span class="sh-tpop" data-pop="${i}" title="Send this terminal to a frame square">⤢</span><span class="sh-tclose" data-close="${i}" title="Close tab">✕</span></div>`).join('')
-        +`<button class="sh-newtab" data-act="new" title="New tab (⌘T) · ⌥-click: smart shell">＋</button><button class="sh-treetog" data-act="tmux" title="Attach a tmux session">⌗</button><button class="sh-treetog" data-act="host" title="Remote hosts (SSH)">⚡</button><button class="sh-treetog" data-act="sess" title="Persistent sessions (survive disconnect)">⟳</button><span class="sh-tspacer"></span><button class="sh-treetog" data-act="omz" title="Prompt theme (smart tabs · Oh My Zsh): ${escAttr(omzTheme)}">◈</button><button class="sh-treetog" data-act="sr" title="Split right (⌘D)">◫</button><button class="sh-treetog" data-act="sd" title="Split down (⌘⇧D)">⊟</button><button class="sh-treetog" data-act="pc" title="Close pane">✕</button>`;
+        +`<button class="sh-newtab" data-act="new" title="New tab (⌘T) · ⌥-click: smart shell">＋</button><button class="sh-treetog" data-act="host" title="Remote hosts (SSH)">⚡</button><button class="sh-treetog" data-act="sess" title="Persistent sessions (survive disconnect)">⟳</button><span class="sh-tspacer"></span><button class="sh-treetog" data-act="omz" title="Prompt theme (smart tabs · Oh My Zsh): ${escAttr(omzTheme)}">◈</button><button class="sh-treetog" data-act="sr" title="Split right (⌘D)">◫</button><button class="sh-treetog" data-act="sd" title="Split down (⌘⇧D)">⊟</button><button class="sh-treetog" data-act="pc" title="Close pane">✕</button>`;
       pn.strip.querySelectorAll('.sh-tab').forEach(el=>{
         el.addEventListener('click',e=>{if(e.target.dataset.close!=null||e.target.dataset.pop!=null||e.target.dataset.recon!=null)return;pn.w.focus=pn.id;pn.active=+el.dataset.ti;syncPanes();schedule();markHere()});
         el.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();ctxMenu(e.clientX,e.clientY,tabCtxItems(pn,+el.dataset.ti))});
@@ -798,7 +807,6 @@
       pn.strip.querySelectorAll('[data-recon]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();reconnectSurface(pn.surfaces[+b.dataset.recon])}));
       const act=(k,fn)=>{const b=pn.strip.querySelector('[data-act="'+k+'"]');if(b)b.addEventListener('click',fn)};
       act('new',e=>{pn.w.focus=pn.id;newSurface(pn,(pn.surfaces[pn.active]||{}).cwd||pn.w.cwd,e.altKey?'smart':undefined)});
-      act('tmux',e=>{e.stopPropagation();pn.w.focus=pn.id;tmuxMenu(e.currentTarget)});
       act('host',e=>{e.stopPropagation();pn.w.focus=pn.id;hostMenu(e.currentTarget)});
       act('sess',e=>{e.stopPropagation();pn.w.focus=pn.id;sessMenu(e.currentTarget)});
       act('omz',cycleOmz);
@@ -814,7 +822,7 @@
       w.panes.forEach(pn=>{pn.el.classList.toggle('focus',pn===fp&&w.panes.length>1);if(pn===fp)pn.el.classList.remove('fired')});
     }
     // The pane whose terminal/agent spoke LAST while unfocused wears a quiet accent
-    // ring (.fired) — cmux's "who just answered" cue. Exactly one pane wears it;
+    // ring (.fired) — the "who just answered" cue. Exactly one pane wears it;
     // focusing that pane takes it off (syncFocus).
     function markFired(t){
       const pn=t&&t.pn;if(!pn||!pn.el||!pn.el.isConnected)return;
@@ -924,12 +932,12 @@
       ov.tabIndex=-1;ov.focus();
       ov.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')ov.remove()});
     }
-    // ⌘⇧L (cmux): split right with a BROWSER surface — page and terminal side by side
+    // ⌘⇧L: split right with a BROWSER surface — page and terminal side by side
     function newBrowserSplit(){const pn=paneCur();if(pn)splitPane(pn,'h',false,'web')}
-    // ⌃⌘⇧D (cmux): split right with a DIFF surface at the current folder
+    // ⌃⌘⇧D: split right with a DIFF surface at the current folder
     function openDiffSplit(){const pn=paneCur();if(pn)splitPane(pn,'h',false,'diff')}
 
-    // ---- command palette (⌘⇧P) — the cmux command names work here ----
+    // ---- command palette (⌘⇧P) — our command names ----
     function commandList(){
       const K=keyLabel; // live combos — a rebind shows up here instantly
       return [
@@ -970,7 +978,6 @@
         ['find-in-directory',K('find-in-directory'),findInDirectory],
         ['open-diff',K('open-diff'),openDiffSplit],
         ['open-code-editor',K('open-code-editor'),()=>openCodeEditor()],
-        ['attach-tmux','⌗',()=>{const b=p.querySelector('[data-act="tmux"]');if(b)tmuxMenu(b)}],
         ['host-manager','⚡',()=>{const b=p.querySelector('[data-act="host"]');if(b)hostMenu(b)}],
         ['session-manager','⟳',()=>{const b=p.querySelector('[data-act="sess"]');if(b)sessMenu(b)}],
         ['jump-to-unread',K('jump-to-unread'),jumpUnread],
@@ -989,7 +996,7 @@
       closeOverlays();
       const cmds=commandList();
       const ov=document.createElement('div');ov.className='it-palette';
-      ov.innerHTML='<div class="it-palbox"><input class="it-palin" placeholder="Type a command — cmux names work here" spellcheck="false"><div class="it-pallist"></div></div>';
+      ov.innerHTML='<div class="it-palbox"><input class="it-palin" placeholder="Type a command" spellcheck="false"><div class="it-pallist"></div></div>';
       p.appendChild(ov);
       const inp=ov.querySelector('input'),list=ov.querySelector('.it-pallist');let sel=0,vis=cmds;
       const draw=()=>{
@@ -1008,7 +1015,7 @@
       ov.addEventListener('pointerdown',e=>{if(e.target===ov)ov.remove()});
       filter();inp.focus();
     }
-    function wsPicker(){ // ⌘P — cmux "Go to workspace"
+    function wsPicker(){ // ⌘P — go to workspace
       closeOverlays();
       const ov=document.createElement('div');ov.className='it-palette';
       ov.innerHTML='<div class="it-palbox"><input class="it-palin" placeholder="Go to workspace" spellcheck="false"><div class="it-pallist"></div></div>';
@@ -1035,7 +1042,7 @@
       const K=keyLabel;
       const rows=[[K('toggle-left-sidebar'),'Toggle left sidebar'],[K('toggle-right-sidebar'),'Toggle right sidebar'],[K('split-right'),'Split right'],[K('split-down'),'Split down'],[K('new-browser'),'New browser split'],[K('open-diff'),'Diff viewer split'],[K('open-code-editor'),'Code editor (a folder)'],[K('toggle-canvas'),'Canvas mode'],[K('canvas-overview'),'Canvas overview'],[K('canvas-reveal'),'Canvas reveal'],[K('tidy-canvas'),'Tidy canvas'],[K('find-in-directory'),'Find in directory'],['⌥⌘←→↑↓','Focus pane'],['⌃⌘←→↑↓','Move tab across panes'],[K('break-pane'),'Break tab into a pane'],[K('new-group'),'Group workspace'],[K('toggle-group'),'Collapse group'],[K('toggle-split-zoom'),'Zoom pane'],[K('equalize-splits'),'Equalize splits'],[K('new-surface'),'New tab'],[K('go-to-workspace'),'Go to workspace'],[K('notifications'),'Notifications'],[K('next-tab')+' '+K('previous-tab'),'Next / previous tab'],['⌃1…9','Go to tab'],['⌘1…9','Go to workspace'],[K('rename-tab'),'Rename tab'],[K('rename-workspace'),'Rename workspace'],[K('command-palette'),'Command palette'],[K('jump-to-unread'),'Jump to latest unread'],[K('mark-all-read'),'Mark all read'],[K('clear-terminal'),'Clear terminal']];
       const ov=document.createElement('div');ov.className='it-help';
-      ov.innerHTML='<div class="it-helpbox"><div class="hd">iT — KEYBOARD</div><div class="cols">'+rows.map(r=>`<div class="row"><b>${escHtml(r[0])}</b><span>${escHtml(r[1])}</span></div>`).join('')+'</div><div class="ft">iT speaks the keyboard & command language of the open-source <b>cmux</b> — clean-room, no cmux code inside. tmux sessions attach with ⌗. The <b>it</b> CLI is live — run <b>it</b> in any iT shell.<br>CLONE FRAME · cloneframe.io</div></div>';
+      ov.innerHTML='<div class="it-helpbox"><div class="hd">iT — KEYBOARD</div><div class="cols">'+rows.map(r=>`<div class="row"><b>${escHtml(r[0])}</b><span>${escHtml(r[1])}</span></div>`).join('')+'</div><div class="ft">Every shortcut is rebindable in Settings → iT. Sessions here are ours: they survive a disconnect and a bridge restart, and replay their screen when you come back — nothing to attach to. The <b>it</b> CLI is live — run <b>it</b> in any iT shell.<br>CLONE FRAME · cloneframe.io</div></div>';
       p.appendChild(ov);
       ov.tabIndex=-1;
       ov.addEventListener('pointerdown',()=>ov.remove());
@@ -1043,7 +1050,7 @@
       ov.focus();
     }
 
-    // ---- keyboard — the cmux language (one capture listener; claimed combos never reach
+    // ---- keyboard — the iT language (one capture listener; claimed combos never reach
     // xterm or the browser; everything else flows through to the shell untouched).
     // Actions + default combos live in the shared IT_ACTIONS registry; every one is
     // REBINDABLE — Settings → iT, or `it shortcuts set <action> <combo>`.
@@ -1122,7 +1129,7 @@
     p.addEventListener('keydown',e=>{if(hotkey(e)){e.preventDefault();e.stopPropagation()}},true);
 
     // ---- layout persistence — workspaces + splits survive a reload (shells reopen at their cwds) ----
-    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,attach:t.attach||null,host:t.host||undefined,sess:t.sess||undefined,sessName:t.sessName||undefined,psid:(t.kind==='tty'&&!t.attach&&!t.sess)?t.psid:undefined,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
+    function serNode(n){return n.sp?{sp:n.sp,ratio:+(+n.ratio).toFixed(3),a:serNode(n.a),b:serNode(n.b)}:{surfs:n.pane.surfaces.map(t=>({kind:t.kind,cwd:t.cwd,host:t.host||undefined,sess:t.sess||undefined,sessName:t.sessName||undefined,psid:(t.kind==='tty'&&!t.sess)?t.psid:undefined,url:t.kind==='web'?(t.url||''):undefined})),active:n.pane.active}}
     let saveT=null;
     function saveState(){
       if(!primary)return;
@@ -1132,7 +1139,7 @@
     }
     function loadState(){try{const j=JSON.parse(localStorage.getItem('cfhub.it.v1')||'null');return (j&&Array.isArray(j.ws)&&j.ws.length)?j:null}catch(_){return null}}
 
-    // ---- the `it` CLI (Phase 2) — cmux command names, executed here over the bridge control channel.
+    // ---- the `it` CLI (Phase 2) — iT command names, executed here over the bridge control channel.
     // bridge/it.mjs ferries {id,argv,ctx} from `it` (in any iT shell) to this window; we answer on the socket.
     function surfById(id){for(const w of workspaces)for(const pn of (w.panes||[]))for(const t of pn.surfaces)if(t.id===id)return t;return null}
     function wsByRef(ref){
@@ -1204,7 +1211,7 @@
         case 'send-key':{const t=target();if(!t||t.kind!=='tty'||!t.termApi)return{ok:false,error:'no live terminal'};const b=itKey(f._[0]);if(b==null)return{ok:false,error:'unknown key: '+(f._[0]||'')};t.termApi.send(b);return okOut('key '+f._[0])}
         case 'read-screen':case 'capture-pane':{const t=target();if(!t)return{ok:false,error:'no tab'};if(t.kind!=='tty'||!t.termApi||!t.termApi.read)return okOut(strip(t.out||'').slice(-4000));const n=Math.max(0,Math.min(500,+(f.lines||0)||0))||undefined;return okOut(t.termApi.read(n))}
         case 'notify':{const title=(f.title&&f.title!=='true')?f.title:f._.join(' ');if(!title)return{ok:false,error:'usage: it notify --title <text> [--body <text>]'};noteAdd(target(),title,(f.body&&f.body!=='true')?f.body:'',{toast:true});return okOut('notified')}
-        case 'host':return (async()=>{ // OUR remote hosts (SSH) — see 01_COMMAND_MAP.md; no tmux vocabulary
+        case 'host':return (async()=>{ // OUR remote hosts (SSH) — see 01_COMMAND_MAP.md
           const sub=String(f._[0]||'list');
           if(sub==='list'){const r=await RPC('ssh','list').catch(()=>null);return (r&&r.ok)?{ok:true,rows:(r.hosts||[]).map(h=>({alias:h.alias,user:h.user||'',host:h.hostname,port:h.port,persist:h.persist?'●':''}))}:{ok:false,error:'ssh module unavailable'}}
           if(sub==='add'){const patch={alias:f.alias,hostname:f.host||f.hostname,user:f.user,port:f.port?+f.port:undefined,identityFile:f.identity||f.identityFile};const r=await RPC('ssh','add',patch).catch(()=>null);return (r&&r.ok)?okOut('host added · '+r.host.alias):{ok:false,error:(r&&r.error)||'add failed — need --alias and --host'}}
@@ -1231,7 +1238,7 @@
           if(sub==='on'||sub===''){const file=(f.file&&f.file!=='true')?f.file:pipeFile(t);const r=pipeStart(t,file);return r.ok?okOut('piping → '+contract(file)):{ok:false,error:r.error}}
           return{ok:false,error:'usage: it pipe <on|off> [--file <path>]'};
         }
-        case 'sess':return (async()=>{ // OUR persistence keeper — survives disconnect + bridge restart, no tmux
+        case 'sess':return (async()=>{ // OUR persistence keeper — survives disconnect + bridge restart
           const sub=String(f._[0]||'list');
           if(sub==='list'){const r=await RPC('keeper','list').catch(()=>null);return (r&&r.ok)?{ok:true,rows:(r.sessions||[]).map(s=>({id:s.id,name:s.name||'',cwd:contract(s.cwd||''),pid:s.pid}))}:{ok:false,error:'keeper unavailable'}}
           if(sub==='new'){const id=(f.id&&f.id!=='true')?String(f.id):('s'+Date.now().toString(36));const name=(f.name&&f.name!=='true')?String(f.name):'';const t=newSessTab(id,name);return t?okOut('persistent session '+id+(name?(' · '+name):'')):{ok:false,error:'no pane'}}
@@ -1307,25 +1314,10 @@
       s.onerror=()=>{};
     }
     function appendOut(t,html){t.out+=html;if(t.out.length>240000)t.out=t.out.slice(t.out.length-200000);if(t.el){t.el.out.innerHTML=t.out;if(t===activeTab())t.el.out.scrollTop=t.el.out.scrollHeight}}
-    // tmux: list real sessions on this machine, one click attaches a live tab — the
-    // Manaflow-style crew view is N windows/tabs attached to N sessions, side by side.
-    async function tmuxMenu(anchor){
-      const old=p.querySelector('.sh-tmuxpop');if(old){old.remove();return}
-      if(!Bridge.on()){Toast.show('Connect the HUB Bridge first');return}
-      let out='';try{await Bridge.shell("tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{?session_attached,attached,}' 2>/dev/null",x=>{out+=x})}catch(_){}
-      const rows=strip(out).split('\n').map(s=>s.trim()).filter(Boolean).map(l=>{const[name,wins,att]=l.split('\t');return{name,wins,att}}).filter(r=>/^[\w.-]{1,64}$/.test(r.name||''));
-      const pop=document.createElement('div');pop.className='sh-tmuxpop';
-      pop.innerHTML='<div class="hd">TMUX SESSIONS</div>'+(rows.length?rows.map(r=>`<button data-s="${escAttr(r.name)}"><b>${escAttr(r.name)}</b><span>${escAttr(r.wins)}w${r.att?' · attached':''}</span></button>`).join(''):'<div class="none">no sessions — start one: <code>tmux new -s crew</code></div>');
-      p.appendChild(pop);
-      const pr=p.getBoundingClientRect(),ar=anchor.getBoundingClientRect();
-      pop.style.left=Math.max(8,ar.left-pr.left-40)+'px';pop.style.top=(ar.bottom-pr.top+6)+'px';
-      pop.querySelectorAll('button[data-s]').forEach(b=>b.addEventListener('click',()=>{pop.remove();newTab(homeAbs,'tty',b.dataset.s);renderAll()}));
-      setTimeout(()=>addEventListener('pointerdown',function once(ev){if(!ev.target.closest('.sh-tmuxpop'))pop.remove();removeEventListener('pointerdown',once,true)},true),0);
-    }
     // ── Remote hosts (SSH) ──────────────────────────────────────────────────
     // OUR remote engine: a saved host → a normal tty surface running `ssh <alias>`.
-    // No tmux. The bridge resolves the alias server-side (op=ssh) so the hostname/IP
-    // never crosses to the client; a remote session reuses the Phase-4 pty persistence.
+    // The bridge resolves the alias server-side (op=ssh) so the hostname/IP never
+    // crosses to the client; a remote session reuses the Phase-4 pty persistence.
     function hostPos(pop,anchor){const pr=p.getBoundingClientRect(),ar=anchor.getBoundingClientRect();pop.style.left=Math.max(8,ar.left-pr.left-40)+'px';pop.style.top=(ar.bottom-pr.top+6)+'px'}
     function hostDismiss(pop){setTimeout(()=>addEventListener('pointerdown',function once(ev){if(!ev.target.closest('.sh-hostpop'))pop.remove();removeEventListener('pointerdown',once,true)},true),0)}
     async function hostMenu(anchor){
@@ -1380,8 +1372,8 @@
       if(!perms||!perms.ssh){Toast.show('SSH is off — enable it in Settings → Machine');return}
       newHostTab(alias);
     }
-    function newHostTab(alias){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}return newSurface(pn,homeAbs,'tty',null,false,null,alias)}
-    // ── Persistent sessions (OUR keeper) — survive disconnect + bridge restart, no tmux ──
+    function newHostTab(alias){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}return newSurface(pn,homeAbs,'tty',false,null,alias)}
+    // ── Persistent sessions (OUR keeper) — survive disconnect + bridge restart ──
     async function sessMenu(anchor){
       const old=p.querySelector('.sh-hostpop');if(old){old.remove();return}
       if(!Bridge.on()){Toast.show('Connect the HUB Bridge first');return}
@@ -1398,7 +1390,7 @@
       pop.querySelectorAll('[data-sk]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('keeper','kill',b.dataset.sk).catch(()=>{});sessRenderList(pop,anchor)}));
       const nb=pop.querySelector('[data-new]');if(nb)nb.addEventListener('click',()=>{pop.remove();newSessTab('s'+Date.now().toString(36),'')});
     }
-    function newSessTab(id,name){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}const t=newSurface(pn,homeAbs,'tty',null,false,null,null,id);if(t&&name)t.sessName=name;return t}
+    function newSessTab(id,name){const pn=paneCur();if(!pn){Toast.show('Open a terminal pane first');return null}const t=newSurface(pn,homeAbs,'tty',false,null,null,id);if(t&&name)t.sessName=name;return t}
     // ── output pipe (OUR pipe-pane analog) — tee a surface's output to a file, debounced flush ──
     function pipeFile(t){return (homeAbs||'')+'/'+((t.host?('ssh-'+t.host):(base(t.cwd)||'shell'))+'-'+t.id)+'.log'}
     function pipeStart(t,file){if(!Bridge.on())return{ok:false,error:'bridge offline'};if(t.pipe)pipeStop(t);t.pipe={file,buf:'',timer:null};return{ok:true,file}}
@@ -1460,7 +1452,7 @@
       const pn=paneCur();if(!pn)return;
       const seed=dir||curCwd();
       const npn=spawnPane(pn,'h',false);if(!npn){newSurface(pn,seed,'code');renderAll();return}
-      newSurface(npn,seed,'code',null,true);pn.w.focus=npn.id;
+      newSurface(npn,seed,'code',true);pn.w.focus=npn.id;
       renderGrid(pn.w);renderAll();saveState();
     }
     async function lsDir(dir){
@@ -1489,13 +1481,13 @@
       if(tree.grep&&tree.gres)drawGrep(tl);
       else await drawLevel(tl,tree.root,0);
     }
-    // content search (our "text" mode of cmux's ⌘⇧F) — ripgrep when present, grep otherwise;
+    // content search (our "text" mode of ⌘⇧F) — ripgrep when present, grep otherwise;
     // read-only, capped, .git/node_modules excluded. Click a hit → the file viewer.
     async function doGrep(q){
       tree.gq=q;
       if(!q){tree.gres=null;renderTree();return}
       if(!Bridge.on()){Toast.show('Connect the HUB Bridge to search file contents');return}
-      // "in directory" = the ACTIVE TAB's folder (cmux semantics), not the tree root —
+      // "in directory" = the ACTIVE TAB's folder, not the tree root —
       // the tree may sit at ~ while the shell works deep inside a repo
       const root=tree.groot=curCwd();
       const q1="'"+String(q).replace(/'/g,"'\\''")+"'";
@@ -1522,7 +1514,7 @@
         container.appendChild(row);
       });
     }
-    function findInDirectory(){ // ⌘⇧F — cmux's find-in-directory, plus our content mode
+    function findInDirectory(){ // ⌘⇧F — find in directory, plus our content mode
       if(treeHidden)toggleTree();
       tree.grep=true;
       renderTree().then(()=>{const f2=treeEl.querySelector('#shfind');if(f2){f2.focus();f2.select()}});
@@ -1550,7 +1542,7 @@
     }
     function markHere(){const t=activeTab();if(!t)return;if(tree.here!==t.cwd){tree.here=t.cwd;expandTo(t.cwd);if(!treeHidden)renderTree()}}
 
-    // ---- resizable terminal | files (the tree sits on the RIGHT, cmux-style) ----
+    // ---- resizable terminal | files (the tree sits on the RIGHT) ----
     (()=>{const splitEl=p.querySelector('#shsplit');if(!splitEl)return;
       let w=parseInt(localStorage.getItem('cfhub.shell.treew')||'206',10)||206;treeEl.style.width=w+'px';
       splitEl.addEventListener('pointerdown',e=>{e.preventDefault();splitEl.classList.add('drag');const r=p.querySelector('.sh').getBoundingClientRect();

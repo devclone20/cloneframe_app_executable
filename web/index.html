@@ -506,14 +506,26 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
 .fitghost{position:fixed;z-index:900;pointer-events:none;display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:9px;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--accent);font-size:10.5px;letter-spacing:.12em;color:var(--fg);backdrop-filter:blur(14px)}
 .fitghost svg{width:12px;height:12px;color:var(--accent)}
 #t-fit{cursor:grab;touch-action:none}
+/* The scale — only ever on screen when you are zoomed OUT, and even then it is glow, not
+   ink: it must read as light over the canvas, never as a label sitting on top of the app
+   or spreadsheet you are looking at. --ruler-fade is the camera's own fade (set by
+   Ruler.update); the .3 factor is the glow. Hover brings it up to legible, because the one
+   moment you WANT the number is the moment you point at it. It is draggable, so it takes
+   pointer events — the hit area is exactly the bar and its label, nothing wider. */
 #ruler{
   position:fixed;left:50%;bottom:104px;transform:translateX(-50%);z-index:640;display:none;
-  flex-direction:column;align-items:center;gap:4px;pointer-events:none;
-  font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:#e8d9c4;text-shadow:0 1px 6px rgba(0,0,0,.8);
+  flex-direction:column;align-items:center;gap:4px;pointer-events:auto;cursor:grab;touch-action:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:#e8d9c4;
+  opacity:calc(var(--ruler-fade,1) * .3);
+  text-shadow:0 0 10px rgba(232,217,196,.55),0 1px 6px rgba(0,0,0,.55);
+  transition:opacity .22s ease;
 }
-#ruler .bar{width:160px;height:1.5px;background:#e8d9c4;box-shadow:0 0 6px rgba(232,217,196,.5);position:relative}
+#ruler:hover{opacity:calc(var(--ruler-fade,1) * .92)}
+#ruler.dragging{cursor:grabbing;opacity:calc(var(--ruler-fade,1) * .92);transition:none}
+#ruler .bar{width:160px;height:1.5px;background:#e8d9c4;box-shadow:0 0 8px rgba(232,217,196,.65);position:relative}
 #ruler .bar::before,#ruler .bar::after{content:'';position:absolute;top:-3px;width:1.5px;height:8px;background:#e8d9c4}
 #ruler .bar::before{left:0}#ruler .bar::after{right:0}
+#t-ruler{cursor:grab;touch-action:none}
 
 /* ---------- Retractable contextual guide ---------- */
 #guide{position:fixed;inset:auto 0 0 0;z-index:620;transition:transform .3s cubic-bezier(.3,1,.3,1)}
@@ -1721,13 +1733,6 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .sh-viewov{position:absolute;inset:0;z-index:6;background:var(--panel);display:flex;flex-direction:column;overflow:auto}
 .sh-dot.live{background:var(--ok);box-shadow:0 0 6px color-mix(in srgb,var(--ok) 65%,transparent)}
 .sh-dot.dead{background:#6b6b74;box-shadow:none;animation:none}
-.sh-tmuxpop{position:absolute;z-index:40;min-width:190px;background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:11px;padding:5px;box-shadow:0 22px 55px -16px rgba(0,0,0,.85)}
-.sh-tmuxpop .hd{font-size:10px;letter-spacing:.16em;color:var(--ink-faint);padding:6px 9px 4px}
-.sh-tmuxpop button{all:unset;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;padding:7px 9px;border-radius:7px;font-size:11px;color:var(--fg);cursor:pointer}
-.sh-tmuxpop button:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
-.sh-tmuxpop button span{font-size:10px;color:var(--ink-faint)}
-.sh-tmuxpop .none{font-size:10.5px;color:var(--ink-dim);padding:8px 9px;max-width:220px;white-space:normal}
-.sh-tmuxpop .none code{font-family:var(--mono);color:var(--accent);font-size:10px}
 .sh-hostpop{position:absolute;z-index:40;min-width:210px;max-width:290px;background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:11px;padding:5px;box-shadow:0 22px 55px -16px rgba(0,0,0,.85)}
 .sh-hostpop .hd{font-size:10px;letter-spacing:.16em;color:var(--ink-faint);padding:6px 9px 4px}
 .sh-hostpop button[data-h]{all:unset;display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;padding:7px 9px;border-radius:7px;font-size:11px;color:var(--fg);cursor:pointer}
@@ -1784,7 +1789,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .omz-p.dir{color:#61afef}
 .omz-p.git{color:#98c379;margin-left:9px}
 .omz-p.car{color:var(--accent);margin-left:9px}
-/* iT — cmux-style multiplexer chrome (workspaces ▸ split panes ▸ surface tabs) */
+/* iT — multiplexer chrome (workspaces ▸ split panes ▸ surface tabs) */
 .it{position:relative}
 .sh-tree.it-right{border-right:0;border-left:1px solid var(--line)}
 .it-ws{width:196px;flex:none;display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:color-mix(in srgb,var(--bg) 34%,transparent)}
@@ -1813,7 +1818,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-grphd.dropin{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 /* dragging a workspace over free list space = "drop here to leave the group" */
 .it-wslist.dropout{box-shadow:inset 0 -2px 0 var(--accent)}
-/* right-click context menu (workspaces · groups · tabs) — cmux's menu, our skin */
+/* right-click context menu (workspaces · groups · tabs) */
 .it-ctx{position:absolute;z-index:60;min-width:200px;background:color-mix(in srgb,var(--panel) 97%,transparent);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:11px;padding:5px;box-shadow:0 22px 55px -16px rgba(0,0,0,.85)}
 .it-ctx button{all:unset;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;padding:6px 9px;border-radius:7px;font-size:11px;color:var(--fg);cursor:pointer}
 .it-ctx button:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
@@ -1840,7 +1845,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-grid.on{display:flex}
 .it-node{display:flex;flex:1;min-width:0;min-height:0}
 .it-node.v{flex-direction:column}
-/* Hairline splits (cmux look, owner's order 2026-07-25): panes sit FLUSH — no margins,
+/* Hairline splits (owner's order 2026-07-25): panes sit FLUSH — no margins,
    no borders, no rounded cards — and the only division is the divider's own 1px line.
    The divider keeps its 7px grab area (drag/resize behavior unchanged); the line
    brightens on hover/drag. Focus/fired rings are inset box-shadows: 1px, no layout shift. */
@@ -1902,7 +1907,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-codeed{flex:1;min-width:0;height:100%;min-height:0;position:relative;display:flex;flex-direction:column;overflow:hidden}
 .it-codeed .fv{height:100%}
 .it-codeblank{flex:1;display:grid;place-items:center;color:var(--ink-faint);font-size:11px;padding:20px;text-align:center;line-height:1.6}
-/* iT Phase 3.1 — workspace colors (cmux "left rail" indicator) · status pills · progress */
+/* iT Phase 3.1 — workspace colors (left-rail indicator) · status pills · progress */
 .it-wsrow.tinted::before{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--wsc)}
 .it-wsrow.on.tinted::before{background:var(--wsc)}
 .it-wsdot{width:8px;height:8px;border-radius:50%;flex:none;cursor:pointer;border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);background:var(--wsc,transparent)}
@@ -1912,7 +1917,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .it-wsprog{position:relative;height:3px;border-radius:2px;margin-top:4px;background:color-mix(in srgb,var(--fg) 10%,transparent);overflow:hidden}
 .it-wsprog i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
 .it-wsprog span{position:absolute;right:0;top:-11px;font-size:10px;color:var(--ink-faint);font-family:var(--mono)}
-/* iT Phase 3.1 — find-in-directory (⌘⇧F): name filter (cmux) + our content-grep mode */
+/* iT Phase 3.1 — find-in-directory (⌘⇧F): name filter + our content-grep mode */
 .it-findrow{display:flex;gap:4px;align-items:center;margin:0 0 6px}
 .it-findrow .it-tfind{margin:0;flex:1}
 .it-fmode{flex:none;padding:4px 7px;border:1px solid var(--line);border-radius:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-faint)}
@@ -2856,6 +2861,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
     <button class="tbtn" id="t-traffic" title="Traffic: zooming out tucks your open panels away; zoom back in to bring them back. Focus keeps them open."><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><b id="t-traffic-label">Focus mode</b></button>
     <div class="zoomrow"><button class="zbtn" id="t-zout">−</button><button class="zbtn" id="t-zin">+</button><button class="zbtn" id="t-fit" title="fit"><svg width="12" height="12"><use href="#i-fit"/></svg></button></div>
     <button class="tbtn" id="t-guide" title="Guide bar — click or drag out to bring it back" style="display:none"><svg width="13" height="13"><use href="#i-guide"/></svg><b>Show guide bar</b></button>
+    <button class="tbtn" id="t-ruler" title="Zoom-out scale — click or drag out to bring it back" style="display:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h18"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M12 10.5v3"/></svg><b>Show scale</b></button>
   </div>
 </div>
 <button id="reframe"><svg><use href="#i-fit"/></svg>FIT</button>
@@ -3675,15 +3681,57 @@ const Cosmos=(()=>{
   return{render,extent:()=>1e12,prewarm:()=>{if(!built)build()}};
 })();
 
-/* ---------- Ruler ---------- */
+/* ---------- Ruler — the zoom-out scale: glow, draggable, parkable in the triangle ----------
+   THREE rules that must not fight each other, because they are three different owners of the
+   same `display`:
+     1. the CAMERA decides it is only ever relevant zoomed out (webA >= .4),
+     2. the OWNER decides where it sits, and whether it exists at all (parked in ▲),
+     3. neither may override the other — parked wins over zoomed-out, always.
+   So update() never turns it on by itself: it feeds the fade and the number, and asks
+   refresh() to decide. Parking it therefore cannot be undone by a zoom, which is the whole
+   point of parking it. Same shape as Reframe (FIT) and the dock, deliberately — one gesture
+   to learn for every floating piece. */
 const Ruler=(()=>{
   const el=document.getElementById('ruler'),lb=document.getElementById('rulerlabel');
-  return{update(s,webA){
-    if(webA<.4){el.style.display='none';return}
-    el.style.display='flex';el.style.opacity=Math.min(1,webA);
-    const frames=Math.round(160/s/32);
-    lb.textContent=(frames>=1e6?(frames/1e6).toFixed(1)+'M':frames>=1e3?(frames/1e3).toFixed(1)+'K':frames)+' FRAMES';
-  }};
+  const KEY='cfhub.ruler.v1';
+  let st={parked:false,x:null,y:null};
+  try{st=Object.assign(st,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(_){}
+  let zoomedOut=false;
+  const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(_){}};
+  function applyPos(){
+    if(st.x!=null&&st.y!=null){el.style.left=st.x+'px';el.style.top=st.y+'px';el.style.bottom='auto';el.style.transform='none'}
+    else{el.style.left='';el.style.top='';el.style.bottom='';el.style.transform=''}   // back to the centred default
+  }
+  function refresh(){el.style.display=(!st.parked&&zoomedOut)?'flex':'none'}
+  function syncMenuRow(){const b=document.getElementById('t-ruler');if(b)b.style.display=st.parked?'flex':'none'}
+  applyPos();syncMenuRow();
+  // drag = reposition · drop on the ▲ = park. A tap does nothing: this is a readout, not a
+  // button, and a stray click on the canvas edge must never move the camera.
+  {let ox=0,oy=0;
+    makeDragToTri(el,{threshold:4,preventDefault:true,stopPropagation:true,
+      onStart:(e,d)=>{const r=el.getBoundingClientRect();ox=d.startX-r.left;oy=d.startY-r.top;el.classList.add('dragging')},
+      onMove:(e,d)=>{st.x=Math.max(4,Math.min(innerWidth-el.offsetWidth-4,d.x-ox));st.y=Math.max(4,Math.min(innerHeight-el.offsetHeight-4,d.y-oy));applyPos()},
+      onPark:(e,d,over)=>{el.classList.remove('dragging');
+        if(over){st.parked=true;st.x=null;st.y=null;persist();applyPos();refresh();syncMenuRow();Toast.show('Scale parked — open the ▲ menu and drag it back out')}
+        else persist();}});
+  }
+  return{
+    update(s,webA){
+      zoomedOut=webA>=.4;
+      refresh();
+      if(!zoomedOut||st.parked)return;                       // nothing to compute while hidden
+      el.style.setProperty('--ruler-fade',Math.min(1,webA));  // the camera's fade, glowed by CSS
+      const frames=Math.round(160/s/32);
+      lb.textContent=(frames>=1e6?(frames/1e6).toFixed(1)+'M':frames>=1e3?(frames/1e3).toFixed(1)+'K':frames)+' FRAMES';
+    },
+    isParked(){return !!st.parked},
+    restore(x,y){
+      st.parked=false;
+      if(typeof x==='number'&&typeof y==='number'){st.x=Math.max(4,Math.min(innerWidth-170,x-80));st.y=Math.max(4,Math.min(innerHeight-30,y-12))}
+      applyPos();persist();refresh();syncMenuRow();
+      if(!zoomedOut)Toast.show('Scale is back — it shows itself when you zoom out');
+    },
+  };
 })();
 
 /* ---------- Reframe (framing) — draggable FIT, parkable in the triangle ---------- */
@@ -4157,7 +4205,7 @@ function ensureXterm(){
   return __xtermLoading;
 }
 // Term(hostEl, opts) → {dispose,focus,send} — mounts a live interactive terminal.
-// opts: op 'shell'|'attach' · session (tmux name, for attach) · cwd · onCwd(dir) (OSC 7,
+// opts: op 'shell'|'ssh'|'keeper' · cwd · onCwd(dir) (OSC 7,
 // the file tree follows the shell) · onTitle(s) · onExit() · onOutput() (any byte from the
 // pty — unread tracking) · keys(e)→true to swallow a key combo before xterm sees it.
 function Term(hostEl,opts){
@@ -4231,7 +4279,12 @@ const BridgeClient=(()=>{
   const TKEY='cfhub.bridge.tok';
   const NOT_PAIRED='not paired — paste the bridge link in MY MACHINE';
   const token=()=>{try{return sessionStorage.getItem(TKEY)||''}catch(e){return''}};
-  const setToken=(t)=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(e){}};
+  // The live-socket panels (iT, BROWSER, HARNESS) read their WS token from the injected
+  // window.__CFHUB_BRIDGE__, not from sessionStorage. Keep the two in step here — after a
+  // token rotation (Settings → Session) a stale global means every NEW socket is refused
+  // while the HTTP side carries on working, which looks like anything but an auth problem.
+  const setToken=(t)=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(e){}
+    try{if(t&&window.__CFHUB_BRIDGE__)window.__CFHUB_BRIDGE__.token=t}catch(e){}};
   const endpoint=()=>Store.get().bridge.endpoint||'';
   const headers=()=>({'Content-Type':'application/json',Authorization:'Bearer '+token()});
   // \x00-marker parser (single source): CWD/EXIT/CLEAR/ERR/NEEDSUDO
@@ -4908,7 +4961,7 @@ const Panels=(()=>{
           <div class="fm-area" id="fmarea"></div>
         </div>
       </div>`},
-    shell:{icon:'#i-term2',title:'iT',sub:'terminal multiplexer · workspaces · splits · tmux',w:1060,h:620,pad:false,noscale:true,body:()=>`
+    shell:{icon:'#i-term2',title:'iT',sub:'terminal · workspaces · splits · persistent sessions',w:1060,h:620,pad:false,noscale:true,body:()=>`
       <div class="sh it">
         <aside class="it-ws" id="itws"></aside>
         <div class="it-main" id="itmain"></div>
@@ -4944,6 +4997,7 @@ const Panels=(()=>{
           <button data-sec="servers"><svg><use href="#i-cosmos"/></svg>Servers</button>
           <div class="sng">ADMIN</div>
           <button data-sec="agenttools"><svg><use href="#i-shield"/></svg>Agent Tools</button>
+          <button data-sec="session"><svg><use href="#i-shield"/></svg>Session</button>
           <button data-sec="users"><svg><use href="#i-agent"/></svg>Users</button>
           <button data-sec="system"><svg><use href="#i-gear"/></svg>System</button>
         </nav>
@@ -5150,11 +5204,11 @@ const Panels=(()=>{
   /* ---------- FOLDERS — a full file manager (browse · create · edit · organize) ---------- */
   //@cfbuild-include panels/folders.js
 
-  /* ---------- iT (standalone terminal) — cmux-style multiplexer: workspaces ▸ split panes ▸ surface tabs.
-     Keyboard/command-compatible with the open-source cmux — clean-room, behavior only, no cmux code. ---------- */
+  /* ---------- iT (standalone terminal) — our multiplexer: workspaces ▸ split panes ▸ surface tabs.
+     Every shortcut is rebindable; sessions persist through our own keeper engine. ---------- */
   // iT keymap registry — shared by the iT engine, the `it` CLI and Settings → iT.
   // [action, default combo, description]; user overrides live in localStorage cfhub.it.keys
-  // (cmux combo grammar: "cmd+shift+d"; unbind tokens none/clear/unbound/disabled/null).
+  // (combo grammar: "cmd+shift+d"; unbind tokens none/clear/unbound/disabled/null).
   const IT_ACTIONS=[
     ['toggle-left-sidebar','cmd+b','Toggle left sidebar'],
     ['toggle-right-sidebar','alt+cmd+b','Toggle right sidebar'],

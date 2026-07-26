@@ -3,27 +3,43 @@
 CLONE FRAME HUB is open source and bundles / vendors the third-party components below.
 Each keeps its own license. Two classes:
 
-1. **npm runtime dependencies** of the bridge daemon (`bridge/package.json`) and
-   **vendored browser assets** (`vendor/`) — MIT, listed here in full.
-2. **Engine submodules** under `integrations/<tool>/` — added at ship time via
-   `git submodule add` (see [Ship-time step](#ship-time-step-git-submodules)). Each
-   ships its own upstream `LICENSE`; a per-tool `integrations/<tool>/NOTICE.md` records origin,
-   license, and our integration boundary.
+1. **npm dependencies** — of the bridge daemon (`bridge/package.json`), of the login
+   bundle (`login-island/`, built offline into the vendored `privy-login.js`), and
+   vendored browser assets (`vendor/`). Listed here in full.
+2. **Bundled integrations** under `integrations/<tool>/` — each folder is populated by
+   its own `install.sh` (see `integrations/README.md`) and ships its own upstream
+   `LICENSE`; a per-tool `integrations/<tool>/NOTICE.md` records origin, license, and
+   our integration boundary.
+
+Only components CLONE FRAME actually distributes get a notice here. A tool the app can
+optionally drive on the user's own machine — because the user separately installed it —
+carries no notice; nothing of it ships in this repo.
 
 ---
 
-## 1. npm dependencies (bridge) + vendored assets — all MIT
+## 1. npm dependencies + vendored assets
 
 | Component | Where | Version (spec / installed) | License |
 |---|---|---|---|
 | **node-pty** | `bridge/package.json` dep | `^1.1.0` (1.1.0) | MIT |
 | **ws** | `bridge/package.json` dep | `^8` (8.21.1) | MIT |
+| **imapflow** | `bridge/package.json` dep | `^1.4.6` (1.4.6) | MIT |
+| **mailparser** | `bridge/package.json` dep | `^3.9.14` (3.9.14) | MIT |
+| **nodemailer** | `bridge/package.json` dep | `^9.0.3` (9.0.3) | MIT-0 |
 | **@xterm/xterm** | `vendor/xterm/xterm.js` + `xterm.css` | 6.0.0 | MIT |
 | **@xterm/addon-fit** | `vendor/xterm/addon-fit.js` | 0.11.0 | MIT |
+| **react** + **react-dom** | bundled into `privy-login.js` (built by `login-island/`) | 18.3.1 | MIT |
+| **@privy-io/react-auth** | bundled into `privy-login.js` (built by `login-island/`) | 3.35.0 | Apache-2.0 |
 
-Full license texts: node-pty and ws MIT texts live in
-`bridge/node_modules/<pkg>/LICENSE` after `npm install`; the xterm MIT text is checked
-in at `vendor/xterm/LICENSE`. The MIT template each follows:
+Full license texts: node-pty, ws, imapflow and mailparser MIT texts live in
+`bridge/node_modules/<pkg>/LICENSE` after `npm install` in `bridge/`; the xterm MIT
+text is checked in at `vendor/xterm/LICENSE`; react, react-dom and
+`@privy-io/react-auth` license texts live in `login-island/node_modules/<pkg>/LICENSE`
+after `npm install` in `login-island/` (no upstream `NOTICE` file ships with
+`@privy-io/react-auth`, so there is nothing beyond the license text itself to carry
+forward). nodemailer ships as **MIT-0** — the MIT terms below, minus the requirement
+to reproduce the copyright/permission notice. The MIT template every MIT component
+above follows:
 
 ```
 MIT License
@@ -46,6 +62,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+### Build/provenance note — `privy-login.js` (vendored bundle)
+
+`privy-login.js` at the repo root is a single minified IIFE, built offline by
+`login-island/build.mjs` (esbuild) from `react` + `react-dom` +
+`@privy-io/react-auth`, and served by the bridge next to `index.html`. `login-island/`
+itself — its JSX source and its `node_modules` — is a build-machine-only tool and is
+never shipped as source; its **output**, this one bundled file, is what actually ships
+with the app, which is why the three packages it is built from are listed above.
 
 ### Build/runtime note — node-pty (native module)
 
@@ -70,30 +95,31 @@ chmod +x bridge/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
 
 ## 2. Bundled integrations (`integrations/<tool>/`)
 
-CLONE FRAME bundles the integrations below today. Each is used at arm's length — via
-its files or Google's official download — and is **not linked in-process**.
+CLONE FRAME bundles the integration below today. It is used at arm's length — its
+files are loaded into the browser at launch — and is **not linked in-process**.
 
 | Tool | Path | Origin | License | Frame |
 |---|---|---|---|---|
 | **Framer** (our extension) | `integrations/framer` | pattern per github.com/MartinWie/Framer | MIT | BROWSER |
-| **Chrome for Testing** (runtime) | `integrations/runtime` | https://googlechromelabs.github.io/chrome-for-testing/ | Google Chrome for Testing ToS (Chromium: BSD-3-Clause) | app runtime |
 
-The Framer extension is our own code (MIT). Chrome for Testing is downloaded from
-Google's official storage at install time and is **not** redistributed in this repo.
+The Framer extension is our own code (MIT). (The previously-listed Chrome for Testing
+runtime is retired — the app now launches the user's own branded Google Chrome; see
+`bridge/launch.sh`. Nothing under `integrations/runtime/` ships or is downloaded any
+more.)
 
-> **Note — EXO LAB · Manaflow · TMUX:** these appear as **"coming soon"** in the
-> INTEGRATIONS tab and are **not bundled** in this build — no source, no submodule, no
-> runtime, and therefore no third-party license obligation here. Their notices return
-> when the integrations ship.
+## 3. iT — CLONE FRAME's own terminal (no third-party code)
 
-## 3. iT terminal — behavior compatibility (no third-party code)
+**iT** is CLONE FRAME's own terminal multiplexer — workspaces, split panes, tabs, and
+a real TTY per tab — implemented entirely in this repo. No terminal-multiplexer source
+from any other project is bundled, vendored, or linked into it.
 
-The **iT** terminal multiplexer is our own clean-room implementation. It is *built on
-ideas from* open-source projects and stays keyboard/command-compatible with cmux, but
-**bundles none of their code**:
+Session persistence is likewise our own: `bridge/keeper.mjs` runs each shell's PTY
+inside a small detached daemon, spawned unref'd with its stdio ignored, so a session's
+shell keeps running when its client disconnects **and** when the bridge itself
+restarts. On reattach the daemon replays the session's scrollback ring before handing
+control back to the terminal, so nothing is lost across a reload or a bridge restart.
 
-| Project | License | Relationship |
-|---|---|---|
-| **cmux** (Manaflow) — github.com/manaflow-ai/cmux | GPL-3.0-or-later | iT speaks the cmux keyboard & command language. Behavior compatibility only — interfaces/shortcuts are unprotectable behavior; no cmux source is copied or bundled. |
-| **tmux** — github.com/tmux/tmux | ISC | iT attaches to tmux sessions already running on the user's machine (`tmux attach-session`). Not bundled. |
-| **exo** — github.com/exo-explore/exo | Apache-2.0 | Local AI cluster integration (coming). Not bundled. |
+---
+
+*Full paths verified against `bridge/package.json`, `login-island/package.json`,
+`vendor/xterm/`, and the installed `node_modules` on this machine.*

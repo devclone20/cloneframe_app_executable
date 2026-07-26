@@ -99,7 +99,6 @@
         ['realesrgan','Image upscaling (Real-ESRGAN).','Image',false],
         ['playwright','Headless browser automation.','Tools',false],
       ],srv:[
-        ['tmux','Terminal multiplexer for serve sessions.','System',true],
         ['docker','Container runtime.','System',true],
         ['hf_transfer','Fast HuggingFace downloads.','LLM',false],
         ['llama_cpp','GGUF inference engine.','LLM',true,'llama'],

@@ -125,7 +125,7 @@
     {
       "key": "shell",
       "title": "iT",
-      "sub": "terminal multiplexer · workspaces · splits · tmux"
+      "sub": "terminal · workspaces · splits · persistent sessions"
     },
     {
       "key": "theme",

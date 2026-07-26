@@ -267,11 +267,10 @@ export const WS_SUBPROTOCOL_BEARER_PREFIX = 'cfhub.bearer.'; // + <token>, clien
  * All parsed from the upgrade request's URL query string.
  */
 export const WS_QUERY_PARAMS = Object.freeze({
-  op: "'shell' (default) | 'attach' | 'ssh' | 'keeper' | 'it' — selects the branch below",
+  op: "'shell' (default) | 'ssh' | 'keeper' | 'it' — selects the branch below",
   cols: 'number, clamped [1,1000], default 80 — initial PTY width (ignored for op=it)',
   rows: 'number, clamped [1,1000], default 24 — initial PTY height (ignored for op=it)',
-  cwd: 'string — initial working directory for the spawned process (op=shell/attach/ssh/keeper)',
-  session: "string, must match /^[\\w.-]{1,64}$/ — tmux session name, op='attach' only",
+  cwd: 'string — initial working directory for the spawned process (op=shell/ssh/keeper)',
   host: "string — a SAVED ssh alias name (never a raw hostname), op='ssh' only",
   sess: "string, must match /^[A-Za-z0-9_-]{1,64}$/ — keeper session id, op='keeper' only",
   sid: 'string, must match /^[A-Za-z0-9_-]{8,64}$/ — a client-minted STABLE session id enabling Phase-4 reattach (survives page reload); op=shell/ssh',
@@ -297,16 +296,12 @@ export const WS_OPS = Object.freeze({
       'hello.id/hello.persist are set only when `sid` matches its regex — this is the Phase-4 reattach path (pty.mjs reuses a live session by id instead of spawning a new one).',
     ],
   },
-  attach: {
-    hello: "{ cmd: 'tmux', args: ['attach-session', '-t', session], cwd, cols, rows }",
-    notes: ['Rejects (ws.close(1008)) if `session` fails /^[\\w.-]{1,64}$/.', 'Substrate for multiple agent crews sharing one tmux session.'],
-  },
   ssh: {
     hello: '{ cmd, args, cwd, cols, rows, id?, persist? } — cmd/args come from Ssh._connectArgs(alias), server-side only',
     notes: [
       "Gated by the 'ssh' permission (default OFF) — closes 1008 'ssh permission is off' if not granted.",
       '`host` is an alias name, NEVER a raw hostname/IP — resolution happens entirely server-side so the real address never crosses to the client.',
-      'ssh is only the TRANSPORT for iT-remote — this is CLONE FRAME\'s own remote engine, not a tmux passthrough.',
+      'ssh is only the TRANSPORT for iT-remote — this is CLONE FRAME\'s own remote engine.',
       'hello.id/hello.persist set from `sid` (must match /^[A-Za-z0-9_-]{8,64}$/) + `persist` — reattach to a live ssh pty after reload.',
     ],
   },

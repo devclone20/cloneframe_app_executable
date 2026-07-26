@@ -130,7 +130,7 @@ for the live catalog.
 | `lab` | LAB | chat · agents |
 | `agentview` | AGENT | iNFT identity · traits · soul |
 | `folders` | FOLDERS | your files · browse · create · edit · organize |
-| `shell` | iT | terminal multiplexer · workspaces · splits · tmux |
+| `shell` | iT | terminal · workspaces · splits · persistent sessions |
 | `theme` | THEME | themes · customize |
 | `settings` | SETTINGS | models · agent · appearance · account |
 <!-- END AUTO PANELS -->
@@ -286,7 +286,7 @@ model class that fits the job:
 
 | agent | model class | what it's for |
 |---|---|---|
-| `scout` | **free local** (MATRIX-EXO cluster when up) → cheap fallback | web / GitHub research, data gathering |
+| `scout` | **free local** (MATRIX cluster when up) → cheap fallback | web / GitHub research, data gathering |
 | `reader` | free local → cheap | read & summarize files, docs, cloned repos |
 | `builder` | mid | well-scoped code against a closed spec |
 | `critic` | mid | adversarial review of finished work |
@@ -450,7 +450,7 @@ last shipped edit. It also lives in the GitHub repo, branch for branch.
   human-check (/sorry) needs the owner — say so, never retry around it.
 - **Magic Frames**: the canvas' little squares that hold docked windows are called
   Magic Frames; their placement is a Setting (organized lattice by default).
-- **iT**: hairline cmux-style splits, workspace drag-reorder + groups + right-click
+- **iT**: hairline splits, workspace drag-reorder + groups + right-click
   menus, resize from every edge/corner, and the file viewer opens files up to 64MB.
 - **A page that opens a page becomes a real tab.** `target="_blank"` links and
   `window.open` used to create engine pages nobody could see — the click looked dead and

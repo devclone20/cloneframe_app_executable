@@ -27,6 +27,7 @@ app.setName('CLONE FRAME HUB'); // the macOS app-menu title + About panel name (
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const { isLoadableUrl, isOAuthPopupUrl } = require('./url-guard');
 
 const PORT = process.env.HUB_BRIDGE_PORT || '8765';
 const APP_URL = `http://127.0.0.1:${PORT}`;
@@ -58,7 +59,10 @@ const REJECT_RE = /accounts\.google\.com\/(v3\/)?signin\/rejected|deniedsigninre
 // OAuth popups (window.open) must be REAL child windows of the app: the opener
 // relationship carries the postMessage handshake that completes the login.
 const OAUTH_POPUP_RE = /\/oauth|\/__\/auth\/|\/signin-|\/sso\//i;
-function isOAuthPopup(u) { return isAuthUrl(u) || OAUTH_POPUP_RE.test(u); }
+// Scheme-and-path aware (electron/url-guard.js). It used to run OAUTH_POPUP_RE over the
+// raw string, so any URL merely CONTAINING "/sso/" — including a `javascript:` one —
+// was granted a real child window with the opener relationship intact.
+function isOAuthPopup(u) { return isOAuthPopupUrl(u, AUTH_HOST, OAUTH_POPUP_RE); }
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 
@@ -240,6 +244,10 @@ ipcMain.handle('cfhub:web:setBounds', (_e, { id, bounds, visible }) => {
 });
 ipcMain.handle('cfhub:web:navigate', async (_e, { id, url }) => {
   const v = views.get(id); if (!v) return { ok: false };
+  // The renderer names the destination; the shell decides whether it is a web page at
+  // all. Without this, `file://…/.ssh/id_ed25519`, `javascript:` and `data:` all loaded
+  // — this was the ONE URL path in this file with no scheme check (url-guard.js).
+  if (!isLoadableUrl(url)) return { ok: false, error: 'refused: the browser opens http(s) pages only' };
   // A commanded nav is a fresh destination: seed lastSites with it (even an auth host,
   // so a DIRECT visit to accounts.google.com is recognised as the provider's own site,
   // not a stale third-party from a previous flow).

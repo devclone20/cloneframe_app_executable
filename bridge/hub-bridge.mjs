@@ -13,13 +13,13 @@
 // and are NEVER in the website.
 // ─────────────────────────────────────────────────────────────────────────────
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import Shell from './domains/chat/shell.mjs';
 import Chat from './domains/chat/chat.mjs';
+import Session from './session.mjs';
 import { serveStatic, armPairing } from './transport/static.mjs';
 // guarded (never crash the daemon if 'ws' is absent — /stream just becomes unavailable).
 // ws is CommonJS: the WebSocketServer lives on the default export, not as a named ESM export.
@@ -68,20 +68,12 @@ if (!LOOPBACK_HOSTS.has(HOST) && process.env.HUB_BRIDGE_ALLOW_PUBLIC !== '1') {
   process.exit(1);
 }
 const CONFIG_DIR = path.join(homedir(), '.clone-frame-hub');
+try { fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 }); } catch {}
 
-// ── pairing token (persistent, chmod 600) ───────────────────────────────────
-function loadToken() {
-  try { fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 }); } catch {}
-  const f = path.join(CONFIG_DIR, 'bridge.token');
-  try {
-    const t = fs.readFileSync(f, 'utf8').trim();
-    if (t.length >= 32) return t;
-  } catch {}
-  const t = randomBytes(24).toString('base64url');
-  try { fs.writeFileSync(f, t, { mode: 0o600 }); } catch {}
-  return t;
-}
-const TOKEN = loadToken();
+// ── pairing token ────────────────────────────────────────────────────────────
+// Minted and owned by bridge/session.mjs, which also holds the owner's lifetime policy
+// (permanent by default — see that file). Read it through Session._token() at USE time,
+// never into a const: a rotation must take effect on the next request, not the next boot.
 
 // ── log hygiene ──────────────────────────────────────────────────────────────
 // Local logs may contain hostnames/IPs (esp. once SSH lands). Keep them owner-only
@@ -127,7 +119,11 @@ const CORS_ALLOWED = new Set([
 function cors(req, res) {
   const origin = req.headers.origin;
   if (origin && CORS_ALLOWED.has(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
-  else if (!origin) res.setHeader('Access-Control-Allow-Origin', '*'); // curl / same-origin: no credentials to protect
+  // No Origin header = not a browser CORS request (curl, the `it` CLI, the pi extension).
+  // We used to answer those with `*`, reasoning that there were no credentials to protect.
+  // The header did nothing for them — non-browser clients never read it — while sitting
+  // there as a wildcard for any future code path that DOES arrive origin-less. Removed
+  // 2026-07-26: say nothing, and only ever name our own origin.
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
@@ -143,16 +139,16 @@ function localOnly(req) {
   const okAddr = ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
   return okHost && okAddr;
 }
+// The Authorization header is the ONLY carrier. A `?token=` query param used to be
+// accepted as an alternate, and nothing in this app ever sent one — the client has always
+// been Bearer-only (BridgeClient.headers()). What it did do is put the secret somewhere
+// URLs go: shell history, access logs, the Referer of anything the page loads, a
+// screen-share of the address bar. Removed 2026-07-26; the WS carries it in the
+// subprotocol for the same reason.
 function authed(req) {
   const h = req.headers.authorization || '';
   const bearer = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
-  const url = new URL(req.url, 'http://x');
-  const q = url.searchParams.get('token') || '';
-  const tok = bearer || q;
-  // constant-time-ish compare
-  if (tok.length !== TOKEN.length) return false;
-  let d = 0; for (let i = 0; i < tok.length; i++) d |= tok.charCodeAt(i) ^ TOKEN.charCodeAt(i);
-  return d === 0;
+  return Session._verify(bearer);   // constant-time compare + the owner's lifetime policy
 }
 function readBody(req) {
   return new Promise((resolve) => {
@@ -186,7 +182,7 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   webengine: './webengine.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
   pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs',
-  app: './app.mjs', pi: './pi.mjs', rpcallow: './rpcallow.mjs',
+  app: './app.mjs', pi: './pi.mjs', rpcallow: './rpcallow.mjs', session: './session.mjs',
   email: './domains/mail/mail.mjs' };
 const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
   models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
@@ -196,7 +192,7 @@ const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', cont
   webengine: 'Webengine',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',
   pty: 'Pty', it: 'It', ssh: 'Ssh', keeper: 'Keeper', matrix: 'Matrix',
-  app: 'App', pi: 'Pi', rpcallow: 'RpcAllow',
+  app: 'App', pi: 'Pi', rpcallow: 'RpcAllow', session: 'Session',
   email: 'Email' };
 const _modCache = {};
 async function getMod(name) {
@@ -277,7 +273,7 @@ const server = http.createServer(async (req, res) => {
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
   // HEAD is served like GET (headers only) so probes never fall through to the 401/404
   // gate and log a console error (audit BUG-L0-001: HEAD not served → COOP/401 on boot).
-  if ((req.method === 'GET' || req.method === 'HEAD') && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: TOKEN })) return;
+  if ((req.method === 'GET' || req.method === 'HEAD') && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: Session._token() })) return;
   // everything else requires the pairing token
   if (!authed(req)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'unpaired' })); return; }
 
@@ -313,11 +309,7 @@ const server = http.createServer(async (req, res) => {
 // the raw socket is handed to Pty.attach, which owns all I/O, resize, and idle/lifetime caps.
 const wss = WebSocketServer ? new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024,
   handleProtocols: (protos) => (protos && protos.has && protos.has('cfhub')) ? 'cfhub' : false }) : null;
-function tokenEq(tok) {
-  if (typeof tok !== 'string' || tok.length !== TOKEN.length) return false;
-  let d = 0; for (let i = 0; i < tok.length; i++) d |= tok.charCodeAt(i) ^ TOKEN.charCodeAt(i);
-  return d === 0;
-}
+const tokenEq = (tok) => Session._verify(tok);   // same gate as HTTP: compare + lifetime
 server.on('upgrade', (req, socket, head) => {
   try {
     if (!wss) { socket.destroy(); return; }
@@ -341,7 +333,7 @@ function ensureZdot() {
   try {
     const dir = path.join(CONFIG_DIR, 'zdot');
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    // the `it` CLI, on PATH only inside iT shells (like cmux's in-terminal-only CLI)
+    // the `it` CLI, on PATH only inside iT shells
     const bin = path.join(CONFIG_DIR, 'bin');
     fs.mkdirSync(bin, { recursive: true, mode: 0o700 });
     const cli = path.join(path.dirname(new URL(import.meta.url).pathname), 'it-cli.mjs');
@@ -361,7 +353,7 @@ function ensureZdot() {
       '__cfhub_done(){ local rc=$?; [ -n "$__cfhub_t0" ] || return 0; local dt=$(( ${EPOCHREALTIME%.*} - __cfhub_t0 )); __cfhub_t0=""; if [ "$dt" -ge 15 ]; then printf \'\\e]777;notify;%s;%s\\e\\\\\' "finished in ${dt}s · exit ${rc}" "${__cfhub_cmd[1,80]}"; fi }',
       'preexec_functions+=(__cfhub_preexec)',
       'precmd_functions+=(__cfhub_done)',
-      '# the iT command line (`it` — cmux-compatible commands)',
+      '# the iT command line (`it`)',
       'export PATH="' + bin + ':$PATH"',
     ].join('\n');
     const src = (f) => `[ -f "$HOME/${f}" ] && . "$HOME/${f}"`;
@@ -390,14 +382,15 @@ async function dispatchStream(ws, url) {
   const rows = Math.max(1, Math.min(1000, Number(url.searchParams.get('rows')) || 24));
   const cwd = url.searchParams.get('cwd') || undefined;
   let hello;
-  if (op === 'attach') {
-    // attach to a tmux session — the substrate for agent crews running side-by-side
-    const session = String(url.searchParams.get('session') || '');
-    if (!/^[\w.-]{1,64}$/.test(session)) { try { ws.close(1008, 'bad session name'); } catch {} return; }
-    hello = { cmd: 'tmux', args: ['attach-session', '-t', session], cwd, cols, rows };
-  } else if (op === 'ssh') {
+  // op='attach' (spawning an external multiplexer to ride on its sessions) was removed on
+  // 2026-07-26. It was a second, redundant way to do what op='keeper' does with our OWN
+  // engine — persistent shells that survive a disconnect AND a bridge restart, with
+  // scrollback replay — and it made the app depend on a program we neither ship nor control.
+  // Nothing is lost: every iT tab is a real TTY, so anyone who wants another multiplexer can
+  // still run it inside one, like any other command.
+  if (op === 'ssh') {
     // iT remote — a (persistence-capable) PTY running `ssh <alias>`. This is OUR own remote
-    // engine, not tmux; ssh is only the transport. Gated by the default-OFF `ssh` permission.
+    // engine; ssh is only the transport. Gated by the default-OFF `ssh` permission.
     // The hostname is resolved server-side from a SAVED alias, so it never crosses to the client,
     // and the argv is built by ssh.mjs (allowlisted -o, `--` before the host, no user@host).
     let Perms; try { Perms = await getMod('permissions'); } catch {}
@@ -410,7 +403,7 @@ async function dispatchStream(ws, url) {
     const sid = String(url.searchParams.get('sid') || '');
     if (/^[A-Za-z0-9_-]{8,64}$/.test(sid)) { hello.id = sid; hello.persist = url.searchParams.get('persist') === '1'; }
   } else if (op === 'keeper') {
-    // iT Keeper — OUR own tmux-less persistence. The session lives in a DETACHED daemon that
+    // iT Keeper — OUR own session persistence. The session lives in a DETACHED daemon that
     // outlives this attach AND a bridge restart; here we only bridge the WS to a `keeper attach`
     // child (ephemeral — reaped on ws close; the daemon keeps the shell alive and replays on reattach).
     const sess = String(url.searchParams.get('sess') || '');
@@ -424,7 +417,7 @@ async function dispatchStream(ws, url) {
     const shell = process.env.SHELL || 'zsh';
     hello = { cmd: shell, args: ['-l'], cwd, cols, rows };
     if (/\bzsh$/.test(shell)) { const zd = ensureZdot(); if (zd) hello.env = { ZDOTDIR: zd }; }
-    // iT identity for the `it` CLI (like cmux's CMUX_WORKSPACE_ID/CMUX_SURFACE_ID):
+    // iT identity for the `it` CLI:
     // plain ids, no secrets — the CLI reads the token from disk, never from env.
     const wsId = String(url.searchParams.get('ws') || ''), surfId = String(url.searchParams.get('surf') || '');
     hello.env = hello.env || {};
@@ -445,7 +438,7 @@ server.listen(PORT, HOST, async () => {
   // deliberately here — importing models.mjs must never exec `security` as a side effect
   getMod('models').then((m) => { try { m._migrateKeys && m._migrateKeys(); } catch { /* best effort */ } }).catch(() => {});
   const endpoint = `http://${HOST}:${PORT}`;
-  const pair = `${endpoint}#token=${TOKEN}`;
+  const pair = `${endpoint}#token=${Session._token()}`;
   const line = '─'.repeat(64);
   console.log(`\n\x1b[38;5;176m▓▒ CLONE FRAME · HUB — local app v${VERSION}\x1b[0m`);
   console.log(line);
@@ -454,6 +447,10 @@ server.listen(PORT, HOST, async () => {
   console.log(`  brain      ${brain.ready ? '\x1b[32m' + (brain.provider || 'model') + ' (' + brain.model + ') — from Settings/env, any provider\x1b[0m' : '\x1b[33mnone — add a provider, or set DEEPSEEK_API_KEY / ANTHROPIC_API_KEY in ~/.env.local\x1b[0m'}`);
   console.log(`  shell      zsh · cwd ${Shell.cwd()}`);
   console.log(`  bind       ${HOST} only  ·  token gate ON  ·  serving ${path.basename(HUB_ROOT)}/`);
+  const sp = Session.get();
+  console.log(`  session    ${sp.mode === 'expiring'
+    ? `expires in ${Math.max(0, Math.round(sp.remainingMs / 60000))} min (${sp.hours}h token · Settings → Session)`
+    : 'permanent token — change it in Settings → Session'}`);
   console.log(line);
   console.log(`  Opened via the launcher, the Chrome app window auto-connects.`);
   console.log(`  For the dev preview (other origin), paste into MY MACHINE → HUB BRIDGE:`);

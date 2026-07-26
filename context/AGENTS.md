@@ -73,7 +73,7 @@ eyes — is **`APP-MAP.md`** beside this file (`cat ~/.clone-frame-hub/APP-MAP.m
 
 ## 5. iT — the terminal & the `it` CLI
 
-**iT** is a cmux-compatible multiplexer: workspaces ▸ split panes ▸ tabs, a real TTY per tab. Inside any iT shell the **`it`** command is on your PATH (cmux command names, clean-room). `it` alone = welcome; `it --help` = everything; `it context` = this guide.
+**iT** is CLONE FRAME's own terminal multiplexer: workspaces ▸ split panes ▸ tabs, a real TTY per tab, and its own persistent sessions (`bridge/keeper.mjs` — a detached daemon whose shells survive both a client disconnect and a bridge restart, replaying scrollback on reattach). Inside any iT shell the **`it`** command is on your PATH. `it` alone = welcome; `it --help` = everything; `it context` = this guide.
 
 ```
 it list-workspaces · new-workspace [--cwd] [--name] · select-workspace <ref> · rename-workspace
@@ -119,7 +119,7 @@ CLONE FRAME is open source. If you improve the app, send it upstream.
 
 - Branch off `main`, make the surgical change, keep to §6's rules.
 - No secrets in the diff. Respect every invariant in §1. Third-party licenses live in `THIRD-PARTY-NOTICES.md`; security posture in `SECURITY.md`.
-- Open a PR with a clear title and a one-paragraph "what & why". `cmux` is GPL and `Odysseus` is AGPL → **behavior-compatible, clean-room only; never copy their code.**
+- Open a PR with a clear title and a one-paragraph "what & why". `Odysseus` is AGPL → **behavior-compatible, clean-room only; never copy code from a project whose license doesn't allow it.**
 
 ---
 

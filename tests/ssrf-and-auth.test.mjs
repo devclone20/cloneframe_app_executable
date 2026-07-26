@@ -23,6 +23,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const WEB_PATH = new URL('../bridge/web.mjs', import.meta.url);
 const HUB_BRIDGE_PATH = new URL('../bridge/hub-bridge.mjs', import.meta.url);
@@ -73,17 +75,16 @@ test('fetchUrl — empty/non-string input is rejected as invalid-url BEFORE the 
 
 // ── Part 2: hub-bridge.mjs's authed() + localOnly(), transcribed verbatim ──
 
-function makeAuthed(TOKEN) {
-  // verbatim from hub-bridge.mjs:116-126
+// authed() now does one thing — parse the Authorization header — and hands the value to
+// Session._verify (bridge/session.mjs), which owns the constant-time compare AND the
+// owner's lifetime policy. session.mjs IS safely importable, so the compare exercised
+// below is the real one rather than a transcription.
+function makeAuthed(verify) {
+  // verbatim from hub-bridge.mjs authed()
   return function authed(req) {
     const h = req.headers.authorization || '';
     const bearer = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
-    const url = new URL(req.url, 'http://x');
-    const q = url.searchParams.get('token') || '';
-    const tok = bearer || q;
-    if (tok.length !== TOKEN.length) return false;
-    let d = 0; for (let i = 0; i < tok.length; i++) d |= tok.charCodeAt(i) ^ TOKEN.charCodeAt(i);
-    return d === 0;
+    return verify(bearer);
   };
 }
 
@@ -99,8 +100,12 @@ function makeLocalOnly(PORT, CONTAINER = false) {
   };
 }
 
-const TOKEN = 'Tt0kEn_value_of_exactly_32_chars'; // 33 chars, arbitrary fixed fixture
-const authed = makeAuthed(TOKEN);
+// A throwaway hub root, set BEFORE the import so session.mjs mints its token there and
+// this test can never touch the developer's real ~/.clone-frame-hub.
+process.env.CLONE_FRAME_HUB_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'cfhub-auth-'));
+const { Session } = await import('../bridge/session.mjs');
+const TOKEN = Session._token();
+const authed = makeAuthed(Session._verify);
 const localOnly = makeLocalOnly(8765);
 const localOnlyContainer = makeLocalOnly(8765, true); // HUB_BRIDGE_CONTAINER=1
 
@@ -117,13 +122,16 @@ test('authed() — accepts the exact token via Bearer header', () => {
   assert.equal(authed(reqWith({ authorization: `Bearer ${TOKEN}` })), true);
 });
 
-test('authed() — accepts the exact token via ?token= query param', () => {
-  assert.equal(authed(reqWith({ tokenQuery: TOKEN })), true);
+// REVERSED on 2026-07-26, deliberately. This used to assert that ?token= was accepted as
+// an alternate carrier. Nothing in the app ever sent one — the client is Bearer-only — so
+// all it did was make the secret legal in a place URLs get written down: shell history,
+// access logs, the Referer of anything the page loads, a screenshot of the address bar.
+test('authed() — REFUSES a token in the query string, even the correct one', () => {
+  assert.equal(authed(reqWith({ tokenQuery: TOKEN })), false);
 });
 
-test('authed() — Bearer header takes precedence over a query token when both are present', () => {
-  const req = reqWith({ authorization: `Bearer ${TOKEN}`, tokenQuery: 'wrong-token-of-different-length!' });
-  assert.equal(authed(req), true);
+test('authed() — a correct query token cannot rescue a wrong Bearer header either', () => {
+  assert.equal(authed(reqWith({ authorization: 'Bearer nope', tokenQuery: TOKEN })), false);
 });
 
 test('authed() — rejects a token of different length via the length fast-path (no char comparison needed)', () => {
@@ -183,8 +191,16 @@ test('hub-bridge.mjs source still carries the transcribed authed()/localOnly() l
   assert.match(src, /HOST = process\.env\.HUB_BRIDGE_HOST \|\| '127\.0\.0\.1'/);
   assert.match(src, /CONTAINER = process\.env\.HUB_BRIDGE_CONTAINER === '1'/);
   assert.match(src, /if \(CONTAINER\) return okHost;/);
-  assert.match(src, /tok\.length !== TOKEN\.length/);
-  assert.match(src, /d \|= tok\.charCodeAt\(i\) \^ TOKEN\.charCodeAt\(i\)/);
+  // The compare lives in session.mjs now; hub-bridge only parses the header. Pin BOTH:
+  // that it delegates, and that it never reads a token out of the URL again.
+  assert.match(src, /return Session\._verify\(bearer\)/);
+  assert.doesNotMatch(src, /searchParams\.get\('token'\)/, 'the query-string token carrier must stay gone');
+  const sess = fs.readFileSync(new URL('../bridge/session.mjs', import.meta.url), 'utf8');
+  // The compare now lives in one shared helper, because it judges the primary token AND
+  // every additional key the owner issued — all of them constant-time, or none.
+  assert.match(sess, /a\.length !== b\.length/);
+  assert.match(sess, /d \|= a\.charCodeAt\(i\) \^ b\.charCodeAt\(i\)/);
+  assert.doesNotMatch(sess, /tok === |=== cur\b/, 'no short-circuit === on a secret');
   assert.match(src, /okHost = host === `127\.0\.0\.1:\$\{PORT\}`/);
   assert.match(src, /okAddr = ra === '127\.0\.0\.1' \|\| ra === '::1' \|\| ra === '::ffff:127\.0\.0\.1'/);
 });

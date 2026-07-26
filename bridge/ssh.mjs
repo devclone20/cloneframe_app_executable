@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CLONE FRAME · HUB — iT remote hosts (SSH transport)
 // OUR host manager + safe argv builder for reaching the user's own servers/VMs.
-// We do NOT depend on tmux; ssh here is only the transport. The bridge NEVER reads,
+// ssh here is only the transport. The bridge NEVER reads,
 // stores, or transmits private keys or passphrases — auth is delegated to the user's
 // ssh-agent + ~/.ssh/config. Only non-secret host metadata is persisted (0600).
 //

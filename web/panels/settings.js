@@ -9,8 +9,8 @@
     }
     function go(name){
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
-      if(['addmodels','added','aidefaults','piagent','integrations','email','reminders','agenttools','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,users:secUsers,system:secSystem};
+      if(['addmodels','added','aidefaults','piagent','integrations','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
     }
     // ----- MAGIC FRAMES — the little frame squares that hold docked tabs & their figures.
@@ -42,21 +42,21 @@
       const autoname=localStorage.getItem('cfhub.it.autoname')!=='0';
       const selStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)';
       pane.innerHTML='<div class="sethead">iT — TERMINAL</div>'
-        +'<div class="setline" style="line-height:1.6;color:var(--ink-dim);font-size:10.5px;display:block">Our terminal multiplexer: workspaces ▸ split panes ▸ tabs, a real TTY per tab, tmux attach (⌗), canvas mode (⌃⌘C), diff viewer (⌃⌘⇧D) and the file tree following the shell. Keyboard and command names are <b>cmux-compatible</b> — clean-room, no cmux code (credits: Settings → Licenses). The <b>it</b> CLI is LIVE inside iT shells: run <span class="path">it</span> for the welcome screen, <span class="path">it --help</span> for all commands (cmux names), <span class="path">it hooks setup</span>, <span class="path">it feedback</span>.</div>'
+        +'<div class="setline" style="line-height:1.6;color:var(--ink-dim);font-size:10.5px;display:block"><b>iT is our own terminal</b> — the engine, the persistence and the multiplexing are CLONE FRAME\'s, with nothing to install and nothing to attach to. It is built for <b>a whole workflow on one screen</b>: <b>workspaces</b> hold a project, <b>split panes</b> put the work side by side, and every tab is a real TTY, so agents, builds, servers and shells run together and you watch them at once.<br>Around them: the file tree follows the live shell, <b>canvas mode</b> (⌃⌘C) turns a pane into a drawing surface, the <b>diff viewer</b> (⌃⌘⇧D) reads changes without leaving the terminal, and long commands raise a notification when they land — even from another workspace.<br>The <b>it</b> CLI is live inside every iT shell: run <span class="path">it</span> for the welcome screen, <span class="path">it --help</span> for every command, <span class="path">it hooks setup</span>, <span class="path">it feedback</span>.</div>'
         +'<div class="setline">Default new tab<span style="margin-left:auto"><select id="itdeftab" style="'+selStyle+'"><option value="tty">Live terminal (tty)</option><option value="smart">Smart shell</option></select></span></div>'
         +'<div class="setline">Prompt theme — smart tabs (Oh My Zsh)<span style="margin-left:auto"><select id="itomz" style="'+selStyle+'"><option>robbyrussell</option><option>agnoster</option><option>powerlevel</option></select></span></div>'
         +'<div class="autotoggle"><div><b>Restore workspaces &amp; splits on launch</b><div class="sub">the layout comes back after a reload — each shell reopens at its folder</div></div><div class="sw3 '+(restore?'on':'')+'" id="itrestore"><i></i></div></div>'
-        +'<div class="autotoggle"><div><b>Keep sessions alive across reloads</b><div class="sub">a reload reattaches to the SAME live shells (running commands survive) and replays their scrollback — tmux-style. Closing a tab still ends it. Detached shells are reaped after 60 min.</div></div><div class="sw3 '+(persist?'on':'')+'" id="itpersist"><i></i></div></div>'
+        +'<div class="autotoggle"><div><b>Keep sessions alive across reloads</b><div class="sub">a reload reattaches to the SAME live shells (running commands survive) and replays their scrollback. Closing a tab still ends it. Detached shells are reaped after 60 min.</div></div><div class="sw3 '+(persist?'on':'')+'" id="itpersist"><i></i></div></div>'
         +'<div class="autotoggle"><div><b>Workspace auto-naming</b><div class="sub">unnamed workspaces take their git repo\'s name — deterministic, no LLM; a manual rename pins it</div></div><div class="sw3 '+(autoname?'on':'')+'" id="itautoname"><i></i></div></div>'
         +'<div class="setline">Live sessions<span style="margin-left:auto" class="dim" id="itcap">— · cap 24</span></div>'
         +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Notifications: commands taking 15s+ raise one when they finish (any agent, build or deploy — visible from other workspaces). Terminals can also send OSC 9/777, and <span class="path">it notify</span> works from scripts. <b>⌘I</b> opens the list.</div>'
         +'<div class="sethead">AGENT HOOKS — NOTIFICATIONS FROM YOUR CODING AGENTS</div>'
-        +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Run <span class="path">it hooks setup</span> in any iT shell to wire <b>Claude Code</b> and <b>Codex</b> so every finished task raises an iT notification (⌘I) — like cmux\'s Automation. <span class="path">it hooks status</span> shows what\'s wired, <span class="path">it hooks remove</span> undoes it. Nothing is touched without you running the command.</div>'
+        +'<div class="setline" style="display:block;color:var(--ink-dim);font-size:10px;line-height:1.6">Run <span class="path">it hooks setup</span> in any iT shell to wire <b>Claude Code</b> and <b>Codex</b> so every finished task raises an iT notification (⌘I) \'s Automation. <span class="path">it hooks status</span> shows what\'s wired, <span class="path">it hooks remove</span> undoes it. Nothing is touched without you running the command.</div>'
         +'<div class="setline">Hooks state<span class="dim" id="ithooks" style="margin-left:auto;font-size:10px">checking…</span></div>'
-        +'<div class="sethead">KEYBOARD — CMUX-COMPATIBLE · EVERY ROW REBINDABLE</div>'
+        +'<div class="sethead">KEYBOARD — EVERY ROW REBINDABLE</div>'
         +'<div id="itkmap"></div>'
         +'<div class="setline"><span class="dim" style="font-size:10.5px">⌘1…9 go to workspace · ⌃1…9 go to tab (fixed)</span><span style="margin-left:auto"><button class="btn mini" id="itkreset">RESET ALL</button></span></div>'
-        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Also by CLI, cmux-style: <span class="path">it shortcuts list</span> · <span class="path">it shortcuts set split-right cmd+e</span> · <span class="path">it shortcuts set new-workspace none</span> (unbind) · <span class="path">it shortcuts reset</span>.</div>';
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Also from the command line: <span class="path">it shortcuts list</span> · <span class="path">it shortcuts set split-right cmd+e</span> · <span class="path">it shortcuts set new-workspace none</span> (unbind) · <span class="path">it shortcuts reset</span>.</div>';
       const dt=pane.querySelector('#itdeftab');dt.value=deftab;dt.addEventListener('change',()=>localStorage.setItem('cfhub.it.deftab',dt.value));
       const om=pane.querySelector('#itomz');om.value=theme;om.addEventListener('change',()=>{localStorage.setItem('cfhub.shell.omz',om.value);Toast.show('Prompt theme: '+om.value)});
       const rs=pane.querySelector('#itrestore');rs.addEventListener('click',()=>{const on=!rs.classList.contains('on');rs.classList.toggle('on',on);localStorage.setItem('cfhub.it.restore',on?'1':'0')});
@@ -104,18 +104,19 @@
       kmDraw();
     }
     function secLicenses(){
+      // Only what actually SHIPS inside the app is listed. A licence notice exists to satisfy
+      // the licence of code we distribute — it is not a place to advertise other projects.
       const L=[
-        ['cmux (Manaflow)','GPL-3.0 · behavior only','github.com/manaflow-ai/cmux','iT speaks the cmux keyboard & command language — clean-room, no cmux code bundled.'],
-        ['tmux','ISC','github.com/tmux/tmux','iT attaches to your tmux sessions. Runs on your machine, not bundled.'],
-        ['exo','Apache-2.0','github.com/exo-explore/exo','Local AI cluster — integration coming. Not bundled.'],
-        ['xterm.js + addon-fit','MIT','github.com/xtermjs/xterm.js','In-app interactive terminal renderer.'],
-        ['node-pty','MIT','github.com/microsoft/node-pty','Real interactive TTYs, in the HUB bridge.'],
-        ['ws','MIT','github.com/websockets/ws','WebSocket transport for live terminals.'],
-        ['Privy','Privy SDK license','privy.io','Sign-in (@privy-io/react-auth), vendored in the login island.'],
-        ['React · React-DOM','MIT','react.dev','Runtime for the Privy login island.'],
+        ['xterm.js + addon-fit','MIT','github.com/xtermjs/xterm.js','Draws the interactive terminal in the window.'],
+        ['node-pty','MIT','github.com/microsoft/node-pty','Real TTYs behind every iT tab, in the HUB bridge.'],
+        ['ws','MIT','github.com/websockets/ws','The live socket the terminals and the browser engine ride on.'],
+        ['imapflow · mailparser','MIT','github.com/postalsys','Reading your mail from the bridge.'],
+        ['nodemailer','MIT-0','nodemailer.com','Sending it.'],
+        ['@privy-io/react-auth','Apache-2.0','privy.io','Wallet sign-in, vendored in the login island.'],
+        ['React · React-DOM','MIT','react.dev','Runtime for that login island.'],
       ];
-      pane.innerHTML='<div class="sethead">OPEN-SOURCE LICENSES</div>'+
-        '<div class="setline" style="line-height:1.6;color:var(--ink-dim);font-size:10.5px;display:block">CLONE FRAME is open source. Every bundled engine keeps its own license and travels with the app. iT is built on ideas from the open-source <b>cmux</b>, <b>tmux</b> and <b>exo</b> — cmux-compatible keys &amp; commands, clean-room code, none of their code bundled. Full texts live in <span class="path">THIRD-PARTY-NOTICES.md</span> and each <span class="path">apps/&lt;tool&gt;/NOTICE.md</span>.</div>'+
+      pane.innerHTML='<div class="sethead">CLONE FRAME IS OPEN SOURCE — MIT</div>'+
+        '<div class="setline" style="line-height:1.7;color:var(--ink-dim);font-size:10.5px;display:block">The app, the HUB bridge and <b>iT</b> — its terminal, its persistence, its multiplexing — are ours, written here and released under <b>MIT</b>: use it, fork it, ship it. Nothing phones home, nothing is rented; it runs on your machine and the keys stay in your hands. <b>MATRIX</b> is ours too — the lab, the topology, the controls — and it drives a local cluster engine that <b>you</b> install and own, so that part is yours, not ours to license.<br>Everything below is code we <b>distribute inside the app</b>, so its licence travels with it. Full texts live in <span class="path">THIRD-PARTY-NOTICES.md</span>.</div>'+
         L.map(x=>`<div class="setline" style="align-items:flex-start"><svg style="width:13px;height:13px;color:var(--accent);flex:none;margin-top:2px"><use href="#i-shield"/></svg><span style="flex:1;margin-left:6px;min-width:0"><b style="font-size:10.5px;color:var(--fg)">${escHtml(x[0])}</b> <span class="badge" style="font-size:10px">${escHtml(x[1])}</span><br><span class="dim" style="font-size:10px">${escHtml(x[3])}</span><br><span class="path" style="font-size:10.5px">${escHtml(x[2])}</span></span></div>`).join('');
     }
     async function secPiAgent(){
@@ -288,7 +289,7 @@
         '<div class="sethead">app_rpc ALLOWLIST — yours to write</div>'+
         '<div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">Through <span class="path">app_rpc</span> the agent can call any bridge module — that is the point, and CLONE FRAME ships it <b>wide open</b>. If you want a narrower agent, write your own list here. It applies to <b>the agent\'s</b> calls only; this interface is never constrained by it.<br><span style="color:var(--ink-dim)">One entry per line: <span class="path">module</span> for a whole module, or <span class="path">module.fn</span> for one function.</span></div>'+
         `<div class="autotoggle"><div><b>Restrict the agent to a list</b><div class="sub">Off = everything is allowed except what you block. On = nothing is allowed except what you allow.</div></div><div class="sw3 ${rpcp.mode==='allowlist'?'on':''}" id="rpcmode"><i></i></div></div>`+
-        `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>'+
+        `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>`+
         '<div class="secnote">This is a guardrail on the agent, not a security boundary — anything already holding the bridge token can call a module directly. For confinement inside the agent itself, install the guardrails from <span class="path">pi.dev</span>.</div>';
       pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
@@ -302,11 +303,91 @@
       const rpcReset=pane.querySelector('#rpcreset');
       if(rpcReset)rpcReset.addEventListener('click',async()=>{try{await RPC('rpcallow','reset');Toast.show('app_rpc back to the shipped default — wide open');secAgentTools()}catch(e){Toast.show(e.message)}});
     }
+    // ----- SESSION — the pairing token and how long it lives (bridge/session.mjs).
+    // Permanent is what ships and what every existing install keeps; everything in this
+    // room is the owner deciding otherwise.
+    async function secSession(){
+      loading();
+      // A bridge older than this build answers "unknown module" — say what to do, not HTTP 404.
+      let s=null;try{const r=await RPC('session','get');if(r&&r.ok)s=r}catch(_){}
+      if(!s)return fail(new Error('Session needs a bridge running this build — quit and relaunch the app.'));
+      const exp=s.mode==='expiring';
+      const left=ms=>{const m=Math.max(0,Math.round((ms||0)/60000));if(m<60)return m+' min';const h=Math.floor(m/60);if(h<24)return h+'h'+(m%60?' '+(m%60)+'m':'');return Math.floor(h/24)+'d'+(h%24?' '+(h%24)+'h':'')};
+      const when=ts=>{try{return new Date(ts).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}catch(_){return ''}};
+      // show the lifetime in whichever unit the owner most likely typed it in
+      const unit=s.hours<1?'minutes':(s.hours>=24&&s.hours%24===0?'days':'hours');
+      const amount=unit==='minutes'?Math.round(s.hours*60):unit==='days'?s.hours/24:s.hours;
+      const selStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)';
+      const numStyle='width:78px;background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:11px;font-family:var(--mono);text-align:right';
+      pane.innerHTML='<div class="sethead">SESSION — THE PAIRING TOKEN</div>'+
+        '<div style="font-size:10.5px;color:var(--ink-dim);line-height:1.7;margin-bottom:10px">Every window, terminal and agent on this machine reaches the HUB Bridge with one secret — the <b>pairing token</b>. It is minted here, kept owner-only at <span class="path">~/.clone-frame-hub/bridge.token</span>, and never leaves this computer.<br><span style="color:var(--ink-faint)">It stays <b>permanent</b> unless you say otherwise: a local app should not log you out. Give it a lifetime if you would rather it retired itself — a machine you share, a screen you cast, or plain hygiene.</span></div>'+
+        `<div class="autotoggle"><div><b>Let this session expire</b><div class="sub">Off — the token is permanent (default). On — it dies after the time you set, and the bridge retires it the moment it is next used.</div></div><div class="sw3 ${exp?'on':''}" id="sesmode"><i></i></div></div>`+
+        `<div class="setline" style="${exp?'':'display:none'}" id="sesrow"><span style="flex:1">Lifetime</span><span style="display:flex;gap:6px;align-items:center"><input id="sesnum" type="number" min="1" step="1" value="${escAttr(String(amount))}" style="${numStyle}"><select id="sesunit" style="${selStyle}"><option value="minutes"${unit==='minutes'?' selected':''}>minutes</option><option value="hours"${unit==='hours'?' selected':''}>hours</option><option value="days"${unit==='days'?' selected':''}>days</option></select><button class="btn mini" id="sesset">SET</button></span></div>`+
+        `<div class="setline"><span style="flex:1">Status</span><span class="dim" style="color:${exp?'var(--accent)':'var(--ok)'}">${exp?('expires in '+left(s.remainingMs)):'permanent — no expiry'}</span></div>`+
+        (s.issuedAt?`<div class="setline"><span style="flex:1">Issued</span><span class="dim">${escHtml(when(s.issuedAt))}</span></div>`:'')+
+        '<div class="sethead">ROTATE</div>'+
+        '<div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">Replace the secret right now. <b>This window keeps working</b> — it receives the new token in the same reply. Every other open window, and any copy of the old one, stops immediately.</div>'+
+        '<div class="btnrow"><button class="btn acc" id="sesrot">ROTATE NOW</button></div>'+
+        '<div class="secnote">When a session expires this window simply stops being paired. <b>Relaunch the app</b> to get back in — the launcher reads the new token and pairs the window it opens. Be clear on what this is: a token is not a login. Anything already running as you can read the file directly, and always could. What a lifetime bounds is how long a token that got away keeps working. If you would rather the agent could not rotate it, add <span class="path">session</span> to your block list in Agent Tools.</div>';
+      const rerender=()=>secSession();
+      const mode=pane.querySelector('#sesmode');
+      mode.addEventListener('click',async()=>{const on=!mode.classList.contains('on');try{await RPC('session','set',{mode:on?'expiring':'permanent'});Toast.show(on?'This session will expire — the clock starts now':'Token is permanent again');rerender()}catch(e){Toast.show(e.message)}});
+      const setBtn=pane.querySelector('#sesset');
+      if(setBtn)setBtn.addEventListener('click',async()=>{
+        const n=Number(pane.querySelector('#sesnum').value),u=pane.querySelector('#sesunit').value;
+        if(!isFinite(n)||n<=0)return Toast.show('Give the lifetime a number');
+        const hours=u==='minutes'?n/60:u==='days'?n*24:n;
+        try{const r=await RPC('session','set',{mode:'expiring',hours});Toast.show(r&&r.ok?('Lifetime set — expires in '+left(r.remainingMs)):'could not save');rerender()}catch(e){Toast.show(e.message)}
+      });
+      pane.querySelector('#sesrot').addEventListener('click',async()=>{
+        try{const r=await RPC('session','rotate');
+          if(r&&r.ok&&r.token){BridgeClient.setToken(r.token);Toast.show('New token — this window is already using it')}
+          else Toast.show((r&&r.error)||'could not rotate');
+          rerender()}catch(e){Toast.show(e.message)}
+      });
+    }
+    // ----- USERS — who holds a key to this HUB.
+    // The honest model: this bridge runs AS the owner, so every key that opens it gets the
+    // owner's shell. Keys are therefore keys, never accounts, and the copy says so plainly
+    // rather than dressing them up as roles. What the owner really controls is HOW MANY keys
+    // exist, what each is for, how long it lives, and how fast it dies (bridge/session.mjs).
     async function secUsers(){
       loading();
-      let users=[];try{users=await RPC('admin','users')}catch(e){return fail(e)}
-      pane.innerHTML='<div class="sethead">USERS</div>'+(users.length?users.map(u=>`<div class="setline"><span style="flex:1">${escHtml(u.name||'(local)')}</span><span class="dim">${escHtml(u.role||'owner')}</span></div>`).join(''):'<div class="setline"><span style="flex:1">Local profile</span><span class="dim">owner</span></div>')+
-        '<div style="font-size:10px;color:var(--ink-faint);margin-top:8px;line-height:1.5">This HUB is local-first: one owner on this machine. Multi-user comes with the OG PASS gate.</div>';
+      let users=[],ks={keys:[]};
+      try{users=await RPC('admin','users')}catch(e){return fail(e)}
+      try{const r=await RPC('session','keys');if(r&&r.ok)ks=r}catch(_){}
+      const owner=(users[0]&&(users[0].name))||(Store.get().profile||{}).name||'owner';
+      const when=ts=>{try{return new Date(ts).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}catch(_){return ''}};
+      const left=ms=>{const m=Math.max(0,Math.round((ms||0)/60000));if(m<60)return m+' min';const h=Math.floor(m/60);return h<24?h+'h':Math.floor(h/24)+'d'};
+      const selStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)';
+      const inStyle='background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:11px;font-family:var(--mono)';
+      pane.innerHTML='<div class="sethead">THIS MACHINE</div>'+
+        `<div class="setline"><span style="flex:1"><b>${escHtml(owner)}</b><div class="dim" style="font-size:10px">the account this HUB runs as — your files, your shell, your keys</div></span><span class="badge">owner</span></div>`+
+        '<div class="sethead">KEYS TO THIS HUB</div>'+
+        '<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">CLONE FRAME is open — anyone can run it, and you can hand out as many keys to <b>this</b> HUB as you want. Be clear about what a key is, because the app will not pretend otherwise: <b>the bridge runs as you</b>, so every key that opens it gets your shell, your files and your wallets. A key is a key, not a smaller kind of account.<br><span style="color:var(--ink-faint)">Issue one for a second window, another computer of yours, a colleague you actually trust at this desk, or an automation — name it so you know what you are revoking later, and give it a lifetime if it is temporary. Revoking is instant.</span></div>'+
+        (ks.keys.length?ks.keys.map(k=>`<div class="setline"><span style="flex:1"><b>${escHtml(k.name)}</b><div class="dim" style="font-size:10px">issued ${escHtml(when(k.issuedAt))} · ${k.expiresAt?('expires in '+escHtml(left(k.remainingMs))):'no expiry'}</div></span><button class="btn mini" data-revoke="${escAttr(k.id)}">REVOKE</button></div>`).join(''):'<div class="setline"><span class="dim" style="font-size:10.5px">No extra keys — this HUB opens with yours alone.</span></div>')+
+        '<div class="setline" style="display:block"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="ukname" placeholder="what is this key for" spellcheck="false" style="'+inStyle+';flex:1;min-width:150px"><select id="ukmode" style="'+selStyle+'"><option value="permanent">no expiry</option><option value="expiring">expires in</option></select><input id="ukh" type="number" min="1" step="1" value="24" style="'+inStyle+';width:70px;text-align:right;display:none"><select id="ukunit" style="'+selStyle+';display:none"><option value="hours">hours</option><option value="days">days</option></select><button class="btn acc" id="ukadd">ISSUE KEY</button></div><div id="uknew" style="display:none;margin-top:8px"></div></div>'+
+        '<div class="secnote">Your own key lives in <b>Settings → Session</b> — that is where you give it a lifetime or replace it. Real separate accounts, each with their own files and their own limits, would mean running a bridge per person; this one is local-first and deliberately single-owner. Anything else would be a login screen drawn on top of a shared shell, and that is worse than none.</div>';
+      pane.querySelectorAll('[data-revoke]').forEach(b=>b.addEventListener('click',async()=>{
+        try{const r=await RPC('session','revoke',b.dataset.revoke);Toast.show(r&&r.ok?'Key revoked — it stops working now':((r&&r.error)||'could not revoke'));secUsers()}catch(e){Toast.show(e.message)}
+      }));
+      const mode=pane.querySelector('#ukmode'),hEl=pane.querySelector('#ukh'),uEl=pane.querySelector('#ukunit');
+      mode.addEventListener('change',()=>{const on=mode.value==='expiring';hEl.style.display=on?'':'none';uEl.style.display=on?'':'none'});
+      pane.querySelector('#ukadd').addEventListener('click',async()=>{
+        const name=(pane.querySelector('#ukname').value||'').trim();
+        if(!name)return Toast.show('Name the key — future you needs to know what it opens');
+        const patch={name,mode:mode.value};
+        if(mode.value==='expiring'){const n=Number(hEl.value);if(!isFinite(n)||n<=0)return Toast.show('Give the lifetime a number');patch.hours=uEl.value==='days'?n*24:n}
+        try{
+          const r=await RPC('session','issue',patch);
+          if(!r||!r.ok)return Toast.show((r&&r.error)||'could not issue');
+          // Shown ONCE, here, and never again by any route — see bridge/session.mjs keys().
+          const box=pane.querySelector('#uknew');
+          box.style.display='';
+          box.innerHTML='<div style="border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent);border-radius:8px;padding:9px 11px"><div style="font-size:10px;color:var(--accent);letter-spacing:.1em">COPY IT NOW — SHOWN ONCE</div><div class="path" style="font-size:11px;word-break:break-all;margin:5px 0 7px">'+escHtml('http://127.0.0.1:8765#token='+r.token)+'</div><div style="font-size:10px;color:var(--ink-faint);line-height:1.6">Paste that in MY MACHINE → HUB BRIDGE to pair with this key. We do not keep a copy you can read back: if it is lost, revoke it and issue another.</div></div>';
+          Toast.show('Key issued — copy it now');
+        }catch(e){Toast.show(e.message)}
+      });
     }
     function secAppearance(){
       const cur=Store.get().theme,ALL=Themes.all();const curC=ALL[cur]||Themes.T.void;
@@ -356,7 +437,7 @@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Integrates Fabric (MIT), AgentView patterns (MIT); behavior inspired by Odysseus, rebuilt clean-room. iT terminal: built on ideas from cmux · tmux · exo, cmux-compatible, clean-room.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});

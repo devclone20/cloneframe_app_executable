@@ -69,6 +69,38 @@ if (directives.length) {
   }
 }
 
+// 3) PARSE GATE — refuse to emit a document whose own JavaScript does not compile.
+//
+// This is here because it already happened. A settings section was written opening with a
+// backtick and closing with a single quote; every check we had stayed green — the build
+// concatenates text, the tests exercise bridge modules, the golden sha only proves the bytes
+// are the SAME bytes — and the app shipped with an inline script that threw
+// `SyntaxError: Unexpected token 'class'` on load. A syntax error in a classic script kills
+// the WHOLE block: no pairing, no panels, no agent control plane. The window opens, the top
+// bar renders from HTML, and everything behind it is dead. It took a debugger attached to the
+// real window to see it.
+//
+// vm.Script COMPILES without executing — no browser globals are touched. Any inline block
+// that is not classic JS (JSON-LD, importmap, module) is skipped rather than mis-parsed.
+{
+  const { Script } = await import('node:vm');
+  const blocks = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+  for (const [, attrs, body] of blocks) {
+    if (/\ssrc=/.test(attrs)) continue;                                  // external — nothing inline to parse
+    const type = (attrs.match(/\stype=["']([^"']+)["']/) || [, ''])[1].toLowerCase();
+    if (type && !/^(text\/javascript|application\/javascript)$/.test(type)) continue;
+    if (!body.trim()) continue;
+    try { new Script(body); }
+    catch (e) {
+      // Report the line in the DOCUMENT, not in the block, so the number is clickable.
+      const offset = html.slice(0, html.indexOf(body)).split('\n').length;
+      const line = offset + (Number((/(\d+)/.exec(String(e.stack || '').split('\n')[0]) || [])[1]) || 0) - 1;
+      console.error(`\n  build REFUSED — dist/index.html would not parse.\n  ${e.message}\n  around line ${line} of the built document.\n`);
+      process.exit(1);
+    }
+  }
+}
+
 mkdirSync(path.dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
 console.log('build → dist/index.html  ·  sha256', createHash('sha256').update(html).digest('hex'));

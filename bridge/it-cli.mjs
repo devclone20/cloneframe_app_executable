@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// it — the CLONE FRAME terminal's command line. Speaks the cmux command language
+// it — the CLONE FRAME terminal's command line.
 // (same names) against the local HUB Bridge; the iT window executes and answers.
 // Local-only: 127.0.0.1 + the pairing token from ~/.clone-frame-hub/bridge.token.
 // `it` / `it welcome`, `it --help`, `it docs` and `it feedback` work offline;
@@ -52,7 +52,7 @@ function welcome() {
   for (const [k, v] of SHORTCUTS) l.push(`  ${C.b}${k.padEnd(12)}${C.x}      ${v}`);
   l.push('');
   l.push(`  ${C.b}Docs${C.x}          cloneframe.io · Settings → iT — Terminal`);
-  l.push(`  ${C.b}Open source${C.x}   keyboard/command-compatible with cmux (clean-room)`);
+  l.push(`  ${C.b}Open source${C.x}   CLONE FRAME is MIT — the terminal, the bridge and the app`);
   l.push('');
   l.push(`  Run ${C.b}it --help${C.x} for all commands.`);
   l.push(`  Run ${C.b}it shortcuts${C.x} to view & edit shortcuts.`);
@@ -70,7 +70,7 @@ Usage:
 Targets:
   Commands that take a workspace accept an index (1-9), "workspace:N", or a name.
   Inside an iT shell, CFHUB_IT_WORKSPACE / CFHUB_IT_SURFACE are auto-set and used
-  as the default target — exactly like cmux's CMUX_WORKSPACE_ID.
+  as the default target.
 
 Commands:
   welcome                                   this screen (also plain \`it\`)
@@ -133,7 +133,7 @@ Commands:
   host connect <alias>                      open a remote shell in a new tab
   host fingerprint <alias> · host rm <alias> · host disconnect <alias> · host forget-key <alias>
 
-  # tmux compatibility
+  # screen access
   capture-pane [--lines <n>]                alias of read-screen
   display-message <text>
 
@@ -149,7 +149,7 @@ function docs() {
   Help       press ? in the iT sidebar, or ⌘⇧P for the command palette
   Context    it context — the CLONE FRAME agent field guide
   Site       cloneframe.io
-  Credits    Settings → Licenses — iT is cmux-compatible, clean-room, no cmux code`);
+  Licenses   Settings → Licenses — CLONE FRAME is MIT; bundled engines keep their own`);
 }
 
 // The agent field guide — every AI/LLM launched in CLONE FRAME reads this first.
@@ -178,7 +178,7 @@ function feedback() {
   } catch (e) { console.error('could not record feedback:', e.message); process.exit(1); }
 }
 
-// ---- agent hooks (cmux's `hooks setup`, clean-room) — wire the user's coding agents so a
+// ---- agent hooks (`it hooks setup`) — wire the user's coding agents so a
 // finished task raises an iT notification. Real files, opt-in only, idempotent, backed up:
 //   Claude Code → ~/.claude/settings.json  (hooks.Stop + hooks.Notification, marker = our bin path)
 //   Codex       → ~/.codex/config.toml     (top-level notify = [wrapper]; never overwrites a foreign one)

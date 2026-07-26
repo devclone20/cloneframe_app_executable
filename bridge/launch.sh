@@ -44,6 +44,24 @@ if ! /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1; then
 fi
 /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1 && echo "server up" || echo "server DID NOT come up"
 
+# ── arm ONE auto-pair for the window we are about to open ─────────────────────
+# The bridge injects the pairing token into a served page only when the pairing latch is
+# armed, and the latch is spent by the first window. POST /pair re-arms it and is itself
+# token-gated — so this launcher proves it is the owner by reading the 0600 token file,
+# which it can do because it already runs as the owner (this grants nothing new).
+#
+# Two things depend on it: a SECOND app window pairs instead of opening dead, and — the
+# reason it exists — an EXPIRING session (Settings → Session) is recoverable. When a
+# token expires the bridge retires it and mints another; without this line the owner
+# would be locked out of their own app until they killed the daemon.
+TOKFILE="$CONF/bridge.token"
+if [ -r "$TOKFILE" ] && /usr/bin/curl -sf -o /dev/null -X POST \
+     -H "Authorization: Bearer $(cat "$TOKFILE")" "${URL}/pair"; then
+  echo "pairing armed"
+else
+  echo "pairing not armed (the window will pair on the bridge's own launch latch)"
+fi
+
 # ── macOS privacy permissions the app silently needs ─────────────────────────
 # TCC is evaluated per process AT LAUNCH, so a permission granted later does
 # nothing until the bridge restarts — and a missing one fails deep inside a

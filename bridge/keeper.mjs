@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CLONE FRAME · HUB — keeper (the "iT Keeper": tmux-less session persistence)
+// CLONE FRAME · HUB — keeper (the "iT Keeper": our own session persistence)
 // A dependency-light, PERSISTENT terminal-session keeper whose sessions SURVIVE
-// the disconnection of their clients — our own answer to `tmux new -A` without
-// depending on tmux being installed on the box. It runs in TWO roles from ONE
+// the disconnection of their clients — the app's own persistence engine, with
+// nothing external to install or attach to. It runs in TWO roles from ONE
 // file:
 //   (A) a standalone CLI: `node keeper.mjs <cmd> …` — the persistent session
 //       daemon plus attach clients. Runs LOCALLY (spawned by the bridge) and
@@ -22,8 +22,22 @@
 // SECURITY: every spawn is argv-only — `ptySpawn(shell, ['-l'], …)` and
 // `spawn(node, [thisFile,'_daemon',id,…])` — never `sh -c`, never string
 // interpolation, so there is no shell-injection surface. Every id/name/cwd is
-// validated. The storage dir is 0700, sockets + meta files are 0600. `_`-prefixed
-// module methods are server-only (the bridge's /mod RPC refuses fn[0]==='_').
+// validated. Meta files are 0600 in a 0700 dir. `_`-prefixed module methods are
+// server-only (the bridge's /mod RPC refuses fn[0]==='_').
+//
+// SOCKET TRUST (B10 fix): the unix socket lives under `os.tmpdir()`, which on
+// Linux is the SHARED, world-writable /tmp — so `ensureSockDir()` verifies the
+// directory is a real, non-symlink, uid-owned, 0700 dir before EVERY use and
+// throws rather than silently trusting a pre-created one (see its own comment).
+// On top of that, every session now carries a per-session secret: the daemon's
+// socket refuses any client whose first message isn't `{"auth":"<secret>"}`
+// (see `makeAuthGate`), so even a squatter who won a directory race still can't
+// pass as our daemon. Sessions from a PREVIOUS build have no secret in their
+// meta — clients skip the auth frame for those (see cliAttach) so it is never
+// mistyped into a live shell as a keystroke. `CFHUB_KEEPER_SOCK_DIR` overrides
+// the socket directory for tests, in the same trust tier as `CLONE_FRAME_HUB_ROOT`
+// (see bridge/platform/hub-root.mjs) — a process able to set the bridge's env
+// can already do far more than redirect where its sockets live.
 //
 // RESILIENCE: node-pty is a NATIVE module and may be absent (no prebuilt for a
 // very new Node, no Xcode CLT). Importing this file must NEVER crash the daemon
@@ -36,7 +50,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn as cpSpawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { hubPath } from './platform/hub-root.mjs';
 
 // Guarded native import — the daemon keeps booting even if node-pty isn't built.
 let ptySpawn = null;
@@ -53,6 +68,9 @@ const DETACH_CHECK_MS = 60 * 1000;            // how often the detached-idle bac
 const ATTACH_POLL_MS = 100;                   // poll cadence while waiting for a fresh daemon's socket
 const ATTACH_WAIT_MS = 3000;                  // give a spawning daemon up to ~3 s to bind its socket
 const CONNECT_PROBE_MS = 500;                 // per-probe timeout when testing "is the socket connectable?"
+const UNAUTH_TIMEOUT_MS = 5000;               // server: drop a connection that never completes the auth handshake
+const ATTACH_AUTH_MS = 5000;                  // client: give up waiting for the daemon's auth ack
+const MAX_AUTH_LINE = 4096;                   // guard: refuse to buffer an unterminated "line" forever
 const DEFAULT_COLS = 80, DEFAULT_ROWS = 24;
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -66,9 +84,12 @@ const VALID_SIGNALS = new Set([
 const __filename = fileURLToPath(import.meta.url);
 
 // ── storage ──────────────────────────────────────────────────────────────────
-// ~/.clone-frame-hub/keeper/  (0700).  Per session: <id>.sock + <id>.json (0600).
+// Meta lives under the hub-root seam (0700 dir, 0600 files) so tests can isolate
+// it via CLONE_FRAME_HUB_ROOT like every other domain module. Production is
+// byte-identical to before: with the env unset, hubPath('keeper') resolves to
+// exactly ~/.clone-frame-hub/keeper.
 function homeDir() { return process.env.HOME || os.homedir(); }
-function keeperDir() { return path.join(homeDir(), '.clone-frame-hub', 'keeper'); }
+function keeperDir() { return hubPath('keeper'); }
 function ensureDir() {
   const d = keeperDir();
   fs.mkdirSync(d, { recursive: true, mode: 0o700 });
@@ -77,10 +98,45 @@ function ensureDir() {
 }
 // The socket lives in a SHORT, per-user tmp dir under a HASHED name so the full path stays
 // well under the unix-socket sun_path limit (~104 bytes) for ANY id length or HOME depth. The
-// hash folds in HOME so different users never collide on a shared /tmp. Meta keeps its readable
-// <id>.json name in ~/.clone-frame-hub/keeper/ (regular files have no such length limit).
-function sockDir() { return path.join(os.tmpdir(), 'cfhub-keeper'); }
-function ensureSockDir() { try { fs.mkdirSync(sockDir(), { recursive: true, mode: 0o700 }); fs.chmodSync(sockDir(), 0o700); } catch {} return sockDir(); }
+// hash folds in HOME (NOT hubRoot — a real session must resolve to the same socket path it
+// always has, regardless of the test-only hub-root override) so different users never collide
+// on a shared /tmp. Meta keeps its readable <id>.json name under keeperDir() (regular files
+// have no such length limit).
+// `CFHUB_KEEPER_SOCK_DIR` is a test-only override — same trust tier as CLONE_FRAME_HUB_ROOT.
+function sockDir() {
+  const override = process.env.CFHUB_KEEPER_SOCK_DIR;
+  return (override && override.trim()) ? override : path.join(os.tmpdir(), 'cfhub-keeper');
+}
+// `os.tmpdir()` is SHARED and world-writable on Linux. A local attacker can pre-create
+// `cfhub-keeper` before we ever run; the old code's mkdir-then-chmod, wrapped in ONE
+// swallow-everything try/catch, then silently kept using whatever was already there
+// (mkdir no-ops on EEXIST, chmod's EPERM was swallowed too). This is the ONE check that
+// actually stops that attack: it REFUSES — throws, never proceeds — unless the directory
+// is real (not a symlink), owned by us, and carries no group/other bits.
+//
+// Deliberately NO auto-repair-then-proceed: an `mkdirSync(…,{mode:0o700})` we just issued
+// ourselves can only ever come out AT MOST as strict as 0700 (umask can narrow bits, never
+// widen them), so the only way this dir is ever found loose is if it already existed with
+// that looseness BEFORE this call — i.e. exactly the state a squatter would leave. Silently
+// chmod-ing that back to 0700 and continuing would erase the evidence and use the directory
+// anyway; refusing outright is the honest response to a directory whose current state we
+// cannot trust, even one we happen to own.
+function ensureSockDir() {
+  const d = sockDir();
+  try { fs.mkdirSync(d, { recursive: true, mode: 0o700 }); }
+  catch (e) { if (!e || e.code !== 'EEXIST') throw new Error(`keeper: cannot create socket dir ${d}: ${(e && e.message) || e}`); }
+  const st = statForGuard(d);
+  const myUid = typeof process.getuid === 'function' ? process.getuid() : null;
+  const uidOk = myUid === null || st.uid === myUid;
+  if (!(st.isDirectory() && !st.isSymbolicLink() && uidOk && (st.mode & 0o077) === 0)) {
+    throw new Error(`keeper: refusing socket dir ${d} — not a private (uid-owned, 0700, non-symlink) directory; a local attacker may have pre-created it. Remove or fix its permissions and retry.`);
+  }
+  return d;
+}
+function statForGuard(d) {
+  try { return fs.lstatSync(d); }
+  catch (e) { throw new Error(`keeper: cannot stat socket dir ${d}: ${(e && e.message) || e}`); }
+}
 function sockPath(id) { const h = createHash('sha1').update(homeDir() + '\0' + id).digest('hex').slice(0, 20); return path.join(sockDir(), h + '.sock'); }
 function metaPath(id) { return path.join(keeperDir(), id + '.json'); }
 
@@ -153,13 +209,108 @@ function scanSessions() {
   return out;
 }
 
-// Is there a daemon actually accepting connections on <id>.sock right now?
+// ── socket auth (per-session secret) ─────────────────────────────────────────
+// Wire format, both directions: a single line of JSON terminated by '\n', e.g.
+// `{"auth":"<secret>"}\n` / `{"auth":"ok"}\n`. Newline-delimited so a client or
+// server can split "the handshake line" from "whatever real stream data was
+// glued to it in the same TCP/pipe read" — the PTY stream may itself contain
+// raw '\n' bytes, but the FIRST one in the connection is always the frame end
+// because nothing else is written before it.
+
+// Pure, so it is trivial to test the decision in isolation: does `line` (raw,
+// pre-newline-split JSON text) prove knowledge of `secret`? Constant-time
+// compare — this gates a live PTY, timing leaks are worth closing even locally.
+function authLineOk(line, secret) {
+  if (typeof secret !== 'string' || !secret) return false;
+  let parsed;
+  try { parsed = JSON.parse(line); } catch { return false; }
+  if (!parsed || typeof parsed.auth !== 'string') return false;
+  const got = Buffer.from(parsed.auth), want = Buffer.from(secret);
+  if (got.length !== want.length) return false;
+  return timingSafeEqual(got, want);
+}
+
+// Server-side gate: wraps a `net.createServer` connection handler so NOTHING —
+// no PTY byte, no control verb, no ring replay — reaches `onAuthed(sock, leftover)`
+// until the FIRST line on the wire is exactly `{"auth":"<secret>"}`. A wrong or
+// missing frame (including one that never arrives — the UNAUTH_TIMEOUT_MS backstop)
+// gets the socket destroyed with zero feedback beyond that. `leftover` is any bytes
+// that arrived glued to the auth line in the same read — they are live client data,
+// not part of the handshake, and must not be dropped. Exported (as `Keeper._makeAuthGate`)
+// so a test can wire this exact function into a real `net.createServer`, with no PTY
+// involved at all — this is production code, not a test-only reimplementation.
+function makeAuthGate(secret, onAuthed) {
+  return (sock) => {
+    sock.on('error', () => {});
+    let authed = false;
+    let buf = Buffer.alloc(0);
+    const timer = setTimeout(() => { if (!authed) { try { sock.destroy(); } catch {} } }, UNAUTH_TIMEOUT_MS);
+    timer.unref?.();
+    const onData = (chunk) => {
+      buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+      const nl = buf.indexOf(0x0a);
+      if (nl === -1) { if (buf.length > MAX_AUTH_LINE) { try { sock.destroy(); } catch {} } return; }
+      const line = buf.slice(0, nl).toString('utf8');
+      const leftover = buf.slice(nl + 1);
+      if (!authLineOk(line, secret)) { try { sock.destroy(); } catch {} return; }
+      authed = true;
+      clearTimeout(timer);
+      sock.removeListener('data', onData);
+      try { sock.write(JSON.stringify({ auth: 'ok' }) + '\n'); } catch {}
+      onAuthed(sock, leftover);
+    };
+    sock.on('data', onData);
+  };
+}
+
+// Client-side half of the same handshake: write the auth frame, then wait for the
+// daemon's one-line ack. `cb(ok, leftover)` — `leftover` is live-stream bytes that
+// rode in on the same read as the ack and must be forwarded, not discarded.
+function authenticateSocket(sock, secret, cb) {
+  let buf = Buffer.alloc(0);
+  const onData = (chunk) => {
+    buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+    const nl = buf.indexOf(0x0a);
+    if (nl === -1) {
+      // a peer that streams forever without a newline (broken or hostile) must not be
+      // allowed to grow this buffer without bound while the caller's own timeout ticks.
+      if (buf.length > MAX_AUTH_LINE) { sock.removeListener('data', onData); try { sock.destroy(); } catch {} cb(false, Buffer.alloc(0)); }
+      return;
+    }
+    sock.removeListener('data', onData);
+    const line = buf.slice(0, nl).toString('utf8');
+    const leftover = buf.slice(nl + 1);
+    let ok = false;
+    try { const j = JSON.parse(line); ok = !!j && j.auth === 'ok'; } catch {}
+    cb(ok, leftover);
+  };
+  sock.on('data', onData);
+  try { sock.write(JSON.stringify({ auth: secret }) + '\n'); }
+  catch { sock.removeListener('data', onData); cb(false, Buffer.alloc(0)); }
+}
+
+// Is there a daemon actually accepting connections on <id>.sock right now — and,
+// when the session has a secret, does it actually KNOW it? The bare `connect`-then-
+// resolve(true) this used to be could not tell OUR daemon from anything else
+// squatting the path; completing the handshake narrows that a lot, but it does NOT
+// eliminate the TOCTOU: a squatter could still win the window between this probe
+// resolving and the real connect a caller makes right after. The private-directory
+// check in ensureSockDir() is what actually removes the attacker — this probe only
+// makes a "yes" mean something.
 function sockConnectable(id) {
   return new Promise((resolve) => {
+    let dirOk = true;
+    try { ensureSockDir(); } catch { dirOk = false; }
+    if (!dirOk) { resolve(false); return; } // can't verify the dir → treat as "not our daemon", never throw from a boolean probe
     let done = false;
+    const meta = readMeta(id);
+    const secret = meta && typeof meta.secret === 'string' ? meta.secret : null;
     const s = net.connect(sockPath(id));
     const fin = (v) => { if (done) return; done = true; try { s.destroy(); } catch {} resolve(v); };
-    s.on('connect', () => fin(true));
+    s.on('connect', () => {
+      if (!secret) { fin(true); return; } // legacy pre-auth session — connect-only signal, narrower guarantee (see comment above)
+      authenticateSocket(s, secret, (ok) => fin(ok));
+    });
     s.on('error', () => fin(false));
     const t = setTimeout(() => fin(false), CONNECT_PROBE_MS);
     t.unref?.();
@@ -197,7 +348,15 @@ function spawnDaemonProcess(id, opts = {}) {
 // attach client at a time over a UNIX socket, surviving every client disconnect.
 function runDaemon(id, flags) {
   if (!validId(id)) { process.stderr.write('invalid id\n'); process.exit(1); return; }
-  ensureDir(); ensureSockDir();
+  try { ensureDir(); ensureSockDir(); }
+  catch (e) {
+    // A hostile pre-created socket dir must stop the daemon before it ever binds —
+    // record why (so `keeper` callers can surface it) and exit cleanly, never crash.
+    try { writeMeta(id, { id, err: (e && e.message) || String(e) }); } catch {}
+    process.stderr.write((e && e.message) || String(e)); process.stderr.write('\n');
+    process.exit(1);
+    return;
+  }
 
   // node-pty absent → record it into <id>.json and exit cleanly (never crash).
   if (!ptySpawn) {
@@ -213,6 +372,7 @@ function runDaemon(id, flags) {
   let curCols = clampDim(flags.cols, DEFAULT_COLS);
   let curRows = clampDim(flags.rows, DEFAULT_ROWS);
   const startedAt = Date.now();
+  const secret = randomBytes(24).toString('base64url'); // minted once per daemon; lives only in the 0600 meta file
 
   let pty;
   try {
@@ -297,9 +457,9 @@ function runDaemon(id, flags) {
   };
 
   // ── the UNIX socket server ───────────────────────────────────────────────────
-  try { fs.unlinkSync(sp); } catch {}   // unlink any stale sock BEFORE binding
-  const server = net.createServer((sock) => {
-    sock.on('error', () => {});
+  // Every connection is auth-gated FIRST (see makeAuthGate): last-writer-wins,
+  // ring replay, and onClientData below only ever run for an authenticated sock.
+  const server = net.createServer(makeAuthGate(secret, (sock, leftover) => {
     // last-writer-wins: a NEW connection REPLACES the previous active client.
     if (client && client !== sock) {
       try { client.write('\r\n[keeper] detached — attached from elsewhere\r\n'); } catch {}
@@ -309,23 +469,43 @@ function runDaemon(id, flags) {
     // REPLAY the scrollback ring first, THEN go live.
     try { for (const chunk of ring) sock.write(chunk); } catch {}
     sock.on('data', onClientData);
+    if (leftover.length) onClientData(leftover); // bytes glued to the auth line — real client input, not part of the handshake
     // Client disconnect: KEEP THE PTY RUNNING — this is the entire point.
     const detach = () => { if (client === sock) client = null; };
     sock.on('close', detach);
     sock.on('end', detach);
-  });
+  }));
 
   server.on('error', (e) => {
     // e.g. EADDRINUSE from a live daemon we didn't detect — record and bail, don't crash.
+    try { if (typeof prevUmask === 'number') process.umask(prevUmask); } catch {} // restore even on a failed bind
     try { writeMeta(id, { id, err: 'socket bind failed: ' + ((e && e.message) || String(e)) }); } catch {}
     try { pty.kill('SIGHUP'); } catch {}
     process.exit(1);
   });
 
+  try {
+    ensureSockDir();               // re-verify right before bind — closes the gap between the
+    fs.unlinkSync(sp);             // startup check above and the actual listen() a moment later
+  } catch (e) {
+    if (!(e && e.code === 'ENOENT')) {
+      try { writeMeta(id, { id, err: (e && e.message) || String(e) }); } catch {}
+      try { pty.kill('SIGHUP'); } catch {}
+      process.exit(1);
+      return;
+    }
+  }
+  // Node cannot create-and-chmod a unix socket file atomically — there is always a
+  // window between the file appearing and our chmod running. Narrowing the process
+  // umask for the listen() call itself is the closest Node gets: the socket is
+  // created 0700 from the start instead of the platform default, and the explicit
+  // chmod below is a backstop, not the primary control.
+  const prevUmask = process.umask(0o077);
   server.listen(sp, () => {
+    process.umask(prevUmask);
     try { fs.chmodSync(sp, 0o600); } catch {}
-    // <id>.json with pid on start.
-    try { writeMeta(id, { id, name, pid: process.pid, shell, cwd, startedAt }); } catch {}
+    // <id>.json with pid + secret on start.
+    try { writeMeta(id, { id, name, pid: process.pid, shell, cwd, startedAt, secret }); } catch {}
   });
 
   // ── reap backstops (favour persistence, but never orphan forever) ────────────
@@ -345,20 +525,38 @@ function runDaemon(id, flags) {
 // `keeper attach <id>` — attach client: pipe stdin↔socket↔stdout, forward resize.
 function cliAttach(id) {
   if (!validId(id)) { process.stderr.write('invalid id\n'); process.exit(2); return; }
+  try { ensureSockDir(); }
+  catch (e) { process.stderr.write('attach error: ' + ((e && e.message) || e) + '\n'); process.exit(2); return; }
+  // BACKWARD COMPAT: a daemon from a PREVIOUS build wrote no `secret` — sending an
+  // auth frame to it would just be typed into the user's live shell as input, so
+  // when meta has none we send NOTHING and behave exactly as before this change.
+  const meta = readMeta(id);
+  const secret = meta && typeof meta.secret === 'string' ? meta.secret : null;
   const sock = net.connect(sockPath(id));
   let raw = false, connected = false, exited = false;
 
   const restore = () => { if (raw && process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch {} raw = false; } };
   const done = (code) => { if (exited) return; exited = true; restore(); try { sock.destroy(); } catch {} process.exit(code); };
   const sendResize = () => { try { sock.write(JSON.stringify({ resize: { cols: process.stdout.columns || DEFAULT_COLS, rows: process.stdout.rows || DEFAULT_ROWS } })); } catch {} };
-
-  sock.on('connect', () => {
-    connected = true;
+  const startPipe = (leftover) => {
     if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); raw = true; } catch {} }
     process.stdin.resume();
     process.stdin.pipe(sock);
+    if (leftover && leftover.length) process.stdout.write(leftover); // bytes glued to the ack — real session output
     sock.pipe(process.stdout);
     if (process.stdin.isTTY) { sendResize(); process.on('SIGWINCH', sendResize); }
+  };
+
+  sock.on('connect', () => {
+    connected = true;
+    if (!secret) { startPipe(); return; }
+    const authTimer = setTimeout(() => { process.stderr.write('keeper: authentication timed out\n'); done(2); }, ATTACH_AUTH_MS);
+    authTimer.unref?.();
+    authenticateSocket(sock, secret, (ok, leftover) => {
+      clearTimeout(authTimer);
+      if (!ok) { process.stderr.write('keeper: authentication failed\n'); done(2); return; }
+      startPipe(leftover);
+    });
   });
   sock.on('error', (e) => {
     if (!connected) {
@@ -372,7 +570,7 @@ function cliAttach(id) {
   process.on('exit', restore);             // always restore the terminal
 }
 
-// `keeper run <id> [flags]` — attach-or-create (idempotent, like `tmux new -A`).
+// `keeper run <id> [flags]` — attach-or-create (idempotent).
 async function cliRun(id, flags) {
   if (!validId(id)) { process.stderr.write('invalid id\n'); process.exit(2); return; }
   ensureDir();
@@ -411,7 +609,7 @@ function cliKill(id) {
 
 function usage() {
   process.stderr.write([
-    'iT Keeper — persistent terminal sessions (tmux-less)',
+    'iT Keeper — persistent terminal sessions',
     'usage:',
     '  keeper run <id> [--shell <sh>] [--cwd <dir>] [--name <n>] [--cols <n>] [--rows <n>]   attach-or-create',
     '  keeper attach <id>                                                                     attach to a live session',
@@ -514,6 +712,22 @@ export const Keeper = {
 
   // server-only: absolute path to THIS file, so the bridge can spawn `node <path> attach <id>`.
   _keeperPath() { return __filename; },
+
+  // server-only: test seams (B10). Each wraps a real internal so a test exercises the
+  // EXACT production code path — never a reimplementation that could pass with the
+  // fix reverted. None of these are reachable via /mod RPC (fn[0]==='_' is refused).
+  _sockDir() { return sockDir(); },
+  _sockPath(id) { return sockPath(id); },
+  _ensureSockDir() { return ensureSockDir(); },
+  _sockConnectable(id) { return sockConnectable(id); },
+  _makeAuthGate(secret, onAuthed) { return makeAuthGate(secret, onAuthed); },
+  _authenticateSocket(sock, secret, cb) { return authenticateSocket(sock, secret, cb); },
+  _authLineOk(line, secret) { return authLineOk(line, secret); },
+  _keeperDir() { return keeperDir(); },
+  _ensureDir() { return ensureDir(); },
+  _metaPath(id) { return metaPath(id); },
+  _readMeta(id) { return readMeta(id); },
+  _writeMeta(id, meta) { return writeMeta(id, meta); },
 };
 export default Keeper;
 

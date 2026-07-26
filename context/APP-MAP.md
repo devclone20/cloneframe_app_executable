@@ -47,10 +47,10 @@ Columns: **key** (what `open_panel{panel}` takes) · UI title · what the user d
 | key | title | purpose | anchor | bridge |
 |---|---|---|---|---|
 | `terminal` | CODE | main agent workspace: chat/agent modes, model+harness+iNFT pickers, side terminal `❯_`, diff, browser handoff; hosts the agent tool loop | `wireTerminal` | files, models, harness, web, servers, permissions |
-| `shell` | iT | terminal multiplexer: real PTYs, workspaces▸splits▸tabs, palette, canvas, SSH hosts (⚡), persistent sessions (⟳, survive app restart), tmux attach (⌗) | `wireShell` | pty, ssh, keeper, files, web, permissions |
+| `shell` | iT | terminal multiplexer: real PTYs, workspaces▸splits▸tabs, palette, canvas, SSH hosts (⚡), persistent sessions (⟳ — `bridge/keeper.mjs`, survive both disconnect and a bridge restart, scrollback replayed on reattach) | `wireShell` | pty, ssh, keeper, files, web, permissions |
 | `harness` | HARNESS | build/edit agent crews (Orchestrator + gates + roles); "use in the terminal" | `wireHarness` | harness |
 | `lab` | LAB | chat with any model (API or local) + manage/select iNFT agents (card deck) | `wireLab` | nft, models, servers, files |
-| `matrix` | MATRIX | distributed-AI-cluster lab (in-house exo-style): device topology, run models across machines, cluster chat, model downloads; engine button in the header (CONNECT MACHINE / START / STOP / ONLINE) | `wireMatrix`, `#mxroot` | matrix, models |
+| `matrix` | MATRIX | distributed-AI-cluster lab, CLONE FRAME's own control surface: device topology, run models across machines, cluster chat, model downloads, engine lifecycle (start/stop/status) over a local API; engine button in the header (CONNECT MACHINE / START / STOP / ONLINE) | `wireMatrix`, `#mxroot` | matrix, models |
 | `machine` | MY MACHINE | connect the HUB Bridge (endpoint#token) + pick the BRAIN (BYOK key, sessionStorage only) | `wireMachine` | — |
 | `agents` | MY AGENTS | connect real agents (iCLONE, VEGETA…), on-chain ERC-8004 status | `wireAgents` | — |
 | `agentview` | AGENT | standalone iNFT identity card (traits, soul, 3D art); opened from a LAB card footer | `wireAgentView` | — |
@@ -155,11 +155,12 @@ Client-side state lives in the app's localStorage under `cfhub.*` keys (e.g.
   `bridge:changed` (pairing state) · `shell:addcwd` · `it:menu` (Electron menu → iT).
 - **Window identity** — a panel's `dataset.panelKey`; MULTI types (`research`, `shell`) can have
   several instances (`type#n`). Docked cell = `cell.dataset.panelKey`.
-- **iT tab-name prefixes encode kind**: `⟳ name` persisted session · `⚡ host` SSH · `tmux: s` ·
+- **iT tab-name prefixes encode kind**: `⟳ name` persisted session · `⚡ host` SSH ·
   `code·` editor · `diff·` diff viewer.
 - **Feature detects**: `html.native-shell` = running under Electron (real in-app browser views);
   absent = Chrome `--app` window (iframe/proxy browser). Both paths must keep working.
-- **MATRIX engine** = a resident daemon behind its own `matrix` permission; exo-compatible API on
+- **MATRIX engine** = a resident daemon behind its own `matrix` permission, managed by
+  `bridge/matrix.mjs` (start/stop/status, pid tracking, crash detection) over a local API on
   `127.0.0.1:52415`; when up it auto-registers as a model provider (its models appear in every
   picker automatically).
 

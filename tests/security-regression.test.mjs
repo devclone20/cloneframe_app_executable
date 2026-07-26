@@ -442,3 +442,20 @@ test('INV-4 — script-src/connect-src are still absent, and that gap is deliber
   // Until script-src lands, XSS in the UI is still script execution. Stated in the
   // assertion so nobody reads a green suite as "CSP: done".
 });
+
+// ── INV-7 · the iT preview iframe must never frame the app's own origin ──────
+// That pane is sandboxed `allow-scripts allow-same-origin` — which a real local dev
+// server needs, and which is harmless for every origin the browser's same-origin policy
+// separates from us. Our OWN origin is the exception: a page served from the bridge's
+// port shares this document's origin and could reach through `parent` for the pairing
+// token. The panel is inlined into the built document, so this is a source pin on the
+// artifact that actually ships — the same technique INV-1 uses.
+test('INV-7 — the built app refuses to frame its own origin in the iT web pane', () => {
+  const dist = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+  assert.match(dist, /const isSelf=u=>/, 'the self-origin test must exist');
+  assert.match(dist, /x\.port===location\.port/, 'port equality is what catches every spelling of our own address');
+  assert.match(dist, /if\(isSelf\(u\)\)\{Toast/, 'and it must be CALLED before the frame is pointed anywhere');
+  // The flags themselves stay — removing allow-same-origin would break real dev servers,
+  // which is the whole reason this narrower fix exists.
+  assert.match(dist, /sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"/);
+});

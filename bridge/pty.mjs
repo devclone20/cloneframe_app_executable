@@ -2,7 +2,7 @@
 // CLONE FRAME · HUB — pty (interactive real-TTY session manager)
 // The DATA-PLANE engine adapter behind the bridge's single WS /stream channel.
 // Owns one node-pty session per interactive terminal: spawn a real login shell /
-// tmux / TUI, bridge its bytes to a WebSocket, and reap it deterministically on
+// a full TUI, bridge its bytes to a WebSocket, and reap it deterministically on
 // close. The CONTROL plane (POST /mod/pty {fn,args}) drives open/write/resize/
 // signal/kill/list; attach(ws,hello) is the live duplex bridge.
 //

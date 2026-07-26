@@ -320,6 +320,15 @@ const Tri=(()=>{
       ghost:()=>{const g=document.createElement('div');g.className='fitghost';g.innerHTML='<svg><use href="#i-guide"/></svg>GUIDE';return g},
       onDrop:restore,onTap:restore});
   })();
+  // t-ruler = "the zoom-out scale parked in the menu": same gesture as the guide and the dock —
+  // drag it onto the canvas to place it there, or click to put it back where it was. It only
+  // becomes VISIBLE once you zoom out; Ruler.restore says so if you are zoomed in.
+  (()=>{const tr=document.getElementById('t-ruler');if(!tr)return;
+    dragGesture(tr,{threshold:5,preventDefault:true,
+      ghost:()=>{const g=document.createElement('div');g.className='fitghost';g.textContent='SCALE';return g},
+      onDrop:(e,d)=>{Ruler.restore(d.x,d.y);toggleFly(false)},
+      onTap:()=>{Ruler.restore();toggleFly(false)}});
+  })();
   // BUG-L2-003: the +/- buttons must never be silently dead. If navigation is locked
   // (build mode), an explicit zoom click turns navigation on first (one-time hint), then zooms.
   const zoomBtn=(f)=>{if(!Camera.isNav()){Camera.setNav(true);try{Cosmos.prewarm()}catch(_){}Toast.show('Navigation on — zooming')}Camera.zoomAt(innerWidth/2,innerHeight/2,f)};
@@ -359,7 +368,7 @@ const Guide=(()=>{
     web:['iFRAME UNIVERSE',[['EACH SQUARE','a frame waiting to be built'],['GALAXIES','thousands of frames together'],['⌖ FIT','back to your grid'],['WHEEL','zoom is infinite — keep going']]],
     palette:['COMMAND PALETTE',[['↑↓','navigate'],['ENTER','run'],['ESC','close']]],
     'panel-terminal':['CODE',[['TYPE','help · agents · exo · universe'],['DRAG THE HEADER','to the edge = split screen'],['EDGES','resize']]],
-    'panel-shell':['iT',[['WORKSPACES','⌘B sidebar · ＋ new'],['SPLITS','⌘D right · ⌘⇧D down'],['⌘⇧P','command palette — cmux names'],['⌥⌘B','files tree · ⌗ tmux']]],
+    'panel-shell':['iT',[['WORKSPACES','⌘B sidebar · ＋ new'],['SPLITS','⌘D right · ⌘⇧D down'],['⌘⇧P','command palette'],['⌥⌘B','files tree']]],
     'panel-harness':['HARNESS',[['SPINE','Orchestrator + Safety never collapse'],['SKILLS','signed Fabric patterns'],['DRAG','to the edge for split-screen']]],
     'panel-lab':['LAB',[['CHAT','any model — an API provider or your machine'],['AGENTS','your agents — pick the iNFTs to work with']]],
     'panel-machine':['MY MACHINE',[['BRIDGE','the real body on your machine'],['BRAIN','BYOK key · mock'],['KEYS','this session only, never saved']]],
@@ -409,7 +418,7 @@ const Palette=(()=>{
   // Panel entries are GENERATED from the real panel registry (DEFS), so the palette
   // always covers every panel — BUG-L0-003: it listed 7, "notes" found nothing. A few
   // extra search keywords per key sharpen matching. All copy is English (owner, 2026-07-11).
-  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer tmux ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',contacts:'address book vcard carddav',calendar:'events caldav month',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',library:'documents research archive',research:'browser web navigate url search',search:'find global',brain:'memory skills',cookbook:'local models recipes download launch',compare:'model comparison side by side',gallery:'photos albums images',integrations:'connections connect services',theme:'themes appearance colors',settings:'settings preferences config'};
+  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',contacts:'address book vcard carddav',calendar:'events caldav month',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',library:'documents research archive',research:'browser web navigate url search',search:'find global',brain:'memory skills',cookbook:'local models recipes download launch',compare:'model comparison side by side',gallery:'photos albums images',integrations:'connections connect services',theme:'themes appearance colors',settings:'settings preferences config'};
   const PANEL_ICON={terminal:'#i-term',shell:'#i-term2',harness:'#i-harness',lab:'#i-lab',matrix:'#i-cosmos',machine:'#i-chip',agents:'#i-agent',email:'#i-mail',automations:'#i-bolt',settings:'#i-gear'};
   const panelEntries=(()=>{
     const defs=(typeof DEFS!=='undefined'&&DEFS)?DEFS:null;
@@ -743,7 +752,16 @@ const Shortcuts=(()=>{
         const key=appResolveKey(params.panel);
         if(!key)return{ok:false,error:'no panel matches "'+(params.panel||'')+'" — use list_panels for keys'};
         const el=Panels.openPanel(key);
-        return el?{ok:true,key,out:(action==='focus_panel'?'focused ':'opened ')+key}:{ok:false,error:'could not open "'+key+'" (may be under construction)'};
+        // Settings is a panel of rooms; landing on the wrong one is a dead end for a caller
+        // that cannot click. `section` takes it straight there, the same way the CODE tool
+        // open_settings{section} already does. Sanitised hard — it goes into a selector.
+        let sec='';
+        if(el&&key==='settings'&&params.section){
+          sec=String(params.section).trim().toLowerCase();
+          if(!/^[a-z0-9]{1,24}$/.test(sec))sec='';
+          else setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+sec+'"]');if(b)b.click()},80);
+        }
+        return el?{ok:true,key,out:(action==='focus_panel'?'focused ':'opened ')+key+(sec?' → '+sec:'')}:{ok:false,error:'could not open "'+key+'" (may be under construction)'};
       }
       if(action==='close_panel'){
         const key=appResolveKey(params.panel);if(!key)return{ok:false,error:'no panel matches "'+(params.panel||'')+'"'};
