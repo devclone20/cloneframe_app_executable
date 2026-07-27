@@ -12,6 +12,9 @@
 [![Bring your own model](https://img.shields.io/badge/AI-bring--your--own--model-8957e5)](#-bring-your-own-model)
 [![Single file + one daemon](https://img.shields.io/badge/build-single--file%20app-1f6feb)](#-the-single-file-build)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#-support-the-developer)
+[![Latest release](https://img.shields.io/github/v/release/devclone20/cloneframe_app_executable?label=download&color=2da44e)](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
+
+**→ [Download the latest build](https://github.com/devclone20/cloneframe_app_executable/releases/latest)** — with the sha256 to verify it against a build of your own.
 
 > [!CAUTION]
 > **🔒 Security comes first.**
