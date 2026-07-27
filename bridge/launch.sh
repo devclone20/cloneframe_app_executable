@@ -32,9 +32,33 @@ if [ -z "$NODE" ]; then
 fi
 echo "node: $NODE"
 
-# start the server if not already healthy — orphan it via a subshell so it
-# outlives this launcher process (survives double-click / launchd).
-if ! /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1; then
+# Start the server if it is not up — orphan it via a subshell so it outlives this
+# launcher process (survives double-click / launchd).
+#
+# AND restart it when it is up but STALE. This gate used to ask only "does it answer?",
+# and a daemon running last week's code answers perfectly. So after an update the app
+# would detect the mismatch, tell the owner to relaunch, and relaunching did nothing —
+# the launcher looked at the old process, saw a healthy reply, and skipped. The one
+# instruction the app gives for this was the one thing that could not work.
+HEALTH="$(/usr/bin/curl -s --max-time 3 "${URL}/health" 2>/dev/null)"
+NEEDS_START=0
+case "$HEALTH" in
+  '')                 NEEDS_START=1 ;;                 # nothing there
+  *'"stale":true'*)   NEEDS_START=2 ;;                 # there, but older than the code on disk
+esac
+if [ "$NEEDS_START" = 2 ]; then
+  echo "server is running an older build — restarting it…"
+  # Ask it to stop, then make sure. Only ever the process holding OUR port on loopback.
+  PIDS="$(/usr/sbin/lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null)"
+  for pid in $PIDS; do kill "$pid" 2>/dev/null; done
+  for i in $(seq 1 25); do
+    /usr/bin/curl -s --max-time 1 "${URL}/health" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  for pid in $PIDS; do kill -9 "$pid" 2>/dev/null; done
+  NEEDS_START=1
+fi
+if [ "$NEEDS_START" = 1 ]; then
   echo "starting server…"
   ( cd "$SCRIPT_DIR" && nohup "$NODE" hub-bridge.mjs > "$CONF/server.log" 2>&1 & )
   for i in $(seq 1 60); do
@@ -42,7 +66,12 @@ if ! /usr/bin/curl -s "${URL}/health" >/dev/null 2>&1; then
     sleep 0.2
   done
 fi
-/usr/bin/curl -s "${URL}/health" >/dev/null 2>&1 && echo "server up" || echo "server DID NOT come up"
+FINAL="$(/usr/bin/curl -s --max-time 3 "${URL}/health" 2>/dev/null)"
+case "$FINAL" in
+  '')               echo "server DID NOT come up" ;;
+  *'"stale":true'*) echo "server up — but STILL reports stale; check $CONF/server.log" ;;
+  *)                echo "server up · current build" ;;
+esac
 
 # ── arm ONE auto-pair for the window we are about to open ─────────────────────
 # The bridge injects the pairing token into a served page only when the pairing latch is
