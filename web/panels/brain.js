@@ -108,7 +108,7 @@
     // ---- the agent's REAL skills, read off disk by the bridge ----
     // Detected, never declared: these are the SKILL.md files pi loads. Read-only here on
     // purpose — a skill is a file, and the list is a mirror of the machine, not a database.
-    let agent=null,agentErr=null;
+    let agent=null,agentErr=null,agentStale=false;
     function agentSkillRow(s){
       return `<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(s.name)}</b>`
         +`<div class="brn-desc">${escHtml(s.description||'(this skill has no description in its SKILL.md)')}</div></div>`
@@ -116,6 +116,7 @@
     }
     function renderAgentBrain(){
       const el=body.querySelector('#bsagent');if(!el)return;
+      if(agentStale){staleCard(el,'pi.brain');return}
       if(agentErr){showErr(el,agentErr);return}
       if(!agent){el.innerHTML='<div class="qempty" style="padding:10px">reading the agent…</div>';return}
       if(!agent.installed){
@@ -156,12 +157,24 @@
           else{b.disabled=false;b.textContent='Write it';Toast.show((r&&r.error)||'could not write it')}}
         catch(e){b.disabled=false;b.textContent='Write it';Toast.show(friendlyErr(e.message||'failed'))}}));
     }
+    // A daemon started before this build has no pi.brain, and answers `400 · no such fn`.
+    // That is not an error the owner can act on as written — it reads like a broken panel
+    // when the only thing wrong is that the process on their machine is older than the app
+    // in front of them. Name it, and give the one command that fixes it.
+    const STALE=/no such fn|unknown fn|404|not a function/i;
+    function staleCard(el,what){
+      el.innerHTML='<div class="qempty" style="padding:18px;line-height:1.8;text-align:left">'
+        +'<b>Your HUB Bridge is running an older build.</b><br>'
+        +'It has no <code>'+escHtml(what)+'</code> yet, so it cannot read your agent. The app in this window is newer than the daemon behind it.<br><br>'
+        +'Restart it and this fills in:<br><code style="display:inline-block;margin-top:6px;padding:6px 9px;border:1px solid var(--line);border-radius:8px">zsh bridge/launch.sh</code>'
+        +'<br><br><span class="dim">/health reports <code>"stale": true</code> whenever the files on disk are newer than the running process. Reloading the window is not enough — the daemon is a separate program.</span></div>';
+    }
     async function loadAgentBrain(force){
       if(agent&&!force)return renderAgentBrain();
       if(!Bridge.on()){agent=null;agentErr=null;const el=body.querySelector('#bsagent');if(el)needBridge(el);return}
-      agent=null;agentErr=null;renderAgentBrain();
+      agent=null;agentErr=null;agentStale=false;renderAgentBrain();
       try{const r=await RPC('pi','brain');agent=(r&&r.ok)?r:null;if(!agent)agentErr=new Error('the bridge could not read the agent')}
-      catch(e){agentErr=e}
+      catch(e){agentErr=e;agentStale=STALE.test(String(e&&e.message||''))}
       renderAgentBrain();
     }
     function renderSkills(){
@@ -211,6 +224,65 @@
         db.skills.push({id:'sk'+Date.now().toString(36),name,desc:body.querySelector('#basw').value.trim(),how:body.querySelector('#bash').value.trim(),tags:body.querySelector('#basg').value.split(',').map(s=>s.trim()).filter(Boolean),chip:'manual',conf:null,uses:0});
         save();['#bast','#basw','#bash','#basg'].forEach(s=>body.querySelector(s).value='');Toast.show('Skill added')});
     }
+
+    /* — body: the agent's context and the map of the app it lives in —
+       CLONE FRAME is pi's body. Two texts shape it: the CURRICULUM it studies (AGENTS.md —
+       every tool, every panel, how to work here), and the TREE of that body, generated from
+       the real sources on every build so it can never describe an app that no longer exists.
+       Both are shown here because the owner is entitled to read what their agent was taught,
+       and the curriculum is editable because it is theirs to change. The tree is not: it is
+       a mirror, and editing a mirror changes nothing. */
+    const DOCS=[
+      ['curriculum','WHAT YOUR AGENT WAS TAUGHT','The field guide it reads to know this app — its tools, the panels, the iT CLI, how to work here. Yours to edit.'],
+      ['tree','THE BODY, MAPPED','Every folder and file of CLONE FRAME, generated from the real sources on every build. This is how the agent finds anything.'],
+      ['soul','WHAT YOU APPENDED TO ITS MIND','Text added to the agent’s system prompt on every run. Empty by default — write here to change who it is.'],
+    ];
+    const docs={};let docEdit=null;
+    async function loadDoc(name){
+      if(docs[name])return docs[name];
+      try{const r=await RPC('pi','doc',name);docs[name]=(r&&r.ok)?r:{error:(r&&r.error)||'could not read it'}}
+      catch(e){docs[name]={error:(e&&e.message)||'failed',stale:STALE.test(String(e&&e.message||''))}}
+      return docs[name];
+    }
+    function docHTML(name,label,note){
+      const d=docs[name];
+      if(!d)return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b></div><div class="brn-doc-body">reading…</div></div>`;
+      if(d.error)return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b></div><div class="brn-doc-body">${d.stale?'Your HUB Bridge is older than this app — restart it with <code>zsh bridge/launch.sh</code>.':escHtml(friendlyErr(d.error))}</div></div>`;
+      const kb=d.bytes?Math.max(1,Math.round(d.bytes/1024))+'KB':'empty';
+      const editing=docEdit===name;
+      const acts=editing
+        ?`<button class="btn mini" data-dsave="${escAttr(name)}">Save</button><button class="btn mini" data-dcancel="1">Cancel</button>`
+        :(d.editable?`<button class="btn mini" data-dedit="${escAttr(name)}">Edit</button>`:'<span class="dim">generated</span>');
+      const inner=editing
+        ?`<textarea data-dta="${escAttr(name)}" spellcheck="false">${escHtml(d.text||'')}</textarea>`
+        :(d.present&&d.text
+          ? (d.tooBig?'<div class="brn-doc-body">Too large to show here — open it in FOLDERS.</div>'
+             :(name==='tree'?`<div class="brn-doc-body">${escHtml(d.text)}</div>`:`<div class="brn-doc-body md">${MDLite.render(d.text)}</div>`))
+          :`<div class="brn-doc-body">${name==='soul'?'Nothing appended yet. Press <b>Edit</b> and write — whatever you put here is read on every run.':'Not on this machine yet.'}</div>`);
+      return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b><span class="dim">${escHtml(kb)}</span><span class="acts">${acts}</span></div>${inner}</div>
+        <div class="brn-desc" style="margin:-6px 0 12px">${escHtml(note)}</div>`;
+    }
+    async function renderBodyTab(){
+      if(!Bridge.on()){body.innerHTML='<div id="bdneed"></div>';needBridge(body.querySelector('#bdneed'));return}
+      body.innerHTML='<div class="brn-head"><b>Body</b><span class="badge">the agent’s context</span></div>'
+        +'<div class="brn-desc" style="margin-bottom:10px">CLONE FRAME is your agent’s body. This is what it knows about that body, read from the same files it reads.</div>'
+        +DOCS.map(d=>docHTML(d[0],d[1],d[2])).join('');
+      await Promise.all(DOCS.map(d=>loadDoc(d[0])));
+      if(tab!=='body')return;
+      body.innerHTML='<div class="brn-head"><b>Body</b><span class="badge">the agent’s context</span></div>'
+        +'<div class="brn-desc" style="margin-bottom:10px">CLONE FRAME is your agent’s body. This is what it knows about that body, read from the same files it reads.</div>'
+        +DOCS.map(d=>docHTML(d[0],d[1],d[2])).join('');
+      body.querySelectorAll('[data-dedit]').forEach(b=>b.addEventListener('click',()=>{docEdit=b.dataset.dedit;renderBodyTab()}));
+      body.querySelectorAll('[data-dcancel]').forEach(b=>b.addEventListener('click',()=>{docEdit=null;renderBodyTab()}));
+      body.querySelectorAll('[data-dsave]').forEach(b=>b.addEventListener('click',async()=>{
+        const name=b.dataset.dsave,ta=body.querySelector('[data-dta="'+name+'"]');if(!ta)return;
+        b.disabled=true;b.textContent='saving…';
+        try{const r=await RPC('pi','saveDoc',name,ta.value);
+          if(r&&r.ok){docs[name]=null;delete docs[name];docEdit=null;Toast.show('Saved — your agent reads it on its next run');renderBodyTab()}
+          else{b.disabled=false;b.textContent='Save';Toast.show((r&&r.error)||'could not save')}}
+        catch(e){b.disabled=false;b.textContent='Save';Toast.show(friendlyErr(e.message||'failed'))}}));
+    }
+
     /* — settings (brain config in Store + connected models via bridge) — */
     function renderSettings(){
       // Only controls that DO something. The switches this tab used to carry
@@ -246,6 +318,6 @@
       mEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('models','removeProvider',b.dataset.rm);Bus.emit('models:changed');loadModels()}));
       const go=mEl.querySelector('#brgo');if(go)go.addEventListener('click',()=>openPanel('machine'));
     }
-    function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='add')renderAdd();else renderSettings()}
+    function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='body')renderBodyTab();else if(tab==='add')renderAdd();else renderSettings()}
     render();
   }

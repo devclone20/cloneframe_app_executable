@@ -611,5 +611,42 @@ function repairSkill({ folder, source } = {}) {
   return { ok: true, path: file, name };
 }
 
-export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
+// The agent's own documents, by name. CLONE FRAME is pi's body, so the owner is entitled
+// to read — and edit — the two texts that shape it: the curriculum it studies, and the map
+// of the body it lives in. Named, never path-addressed: a client cannot ask for a file.
+const DOCS = {
+  curriculum: { file: () => path.join(WORKSPACE, 'AGENTS.md'), title: 'AGENTS.md — the curriculum', editable: true },
+  tree:       { file: () => path.join(WORKSPACE, 'STRUCTURE.md'), title: 'STRUCTURE.md — the body tree', editable: false },
+  soul:       { file: () => path.join(WORKSPACE, '.pi', 'APPEND_SYSTEM.md'), title: 'APPEND_SYSTEM.md — what you appended to its mind', editable: true },
+};
+const MAX_DOC = 512 * 1024;
+
+/** @param {string} name one of DOCS */
+function doc(name) {
+  const d = DOCS[String(name || '')];
+  if (!d) return { ok: false, error: 'unknown document' };
+  const file = d.file();
+  let text = '', bytes = 0, present = false;
+  try { const st = fs.statSync(file); bytes = st.size; present = true; } catch {}
+  if (present && bytes > MAX_DOC) return { ok: true, name, title: d.title, editable: d.editable, present, bytes, text: '', tooBig: true };
+  if (present) { try { text = fs.readFileSync(file, 'utf8'); } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; } }
+  return { ok: true, name, title: d.title, editable: d.editable, present, bytes, text };
+}
+
+/** Write one of the EDITABLE documents back. The tree is generated — it is never writable. */
+function saveDoc(name, text) {
+  const d = DOCS[String(name || '')];
+  if (!d) return { ok: false, error: 'unknown document' };
+  if (!d.editable) return { ok: false, error: 'this one is generated from the real sources on every build — edit the sources, not the map' };
+  if (typeof text !== 'string') return { ok: false, error: 'text is required' };
+  if (text.length > MAX_DOC) return { ok: false, error: 'too large' };
+  const file = d.file();
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(file, text, { mode: 0o600 });
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  return { ok: true, bytes: Buffer.byteLength(text) };
+}
+
+export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, doc, saveDoc, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
 export default Pi;

@@ -253,13 +253,64 @@
       let acc=[];try{const r=await Mail.accounts();acc=Array.isArray(r)?r:(r&&r.accounts)||[]}catch(e){return fail(e)}
       const AUT=[['off','Off','agents never send — you write and send yourself'],['show-first','Show first','the agent composes; you review, then it sends'],['direct','Direct','the agent composes and sends directly (factory default)'],['full-auto','Full-auto','autonomous email — the agent sends on its own, within your rules']];
       const cur=(Store.get().email&&Store.get().email.autonomy)||'direct';
-      pane.innerHTML='<div class="sethead">EMAIL ACCOUNTS</div>'+(acc.length?acc.map(a=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(a.email||a.name||'')}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}</span><span class="dim">${escHtml(a.kind||a.type||'imap/smtp')}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No accounts connected.</div>')+
+      // There was no way to CONNECT an account anywhere in the app. This page listed
+      // accounts and offered autonomy levels for an inbox that could never exist, and the
+      // EMAIL panel opened onto nothing. The bridge had addAccount/testAccount all along —
+      // only the door was missing. Presets fill the hosts for the common providers; the
+      // bridge probes IMAP and SMTP before it stores anything, so "connected" means both
+      // answered, never that the form looked right.
+      const PRESET={gmail:['imap.gmail.com',993,'smtp.gmail.com',465,'Google requires an <b>app password</b> (Account → Security → 2-Step Verification → App passwords), not your normal one.'],
+        icloud:['imap.mail.me.com',993,'smtp.mail.me.com',587,'iCloud requires an <b>app-specific password</b> from appleid.apple.com.'],
+        outlook:['outlook.office365.com',993,'smtp.office365.com',587,'Microsoft accounts usually need an <b>app password</b> with 2FA on.'],
+        fastmail:['imap.fastmail.com',993,'smtp.fastmail.com',465,'Fastmail wants an <b>app password</b> from Settings → Privacy &amp; Security.'],
+        custom:['',993,'',465,'Ask your provider for its IMAP and SMTP hosts and ports.']};
+      const F=(id,label,ph,type)=>`<div class="af-row"><label>${label}</label><input id="${id}" ${type?'type="'+type+'"':''} placeholder="${escAttr(ph||'')}"></div>`;
+      pane.innerHTML='<div class="sethead">EMAIL ACCOUNTS</div>'+(acc.length?acc.map(a=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(a.email||a.name||'')}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}</span><span class="dim">${escHtml(a.kind||a.type||'imap/smtp')}</span>${a.isDefault?'':`<button class="btn mini" data-emdef="${escAttr(a.id)}">make default</button>`}<button class="btn mini" data-emrm="${escAttr(a.id)}">remove</button></div>`).join(''):'<div class="qempty" style="padding:12px">No accounts connected — add one below.</div>')+
+        '<div class="af-sec">CONNECT AN ACCOUNT (IMAP · SMTP)</div>'+
+        '<div class="acctform" style="padding:0;overflow:visible">'+
+        '<div class="af-row"><label>Provider</label><select id="emprov"><option value="gmail">Gmail</option><option value="icloud">iCloud</option><option value="outlook">Outlook / Microsoft 365</option><option value="fastmail">Fastmail</option><option value="custom">Other (enter hosts)</option></select></div>'+
+        F('emmail','Email','you@example.com')+F('empass','Password','app password','password')+
+        '<div id="emhint" class="brn-desc" style="padding:2px 2px 6px"></div>'+
+        F('emih','IMAP host','imap.example.com')+F('emip','IMAP port','993')+
+        F('emsh','SMTP host','smtp.example.com')+F('emsp','SMTP port','465')+
+        '<div id="emmsg" style="font-size:10px;padding:2px 2px"></div>'+
+        '<div class="compose-actions"><button class="btn" id="emtest">TEST</button><button class="btn acc" id="emadd">CONNECT</button></div></div>'+
         '<div class="sethead" style="margin-top:14px">AGENT AUTONOMY</div>'+
         '<div class="setline" style="display:block;padding:8px 12px"><div class="dim" style="font-size:10px;margin-bottom:8px">How much can an AI agent do with your email? Factory default is <b style="color:var(--fg)">Direct</b>.</div>'+
         '<div class="emaut" style="display:flex;flex-direction:column;gap:6px">'+AUT.map(a=>`<button class="emautb" data-a="${a[0]}" style="all:unset;cursor:pointer;display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:9px;border:1px solid ${a[0]===cur?'var(--accent)':'var(--line)'};background:${a[0]===cur?'color-mix(in srgb,var(--accent) 12%,transparent)':'transparent'}"><span style="width:13px;height:13px;flex:none;margin-top:1px;border-radius:50%;border:2px solid ${a[0]===cur?'var(--accent)':'var(--ink-faint)'};background:${a[0]===cur?'var(--accent)':'transparent'}"></span><span><b style="font-size:11px;color:var(--fg)">${a[1]}</b><div class="dim" style="font-size:10px;margin-top:1px">${a[2]}</div></span></button>`).join('')+'</div></div>'+
         '<div class="btnrow" style="margin-top:12px"><button class="btn" id="sem">OPEN EMAIL</button></div>';
       pane.querySelectorAll('.emautb').forEach(b=>b.addEventListener('click',()=>{const s=Store.get();s.email=Object.assign({},s.email,{autonomy:b.dataset.a});Store.save();Toast.show('Email autonomy: '+b.dataset.a);secEmail()}));
       pane.querySelector('#sem').addEventListener('click',()=>{Caps.set('email',1);openPanel('email')});
+      const g=id=>pane.querySelector('#'+id),msg=g('emmsg');
+      function fillPreset(){
+        const k=g('emprov').value,d=PRESET[k];
+        g('emih').value=d[0];g('emip').value=d[1];g('emsh').value=d[2];g('emsp').value=d[3];
+        g('emhint').innerHTML=d[4]+' Your password is sent to <b>your own provider</b> by the bridge on this machine and stored in your hub config — never in the app, never in a log.';
+      }
+      g('emprov').addEventListener('change',fillPreset);fillPreset();
+      const cfgOf=()=>{const email=g('emmail').value.trim();return{provider:g('emprov').value==='custom'?undefined:g('emprov').value,
+        email,user:email,pass:g('empass').value,
+        imapHost:g('emih').value.trim(),imapPort:Number(g('emip').value)||993,imapSecure:true,
+        smtpHost:g('emsh').value.trim(),smtpPort:Number(g('emsp').value)||465,smtpSecure:Number(g('emsp').value)===465}};
+      const show=(ok,t)=>{msg.style.color=ok?'var(--ok)':'var(--accent)';msg.innerHTML=(ok?'✓ ':'✗ ')+escHtml(t)};
+      g('emtest').addEventListener('click',async()=>{
+        const b=g('emtest');b.disabled=true;b.textContent='TESTING…';msg.style.color='';msg.textContent='asking your provider…';
+        try{const r=await Mail.testAccount(cfgOf());
+          show(!!(r&&r.ok),(r&&r.ok)?'IMAP and SMTP both answered':friendlyErr((r&&r.error)||'connection failed'))}
+        catch(e){show(false,friendlyErr(e.message||'failed'))}
+        b.disabled=false;b.textContent='TEST'});
+      g('emadd').addEventListener('click',async()=>{
+        const c=cfgOf();
+        if(!c.email||!c.pass||!c.imapHost||!c.smtpHost){show(false,'email, password and both hosts are required');return}
+        const b=g('emadd');b.disabled=true;b.textContent='CONNECTING…';msg.style.color='';msg.textContent='checking IMAP and SMTP before saving…';
+        // addAccount probes both servers itself and refuses to store an account that cannot
+        // connect — so reaching the success branch means mail can actually be read and sent.
+        try{const r=await Mail.addAccount(c);
+          if(r&&r.ok){Caps.set('email',1);Toast.show('Email connected — opening your inbox');secEmail();openPanel('email')}
+          else{b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr((r&&r.error)||'could not connect'))}}
+        catch(e){b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr(e.message||'failed'))}});
+      pane.querySelectorAll('[data-emdef]').forEach(b=>b.addEventListener('click',async()=>{await Mail.setDefault(b.dataset.emdef);Toast.show('Default account changed');secEmail()}));
+      pane.querySelectorAll('[data-emrm]').forEach(b=>b.addEventListener('click',async()=>{await Mail.removeAccount(b.dataset.emrm);Toast.show('Account removed');secEmail()}));
     }
     async function secReminders(){
       loading();

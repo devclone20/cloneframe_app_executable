@@ -125,7 +125,7 @@ for the live catalog.
 | `research` | BROWSER | the whole web, inside CLONE FRAME |
 | `matrix` | MATRIX | distributed AI cluster · your devices, one brain |
 | `reminders` | REMINDERS | time-based · the agent reminds you |
-| `brain` | BRAIN | memories · skills · models |
+| `brain` | BRAIN | the mind of your agent — memories · skills · body · models |
 | `search` | SEARCH | everything — notes · tasks · reminders… |
 | `automations` | AUTOMATIONS | agent actions · human approval |
 | `harness` | HARNESS | crew list · use in the terminal |

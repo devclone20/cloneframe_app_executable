@@ -1356,6 +1356,13 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brn-sel{all:unset;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:10px;color:var(--fg);cursor:pointer}
 .brn-search{all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent);margin-bottom:8px}
 .brn-chips{margin-bottom:9px}
+.brn-doc{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.brn-doc-hd{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid var(--line);font-size:10.5px;color:var(--fg)}
+.brn-doc-hd .dim{font-size:10px}
+.brn-doc-hd .acts{margin-left:auto;display:flex;gap:6px}
+.brn-doc-body{max-height:300px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.65;color:var(--ink-dim);white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
+.brn-doc-body.md{font-family:inherit;white-space:normal}
+.brn-doc textarea{all:unset;display:block;width:100%;box-sizing:border-box;max-height:300px;min-height:200px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.6;color:var(--fg);font-family:var(--mono);caret-color:var(--accent)}
 .brn-card{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;cursor:pointer}
 .brn-card:hover{border-color:color-mix(in srgb,var(--fg) 22%,var(--line))}
 .brn-card.sel{border-color:var(--accent)}
@@ -4969,7 +4976,7 @@ const Panels=(()=>{
     research:{icon:'#i-globe',title:'BROWSER',sub:'the whole web, inside CLONE FRAME',w:980,h:680,pad:false,noscale:true,body:()=>`<div class="wbr" id="wbrroot"></div>`},
     matrix:{icon:'#i-matrix',title:'MATRIX',sub:'distributed AI cluster · your devices, one brain',w:1200,h:740,pad:false,noscale:true,body:()=>`<div class="mx" id="mxroot"></div>`},
     reminders:{icon:'#i-reminders',title:'REMINDERS',sub:'time-based · the agent reminds you',w:600,h:540,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="rmnote" placeholder="remind me to…"><input id="rmwhen" type="datetime-local" style="flex:0 0 auto"><button class="btn mini" id="rmadd">+</button></div><div class="lpbody" id="rmbody"></div></div>`},
-    brain:{icon:'#i-brain',title:'BRAIN',sub:'memories · skills · models',w:640,h:580,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
+    brain:{icon:'#i-brain',title:'BRAIN',sub:'the mind of your agent — memories · skills · body · models',w:720,h:620,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="body">Body</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
     search:{icon:'#i-search',title:'SEARCH',sub:'everything — notes · tasks · reminders…',w:640,h:560,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="gsq" placeholder="search everything…"></div><div class="lpbody" id="gsbody"></div></div>`},
     automations:{icon:'#i-automations',title:'AUTOMATIONS',sub:'agent actions · human approval',w:540,h:560,body:()=>{
       const au=Store.get().autonomy;
@@ -10528,13 +10535,64 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       let acc=[];try{const r=await Mail.accounts();acc=Array.isArray(r)?r:(r&&r.accounts)||[]}catch(e){return fail(e)}
       const AUT=[['off','Off','agents never send — you write and send yourself'],['show-first','Show first','the agent composes; you review, then it sends'],['direct','Direct','the agent composes and sends directly (factory default)'],['full-auto','Full-auto','autonomous email — the agent sends on its own, within your rules']];
       const cur=(Store.get().email&&Store.get().email.autonomy)||'direct';
-      pane.innerHTML='<div class="sethead">EMAIL ACCOUNTS</div>'+(acc.length?acc.map(a=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(a.email||a.name||'')}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}</span><span class="dim">${escHtml(a.kind||a.type||'imap/smtp')}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No accounts connected.</div>')+
+      // There was no way to CONNECT an account anywhere in the app. This page listed
+      // accounts and offered autonomy levels for an inbox that could never exist, and the
+      // EMAIL panel opened onto nothing. The bridge had addAccount/testAccount all along —
+      // only the door was missing. Presets fill the hosts for the common providers; the
+      // bridge probes IMAP and SMTP before it stores anything, so "connected" means both
+      // answered, never that the form looked right.
+      const PRESET={gmail:['imap.gmail.com',993,'smtp.gmail.com',465,'Google requires an <b>app password</b> (Account → Security → 2-Step Verification → App passwords), not your normal one.'],
+        icloud:['imap.mail.me.com',993,'smtp.mail.me.com',587,'iCloud requires an <b>app-specific password</b> from appleid.apple.com.'],
+        outlook:['outlook.office365.com',993,'smtp.office365.com',587,'Microsoft accounts usually need an <b>app password</b> with 2FA on.'],
+        fastmail:['imap.fastmail.com',993,'smtp.fastmail.com',465,'Fastmail wants an <b>app password</b> from Settings → Privacy &amp; Security.'],
+        custom:['',993,'',465,'Ask your provider for its IMAP and SMTP hosts and ports.']};
+      const F=(id,label,ph,type)=>`<div class="af-row"><label>${label}</label><input id="${id}" ${type?'type="'+type+'"':''} placeholder="${escAttr(ph||'')}"></div>`;
+      pane.innerHTML='<div class="sethead">EMAIL ACCOUNTS</div>'+(acc.length?acc.map(a=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(a.email||a.name||'')}</b>${a.isDefault?' <span class="badge">DEFAULT</span>':''}</span><span class="dim">${escHtml(a.kind||a.type||'imap/smtp')}</span>${a.isDefault?'':`<button class="btn mini" data-emdef="${escAttr(a.id)}">make default</button>`}<button class="btn mini" data-emrm="${escAttr(a.id)}">remove</button></div>`).join(''):'<div class="qempty" style="padding:12px">No accounts connected — add one below.</div>')+
+        '<div class="af-sec">CONNECT AN ACCOUNT (IMAP · SMTP)</div>'+
+        '<div class="acctform" style="padding:0;overflow:visible">'+
+        '<div class="af-row"><label>Provider</label><select id="emprov"><option value="gmail">Gmail</option><option value="icloud">iCloud</option><option value="outlook">Outlook / Microsoft 365</option><option value="fastmail">Fastmail</option><option value="custom">Other (enter hosts)</option></select></div>'+
+        F('emmail','Email','you@example.com')+F('empass','Password','app password','password')+
+        '<div id="emhint" class="brn-desc" style="padding:2px 2px 6px"></div>'+
+        F('emih','IMAP host','imap.example.com')+F('emip','IMAP port','993')+
+        F('emsh','SMTP host','smtp.example.com')+F('emsp','SMTP port','465')+
+        '<div id="emmsg" style="font-size:10px;padding:2px 2px"></div>'+
+        '<div class="compose-actions"><button class="btn" id="emtest">TEST</button><button class="btn acc" id="emadd">CONNECT</button></div></div>'+
         '<div class="sethead" style="margin-top:14px">AGENT AUTONOMY</div>'+
         '<div class="setline" style="display:block;padding:8px 12px"><div class="dim" style="font-size:10px;margin-bottom:8px">How much can an AI agent do with your email? Factory default is <b style="color:var(--fg)">Direct</b>.</div>'+
         '<div class="emaut" style="display:flex;flex-direction:column;gap:6px">'+AUT.map(a=>`<button class="emautb" data-a="${a[0]}" style="all:unset;cursor:pointer;display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:9px;border:1px solid ${a[0]===cur?'var(--accent)':'var(--line)'};background:${a[0]===cur?'color-mix(in srgb,var(--accent) 12%,transparent)':'transparent'}"><span style="width:13px;height:13px;flex:none;margin-top:1px;border-radius:50%;border:2px solid ${a[0]===cur?'var(--accent)':'var(--ink-faint)'};background:${a[0]===cur?'var(--accent)':'transparent'}"></span><span><b style="font-size:11px;color:var(--fg)">${a[1]}</b><div class="dim" style="font-size:10px;margin-top:1px">${a[2]}</div></span></button>`).join('')+'</div></div>'+
         '<div class="btnrow" style="margin-top:12px"><button class="btn" id="sem">OPEN EMAIL</button></div>';
       pane.querySelectorAll('.emautb').forEach(b=>b.addEventListener('click',()=>{const s=Store.get();s.email=Object.assign({},s.email,{autonomy:b.dataset.a});Store.save();Toast.show('Email autonomy: '+b.dataset.a);secEmail()}));
       pane.querySelector('#sem').addEventListener('click',()=>{Caps.set('email',1);openPanel('email')});
+      const g=id=>pane.querySelector('#'+id),msg=g('emmsg');
+      function fillPreset(){
+        const k=g('emprov').value,d=PRESET[k];
+        g('emih').value=d[0];g('emip').value=d[1];g('emsh').value=d[2];g('emsp').value=d[3];
+        g('emhint').innerHTML=d[4]+' Your password is sent to <b>your own provider</b> by the bridge on this machine and stored in your hub config — never in the app, never in a log.';
+      }
+      g('emprov').addEventListener('change',fillPreset);fillPreset();
+      const cfgOf=()=>{const email=g('emmail').value.trim();return{provider:g('emprov').value==='custom'?undefined:g('emprov').value,
+        email,user:email,pass:g('empass').value,
+        imapHost:g('emih').value.trim(),imapPort:Number(g('emip').value)||993,imapSecure:true,
+        smtpHost:g('emsh').value.trim(),smtpPort:Number(g('emsp').value)||465,smtpSecure:Number(g('emsp').value)===465}};
+      const show=(ok,t)=>{msg.style.color=ok?'var(--ok)':'var(--accent)';msg.innerHTML=(ok?'✓ ':'✗ ')+escHtml(t)};
+      g('emtest').addEventListener('click',async()=>{
+        const b=g('emtest');b.disabled=true;b.textContent='TESTING…';msg.style.color='';msg.textContent='asking your provider…';
+        try{const r=await Mail.testAccount(cfgOf());
+          show(!!(r&&r.ok),(r&&r.ok)?'IMAP and SMTP both answered':friendlyErr((r&&r.error)||'connection failed'))}
+        catch(e){show(false,friendlyErr(e.message||'failed'))}
+        b.disabled=false;b.textContent='TEST'});
+      g('emadd').addEventListener('click',async()=>{
+        const c=cfgOf();
+        if(!c.email||!c.pass||!c.imapHost||!c.smtpHost){show(false,'email, password and both hosts are required');return}
+        const b=g('emadd');b.disabled=true;b.textContent='CONNECTING…';msg.style.color='';msg.textContent='checking IMAP and SMTP before saving…';
+        // addAccount probes both servers itself and refuses to store an account that cannot
+        // connect — so reaching the success branch means mail can actually be read and sent.
+        try{const r=await Mail.addAccount(c);
+          if(r&&r.ok){Caps.set('email',1);Toast.show('Email connected — opening your inbox');secEmail();openPanel('email')}
+          else{b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr((r&&r.error)||'could not connect'))}}
+        catch(e){b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr(e.message||'failed'))}});
+      pane.querySelectorAll('[data-emdef]').forEach(b=>b.addEventListener('click',async()=>{await Mail.setDefault(b.dataset.emdef);Toast.show('Default account changed');secEmail()}));
+      pane.querySelectorAll('[data-emrm]').forEach(b=>b.addEventListener('click',async()=>{await Mail.removeAccount(b.dataset.emrm);Toast.show('Account removed');secEmail()}));
     }
     async function secReminders(){
       loading();
@@ -12845,7 +12903,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // ---- the agent's REAL skills, read off disk by the bridge ----
     // Detected, never declared: these are the SKILL.md files pi loads. Read-only here on
     // purpose — a skill is a file, and the list is a mirror of the machine, not a database.
-    let agent=null,agentErr=null;
+    let agent=null,agentErr=null,agentStale=false;
     function agentSkillRow(s){
       return `<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(s.name)}</b>`
         +`<div class="brn-desc">${escHtml(s.description||'(this skill has no description in its SKILL.md)')}</div></div>`
@@ -12853,6 +12911,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     function renderAgentBrain(){
       const el=body.querySelector('#bsagent');if(!el)return;
+      if(agentStale){staleCard(el,'pi.brain');return}
       if(agentErr){showErr(el,agentErr);return}
       if(!agent){el.innerHTML='<div class="qempty" style="padding:10px">reading the agent…</div>';return}
       if(!agent.installed){
@@ -12893,12 +12952,24 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           else{b.disabled=false;b.textContent='Write it';Toast.show((r&&r.error)||'could not write it')}}
         catch(e){b.disabled=false;b.textContent='Write it';Toast.show(friendlyErr(e.message||'failed'))}}));
     }
+    // A daemon started before this build has no pi.brain, and answers `400 · no such fn`.
+    // That is not an error the owner can act on as written — it reads like a broken panel
+    // when the only thing wrong is that the process on their machine is older than the app
+    // in front of them. Name it, and give the one command that fixes it.
+    const STALE=/no such fn|unknown fn|404|not a function/i;
+    function staleCard(el,what){
+      el.innerHTML='<div class="qempty" style="padding:18px;line-height:1.8;text-align:left">'
+        +'<b>Your HUB Bridge is running an older build.</b><br>'
+        +'It has no <code>'+escHtml(what)+'</code> yet, so it cannot read your agent. The app in this window is newer than the daemon behind it.<br><br>'
+        +'Restart it and this fills in:<br><code style="display:inline-block;margin-top:6px;padding:6px 9px;border:1px solid var(--line);border-radius:8px">zsh bridge/launch.sh</code>'
+        +'<br><br><span class="dim">/health reports <code>"stale": true</code> whenever the files on disk are newer than the running process. Reloading the window is not enough — the daemon is a separate program.</span></div>';
+    }
     async function loadAgentBrain(force){
       if(agent&&!force)return renderAgentBrain();
       if(!Bridge.on()){agent=null;agentErr=null;const el=body.querySelector('#bsagent');if(el)needBridge(el);return}
-      agent=null;agentErr=null;renderAgentBrain();
+      agent=null;agentErr=null;agentStale=false;renderAgentBrain();
       try{const r=await RPC('pi','brain');agent=(r&&r.ok)?r:null;if(!agent)agentErr=new Error('the bridge could not read the agent')}
-      catch(e){agentErr=e}
+      catch(e){agentErr=e;agentStale=STALE.test(String(e&&e.message||''))}
       renderAgentBrain();
     }
     function renderSkills(){
@@ -12948,6 +13019,65 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         db.skills.push({id:'sk'+Date.now().toString(36),name,desc:body.querySelector('#basw').value.trim(),how:body.querySelector('#bash').value.trim(),tags:body.querySelector('#basg').value.split(',').map(s=>s.trim()).filter(Boolean),chip:'manual',conf:null,uses:0});
         save();['#bast','#basw','#bash','#basg'].forEach(s=>body.querySelector(s).value='');Toast.show('Skill added')});
     }
+
+    /* — body: the agent's context and the map of the app it lives in —
+       CLONE FRAME is pi's body. Two texts shape it: the CURRICULUM it studies (AGENTS.md —
+       every tool, every panel, how to work here), and the TREE of that body, generated from
+       the real sources on every build so it can never describe an app that no longer exists.
+       Both are shown here because the owner is entitled to read what their agent was taught,
+       and the curriculum is editable because it is theirs to change. The tree is not: it is
+       a mirror, and editing a mirror changes nothing. */
+    const DOCS=[
+      ['curriculum','WHAT YOUR AGENT WAS TAUGHT','The field guide it reads to know this app — its tools, the panels, the iT CLI, how to work here. Yours to edit.'],
+      ['tree','THE BODY, MAPPED','Every folder and file of CLONE FRAME, generated from the real sources on every build. This is how the agent finds anything.'],
+      ['soul','WHAT YOU APPENDED TO ITS MIND','Text added to the agent’s system prompt on every run. Empty by default — write here to change who it is.'],
+    ];
+    const docs={};let docEdit=null;
+    async function loadDoc(name){
+      if(docs[name])return docs[name];
+      try{const r=await RPC('pi','doc',name);docs[name]=(r&&r.ok)?r:{error:(r&&r.error)||'could not read it'}}
+      catch(e){docs[name]={error:(e&&e.message)||'failed',stale:STALE.test(String(e&&e.message||''))}}
+      return docs[name];
+    }
+    function docHTML(name,label,note){
+      const d=docs[name];
+      if(!d)return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b></div><div class="brn-doc-body">reading…</div></div>`;
+      if(d.error)return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b></div><div class="brn-doc-body">${d.stale?'Your HUB Bridge is older than this app — restart it with <code>zsh bridge/launch.sh</code>.':escHtml(friendlyErr(d.error))}</div></div>`;
+      const kb=d.bytes?Math.max(1,Math.round(d.bytes/1024))+'KB':'empty';
+      const editing=docEdit===name;
+      const acts=editing
+        ?`<button class="btn mini" data-dsave="${escAttr(name)}">Save</button><button class="btn mini" data-dcancel="1">Cancel</button>`
+        :(d.editable?`<button class="btn mini" data-dedit="${escAttr(name)}">Edit</button>`:'<span class="dim">generated</span>');
+      const inner=editing
+        ?`<textarea data-dta="${escAttr(name)}" spellcheck="false">${escHtml(d.text||'')}</textarea>`
+        :(d.present&&d.text
+          ? (d.tooBig?'<div class="brn-doc-body">Too large to show here — open it in FOLDERS.</div>'
+             :(name==='tree'?`<div class="brn-doc-body">${escHtml(d.text)}</div>`:`<div class="brn-doc-body md">${MDLite.render(d.text)}</div>`))
+          :`<div class="brn-doc-body">${name==='soul'?'Nothing appended yet. Press <b>Edit</b> and write — whatever you put here is read on every run.':'Not on this machine yet.'}</div>`);
+      return `<div class="brn-doc"><div class="brn-doc-hd"><b>${escHtml(label)}</b><span class="dim">${escHtml(kb)}</span><span class="acts">${acts}</span></div>${inner}</div>
+        <div class="brn-desc" style="margin:-6px 0 12px">${escHtml(note)}</div>`;
+    }
+    async function renderBodyTab(){
+      if(!Bridge.on()){body.innerHTML='<div id="bdneed"></div>';needBridge(body.querySelector('#bdneed'));return}
+      body.innerHTML='<div class="brn-head"><b>Body</b><span class="badge">the agent’s context</span></div>'
+        +'<div class="brn-desc" style="margin-bottom:10px">CLONE FRAME is your agent’s body. This is what it knows about that body, read from the same files it reads.</div>'
+        +DOCS.map(d=>docHTML(d[0],d[1],d[2])).join('');
+      await Promise.all(DOCS.map(d=>loadDoc(d[0])));
+      if(tab!=='body')return;
+      body.innerHTML='<div class="brn-head"><b>Body</b><span class="badge">the agent’s context</span></div>'
+        +'<div class="brn-desc" style="margin-bottom:10px">CLONE FRAME is your agent’s body. This is what it knows about that body, read from the same files it reads.</div>'
+        +DOCS.map(d=>docHTML(d[0],d[1],d[2])).join('');
+      body.querySelectorAll('[data-dedit]').forEach(b=>b.addEventListener('click',()=>{docEdit=b.dataset.dedit;renderBodyTab()}));
+      body.querySelectorAll('[data-dcancel]').forEach(b=>b.addEventListener('click',()=>{docEdit=null;renderBodyTab()}));
+      body.querySelectorAll('[data-dsave]').forEach(b=>b.addEventListener('click',async()=>{
+        const name=b.dataset.dsave,ta=body.querySelector('[data-dta="'+name+'"]');if(!ta)return;
+        b.disabled=true;b.textContent='saving…';
+        try{const r=await RPC('pi','saveDoc',name,ta.value);
+          if(r&&r.ok){docs[name]=null;delete docs[name];docEdit=null;Toast.show('Saved — your agent reads it on its next run');renderBodyTab()}
+          else{b.disabled=false;b.textContent='Save';Toast.show((r&&r.error)||'could not save')}}
+        catch(e){b.disabled=false;b.textContent='Save';Toast.show(friendlyErr(e.message||'failed'))}}));
+    }
+
     /* — settings (brain config in Store + connected models via bridge) — */
     function renderSettings(){
       // Only controls that DO something. The switches this tab used to carry
@@ -12983,7 +13113,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       mEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('models','removeProvider',b.dataset.rm);Bus.emit('models:changed');loadModels()}));
       const go=mEl.querySelector('#brgo');if(go)go.addEventListener('click',()=>openPanel('machine'));
     }
-    function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='add')renderAdd();else renderSettings()}
+    function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='body')renderBodyTab();else if(tab==='add')renderAdd();else renderSettings()}
     render();
   }
   /* ---------- SEARCH (global, cross-cutting via search.mjs) ---------- */

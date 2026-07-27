@@ -1356,6 +1356,13 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brn-sel{all:unset;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:10px;color:var(--fg);cursor:pointer}
 .brn-search{all:unset;display:block;box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent);margin-bottom:8px}
 .brn-chips{margin-bottom:9px}
+.brn-doc{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.brn-doc-hd{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid var(--line);font-size:10.5px;color:var(--fg)}
+.brn-doc-hd .dim{font-size:10px}
+.brn-doc-hd .acts{margin-left:auto;display:flex;gap:6px}
+.brn-doc-body{max-height:300px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.65;color:var(--ink-dim);white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
+.brn-doc-body.md{font-family:inherit;white-space:normal}
+.brn-doc textarea{all:unset;display:block;width:100%;box-sizing:border-box;max-height:300px;min-height:200px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.6;color:var(--fg);font-family:var(--mono);caret-color:var(--accent)}
 .brn-card{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;cursor:pointer}
 .brn-card:hover{border-color:color-mix(in srgb,var(--fg) 22%,var(--line))}
 .brn-card.sel{border-color:var(--accent)}
@@ -4777,7 +4784,7 @@ const Panels=(()=>{
     research:{icon:'#i-globe',title:'BROWSER',sub:'the whole web, inside CLONE FRAME',w:980,h:680,pad:false,noscale:true,body:()=>`<div class="wbr" id="wbrroot"></div>`},
     matrix:{icon:'#i-matrix',title:'MATRIX',sub:'distributed AI cluster · your devices, one brain',w:1200,h:740,pad:false,noscale:true,body:()=>`<div class="mx" id="mxroot"></div>`},
     reminders:{icon:'#i-reminders',title:'REMINDERS',sub:'time-based · the agent reminds you',w:600,h:540,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="rmnote" placeholder="remind me to…"><input id="rmwhen" type="datetime-local" style="flex:0 0 auto"><button class="btn mini" id="rmadd">+</button></div><div class="lpbody" id="rmbody"></div></div>`},
-    brain:{icon:'#i-brain',title:'BRAIN',sub:'memories · skills · models',w:640,h:580,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
+    brain:{icon:'#i-brain',title:'BRAIN',sub:'the mind of your agent — memories · skills · body · models',w:720,h:620,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="body">Body</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
     search:{icon:'#i-search',title:'SEARCH',sub:'everything — notes · tasks · reminders…',w:640,h:560,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="gsq" placeholder="search everything…"></div><div class="lpbody" id="gsbody"></div></div>`},
     automations:{icon:'#i-automations',title:'AUTOMATIONS',sub:'agent actions · human approval',w:540,h:560,body:()=>{
       const au=Store.get().autonomy;
