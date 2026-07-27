@@ -476,5 +476,96 @@ async function commands({ fresh = false } = {}) {
   }
 }
 
-export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
+// ── the agent's real brain, READ OFF DISK ────────────────────────────────────
+// The BRAIN panel used to show four hand-written "fabric patterns" that existed
+// nowhere but in that array, and a store nothing ever read. The only listing that
+// cannot go stale is the one taken from the files the agent actually loads.
+//
+// Two skill roots, and the difference matters to the owner:
+//   HUB    ~/.clone-frame-hub/agent/.pi/skills   — installed with CLONE FRAME, the
+//          crafts this app taught its agent. Refreshed from the bundle on install.
+//   GLOBAL ~/.pi/agent/skills                    — the owner's own, or another
+//          project's; pi loads them everywhere, not just here.
+const SKILL_ROOTS = [
+  { source: 'hub', dir: path.join(WORKSPACE, '.pi', 'skills') },
+  { source: 'global', dir: path.join(os.homedir(), '.pi', 'agent', 'skills') },
+];
+const EXT_DIR = path.join(WORKSPACE, '.pi', 'extensions');
+
+// SKILL.md frontmatter: a leading --- block with `name:` and `description:`.
+// Deliberately not a YAML parser — the contract is two scalar fields, and a skill
+// with a malformed header should degrade to its folder name, never throw.
+function readSkill(dir, name, source) {
+  const file = path.join(dir, name, 'SKILL.md');
+  let head = '';
+  try { head = fs.readFileSync(file, 'utf8').slice(0, 4000); } catch { return null; }
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(head);
+  const field = (k) => {
+    const m = fm && new RegExp('^' + k + ':\\s*(.+)$', 'm').exec(fm[1]);
+    return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+  };
+  let bytes = 0; try { bytes = fs.statSync(file).size; } catch {}
+  return {
+    id: source + ':' + name,
+    name: field('name') || name,
+    folder: name,
+    description: field('description'),
+    tools: field('allowed-tools'),
+    source,
+    bytes,
+  };
+}
+
+/**
+ * Everything the owner's agent actually carries, detected from disk.
+ * No stored state, no seeds — call it and it reflects the machine right now.
+ * @returns {Promise<{ok:true, installed:boolean, version:string|null, skills:Array, extensions:Array, commands:Array, curriculum:{present:boolean,bytes:number}, roots:Array}>}
+ */
+async function brain() {
+  const skills = [];
+  const roots = [];
+  for (const { source, dir } of SKILL_ROOTS) {
+    let names = [];
+    try { names = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch {}
+    roots.push({ source, dir, count: 0, present: names.length > 0 });
+    for (const n of names.sort()) {
+      const s = readSkill(dir, n, source);
+      // A directory with no SKILL.md is not a skill pi can load — say so rather than
+      // listing a folder the agent will never read.
+      if (s) { skills.push(s); roots[roots.length - 1].count++; }
+    }
+  }
+  const extensions = [];
+  try {
+    for (const f of fs.readdirSync(EXT_DIR).sort()) {
+      if (!f.endsWith('.ts')) continue;
+      let bytes = 0; try { bytes = fs.statSync(path.join(EXT_DIR, f)).size; } catch {}
+      extensions.push({ name: f.replace(/\.ts$/, ''), file: f, bytes });
+    }
+  } catch {}
+  // The slash commands pi reports itself — asking it is the only listing that cannot
+  // drift. But commands() COLD-SPAWNS pi when nothing is running, and a panel render
+  // must never wait on a process start: the first call hung until it was killed.
+  // Use a live session or a warm cache, and otherwise say the list is not loaded.
+  let cmds = [];
+  let cmdSource = 'none';
+  const warm = CMD_CACHE.list.length && Date.now() - CMD_CACHE.at < 60_000;
+  const live = [...SESSIONS.values()].some((x) => x.proc && !x.res);
+  if (warm || live) {
+    try {
+      const c = await Promise.race([
+        commands({}),
+        new Promise((r) => setTimeout(() => r(null), 2500)), // never block the panel
+      ]);
+      if (c && c.commands) { cmds = c.commands; cmdSource = warm && !live ? 'cache' : 'live'; }
+    } catch {}
+  }
+  if (!cmds.length && CMD_CACHE.list.length) { cmds = CMD_CACHE.list; cmdSource = 'cache'; }
+  let curriculum = { present: false, bytes: 0 };
+  try { const st = fs.statSync(path.join(WORKSPACE, 'AGENTS.md')); curriculum = { present: true, bytes: st.size }; } catch {}
+  const s = status();
+  return { ok: true, installed: !!s.installed, version: s.version || null, skills, extensions, commands: cmds, commandSource: cmdSource, curriculum, roots };
+}
+
+export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
 export default Pi;

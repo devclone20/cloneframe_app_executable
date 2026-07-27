@@ -545,7 +545,7 @@
     }
     function chatSystem(){
       const a=Store.get().labInft;
-      if(!a||!a.name)return'You are running inside the CLONE FRAME LAB, the room where an owner talks to the AI agents they hold as iNFTs. No agent is active right now, so answer as the LAB itself — helpfully and directly. Never claim a name or a token id you were not given.';
+      if(!a||!a.name)return'You are running inside the CLONE FRAME LAB, the room where an owner talks to the AI agents they hold as iNFTs. No agent is active right now, so answer as the LAB itself — helpfully and directly. Never claim a name or a token id you were not given.'+brainMemoryBlock();
       const name=flatten(a.name,80)||'Unnamed agent';
       const coll=flatten(a.collection||a.symbol,60)||'iNFT';
       const id=(a.tokenId!=null&&a.tokenId!=='')?flatten(a.tokenId,32):'';
@@ -575,7 +575,7 @@
         'Your neural soul — the mutable mind your owner can edit:',
         soul,
         '',
-        'You are running inside the CLONE FRAME LAB. Answer helpfully and directly.'].join('\n');
+        'You are running inside the CLONE FRAME LAB. Answer helpfully and directly.'].join('\n')+brainMemoryBlock();
     }
     // send = append DOM nodes, never a full re-render: the deck (and its live 3D art)
     // must not reload on every message
