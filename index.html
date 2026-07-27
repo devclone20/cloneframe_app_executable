@@ -42,7 +42,7 @@
 .ui-btn,.seg button,#gear,#themesbtn,.walletbtn,#wacct .waico,#wacct .warow .cp,.tzsel select,.treeref,.treeback,.btn,.mrail .compose,.hnr-g,.hnr-x,.mrow .rm,.cdrailtog,.cdnew,.cdsrow .x,.cdtb,.cdicon,.cdpick,.cdgo,.cdmenu button,.cdsrow .dots,.cdarch,.cdmmore,.cmodeseg button,.csend,.amode,.ause,.actbtn,.densseg button,.thp-tab,.tktab,.tksegb,.tkstbadge,.nts-mode,.nts-img,.cal2tab,.cal2ico,.cal2sw,.libtab,.libview,.wbr-new,.wbr-ib,.cmpv2chip,.cmpv2mx,.cmpv2add,.cmpv2start,.gltab,.glchip,.glfav,.brn-kebab,.cktabs button,.ckchev,.ckseg button,.ckst,.emficon,.emtabadd,.emtbb,.ememoji,.emsend,.emsendcv,.cdmode button,.labtab,.labsubt,.sh-newtab,.sh-treetog,.it-wsbtns button,.it-fmode,.it-ctools button,.itk-row button,.fm-act,.fm-mini,.fv-back,.fv-seg button,.fv-save,.os-auto,.labfam button,.labmprow .dl,.labseg button,.labagd-bk,.tbo-new,.tbo-acts button,.tbo-delall,.tbo-del,.ag-copybtn,.mx-burger,.mx-nav button,.mx-newchat,.mx-convdel,.mx-convren,.mx-engbtn,.mx-provbtn,.mx-modelbtn,.mx-attach,.mx-fchip .rm,.mx-dlattach,.mx-send,.mx-instdel,.mx-mtrig,.mx-launch,.mx-dlact,.mx-pclose,.mx-fam button,.mx-ttabs button,.mx-copy{all:unset;cursor:pointer}
 /* ── UI primitive: icon-14 — the shared 14px accent glyph, folded from 5 identical copies (T-044) ── */
 #ghost svg,.panel>header svg,.mcard .mchead svg,.actbtn svg,.nts-title svg{width:14px;height:14px;color:var(--accent)}
-/* ── UI primitive: art-media — NFT/image media fills its square frame; identical fit across gallery/wallet/LAB/agent art (T-044) ── */
+/* ── UI primitive: art-media — NFT/image media fills its square frame; identical fit across wallet/LAB/agent art (T-044) ── */
 .glcell img,.nftimg img,.labinft .art img,.labinft .art video,.labagart img,.labagart video,.ag-art img,.ag-art video{width:100%;height:100%;object-fit:cover;display:block}
 select option{background:var(--panel);color:var(--fg)} /* Chromium option popups follow the theme (no-op on macOS native popups) */
 html,body{height:100%;overflow:hidden;overscroll-behavior:none}
@@ -664,7 +664,7 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
 .acctform .af-row input:focus,.acctform>input:focus,.acctform>textarea:focus{border-color:color-mix(in srgb,var(--fg) 30%,transparent)}
 .acctrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:11px}
 .acctrow .badge{font-size:10px;letter-spacing:.08em;color:var(--ok);border:1px solid var(--ok);border-radius:5px;padding:1px 5px;vertical-align:middle}
-/* new panels (tasks/approval/contacts/integrations) */
+/* new panels (tasks/approval) */
 .badge{font-size:10px;letter-spacing:.06em;color:var(--ink-faint);border:1px solid var(--line);border-radius:999px;padding:1px 7px;vertical-align:middle}
 .badge.pending{color:var(--warn);border-color:var(--warn)}.badge.sent{color:var(--ok);border-color:var(--ok)}.badge.rejected{color:var(--accent);border-color:var(--accent)}
 .tkwrap,.apwrap,.ctwrap,.igwrap{display:flex;flex-direction:column;height:100%;font-size:12px}
@@ -690,7 +690,7 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
 .igdot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto}
 .igdot.connected{background:var(--ok);box-shadow:0 0 7px var(--ok)}.igdot.error{background:var(--accent)}.igdot.pending,.igdot.configured{background:var(--warn)}
 .igfoot{padding:10px 12px;border-top:1px solid var(--line)}
-/* generic list panels (notes/library/cookbook/research/reminders/calendar) */
+/* generic list panels (notes/research/reminders) */
 .listpanel{display:flex;flex-direction:column;height:100%;font-size:12px}
 .lphead{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line)}
 .lphead input{all:unset;flex:1;border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:11px;color:var(--fg);caret-color:var(--accent);transition:border-color .15s}
@@ -1262,101 +1262,8 @@ body[data-density="comfy"]{--ui-scale:1.1}
 #ntbody.nts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;align-content:start}
 #ntbody.nts-grid .nts-card{flex-direction:column;align-items:stretch;border:1px solid var(--line);border-radius:10px;padding:9px 10px}
 /* ---------- /panel:notes ---------- */
-/* ---------- panel:calendar (Odysseus) ---------- */
-/* CALENDAR — month grid / settings / composer */
-.cal2wrap{display:flex;flex-direction:column;height:100%;font-size:12px}
-.cal2bar{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line)}
-.cal2mo{font-size:11.5px;color:var(--fg);font-weight:600;letter-spacing:.04em;min-width:98px;text-align:center}
-.cal2tabs{display:flex;gap:3px;border:1px solid var(--line);border-radius:999px;padding:3px;margin-left:auto}
-.cal2tab{font-size:10.5px;letter-spacing:.06em;color:var(--ink-dim);padding:4px 11px;border-radius:999px;transition:background .15s,color .15s}
-.cal2tab:hover{color:var(--fg)}
-.cal2tab.on{background:color-mix(in srgb,var(--fg) 88%,transparent);color:var(--bg);font-weight:500}
-.cal2ico{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:12px;flex:0 0 auto}
-.cal2ico:hover{color:var(--fg);border-color:var(--ink-faint)}
-.cal2ico svg{width:13px;height:13px;fill:currentColor}
-.cal2pri{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
-.cal2quick{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
-.cal2quick input{all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent)}
-.cal2ret{font-size:11px;color:var(--ink-faint);flex:0 0 auto}
-.cal2conn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:10px}
-.cal2conn .dim{flex:1}
-.cal2body{flex:1;overflow:auto;display:flex;flex-direction:column;padding:8px 10px}
-.cal2grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.cal2dowr{margin-bottom:3px}
-.cal2days{flex:1;grid-template-rows:repeat(6,1fr)}
-.cal2dow{font-size:10.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase;text-align:center;padding:3px 0}
-.cal2cell{border:1px solid var(--line);border-radius:8px;padding:4px 5px;min-height:52px;display:flex;flex-direction:column;gap:2px;overflow:hidden;cursor:pointer}
-.cal2cell:hover{background:color-mix(in srgb,var(--fg) 4%,transparent)}
-.cal2cell.out{opacity:.32;cursor:default}
-.cal2cell.out:hover{background:transparent}
-.cal2cell.sel{border-color:var(--accent)}
-.cal2num{font-size:10px;color:var(--ink-dim);width:18px;height:18px;display:flex;align-items:center;justify-content:center;border-radius:6px;flex:0 0 auto}
-.cal2num.today{background:color-mix(in srgb,var(--fg) 14%,transparent);color:var(--fg)}
-.cal2ev{font-size:10.5px;color:var(--fg);background:color-mix(in srgb,var(--accent) 18%,transparent);border-radius:4px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cal2evmore{font-size:10.5px;color:var(--ink-faint)}
-.cal2foot{position:relative;display:flex;padding:6px 10px;border-top:1px solid var(--line)}
-.cal2menu{position:absolute;bottom:34px;left:10px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px;display:flex;flex-direction:column;gap:4px;z-index:5}
-.cal2set{flex:1;overflow:auto;padding:14px}
-.cal2sethd{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--fg);margin-bottom:10px}
-.cal2calrow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:7px 9px}
-.cal2calrow input{all:unset;flex:1;font-size:11px;color:var(--fg);caret-color:var(--accent)}
-.cal2dot{width:8px;height:8px;border-radius:50%;background:#5a8fe8;flex:0 0 auto}
-.cal2help{font-size:10.5px;color:var(--ink-faint);margin-top:5px;line-height:1.5}
-.cal2help a{color:var(--accent);text-decoration:none}
-.cal2comp{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:9px;max-width:420px;margin:0 auto;width:100%;box-sizing:border-box}
-.cal2cap{font-size:10.5px;letter-spacing:.16em;color:var(--ink-faint);text-transform:uppercase;text-align:center}
-.cal2clock{font-family:var(--mono);font-size:44px;color:var(--fg);text-align:center;letter-spacing:.04em;line-height:1}
-.cal2daylbl{font-size:10.5px;color:var(--ink-dim);text-align:center;margin-bottom:4px}
-.cal2fld{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:0 10px}
-.cal2fld input{all:unset;flex:1;padding:8px 0;font-size:11.5px;color:var(--fg);caret-color:var(--accent)}
-.cal2row{display:flex;align-items:center;gap:8px}
-.cal2row input[type=date],.cal2row input[type=time],.cal2row select{all:unset;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:10.5px;color:var(--fg)}
-.cal2row select{flex:1}
-.cal2desc{all:unset;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:11px;color:var(--fg);min-height:52px;line-height:1.5;caret-color:var(--accent)}
-.cal2sws{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-.cal2sw{width:16px;height:16px;border-radius:50%;box-sizing:border-box}
-.cal2sw.none{border:1px dashed var(--ink-faint)}
-.cal2sw.rain{background:conic-gradient(#e05252,#e8d24d,var(--ok),#5a8fe8,#e87fc0,#e05252)}
-.cal2sw.on{outline:2px solid var(--fg);outline-offset:2px}
-.cal2note{font-size:10px;color:var(--ink-faint);line-height:1.5}
-/* ---------- /panel:calendar ---------- */
-/* ---------- panel:library (Odysseus) ---------- */
-/* library — documents · research · archive */
-.libtabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line)}
-.libtab{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.04em;color:var(--ink-faint);padding:6px 13px;border-radius:999px;transition:color .15s,background .15s}
-.libtab svg{width:11px;height:11px;fill:currentColor}
-.libtab:hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}
-.libtab.on{color:var(--bg);background:color-mix(in srgb,var(--fg) 88%,transparent);font-weight:500}
-.libhead{display:flex;align-items:center;gap:7px;padding:10px 12px 2px}
-.libhead>b{font-size:13px;color:var(--fg)}
-.libacts{margin-left:auto;display:flex;gap:6px}
-.libsub{font-size:10.5px;color:var(--ink-faint);padding:0 12px 8px}
-.libtools{display:flex;gap:5px;padding:0 12px 8px}
-.libview{font-size:10px;letter-spacing:.06em;color:var(--ink-dim);border:1px solid var(--line);border-radius:7px;padding:4px 10px;transition:border-color .15s,background .15s,color .15s}
-.libview:hover{border-color:var(--ink-faint)}
-.libview.on{color:var(--bg);background:var(--fg);border-color:var(--fg)}
-.libsearch{display:flex;padding:0 12px 8px}
-.libsearch input{all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent)}
-.libchips{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 8px}
-.libchips:empty{display:none}
-.librow{border-bottom:1px solid var(--line)}
-.librowh{display:flex;align-items:center;gap:9px;padding:9px 4px;cursor:pointer}
-.librowh:hover{background:color-mix(in srgb,var(--fg) 4%,transparent)}
-.librowh>svg{width:13px;height:13px;fill:var(--ink-faint);flex:0 0 auto}
-.librowh b{font-size:11.5px;color:var(--fg)}
-.libmeta{font-size:10px;color:var(--ink-faint);margin-top:1px}
-.libchev{margin-left:auto;color:var(--ink-faint);font-size:10.5px;flex:0 0 auto;padding:0 4px}
-.libdetail{padding:2px 6px 12px 26px}
-.libpre{white-space:pre-wrap;font-family:var(--mono);font-size:10.5px;line-height:1.55;color:var(--ink-dim);max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:9px}
-.libpre.md{white-space:normal;font-family:var(--font)}
-.libfoot{display:flex;gap:6px;align-items:center}
-.libfoot .libgap{flex:1}
-.btn.libdel{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
-.libck{width:13px;height:13px;border:1px solid var(--line);border-radius:4px;flex:0 0 auto;transition:background .15s,border-color .15s}
-.libck.on{background:var(--accent);border-color:var(--accent)}
-.libbulk{display:flex;gap:6px;align-items:center;padding:6px 4px 8px;border-bottom:1px solid var(--line);font-size:10.5px;color:var(--ink-faint)}
-.libbulk span{flex:1}
-/* ---------- /panel:library ---------- */
+
+
 /* ---------- panel:research (Odysseus) ---------- */
 /* deep research (rsx) */
 /* ---------- BROWSER panel — premium in-app browser (island tabs, engine + search pickers) ---------- */
@@ -1435,76 +1342,8 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .wbr-off h3{font-size:15px;color:var(--fg);margin:0}
 .wbr-off p{font-size:10.5px;color:var(--ink-dim);line-height:1.6;margin:0}
 /* ---------- /panel:browser ---------- */
-/* ---------- panel:compare (Odysseus) ---------- */
-.cmpv2cfg{flex:0 0 auto;max-height:62%;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px;border-bottom:1px solid var(--line)}
-.cmpv2sub{font-size:10.5px;color:var(--ink-faint);letter-spacing:.02em}
-.cmpv2lbl{font-size:10.5px;letter-spacing:.16em;color:var(--ink-faint);text-transform:uppercase}
-.cmpv2chips{display:flex;gap:6px}
-.cmpv2chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1px solid var(--line);border-radius:9px;color:var(--ink-faint);font-size:10.5px;letter-spacing:.08em;text-align:center;transition:border-color .18s,color .18s,background .18s}
-.cmpv2chip:hover{border-color:var(--ink-dim)}
-.cmpv2chip .cmpv2ci{font-size:13px;line-height:1;font-family:var(--mono)}
-.cmpv2chip.on{color:var(--fg);border-color:var(--fg)}
-.cmpv2chip.on[data-mode=blind]{color:var(--warn);border-color:var(--warn)}
-.cmpv2chip.on[data-mode=parallel]{color:var(--ok);border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent)}
-.cmpv2chip.on[data-mode=shuffle]{color:var(--accent);border-color:var(--accent)}
-.cmpv2mlist{display:flex;flex-direction:column;gap:6px}
-.cmpv2mrow{display:flex;align-items:center;gap:8px}
-.cmpv2mx{width:20px;height:20px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-dim);flex:0 0 auto;transition:border-color .18s,color .18s}
-.cmpv2mx:hover{border-color:var(--accent);color:var(--accent)}
-.cmpv2mfield{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11px;color:var(--fg);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cmpv2mfield.dimmed{color:var(--ink-faint)}
-.cmpv2add{border:1px dashed var(--line);border-radius:9px;padding:8px;text-align:center;color:var(--ink-dim);font-size:10px;letter-spacing:.08em;transition:border-color .18s,color .18s}
-.cmpv2add:hover{border-color:var(--fg);color:var(--fg)}
-.cmpv2pick{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;max-height:180px;overflow:auto}
-.cmpv2ph{font-size:10.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase;margin:4px 0 2px}
-.cmpv2pl{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--fg);font-family:var(--mono);padding:3px 2px;cursor:pointer}
-.cmpv2pl input{accent-color:var(--accent)}
-.cmpv2foot{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--ink-faint)}
-.cmpv2foot input{all:unset;width:56px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:10.5px;color:var(--fg);text-align:center;caret-color:var(--accent)}
-.cmpv2foot .btn.mini{margin-left:auto}
-.cmpv2div{border-top:1px solid var(--line)}
-.cmpv2run{display:flex;gap:8px}
-.cmpv2run textarea{all:unset;flex:1;border:1px solid var(--line);border-radius:9px;padding:9px;font-size:11.5px;color:var(--fg);min-height:44px;font-family:var(--mono);caret-color:var(--accent)}
-.cmpv2start{align-self:flex-end;display:flex;align-items:center;gap:6px;background:var(--fg);color:var(--bg);border-radius:9px;padding:9px 18px;font-size:10.5px;font-weight:700;letter-spacing:.08em;transition:opacity .18s}
-.cmpv2start:hover{opacity:.85}
-.cmpv2rev{display:flex;align-items:center;gap:8px;padding:0 0 8px;font-size:10px}
-/* ---------- /panel:compare ---------- */
-/* ---------- panel:gallery (Odysseus) ---------- */
-/* GALLERY — tabs · photos · albums · editor · settings */
-.gltabs{display:flex;align-items:center;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line);flex:0 0 auto}
-.gltab{font-family:var(--font);font-size:10.5px;letter-spacing:.06em;padding:6px 14px;color:var(--ink-dim);border-radius:999px;transition:color .18s,background .18s}
-.gltab:hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}
-.gltab.on{color:var(--bg);background:color-mix(in srgb,var(--fg) 88%,transparent);font-weight:500}
-.glcount{margin-left:auto;font-size:10px;letter-spacing:.08em;color:var(--ink-faint)}
-.glbar{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.glbar input{all:unset;flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent)}
-.glbar select,.glselbar select{background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:10px;padding:5px 8px;outline:none}
-.glhd{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--fg)}
-.glchips{display:flex;gap:6px;margin-bottom:8px}
-.glchip{font-family:var(--font);font-size:10.5px;letter-spacing:.08em;padding:4px 13px;border:1px solid var(--line);border-radius:999px;color:var(--ink-dim);transition:color .15s,background .15s}
-.glchip:hover{color:var(--fg)}
-.glchip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.glgenrow{display:flex;gap:6px}
-.glgenrow input{all:unset;flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--fg);caret-color:var(--accent)}
-.glselbar{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding:6px 10px;border:1px solid var(--line);border-radius:9px}
-.glselbar .dim{font-size:10px}
-.glselbar input{all:unset;flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)}
-.glcell.glon{outline:2px solid var(--accent);outline-offset:-2px}
-.glfav{position:absolute;top:4px;left:4px;font-size:11px;line-height:1;color:#fff;background:rgba(0,0,0,.5);border-radius:6px;padding:3px 6px;opacity:0;transition:opacity .15s}
-.glcell:hover .glfav{opacity:1}
-.glfav.on{opacity:1;color:var(--accent)}
-.gldrop{aspect-ratio:1;border:1.5px dashed var(--line);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--ink-dim);font-size:10px;letter-spacing:.1em;transition:border-color .18s,color .18s}
-.gldrop:hover,.gldrop.glover{border-color:var(--accent);color:var(--fg)}
-.glupico{width:18px;height:18px}
-.glhint{grid-column:2/-1;align-self:center;font-size:10.5px;color:var(--ink-faint);line-height:1.6;padding:0 6px}
-/* (gallery canvas-editor styles removed 2026-07-25 — the Edit tab is gone for good) */
-.glcard{border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:12px}
-.glcardh{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--fg);padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:9px}
-.glcardtx{font-size:10.5px;color:var(--ink-dim);line-height:1.55;margin-bottom:10px}
-.glcardtx a{color:var(--fg);text-decoration:underline;cursor:pointer}
-.glcardbtns{display:flex;justify-content:space-between;gap:8px}
-.glbico{width:11px;height:11px;vertical-align:-2px;margin-right:5px}
-/* ---------- /panel:gallery ---------- */
+
+
 /* ---------- panel:brain (Odysseus) ---------- */
 /* ---------- BRAIN panel (memories · skills · settings) ---------- */
 .brn-wrap{display:flex;flex-direction:column;height:100%;font-size:12px}
@@ -1539,56 +1378,7 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brn-range{width:150px;accent-color:var(--accent);flex:0 0 auto}
 .brn-stepv{font-family:var(--mono);font-size:12px;color:var(--fg);min-width:18px;text-align:center}
 /* ---------- /panel:brain ---------- */
-/* ---------- panel:cookbook (Odysseus) ---------- */
-/* cookbook — odysseus-style local model manager */
-.ckwrap{display:flex;flex-direction:column;height:100%;font-size:12px}
-.cktabs{display:flex;gap:5px;padding:8px 10px;border-bottom:1px solid var(--line);flex:0 0 auto}
-.cktabs button{font-size:10.5px;color:var(--ink-dim);padding:6px 13px;letter-spacing:.08em;font-family:var(--mono);border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--bg) 40%,transparent);transition:color .15s,border-color .15s,box-shadow .15s}
-.cktabs button:hover{color:var(--fg);border-color:color-mix(in srgb,var(--fg) 25%,transparent)}
-.cktabs button.on{color:var(--fg);border-color:color-mix(in srgb,var(--accent) 50%,transparent);background:var(--panel);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 15%,transparent),0 0 14px -6px color-mix(in srgb,var(--accent) 60%,transparent)}
-.ckbody{flex:1;overflow:auto;padding:10px 12px}
-.ckcard{border:1px solid var(--line);border-radius:13px;margin-bottom:10px;background:color-mix(in srgb,var(--bg) 40%,transparent)}
-.ckhead{display:flex;align-items:center;gap:8px;padding:9px 12px}
-.ckhead>b{font-size:11.5px;color:var(--fg);flex:1}
-.ckchev{color:var(--ink-faint);font-size:10px;padding:0 4px}
-.ckchev:hover{color:var(--fg)}
-.ckcardbody{padding:0 12px 11px;display:flex;flex-direction:column;gap:8px}
-.ckline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.ckin{all:unset;flex:1;min-width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)}
-.cksel{background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:10px;padding:6px 8px;outline:none;flex:0 0 auto}
-.ckpath{font-size:10.5px;font-family:var(--mono);color:var(--ink-dim);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
-.cklink{font-size:10.5px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
-.ckinfo{display:inline-flex;align-items:center;justify-content:center;width:11px;height:11px;border:1px solid var(--line);border-radius:50%;font-size:10px;color:var(--ink-faint);cursor:help;margin-left:3px}
-.cklbl{font-size:10.5px;color:var(--ink-faint);flex:0 0 auto}
-.ckrange{flex:1;min-width:70px;accent-color:var(--accent)}
-.ckseg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto}
-.ckseg button{font-size:10.5px;letter-spacing:.08em;color:var(--ink-dim);padding:5px 10px}
-.ckseg button.on{color:var(--fg);background:color-mix(in srgb,var(--accent) 16%,transparent)}
-.ckhwc{font-size:10px;color:var(--ink-dim);border:1px solid var(--line);border-radius:20px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
-.ckhwc i{cursor:pointer;font-style:normal;color:var(--ink-faint)}
-.ckhwc i:hover{color:var(--accent)}
-.cktable{width:100%;border-collapse:collapse;font-size:10px}
-.cktable th{text-align:left;font-size:10.5px;letter-spacing:.1em;color:var(--ink-faint);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-.cktable th.cksort{cursor:pointer}
-.cktable td{padding:7px 8px;border-bottom:1px solid var(--line);color:var(--ink-dim);white-space:nowrap}
-.cktable td b{color:var(--fg);font-weight:500}
-.cktable tbody tr{cursor:pointer}
-.cktable tbody tr:hover{background:color-mix(in srgb,var(--fg) 4%,transparent)}
-.ckfit{color:var(--ok);font-size:10.5px;letter-spacing:.08em}
-.ckqtag{font-size:10px;color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;padding:1px 4px;margin-left:5px}
-.ckdep{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:11px}
-.ckdep>svg{width:14px;height:14px;flex:0 0 auto;color:var(--ink-dim);stroke:var(--ink-dim)}
-.ckdesc{font-size:10px;color:var(--ink-faint);margin-top:2px}
-.ckcat{font-size:10px;letter-spacing:.08em;color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;padding:1px 5px;flex:0 0 auto}
-.ckst{font-size:10.5px;letter-spacing:.06em;border:1px solid var(--line);border-radius:6px;padding:3px 9px;color:var(--ink-dim);flex:0 0 auto}
-.ckst:hover{color:var(--fg)}
-.ckst.on{color:var(--ok);border-color:var(--ok)}
-.ckmdl{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:8px 4px}
-.ckdot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
-.ckname{font-size:11px;font-weight:500}
-.ckhfb{font-size:10px;letter-spacing:.06em;color:var(--warn);border:1px solid var(--warn);border-radius:5px;padding:1px 5px}
-.cksub{font-size:10px;color:var(--ink-faint)}
-/* ---------- /panel:cookbook ---------- */
+
 /* ---------- panel:email (Odysseus) ---------- */
 .emwrap{position:relative;display:flex;flex-direction:column;height:100%;font-size:12px}
 .emhead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
@@ -2633,29 +2423,6 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
 .mx-dltable td.c{text-align:center;color:var(--ink-faint)}
 .mx-dltable td.c .ok{color:var(--mx-ok);font-weight:700}
 .mx-dltable td.c .szl{display:block;font-size:10.5px;color:var(--ink-dim);margin-top:1px}
-/* integrations view */
-.mx-int{flex:1;overflow-y:auto;padding:20px 26px}
-.mx-int h2{font-family:var(--font);font-size:16px;font-weight:700;color:var(--fg);letter-spacing:.02em}
-.mx-intsub{font-size:10.5px;color:var(--ink-dim);margin:4px 0 16px}
-.mx-kv{display:flex;align-items:center;gap:9px;font-size:10.5px;margin-bottom:5px}
-.mx-kv .k{font-size:10.5px;letter-spacing:.14em;color:var(--ink-faint)}
-.mx-kv .v{color:var(--fg)}
-.mx-kv .v.acc{color:var(--accent)}
-.mx-endp{display:flex;gap:9px;margin:14px 0 16px;flex-wrap:wrap}
-.mx-ecard{flex:1;min-width:160px;border:1px solid var(--line);border-radius:7px;padding:9px 11px}
-.mx-ecard .t{font-size:10px;letter-spacing:.14em;color:var(--ink-faint);margin-bottom:5px}
-.mx-ecard .u{font-size:10.5px;color:var(--fg);user-select:text}
-.mx-ttabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
-.mx-ttabs button{padding:5px 11px;border-radius:14px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-dim);border:1px solid transparent;transition:all .15s}
-.mx-ttabs button:hover{color:var(--fg)}
-.mx-ttabs button.on{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,transparent);background:color-mix(in srgb,var(--accent) 9%,transparent)}
-.mx-code{border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
-.mx-codeh{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
-.mx-codeh b{font-size:10.5px;color:var(--fg)}
-.mx-codeh span{font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em}
-.mx-copy{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.12em;color:var(--ink-dim);border:1px solid var(--line);border-radius:5px;padding:4px 10px;transition:all .15s}
-.mx-copy:hover{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
-.mx-code pre{margin:0;padding:12px 14px;font-family:var(--mono);font-size:10px;line-height:1.6;color:var(--ink-dim);white-space:pre-wrap;word-break:break-all;user-select:text}
 /* ---------- /panel:matrix ---------- */
 
 </style>
@@ -2762,32 +2529,12 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
       <path d="M12 6.2a2.6 2.6 0 0 1 4.5 1.6 2.6 2.6 0 0 1 1.1 4.5A2.5 2.5 0 0 1 16.4 17a2.6 2.6 0 0 1-4.4 1.3"/>
       <path d="M12 6.2v12.4"/>
     </symbol>
-    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="4" y="5" width="16" height="16" rx="2.5"/><path d="M4 9.5h16M8 3.5v3M16 3.5v3"/>
-    </symbol>
-    <symbol id="i-compare" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 4 4 8l4 4M4 8h11M16 20l4-4-4-4M20 16H9"/>
-    </symbol>
-    <symbol id="i-cookbook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3H18v15.5H7.5A1.5 1.5 0 0 0 6 20Z"/>
-      <path d="M6 18.5A1.5 1.5 0 0 1 7.5 17H18"/>
-      <path d="M13.2 3v5l-1.6-1.1L10 8V3"/>
-    </symbol>
-    <symbol id="i-research" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <symbol id="i-research" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 12.8l9.2-4.6 2.3 4.2-9.2 4.6z"/>
       <path d="M13.2 8.2l2.6-1.3a1 1 0 0 1 1.4.5l1.1 2.2a1 1 0 0 1-.5 1.4l-2.6 1.3"/>
       <path d="M8.8 15.4 11.5 21M7.4 16.8 4.8 21"/>
     </symbol>
-    <symbol id="i-gallery" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/>
-      <path d="M4.5 16.5 9 12.5a1.8 1.8 0 0 1 2.4 0l3 2.8 2-1.6a1.8 1.8 0 0 1 2.3 0l1.3 1.1"/>
-    </symbol>
-    <symbol id="i-library" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="4" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="9.4" y="4.5" width="4.2" height="15" rx="1.2"/>
-      <path d="M15.6 5l3 .8a1 1 0 0 1 .7 1.2l-3.2 12.4-3.7-1"/>
-      <path d="M4 8.5h4.2M9.4 8.5h4.2"/>
-    </symbol>
-    <symbol id="i-notes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <symbol id="i-notes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M5 4.5h9l5 5v10a1.5 1.5 0 0 1-1.5 1.5H6.5A1.5 1.5 0 0 1 5 19.5Z"/>
       <path d="M14 4.5V9h5M8.5 13h5M8.5 16.5h3"/>
     </symbol>
@@ -2795,11 +2542,7 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
       <path d="M3.8 6.5 5.4 8.1 8.3 5M3.8 13 5.4 14.6 8.3 11.5M3.8 19.5 5.4 21.1 8.3 18"/>
       <path d="M11.5 6.5h8.7M11.5 12.5h8.7M11.5 18.5h6.2"/>
     </symbol>
-    <symbol id="i-contacts" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10.5" r="2"/>
-      <path d="M5.5 16c.4-1.8 1.6-2.7 3-2.7s2.6.9 3 2.7M14 9.5h4M14 13h3"/>
-    </symbol>
-    <symbol id="i-reminders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <symbol id="i-reminders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 4.8a5.4 5.4 0 0 1 5.4 5.4v4.3l1.5 2.5H5.1l1.5-2.5v-4.3A5.4 5.4 0 0 1 12 4.8Z"/>
       <path d="M10 20a2.2 2.2 0 0 0 4 0M12 4.8V3"/>
     </symbol>
@@ -3166,7 +2909,7 @@ const Store=(()=>{
   const KEY='cfhub.v3';
   let s={theme:'void',motion:true,cells:{},tri:null,wdock:null,guideHidden:false,guideDocked:false,
          density:'cosy',customThemes:{},brain:{active:'auto',providers:[]},
-         caps:{terminal:1,harness:1,lab:1,machine:0,agents:0,automations:0,email:0,tasks:0,approval:0,contacts:0,integrations:0},
+         caps:{terminal:1,harness:1,lab:1,machine:0,agents:0,automations:0,email:0,tasks:0,approval:0},
          wallet:null,agents:[],automations:[],approvals:[],profile:{name:'',avatar:''},
          autonomy:{enabled:false,requireApproval:true},activeAgent:55101,
          soul:'',lang:'en',onboarded:false,bridge:{endpoint:''},
@@ -3190,7 +2933,7 @@ const Store=(()=>{
     s.autonomy=Object.assign({enabled:false,requireApproval:true},s.autonomy);
     s.agents=s.agents||[];s.automations=s.automations||[];s.approvals=s.approvals||[];
     if(!s.activeAgent)s.activeAgent=55101;s.lang=s.lang||'en';
-    s.caps=Object.assign({email:0,tasks:0,approval:0,contacts:0,integrations:0},s.caps);
+    s.caps=Object.assign({email:0,tasks:0,approval:0},s.caps);
     s.email=Object.assign({connected:false,mode:'mailto',address:'',sent:[],drafts:[]},s.email);
     if(!s.email.autonomy)s.email.autonomy='direct'; // agent email autonomy (L9): off|show-first|direct|full-auto — factory default direct (Q4)
     s.bridge=Object.assign({endpoint:''},s.bridge);
@@ -3982,16 +3725,16 @@ const Reframe=(()=>{
 /* ---------- MENU: single source for the add-menu (#menu) + the flyout (Tri) ---------- */
 const MENU=[
   ['Workspace',[['terminal','&lt;/&gt; Code','#i-term'],['shell','iT Terminal','#i-term2'],['research','Browser','#i-globe'],['folders','Folders','#i-folder'],['harness','Harness','#i-harness'],['lab','LAB','#i-lab'],['matrix','MATRIX','#i-matrix'],['machine','My Machine','#i-chip'],['agents','My Agents','#i-agents']]],
-  ['Tools',[['brain','Brain','#i-brain'],['calendar','Calendar','#i-calendar'],['compare','Compare','#i-compare'],['cookbook','Cookbook','#i-cookbook'],['gallery','Gallery','#i-gallery'],['library','Library','#i-library'],['notes','Notes','#i-notes'],['tasks','Tasks','#i-tasks'],['__theme','Theme','#i-pal']]],
-  ['Communication',[['email','Email','#i-mail'],['contacts','Contacts','#i-contacts'],['reminders','Reminders','#i-reminders'],['approval','Approval','#i-shield'],['automations','Automations','#i-automations'],['integrations','Connections','#i-integrations']]],
+  ['Tools',[['brain','Brain','#i-brain'],['notes','Notes','#i-notes'],['tasks','Tasks','#i-tasks'],['__theme','Theme','#i-pal']]],
+  ['Communication',[['email','Email','#i-mail'],['reminders','Reminders','#i-reminders'],['approval','Approval','#i-shield'],['automations','Automations','#i-automations']]],
   ['System',[['__search','Search','#i-search'],['__wallet','Sign in','#i-wallet'],['settings','Settings','#i-gear']]],
 ];
 
 /* ---------- Grid (cells ÷4: 28px, full-bleed with overscan) ---------- */
 const Grid=(()=>{
   const grid=document.getElementById('grid');
-  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',matrix:'#i-matrix',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',contacts:'#i-contacts',integrations:'#i-integrations',reminders:'#i-reminders',brain:'#i-brain',calendar:'#i-calendar',compare:'#i-compare',cookbook:'#i-cookbook',research:'#i-globe',gallery:'#i-gallery',library:'#i-library',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
-  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',matrix:'MATRIX',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',contacts:'CONTACTS',integrations:'CONNECTIONS',reminders:'REMIND',brain:'BRAIN',calendar:'CALENDAR',compare:'COMPARE',cookbook:'COOKBOOK',research:'BROWSER',gallery:'GALLERY',library:'LIBRARY',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
+  const ICON={agent:'#i-agent',harness:'#i-harness',terminal:'#i-term',shell:'#i-term2',folders:'#i-folder',lab:'#i-lab',matrix:'#i-matrix',settings:'#i-gear',machine:'#i-chip',agents:'#i-agents',automations:'#i-automations',email:'#i-mail',tasks:'#i-tasks',approval:'#i-shield',reminders:'#i-reminders',brain:'#i-brain',research:'#i-globe',notes:'#i-notes',theme:'#i-pal',search:'#i-search',wallet:'#i-wallet'};
+  const LABEL={agent:'AGENT',harness:'HARNESS',terminal:'CODE',shell:'iT',folders:'FOLDERS',lab:'LAB',matrix:'MATRIX',settings:'CONFIG',machine:'MACHINE',agents:'AGENTS',automations:'AUTO',email:'EMAIL',tasks:'TASKS',approval:'APPROVAL',reminders:'REMIND',brain:'BRAIN',research:'BROWSER',notes:'NOTES',theme:'THEME',search:'SEARCH',wallet:'WALLET'};
   const DIM={CELL:28,GAP:4,PITCH:32}; // mutable (density)
   let OV=4*DIM.PITCH;
   let cols=0,rows=0,cells=[],centers=[];
@@ -4860,7 +4603,7 @@ const Mail=(()=>{
   };
 })();
 
-/* ---------- RPC: generic call to bridge modules (tasks/approvals/style/contacts/integrations) ---------- */
+/* ---------- RPC: generic call to bridge modules (tasks/approvals/style/…) ---------- */
 const RPC=(()=>{
   // Same signature/return/throw the ~188 call sites already expect — now over the one
   // BridgeClient egress. On a non-2xx, reformat to "mod.fn <status> · <server error>" verbatim.
@@ -5222,41 +4965,12 @@ const Panels=(()=>{
       </div>`},
     approval:{icon:'#i-shield',title:'APPROVAL',sub:'agent emails waiting for you',w:640,h:560,pad:false,body:()=>`
       <div class="apwrap"><div class="aphint">Nothing is sent without your click. The agent drafts → <b>Safety</b> → here you approve, edit or reject.</div><div class="apbody" id="apbody"></div></div>`},
-    contacts:{icon:'#i-contacts',title:'CONTACTS',sub:'address book · vCard · CSV · CardDAV',w:660,h:560,pad:false,body:()=>`
-      <div class="ctwrap">
-        <div class="cthead"><input id="ctsearch" placeholder="search contacts…"><button class="btn mini" id="ctadd">+ new</button><button class="btn mini" id="ctimp">import</button><button class="btn mini" id="ctdav">CardDAV</button></div>
-        <div class="ctbody" id="ctbody"></div>
-      </div>`},
-    integrations:{icon:'#i-integrations',title:'CONNECTIONS',sub:'all service connections in one place',w:660,h:560,pad:false,body:()=>`
-      <div class="igwrap">
-        <div class="ighint">All external service connections in one place. Manage email accounts in <b>EMAIL</b>.</div>
-        <div class="igbody" id="igbody"></div>
-        <div class="igfoot"><button class="btn" id="igadd">＋ ADD INTEGRATION</button></div>
-      </div>`},
     notes:{icon:'#i-notes',title:'NOTES',sub:'markdown · to-dos · search',w:590,h:600,pad:false,body:()=>`<div class="listpanel"><div class="nts-top"><div class="nts-title"><svg><use href="#i-lab"/></svg>Notes</div><div class="nts-hbtns"><button class="btn mini" id="ntarch"><svg><use href="#i-harness"/></svg>Archive</button><button class="btn mini" id="ntgrid"><svg><use href="#i-frame"/></svg>Grid</button><button class="btn mini nts-min" id="ntmin" title="Minimize">–</button></div></div><div class="nts-search"><div class="nts-sbox"><i class="nts-mag"></i><input id="ntsearch" placeholder="Search notes..."></div><button class="btn mini" id="ntsel">Select</button></div><div class="nts-chips" id="ntchips"></div><div class="nts-selbar" id="ntselbar" style="display:none"></div><div class="nts-composer"><button class="nts-mode" id="ntmnote" title="Plain note">≡</button><span class="nts-vdiv"></span><button class="nts-mode on" id="ntmtodo" title="To-do"><span class="nts-sq">✓</span></button><input id="ntadd" placeholder="Add a to-do..."><button class="nts-img" id="ntimg" title="Attach image"><svg><use href="#i-frame"/></svg></button></div><div class="lpbody" id="ntbody"></div></div>`},
-    library:{icon:'#i-library',title:'LIBRARY',sub:'documents · research · archive',w:700,h:600,pad:false,body:()=>`
-      <div class="listpanel">
-        <div class="libtabs"><button class="libtab on" data-tab="docs"><svg><use href="#i-lab"/></svg>Documents</button><button class="libtab" data-tab="research"><svg><use href="#i-cosmos"/></svg>Research</button><button class="libtab" data-tab="archive"><svg><use href="#i-shield"/></svg>Archive</button></div>
-        <div class="libhead"><b id="lbtitle">Documents</b><span class="badge" id="lbcount"></span><div class="libacts" id="lbacts"><button class="btn mini" id="lbimp">↑ Import</button><button class="btn mini" id="lbadd">＋ Create</button></div></div>
-        <div class="libsub" id="lbsub">Open documents in a session, clone to a new or import new files.</div>
-        <div class="libtools"><button class="libview on" id="lbrecent">Recent</button><button class="libview" id="lbselect">Select</button><button class="libview" id="lbtidy">Tidy</button></div>
-        <div class="libsearch"><input id="lbsearch" placeholder="Search titles & content…"></div>
-        <div class="libchips" id="lbchips"></div>
-        <div class="lpbody" id="lbbody"></div>
-      </div>`},
-    cookbook:{icon:'#i-cookbook',title:'COOKBOOK',sub:'local models · launch · download',w:780,h:620,pad:false,body:()=>`
-      <div class="ckwrap">
-        <div class="cktabs" id="cktabs"><button data-t="launch" class="on">Launch</button><button data-t="download">Download</button><button data-t="deps">Dependencies</button><button data-t="settings">Settings</button><button data-t="recipes">Recipes</button></div>
-        <div class="ckbody" id="ckbody"></div>
-      </div>`},
     research:{icon:'#i-globe',title:'BROWSER',sub:'the whole web, inside CLONE FRAME',w:980,h:680,pad:false,noscale:true,body:()=>`<div class="wbr" id="wbrroot"></div>`},
     matrix:{icon:'#i-matrix',title:'MATRIX',sub:'distributed AI cluster · your devices, one brain',w:1200,h:740,pad:false,noscale:true,body:()=>`<div class="mx" id="mxroot"></div>`},
-    gallery:{icon:'#i-gallery',title:'GALLERY',sub:'photos · albums',w:740,h:620,pad:false,body:()=>`<div class="listpanel"><div class="gltabs"><button class="gltab on" data-t="photos">Photos</button><button class="gltab" data-t="albums">Albums</button><button class="gltab" data-t="settings">Settings</button><span class="glcount" id="glcount">0 photos</span></div><div class="lpbody" id="glview"></div></div>`},
-    compare:{icon:'#i-compare',title:'MODEL COMPARISON',sub:'same prompt · side-by-side',w:760,h:640,pad:false,body:()=>`<div class="listpanel"><div class="cmpv2cfg" id="cmpcfg"></div><div class="lpbody" id="cmpbody"></div></div>`},
-    calendar:{icon:'#i-calendar',title:'CALENDAR',sub:'CalDAV · month view',w:860,h:640,pad:false,body:()=>`<div class="cal2wrap" id="calroot"></div>`},
     reminders:{icon:'#i-reminders',title:'REMINDERS',sub:'time-based · the agent reminds you',w:600,h:540,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="rmnote" placeholder="remind me to…"><input id="rmwhen" type="datetime-local" style="flex:0 0 auto"><button class="btn mini" id="rmadd">+</button></div><div class="lpbody" id="rmbody"></div></div>`},
     brain:{icon:'#i-brain',title:'BRAIN',sub:'memories · skills · models',w:640,h:580,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
-    search:{icon:'#i-search',title:'SEARCH',sub:'everything — notes · docs · contacts…',w:640,h:560,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="gsq" placeholder="search everything…"></div><div class="lpbody" id="gsbody"></div></div>`},
+    search:{icon:'#i-search',title:'SEARCH',sub:'everything — notes · tasks · reminders…',w:640,h:560,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="gsq" placeholder="search everything…"></div><div class="lpbody" id="gsbody"></div></div>`},
     automations:{icon:'#i-automations',title:'AUTOMATIONS',sub:'agent actions · human approval',w:540,h:560,body:()=>{
       const au=Store.get().autonomy;
       return `<div class="autohint">Your agent can act on its own — send email, post, create jobs. <b>Nothing starts on its own:</b> every action enters a queue, passes <b>Safety</b> (veto) and only executes after <b>you approve</b>. HARNESS_ENGINE spine.</div>
@@ -5311,7 +5025,6 @@ const Panels=(()=>{
           <button data-sec="search"><svg><use href="#i-frame"/></svg>Search</button>
           <div class="setgap"></div>
           <button data-sec="itterm"><svg><use href="#i-term2"/></svg>iT — Terminal</button>
-          <button data-sec="integrations"><svg><use href="#i-frame"/></svg>Integrations</button>
           <button data-sec="email"><svg><use href="#i-mail"/></svg>Email</button>
           <button data-sec="reminders"><svg><use href="#i-shield"/></svg>Reminders</button>
           <div class="setgap"></div>
@@ -5370,7 +5083,7 @@ const Panels=(()=>{
     if(type==='agent')return openPanel('terminal'); // the CONSOLE is gone — agents live in CODE
     // 'agentview' is a REAL standalone panel again (owner call 2026-07-17): the deck's
     // footer strip opens it in its own window; the in-LAB Agents detail also remains.
-    if(['machine','agents','automations','email','tasks','approval','contacts','integrations'].includes(type)&&!Caps.on(type))Caps.set(type,1); // using = activating
+    if(['machine','agents','automations','email','tasks','approval'].includes(type)&&!Caps.on(type))Caps.set(type,1); // using = activating
     const existing=topInstanceOf(type);
     if(existing&&!(MULTI.has(type)&&opts.newInstance)){focus(existing);Bus.emit('help','panel-'+type);return existing}
     const reg=REG.get(type);                         // registry first (T-050), else the legacy DEFS map
@@ -6212,7 +5925,6 @@ const Panels=(()=>{
         if(a==='files')pickFiles(false);
         else if(a==='folder')pickFiles(true);
         else if(a==='slash'){const i=$('#cdin');i.value='/'+i.value.replace(/^\//,'');i.focus();i.dispatchEvent(new Event('input',{bubbles:true}))}
-        else if(a==='connectors')openPanel('integrations');
       }));
     }
     let micDevs=[],micHold=localStorage.getItem('cfhub.micHold')!=='0',micSel=localStorage.getItem('cfhub.mic')||'',rec=null,recOn=false;
@@ -6397,7 +6109,7 @@ const Panels=(()=>{
     // to a real DEFS key. open_panel used to take the raw string case-sensitively and always
     // report success — so a title/phrase opened nothing yet looked like it worked, and the
     // model kept retrying (owner: "hard to open any tab"). null = no match.
-    const PANEL_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell',code:'terminal',connections:'integrations','my machine':'machine','my agents':'agents','model comparison':'compare'};
+    const PANEL_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell',code:'terminal','my machine':'machine','my agents':'agents'};
     function resolvePanelKey(name){
       if(typeof DEFS==='undefined')return null;
       let t=String(name||'').trim().toLowerCase().replace(/\b(the|open|please)\b/g,'').replace(/\b(panel|tab|window)\b/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
@@ -6472,7 +6184,7 @@ ANSWER DISCIPLINE:
           return r?('opened HUB tab: '+key+' ('+(DEFS[key].title||key)+')'):('could not open "'+key+'" — it may be under construction');
         }
         if(c.name==='open_terminal'){const cwd=String(a.cwd||'').trim();const wasOpen=instancesOf('shell').length>0;if(cwd)pendingShellCwd=cwd;openPanel('shell',{newInstance:!!a.newWindow});if(cwd&&wasOpen&&!a.newWindow)Bus.emit('shell:addcwd',cwd);return 'opened iT — live terminal '+(a.newWindow?'window':'')+(cwd?' at '+cwd:'')}
-        if(c.name==='open_settings'){const sec=String(a.section||'').trim().toLowerCase();openPanel('settings');const map={agent:'agenttools',agenttools:'agenttools',permissions:'agenttools',it:'itterm',itterm:'itterm','it terminal':'itterm',tools:'tools',models:'addmodels',addmodels:'addmodels','add models':'addmodels',added:'added',aidefaults:'aidefaults',pi:'piagent',piagent:'piagent','pi agent':'piagent',appearance:'appearance',theme:'appearance',account:'account',folders:'folders',servers:'servers','online server':'servers',system:'system',email:'email',integrations:'integrations',reminders:'reminders',search:'search'};const key=map[sec]||sec||'agenttools';setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+key+'"]');if(b)b.click()},80);return 'opened Settings → '+key}
+        if(c.name==='open_settings'){const sec=String(a.section||'').trim().toLowerCase();openPanel('settings');const map={agent:'agenttools',agenttools:'agenttools',permissions:'agenttools',it:'itterm',itterm:'itterm','it terminal':'itterm',tools:'tools',models:'addmodels',addmodels:'addmodels','add models':'addmodels',added:'added',aidefaults:'aidefaults',pi:'piagent',piagent:'piagent','pi agent':'piagent',appearance:'appearance',theme:'appearance',account:'account',folders:'folders',servers:'servers','online server':'servers',system:'system',email:'email',reminders:'reminders',search:'search'};const key=map[sec]||sec||'agenttools';setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+key+'"]');if(b)b.click()},80);return 'opened Settings → '+key}
         if(c.name==='open_app'){if(!full)return 'REFUSED — enable "Full machine control" in Settings → Agent Tools';const app=String(a.app||'').trim();if(!app)return 'no app name';let out='';const m=await Bridge.shell('open -a '+shq(app),tk=>{out+=tk});return (m&&m.exit===0)?('opened app: '+app):('could not open "'+app+'" '+trunc(out,120))}
         if(c.name==='open_path'){if(!full)return 'REFUSED — enable "Full machine control"';const pth=String(a.path||'').trim();if(!pth)return 'no path';let out='';const m=await Bridge.shell('open '+shq(pth),tk=>{out+=tk});return (m&&m.exit===0)?('opened in Finder: '+pth):('could not open "'+pth+'" '+trunc(out,120))}
         if(c.name==='open_url'){if(!full)return 'REFUSED — enable "Full machine control"';const u=String(a.url||'');if(!/^https?:\/\//i.test(u))return 'url must start with http(s)://';await Bridge.shell('open '+shq(u),()=>{});return 'opened: '+u}
@@ -10572,8 +10284,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     function go(name){
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
-      if(['addmodels','added','aidefaults','piagent','integrations','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
+      if(['addmodels','added','aidefaults','piagent','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
     }
     // ----- MAGIC FRAMES — the little frame squares that hold docked tabs & their figures.
@@ -10797,8 +10509,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{const v=s.value;if(!v)await RPC('models','setDefault',s.dataset.cap,{providerId:null});else{const parts=v.split('::');await RPC('models','setDefault',s.dataset.cap,{providerId:parts[0],model:parts[1]})}Toast.show('Saved')}));
     }
     async function secSearch(){
-      pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, docs, contacts…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · library · contacts · recipes · tasks · reminders · research).</div>';
-      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
+      pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, tasks…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · tasks · reminders · research).</div>';
+      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
       const inp=pane.querySelector('#ssq'),res=pane.querySelector('#ssres');let tmr=null;
       inp.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
         const q=inp.value.trim().toLowerCase();
@@ -10810,13 +10522,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         res.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.go)));
       },250)});
       inp.focus();
-    }
-    async function secIntegrations(){
-      loading();
-      let list=[];try{const r=await RPC('integrations','list');list=Array.isArray(r)?r:(r&&r.items)||[]}catch(e){return fail(e)}
-      pane.innerHTML='<div class="sethead">INTEGRATIONS</div>'+(list.length?list.map(it=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(it.name||it.type||'')}</b> <span class="dim" style="font-size:10px">${escHtml(it.type||'')} · ${escHtml(it.transport||'')}</span></span><span class="dim">${it.isDefault?'default':''}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No integrations yet.</div>')+
-        '<div class="btnrow" style="margin-top:10px"><button class="btn" id="sint">OPEN INTEGRATIONS</button></div>';
-      pane.querySelector('#sint').addEventListener('click',()=>openPanel('integrations'));
     }
     async function secEmail(){
       loading();
@@ -10841,12 +10546,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     function secToolsList(){
       const TOOLS=[
         ['brain','Brain','persistent memory · which model answers','#i-brain'],
-        ['calendar','Calendar','CalDAV · events','#i-calendar'],
-        ['compare','Compare','same prompt across N models','#i-compare'],
-        ['cookbook','Cookbook','prompt recipes','#i-cookbook'],
         ['research','Browser','browse the web inside CLONE FRAME','#i-globe'],
-        ['gallery','Gallery','generate · import images','#i-gallery'],
-        ['library','Library','documents · knowledge','#i-library'],
         ['notes','Notes','markdown · search','#i-notes'],
         ['tasks','Tasks','cron · the agent works on its own','#i-tasks'],
         ['__theme','Theme','restyle the interface — pick or create a theme','#i-pal'],
@@ -11971,7 +11671,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   //
   // Ten panels gate their whole mount on Bridge.on() and return. Nothing listened for the
   // connection, so pairing the bridge afterwards left NOTES, REMINDERS, CONTACTS, CALENDAR,
-  // COMPARE, INTEGRATIONS, LIBRARY, SEARCH, APPROVAL and HARNESS showing this card forever —
+  // SEARCH, APPROVAL and HARNESS showing this card forever —
   // while TASKS and EMAIL, which subscribe themselves, came alive on their own. The only way
   // out was to close the window and open it again, and nothing on screen said so.
   //
@@ -12001,7 +11701,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   function wireTasks(p){
     const card=p.querySelector('#tkcard'),foot=p.querySelector('#tkfoot'),cnt=p.querySelector('#tkcount'),tabs=[...p.querySelectorAll('.tktab')];
     let tab='tasks',tasks=[],cat='all',q='',mode='recent',sel=new Set(),acat='all',aq='',menuId=null;
-    const ICO={email:'#i-mail',research:'#i-cosmos',memory:'#i-chip',calendar:'#i-cosmos',chats:'#i-agent',documents:'#i-frame',skills:'#i-lab'};
+    const ICO={email:'#i-mail',research:'#i-cosmos',memory:'#i-chip',chats:'#i-agent',documents:'#i-frame',skills:'#i-lab'};
     const ico=c=>ICO[c]||'#i-bolt';
     const rel=relTime; // kernel relTime (T-046) — single-sourced s/m/h/d/w/y
     function clock(){const d=new Date();foot.textContent=d.toLocaleDateString('en-GB',{weekday:'long'})+', '+d.toLocaleDateString('en-GB')+' · '+d.toLocaleTimeString('en-GB',{hour12:false}).replace(/:/g,'.')}
@@ -12143,65 +11843,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     load();
   }
 
-  /* ---------- CONTACTS (bridge/contacts.mjs) ---------- */
-  function wireContacts(p){
-    const body=p.querySelector('#ctbody'),search=p.querySelector('#ctsearch');
-    if(!Bridge.on()){needBridge(body);return}
-    async function load(){let items=[];try{items=await RPC('contacts','list',{search:search.value.trim()})}catch(e){showErr(body,e);return}
-      body.innerHTML=items.length?items.map(c=>`<div class="ctrow"><div><b>${escHtml(c.displayName||'(sem nome)')}</b><div class="dim" style="font-size:10px">${escHtml((c.emails||[]).join(', '))}${c.org?' · '+escHtml(c.org):''}</div></div><button class="btn mini" data-rm="${c.id}" style="margin-left:auto">✕</button></div>`).join(''):'<div class="qempty">No contacts. Import vCard/CSV or connect CardDAV.</div>';
-      body.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('contacts','remove',b.dataset.rm);load()}));
-    }
-    search.addEventListener('input',()=>{clearTimeout(search._t);search._t=setTimeout(load,250)});
-    p.querySelector('#ctadd').addEventListener('click',()=>{
-      body.innerHTML='<div class="acctform"><div class="afh">New contact</div><div class="af-row"><label>Name</label><input id="cnn"></div><div class="af-row"><label>Email</label><input id="cne"></div><div class="af-row"><label>Org</label><input id="cno"></div><div class="compose-actions"><button class="btn" id="cnsave">SAVE</button><button class="btn" id="cncancel">CANCEL</button></div></div>';
-      body.querySelector('#cnsave').addEventListener('click',async()=>{await RPC('contacts','add',{displayName:body.querySelector('#cnn').value.trim(),emails:[body.querySelector('#cne').value.trim()].filter(Boolean),org:body.querySelector('#cno').value.trim()});Toast.show('Saved');load()});
-      body.querySelector('#cncancel').addEventListener('click',load);
-    });
-    p.querySelector('#ctimp').addEventListener('click',()=>{
-      const inp=document.createElement('input');inp.type='file';inp.accept='.vcf,.csv,text/vcard,text/csv';
-      inp.onchange=()=>{const f=inp.files[0];if(!f)return;const rd=new FileReader();rd.onload=async()=>{const r=await RPC('contacts',/\.csv$/i.test(f.name)?'importCSV':'importVCard',rd.result);Toast.show('Importados: '+(r.imported||0));load()};rd.readAsText(f)};
-      inp.click();
-    });
-    p.querySelector('#ctdav').addEventListener('click',()=>{
-      body.innerHTML='<div class="acctform"><div class="afh">CardDAV</div><div class="af-row"><label>URL</label><input id="cdu" placeholder="https://…/addressbooks/user/default/"></div><div class="af-row"><label>Username</label><input id="cdus"></div><div class="af-row"><label>Password</label><input id="cdp" type="password"></div><div id="cdmsg" style="font-size:10px"></div><div class="compose-actions"><button class="btn" id="cdsync">SYNC</button><button class="btn" id="cdcancel">CANCEL</button></div></div>';
-      body.querySelector('#cdsync').addEventListener('click',async()=>{const m=body.querySelector('#cdmsg');m.textContent='syncing…';const r=await RPC('contacts','carddavSync',{url:body.querySelector('#cdu').value.trim(),user:body.querySelector('#cdus').value.trim(),pass:body.querySelector('#cdp').value});m.style.color=r.ok?'var(--ok)':'var(--accent)';m.textContent=r.ok?('✓ imported '+(r.imported||0)):('✗ '+(r.error||'failed'));if(r.ok)setTimeout(load,900)});
-      body.querySelector('#cdcancel').addEventListener('click',load);
-    });
-    load();
-  }
 
-  /* ---------- INTEGRATIONS (bridge/integrations.mjs) ---------- */
-  function wireIntegrations(p){
-    const body=p.querySelector('#igbody');
-    if(!Bridge.on()){needBridge(body);return}
-    function metaStr(g){const m=g.meta||{};return escHtml(m.email||m.url||m.baseUrl||m.host||m.transport||m.source||'')}
-    async function load(){let items=[];try{items=await RPC('integrations','list')}catch(e){showErr(body,e);return}
-      body.innerHTML=items.length?items.map(g=>`<div class="igrow"><span class="igdot ${escAttr(g.status)}"></span><div><b>${escAttr(g.name)}</b> <span class="badge">${escAttr(g.type)}</span>${g.isDefault?' <span class="badge">default</span>':''}<div class="dim" style="font-size:10px">${metaStr(g)}${g.lastError?' · '+escAttr(g.lastError):''}</div></div><div style="margin-left:auto;display:flex;gap:6px">${g.readOnly?'':`<button class="btn mini" data-test="${g.id}">test</button><button class="btn mini" data-rm="${g.id}">✕</button>`}</div></div>`).join(''):'<div class="qempty">No integrations.</div>';
-      body.querySelectorAll('[data-test]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='…';const r=await RPC('integrations','test',b.dataset.test);Toast.show(r.ok?'connected ✓':(r.error||'failed'));load()}));
-      body.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('integrations','remove',b.dataset.rm);load()}));
-    }
-    p.querySelector('#igadd').addEventListener('click',()=>{
-      body.innerHTML='<div class="acctform"><div class="afh">Add integration</div><div class="af-row"><label>Type</label><select id="igt"><option value="api">API Service</option><option value="mcp">MCP Tool Server</option><option value="caldav">CalDAV</option><option value="carddav">CardDAV</option></select></div><div class="af-row"><label>Name</label><input id="ign"></div><div id="igfields"></div><div id="igmsg" style="font-size:10px"></div><div class="compose-actions"><button class="btn" id="igsave">ADD</button><button class="btn" id="igcancel">CANCEL</button></div></div>';
-      const t=body.querySelector('#igt'),ff=body.querySelector('#igfields');
-      function fields(){const v=t.value;
-        if(v==='api')ff.innerHTML='<div class="af-row"><label>Base URL</label><input id="igu" placeholder="https://api.example.com"></div><div class="af-row"><label>API key</label><input id="igk" type="password" placeholder="optional"></div>';
-        else if(v==='mcp')ff.innerHTML='<div class="af-row"><label>Transport</label><select id="igtr"><option>http</option><option>ws</option><option>stdio</option></select></div><div class="af-row"><label>URL/Command</label><input id="igu"></div>';
-        else ff.innerHTML='<div class="af-row"><label>URL</label><input id="igu"></div><div class="af-row"><label>Username</label><input id="igus"></div><div class="af-row"><label>Password</label><input id="igp" type="password"></div>';
-      }
-      t.addEventListener('change',fields);fields();
-      body.querySelector('#igsave').addEventListener('click',async()=>{
-        const v=t.value,name=body.querySelector('#ign').value.trim()||v,g=id=>{const el=body.querySelector('#'+id);return el?el.value.trim():''};
-        let config={};
-        if(v==='api')config={baseUrl:g('igu'),apiKey:g('igk')||undefined};
-        else if(v==='mcp')config={transport:g('igtr')||'http',url:g('igu')};
-        else config={url:g('igu'),username:g('igus'),password:g('igp')};
-        const r=await RPC('integrations','add',{type:v,name,config}),m=body.querySelector('#igmsg');
-        if(r.ok){Toast.show('Added');load()}else{m.style.color='var(--accent)';m.textContent=r.error||'failed'}
-      });
-      body.querySelector('#igcancel').addEventListener('click',load);
-    });
-    load();
-  }
 
   /* ---------- NOTES ---------- */
   function wireNotes(p){
@@ -12299,269 +11941,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     selBtn.addEventListener('click',()=>{selMode=!selMode;sel.clear();load()});
     search.addEventListener('input',()=>{clearTimeout(search._t);search._t=setTimeout(load,250)});
     load();
-  }
-  /* ---------- LIBRARY ---------- */
-  function wireLibrary(p){
-    const body=p.querySelector('#lbbody'),search=p.querySelector('#lbsearch'),chips=p.querySelector('#lbchips'),
-      title=p.querySelector('#lbtitle'),count=p.querySelector('#lbcount'),sub=p.querySelector('#lbsub'),
-      acts=p.querySelector('#lbacts'),recentB=p.querySelector('#lbrecent'),selectB=p.querySelector('#lbselect'),tidyB=p.querySelector('#lbtidy');
-    if(!Bridge.on()){needBridge(body);return}
-    let tab='docs',type='all',recent=true,selMode=false,openId=null;const sel=new Set();
-    const TABS={docs:{t:'Documents',s:'Open documents in a session, clone to a new or import new files.',ph:'Search titles & content…'},research:{t:'Research',s:'Completed deep research reports. Click to view.',ph:'Search research…'},archive:{t:'Archive',s:'Archived documents. Restore to make active again.',ph:'Search archive…'}};
-    const ICON={email:'#i-mail',bash:'#i-term',python:'#i-chip',markdown:'#i-lab',json:'#i-gear',html:'#i-frame',image:'#i-frame',text:'#i-lab'};
-    const rel=ts=>relTime(ts)||fmtTS(ts); // kernel relTime (T-046); keep this scope's absolute fallback for invalid/future
-    const dtype=d=>{const m=String(d.mimeType||'').toLowerCase(),n=String(d.name||'').toLowerCase();
-      if(m.includes('rfc822')||n.endsWith('.eml'))return 'email';
-      if(m.includes('x-sh')||n.endsWith('.sh')||n.endsWith('.zsh')||n.endsWith('.bash'))return 'bash';
-      if(m.includes('markdown')||n.endsWith('.md')||n.endsWith('.markdown'))return 'markdown';
-      if(m.includes('python')||n.endsWith('.py'))return 'python';
-      if(m.includes('json'))return 'json';
-      if(m.includes('html'))return 'html';
-      if(m.startsWith('image/'))return 'image';
-      return 'text'};
-    const ver=d=>((d.tags||[]).find(t=>/^v\d+$/.test(t))||'v1');
-    const bumpV=tags=>{const n=parseInt((ver({tags})).slice(1),10)||1;return [...(tags||[]).filter(t=>!/^v\d+$/.test(t)),'v'+(n+1)]};
-    const isArch=d=>(d.tags||[]).some(t=>t.toLowerCase()==='archived');
-    const ck=id=>`<span class="libck ${sel.has(id)?'on':''}"></span>`;
-    const bulkbar=()=>selMode?`<div class="libbulk"><span>${sel.size} selected</span>${tab==='docs'?'<button class="btn mini" id="lbbarc">Archive</button>':''}${tab==='archive'?'<button class="btn mini" id="lbbres">Restore</button>':''}<button class="btn mini libdel" id="lbbdel">Delete</button></div>`:'';
-    function setTab(t){tab=t;type='all';selMode=false;sel.clear();openId=null;
-      p.querySelectorAll('.libtab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
-      selectB.classList.remove('on');search.value='';search.placeholder=TABS[t].ph;
-      title.textContent=TABS[t].t;sub.textContent=TABS[t].s;
-      acts.style.display=t==='docs'?'':'none';tidyB.style.display=t==='docs'?'':'none';load()}
-    function wireBulk(){
-      const del=body.querySelector('#lbbdel');if(del)del.addEventListener('click',async()=>{if(!sel.size){Toast.show('Nothing selected');return}const n=sel.size;for(const id of sel)await RPC(tab==='research'?'research':'library','remove',id);Toast.show(n+' deleted');sel.clear();load()});
-      const arc=body.querySelector('#lbbarc');if(arc)arc.addEventListener('click',async()=>{if(!sel.size){Toast.show('Nothing selected');return}const n=sel.size;for(const id of sel){const d=await RPC('library','get',id);if(d&&!isArch(d))await RPC('library','update',id,{tags:[...(d.tags||[]),'archived']})}Toast.show(n+' archived');sel.clear();load()});
-      const res=body.querySelector('#lbbres');if(res)res.addEventListener('click',async()=>{if(!sel.size){Toast.show('Nothing selected');return}const n=sel.size;for(const id of sel){const d=await RPC('library','get',id);if(d)await RPC('library','update',id,{tags:(d.tags||[]).filter(t=>t.toLowerCase()!=='archived')})}Toast.show(n+' restored');sel.clear();load()})}
-    async function load(){
-      if(tab==='research')return loadResearch();
-      let items=[];try{items=await RPC('library','list',{search:search.value.trim()})}catch(e){showErr(body,e);return}
-      items=items.filter(d=>tab==='archive'?isArch(d):!isArch(d));
-      count.textContent=items.length+(tab==='archive'?' archived':' documents');
-      if(tab==='docs'){const cnt={};items.forEach(d=>{const t=dtype(d);cnt[t]=(cnt[t]||0)+1});
-        chips.innerHTML=`<span class="tkchip ${type==='all'?'on':''}" data-t="all">all <b>(${items.length})</b></span>`+Object.keys(cnt).sort().map(t=>`<span class="tkchip ${type===t?'on':''}" data-t="${t}">${t} <b>(${cnt[t]})</b></span>`).join('');
-        chips.querySelectorAll('.tkchip').forEach(el=>el.addEventListener('click',()=>{type=el.dataset.t;openId=null;load()}));
-        if(type!=='all')items=items.filter(d=>dtype(d)===type)}
-      else chips.innerHTML='';
-      if(!recent)items=[...items].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
-      if(!items.length){body.innerHTML=bulkbar()+(tab==='archive'?'<div class="qempty">No archived items 🙁</div>':'<div class="qempty">No documents yet. Import a file or create one.</div>');wireBulk();return}
-      body.innerHTML=bulkbar()+items.map(d=>{const t=dtype(d),o=openId===d.id;return `<div class="librow"><div class="librowh" data-id="${d.id}">${selMode?ck(d.id):`<svg><use href="${ICON[t]||'#i-lab'}"/></svg>`}<div style="flex:1;min-width:0"><b>${escHtml(d.name)}</b> <span class="badge">${ver(d)}</span><div class="libmeta">${t} · ${rel(d.updatedAt||d.createdAt)}</div></div><span class="libchev">${o?'▲':'▼'}</span></div>${o?'<div class="libdetail" id="lbdetail"></div>':''}</div>`}).join('');
-      wireBulk();
-      body.querySelectorAll('.librowh').forEach(el=>el.addEventListener('click',()=>docClick(el.dataset.id)));
-      if(openId)fillDoc(openId)}
-    async function docClick(id){
-      if(selMode){sel.has(id)?sel.delete(id):sel.add(id);load();return}
-      if(openId===id){openId=null;load();return}
-      openId=id;load()}
-    async function fillDoc(id){
-      let d;try{d=await RPC('library','get',id)}catch(e){return}
-      const det=body.querySelector('#lbdetail');if(!det||!d)return;
-      det.innerHTML=`<pre class="libpre">${escHtml(d.text||'(no text — '+(d.mimeType||'binary')+' stored as metadata)')}</pre><div class="libfoot"><button class="btn mini libdel" id="lbdel">Delete</button>${tab==='archive'?'<button class="btn mini" id="lbres">Restore</button>':'<button class="btn mini" id="lbarc">Archive</button>'}<span class="libgap"></span><button class="btn mini" id="lbcl">Clone</button><button class="btn mini" id="lbop">Open →</button></div>`;
-      det.querySelector('#lbdel').addEventListener('click',async()=>{await RPC('library','remove',id);Toast.show('Deleted');openId=null;load()});
-      const arc=det.querySelector('#lbarc');if(arc)arc.addEventListener('click',async()=>{await RPC('library','update',id,{tags:[...(d.tags||[]),'archived']});Toast.show('Archived');openId=null;load()});
-      const res=det.querySelector('#lbres');if(res)res.addEventListener('click',async()=>{await RPC('library','update',id,{tags:(d.tags||[]).filter(t=>t.toLowerCase()!=='archived')});Toast.show('Restored');openId=null;load()});
-      det.querySelector('#lbcl').addEventListener('click',async()=>{const r=await RPC('library','add',{name:d.name+' (copy)',mimeType:d.mimeType,text:d.text||'',tags:(d.tags||[]).filter(t=>t.toLowerCase()!=='archived'&&!/^v\d+$/.test(t))});Toast.show(r.ok?'Cloned':r.error||'failed');openId=null;load()});
-      det.querySelector('#lbop').addEventListener('click',()=>editor(d))}
-    function editor(d){openId=null;body.innerHTML=`<div class="acctform"><input id="lbn" placeholder="Document name" value="${escAttr(d.name)}"><textarea id="lbt" style="min-height:240px">${escAttr(d.text||'')}</textarea><div class="compose-actions"><button class="btn" id="lbsave">SAVE</button><button class="btn" id="lbback">← list</button></div></div>`;
-      body.querySelector('#lbsave').addEventListener('click',async()=>{const r=await RPC('library','update',d.id,{name:body.querySelector('#lbn').value.trim()||d.name,text:body.querySelector('#lbt').value,tags:bumpV(d.tags)});Toast.show(r.ok?'Saved':r.error||'failed');load()});
-      body.querySelector('#lbback').addEventListener('click',load)}
-    async function loadResearch(){
-      let items=[];try{items=await RPC('research','list')}catch(e){showErr(body,e);return}
-      const q=search.value.trim().toLowerCase();if(q)items=items.filter(r=>String(r.question).toLowerCase().includes(q));
-      count.textContent=items.length+' research';chips.innerHTML='';
-      if(!recent)items=[...items].sort((a,b)=>String(a.question).localeCompare(String(b.question)));
-      if(!items.length){body.innerHTML=bulkbar()+'<div class="qempty">No research reports yet. Run one in DEEP RESEARCH.</div>';wireBulk();return}
-      body.innerHTML=bulkbar()+items.map(r=>{const o=openId===r.id;return `<div class="librow"><div class="librowh" data-id="${r.id}">${selMode?ck(r.id):'<svg><use href="#i-cosmos"/></svg>'}<div style="flex:1;min-width:0"><b>${escHtml(r.question)}</b><div class="libmeta">${fmtTS(r.createdAt)}</div></div><span class="libchev">${o?'▲':'▼'}</span></div>${o?'<div class="libdetail" id="lbdetail"></div>':''}</div>`}).join('');
-      wireBulk();
-      body.querySelectorAll('.librowh').forEach(el=>el.addEventListener('click',()=>resClick(el.dataset.id)));
-      if(openId)fillResearch(openId)}
-    async function resClick(id){
-      if(selMode){sel.has(id)?sel.delete(id):sel.add(id);loadResearch();return}
-      if(openId===id){openId=null;loadResearch();return}
-      openId=id;loadResearch()}
-    async function fillResearch(id){
-      let d;try{d=await RPC('research','get',id)}catch(e){return}
-      const det=body.querySelector('#lbdetail');if(!det||!d)return;
-      det.innerHTML=`<div class="libmeta" style="margin-bottom:7px">${fmtTS(d.createdAt)} · ${d.sourceCount||0} sources · ${escHtml(d.mode||'reason')} mode${d.model?' · '+escHtml(d.model):''}</div><div class="libpre md">${MDLite.render(d.markdown||'')}</div><div class="libfoot"><button class="btn mini libdel" id="lbdel">Delete</button><span class="libgap"></span><button class="btn mini" id="lbop">Open →</button></div>`;
-      det.querySelector('#lbdel').addEventListener('click',async()=>{await RPC('research','remove',id);Toast.show('Deleted');openId=null;loadResearch()});
-      det.querySelector('#lbop').addEventListener('click',()=>{body.innerHTML=`<div class="mread"><div class="mrhead"><button class="btn mini" id="lbback">← back</button></div><h4>${escHtml(d.question)}</h4><div class="content">${MDLite.render(d.markdown||'')}</div></div>`;body.querySelector('#lbback').addEventListener('click',loadResearch)})}
-    p.querySelectorAll('.libtab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
-    recentB.addEventListener('click',()=>{recent=!recent;recentB.classList.toggle('on',recent);load()});
-    selectB.addEventListener('click',()=>{selMode=!selMode;sel.clear();openId=null;selectB.classList.toggle('on',selMode);load()});
-    tidyB.addEventListener('click',()=>Toast.show('Tidy — coming soon'));
-    search.addEventListener('input',()=>{clearTimeout(search._t);search._t=setTimeout(load,250)});
-    p.querySelector('#lbadd').addEventListener('click',()=>{openId=null;body.innerHTML=`<div class="acctform"><input id="lbn" placeholder="Document name"><textarea id="lbt" placeholder="Paste the text…" style="min-height:220px"></textarea><div class="compose-actions"><button class="btn" id="lbsave">SAVE</button><button class="btn" id="lbcancel">← list</button></div></div>`;
-      body.querySelector('#lbsave').addEventListener('click',async()=>{const r=await RPC('library','add',{name:body.querySelector('#lbn').value.trim()||'Document',mimeType:'text/plain',text:body.querySelector('#lbt').value});Toast.show(r.ok?'Added':r.error||'failed');load()});
-      body.querySelector('#lbcancel').addEventListener('click',load)});
-    p.querySelector('#lbimp').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const rd=new FileReader();const textual=!f.type||/^text\/|json|xml|yaml|javascript|markdown|x-sh|sql|toml|csv/.test(f.type);
-      rd.onload=async()=>{const r=await RPC('library','add',textual?{name:f.name,mimeType:f.type||'text/plain',text:String(rd.result)}:{name:f.name,mimeType:f.type,contentBase64:String(rd.result)});Toast.show(r.ok?'Imported':r.error||'failed');load()};
-      textual?rd.readAsText(f):rd.readAsDataURL(f)};inp.click()});
-    load();
-  }
-  /* ---------- COOKBOOK ---------- */
-  function wireCookbook(p){
-    const body=p.querySelector('#ckbody'),tabs=p.querySelector('#cktabs');
-    const st=Store.get();
-    st.cookbook=Object.assign({hfToken:'',modelDirs:['~/.cache/huggingface/hub'],servers:[{name:'Local',host:'',port:'',python:'None',venv:'~/venv',def:false}],engine:'llama.cpp',quant:'Q4-K',ctx:50,fit:'RAM',srv:'Local'},st.cookbook||{});
-    const cfg=st.cookbook;
-    if(!Array.isArray(cfg.modelDirs)||!cfg.modelDirs.length)cfg.modelDirs=['~/.cache/huggingface/hub'];
-    if(!Array.isArray(cfg.servers)||!cfg.servers.length)cfg.servers=[{name:'Local',host:'',port:'',python:'None',venv:'~/venv',def:false}];
-    const save=()=>Store.save();
-    const soon=w=>Toast.show(w+' — coming soon');
-    const srvOpts=()=>cfg.servers.map(s=>`<option ${s.name===cfg.srv?'selected':''}>${escHtml(s.name)}</option>`).join('');
-    const wireSrvSel=el=>el.addEventListener('change',()=>{cfg.srv=el.value;save()});
-    const INFO={engine:'Inference engine used to run the model (llama.cpp / MLX / vLLM).',quant:'Quantization — smaller is less VRAM, slightly lower quality.',ctx:'Context window the model is served with.'};
-    const CATALOG=[
-      {n:'gemma-4E2B-it',q:'Q4-K',pr:'5.1B',v:'5.5G',c:'49k',s:'32.9 t/s',sc:'74.8',m:'llama.cpp'},
-      {n:'qwen2.5-14b-instruct',q:'Q4-K',pr:'14.8B',v:'9.0G',c:'32k',s:'18.4 t/s',sc:'79.2',m:'llama.cpp'},
-      {n:'llama-3.3-8b-instruct',q:'Q5-K',pr:'8.0B',v:'6.2G',c:'128k',s:'26.1 t/s',sc:'76.5',m:'llama.cpp'},
-      {n:'mistral-small-3.2',q:'Q3-K',pr:'24B',v:'10.2G',c:'32k',s:'11.2 t/s',sc:'81.0',m:'llama.cpp'},
-      {n:'phi-4',q:'Q4-K',pr:'14.7B',v:'8.9G',c:'16k',s:'19.7 t/s',sc:'77.9',m:'llama.cpp'},
-      {n:'deepseek-r1-distill-7b',q:'Q4-K',pr:'7.6B',v:'5.1G',c:'64k',s:'28.3 t/s',sc:'75.4',m:'llama.cpp'},
-      {n:'qwen2.5-coder-7b',q:'Q4-K',pr:'7.6B',v:'5.0G',c:'32k',s:'29.0 t/s',sc:'74.1',m:'mlx'},
-      {n:'smollm3-3b',q:'Q8-0',pr:'3.1B',v:'3.6G',c:'64k',s:'41.5 t/s',sc:'68.7',m:'mlx'},
-    ];
-    let hw=['Apple M5','10.7 GB VRAM','11.2 / 16.0 GB RAM','10 cores','metal'];
-    let tab='launch';
-    tabs.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.t;tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));render()}));
-    function render(){if(tab==='launch')launch();else if(tab==='download')download();else if(tab==='deps')deps();else if(tab==='settings')settings();else recipes()}
-
-    /* — Launch: real local providers (models.mjs) — */
-    async function launch(){
-      body.innerHTML=`<div class="ckcard"><div class="ckhead"><b>Serve</b></div><div class="ckcardbody">
-          <div class="ckline"><span class="ckpath" id="ckdir">${escHtml(cfg.modelDirs[0])}</span><a class="cklink" id="ckedit">edit</a></div>
-          <div class="ckline"><select class="cksel" id="cksrv">${srvOpts()}</select><input class="ckin" id="cknm" placeholder="Name" style="flex:0 0 110px"><input class="ckin" id="ckq" placeholder="Search cached models…"><button class="btn mini" id="cksel2">Select</button></div>
-          <div class="tkchips" id="ckfil"></div>
-        </div></div>
-        <div id="ckmdls"><div class="qempty">scanning local model servers…</div></div>`;
-      wireSrvSel(body.querySelector('#cksrv'));
-      body.querySelector('#ckedit').addEventListener('click',()=>{const d=body.querySelector('#ckdir');if(!d||d.tagName==='INPUT')return;d.outerHTML=`<input class="ckin" id="ckdir" value="${escAttr(cfg.modelDirs[0])}" style="font-family:var(--mono);flex:0 0 260px">`;const i=body.querySelector('#ckdir');i.focus();i.addEventListener('change',()=>{const v=i.value.trim();if(v)cfg.modelDirs[0]=v;save();launch()})});
-      body.querySelector('#cksel2').addEventListener('click',()=>{const nm=body.querySelector('#cknm').value.trim();soon('Serve'+(nm?' "'+nm+'"':''))});
-      const list=body.querySelector('#ckmdls');let items=[],fil='all',q='';
-      let est=null,eready=new Set(),eavail=999;
-      if(Bridge.on()){try{(await RPC('models','listProviders')).filter(x=>x.kind==='local').forEach(pr=>(pr.models||[]).forEach(m=>items.push({name:m,id:m,src:pr.label||pr.provider,sub:pr.baseUrl||'',gb:0})))}catch(e){}}
-      function paint(){
-        const fc=body.querySelector('#ckfil');if(!fc)return;
-        fc.innerHTML=`<span class="tkchip ${fil==='all'?'on':''}" data-f="all">all (${items.length})</span><span class="tkchip ${fil==='llm'?'on':''}" data-f="llm">llm (${items.length})</span>`;
-        fc.querySelectorAll('.tkchip').forEach(c=>c.addEventListener('click',()=>{fil=c.dataset.f;paint()}));
-        if(!items.length){if(!Bridge.on()){needBridge(list);return}list.innerHTML='<div class="qempty">No cached models found. Add a local provider (Ollama · llama.cpp · vLLM) in BRAIN.</div>';return}
-        const COL=['#e06c75','var(--info)','var(--ok)','var(--warn)','#c678dd'];const ci=s=>COL[[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)%COL.length];
-        const ff=items.filter(i=>!q||i.name.toLowerCase().includes(q)).sort((a,b)=>(eready.has(b.id)?1:0)-(eready.has(a.id)?1:0)||(a.gb>eavail?1:0)-(b.gb>eavail?1:0));
-        list.innerHTML=ff.length?ff.map(i=>{const rdy=eready.has(i.id),big=i.gb>eavail;const tag=i.src==='exo'?(rdy?'<span class="ckhfb" style="color:var(--ok)">● running</span>':big?'<span class="ckhfb" style="color:var(--warn)">⚠ needs '+i.gb.toFixed(0)+'GB</span>':'<span class="ckhfb" style="color:var(--ok)">fits · '+(i.gb>=1?i.gb.toFixed(1)+'GB':Math.round(i.gb*1024)+'MB')+'</span>'):'<span class="ckhfb">'+escAttr(i.src)+' ↗</span>';return `<div class="ckmdl"><span class="ckdot" style="background:${ci(i.src)}"></span><div style="flex:1;min-width:0"><span class="ckname" style="color:${ci(i.src)}">${escAttr(i.name)}</span> ${tag}<div class="cksub">${escAttr(i.src)} · ${escAttr(i.sub)}</div></div>${rdy?`<button class="btn mini" data-del="${escAttr(i.id)}" style="border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">delete</button>`:`<button class="btn mini" data-l="${escAttr(i.id)}" data-src="${escAttr(i.src)}" data-gb="${i.gb}">launch</button>`}</div>`}).join(''):'<div class="qempty">No models match.</div>';
-        list.querySelectorAll('[data-l]').forEach(b=>b.addEventListener('click',()=>{soon('Launch "'+b.dataset.l+'"')}));
-      }
-      body.querySelector('#ckq').addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();paint()});
-      paint();
-    }
-
-    /* — Download: static catalog (no downloader backend yet) — */
-    function download(){
-      let dd=true,tr=false,asc=true,q='';
-      body.innerHTML=`<div class="ckcard"><div class="ckhead"><b>Direct Download</b><button class="ckchev" id="ckddc">▾</button></div>
-          <div class="ckcardbody" id="ckddb">
-            <div class="ckline"><input class="ckin" id="ckdd" placeholder="org/model-name, qwen2.5:14b, or HF URL"><button class="btn mini" id="ckdl">Download</button></div>
-            <a class="cklink" id="cktr">Popular models · curated sample ▸</a>
-            <div id="cktrl" style="display:flex;flex-direction:column;gap:5px"></div>
-          </div></div>
-        <div class="ckcard"><div class="ckhead"><b>Scan / Download</b></div>
-          <div class="ckcardbody">
-            <div class="ckline"><select class="cksel"><option>Standard</option></select><input class="ckin" id="cksq" placeholder="Search models…"><span class="cklbl">Engine<span class="ckinfo" title="${INFO.engine}">?</span></span><select class="cksel" id="ckeng"><option>llama.cpp</option><option>MLX</option><option>vLLM</option></select><span class="cklbl">Quant<span class="ckinfo" title="${INFO.quant}">?</span></span><select class="cksel" id="ckqu"><option>Q4-K</option><option>Q5-K</option><option>Q8-0</option><option>FP16</option></select><span class="cklbl">Context<span class="ckinfo" title="${INFO.ctx}">?</span></span><input type="range" class="ckrange" id="ckctx" min="4" max="128" value="${cfg.ctx}"><b id="ckctxv" style="font-family:var(--mono);font-size:10px">${cfg.ctx}k</b></div>
-            <div class="ckline"><select class="cksel" id="cksrv2">${srvOpts()}</select><span class="ckseg" id="ckfit"><button data-m="RAM" class="${cfg.fit==='RAM'?'on':''}">RAM</button><button data-m="GPU" class="${cfg.fit==='GPU'?'on':''}">GPU</button><button data-m="EDIT">EDIT</button></span></div>
-            <div class="ckline" id="ckhwl"></div>
-            <div style="overflow:auto"><table class="cktable"><thead><tr><th>FIT</th><th class="cksort" id="ckms">MODEL (LATEST) <span id="ckarr">▾</span></th><th>PARAM</th><th>QUANT</th><th>VRAM</th><th>CTX</th><th>SPEED</th><th>SCORE</th><th>MODE</th></tr></thead><tbody id="cktb"></tbody></table></div>
-          </div></div>`;
-      wireSrvSel(body.querySelector('#cksrv2'));
-      body.querySelector('#ckddc').addEventListener('click',e=>{dd=!dd;body.querySelector('#ckddb').style.display=dd?'':'none';e.target.textContent=dd?'▾':'▸'});
-      body.querySelector('#ckdl').addEventListener('click',()=>{const v=body.querySelector('#ckdd').value.trim();if(!v){Toast.show('Enter a model id or HF URL');return}soon('Download "'+v+'"')});
-      body.querySelector('#cktr').addEventListener('click',()=>{tr=!tr;body.querySelector('#cktr').textContent='Popular models · curated sample '+(tr?'▾':'▸');const tl=body.querySelector('#cktrl');tl.innerHTML=tr?CATALOG.slice(0,3).map(r=>`<div class="ckline"><span class="ckfit">PERFECT</span><b style="font-size:10.5px;color:var(--fg)">${r.n}</b><span class="cksub">${r.pr} · ${r.v} VRAM · ${r.m}</span><button class="btn mini" style="margin-left:auto" data-t2="${r.n}">Download</button></div>`).join(''):'';tl.querySelectorAll('[data-t2]').forEach(b=>b.addEventListener('click',()=>soon('Download "'+b.dataset.t2+'"')))});
-      const eng=body.querySelector('#ckeng'),qu=body.querySelector('#ckqu');
-      eng.value=cfg.engine;qu.value=cfg.quant;
-      eng.addEventListener('change',()=>{cfg.engine=eng.value;save()});
-      qu.addEventListener('change',()=>{cfg.quant=qu.value;save()});
-      const rng=body.querySelector('#ckctx');
-      rng.addEventListener('input',()=>{body.querySelector('#ckctxv').textContent=rng.value+'k'});
-      rng.addEventListener('change',()=>{cfg.ctx=+rng.value;save()});
-      body.querySelectorAll('#ckfit button').forEach(b=>b.addEventListener('click',()=>{const m=b.dataset.m;if(m==='EDIT'){soon('Edit hardware profile');return}cfg.fit=m;save();body.querySelectorAll('#ckfit button').forEach(x=>x.classList.toggle('on',x.dataset.m===m))}));
-      function paintHw(){const el=body.querySelector('#ckhwl');if(!el)return;el.innerHTML=hw.length?hw.map((h,i)=>`<span class="ckhwc">${escHtml(h)}<i data-x="${i}">✕</i></span>`).join(''):'<span class="cksub">no hardware profile</span>';el.querySelectorAll('[data-x]').forEach(x=>x.addEventListener('click',()=>{hw.splice(+x.dataset.x,1);paintHw()}))}
-      function paintTb(){const tb=body.querySelector('#cktb');if(!tb)return;
-        let rows=CATALOG.filter(r=>!q||r.n.toLowerCase().includes(q)).slice().sort((a,b)=>asc?a.n.localeCompare(b.n):b.n.localeCompare(a.n));
-        tb.innerHTML=rows.length?rows.map(r=>`<tr data-dl="${r.n}" title="download ${r.n}"><td><span class="ckfit">PERFECT</span></td><td><svg style="width:11px;height:11px;vertical-align:-1px"><use href="#i-chip"/></svg> <b>${r.n}</b><span class="ckqtag">${r.q}</span></td><td>${r.pr}</td><td>${r.q}</td><td>${r.v}</td><td>${r.c}</td><td>${r.s}</td><td>${r.sc}</td><td>${r.m}</td></tr>`).join(''):'<tr><td colspan="9"><div class="qempty">No models match.</div></td></tr>';
-        tb.querySelectorAll('[data-dl]').forEach(t=>t.addEventListener('click',()=>soon('Download "'+t.dataset.dl+'"')));}
-      body.querySelector('#cksq').addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();paintTb()});
-      body.querySelector('#ckms').addEventListener('click',()=>{asc=!asc;body.querySelector('#ckarr').textContent=asc?'▾':'▴';paintTb()});
-      paintHw();paintTb();
-    }
-
-    /* — Dependencies: real checks (Bridge) + visual catalog — */
-    function deps(){
-      const DEP={app:[
-        ['APFEL','Built-in local inference runtime.','LLM',false],
-        ['rembg','Background removal for images.','Image',false],
-        ['realesrgan','Image upscaling (Real-ESRGAN).','Image',false],
-        ['playwright','Headless browser automation.','Tools',false],
-      ],srv:[
-        ['docker','Container runtime.','System',true],
-        ['hf_transfer','Fast HuggingFace downloads.','LLM',false],
-        ['llama_cpp','GGUF inference engine.','LLM',true,'llama'],
-        ['sglang','High-throughput LLM serving.','LLM',false,'chev'],
-        ['vllm','PagedAttention LLM serving.','LLM',false,'chev'],
-        ['diffusers','Diffusion image pipelines.','Image',false],
-        ['transformers','HF transformers models.','Image',false],
-      ]};
-      const row=d=>`<div class="ckdep"><svg><use href="#i-chip"/></svg><div style="flex:1;min-width:0"><b style="font-size:11px;color:var(--fg)">${d[0]}</b><div class="ckdesc">${d[1]}</div>${d[4]==='llama'?'<div class="ckdesc" style="font-family:var(--mono)">~/.local/bin/llama-server <a class="cklink" data-rb="1">Rebuild</a></div>':''}</div><span class="ckcat">${d[2]}</span><button class="ckst ${d[3]?'on':''}" data-in="${d[0]}" data-on="${d[3]?1:0}">${d[3]?'Installed':'Install'}</button>${d[4]?'<button class="ckchev" data-cv="1">▾</button>':''}</div>`;
-      body.innerHTML=`<div class="ckline" style="margin-bottom:10px"><b style="font-size:12px;color:var(--fg);flex:1">Dependencies</b><span class="cklbl">Server</span><select class="cksel" id="cksrv3">${srvOpts()}</select></div>
-        <div class="sethead">LIVE CHECKS</div><div id="cklive"></div>
-        <div class="sethead">ODYSSEUS APP</div><div class="cksub" style="margin:-2px 2px 8px">Run inside the Odysseus app itself.</div>${DEP.app.map(row).join('')}
-        <div class="sethead">SERVER</div><div class="cksub" style="margin:-2px 2px 8px">Run on the server chosen above (over SSH when remote).</div>${DEP.srv.map(row).join('')}`;
-      wireSrvSel(body.querySelector('#cksrv3'));
-      body.querySelectorAll('[data-in]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.on==='1'){Toast.show(b.dataset.in+' is installed');return}soon('Install '+b.dataset.in)}));
-      body.querySelectorAll('[data-rb]').forEach(b=>b.addEventListener('click',()=>soon('Rebuild llama_cpp')));
-      body.querySelectorAll('[data-cv]').forEach(b=>b.addEventListener('click',()=>soon('Engine options')));
-      const dot=on=>`<span class="igdot ${on?'connected':''}"></span>`;
-      const live=body.querySelector('#cklive');
-      live.innerHTML=`<div class="ckdep">${dot(Bridge.on())}<div style="flex:1;min-width:0"><b style="font-size:11px;color:var(--fg)">HUB Bridge</b><div class="ckdesc">${Bridge.on()?'connected — shell + local RPC available':'not connected — open MY MACHINE to pair'}</div></div><span class="ckcat">System</span><button class="ckst ${Bridge.on()?'on':''}" id="ckbrst">${Bridge.on()?'Online':'Connect'}</button></div>`;
-      live.querySelector('#ckbrst').addEventListener('click',()=>{if(!Bridge.on())openPanel('machine')});
-    }
-
-    /* — Settings: persisted in Store.get().cookbook — */
-    function settings(){
-      body.innerHTML=`<div class="ckcard"><div class="ckhead"><b>HuggingFace Token</b></div><div class="ckcardbody"><input class="ckin" id="ckhft" type="password" placeholder="hf_..." value="${escAttr(cfg.hfToken)}"></div></div>
-        <div class="ckcard"><div class="ckhead"><b>Servers</b><button class="btn mini" id="cksadd">+ Add</button></div><div class="ckcardbody" id="cksrvs"></div></div>
-        <div class="ckcard"><div class="ckhead"><b>Model Directory</b><button class="btn mini" id="ckdadd">+ Add</button></div><div class="ckcardbody"><div class="ckline" id="ckdirs"></div></div></div>`;
-      body.querySelector('#ckhft').addEventListener('change',e=>{cfg.hfToken=e.target.value.trim();save();Toast.show('Token saved')});
-      function paintSrvs(){
-        body.querySelector('#cksrvs').innerHTML=cfg.servers.map((s,i)=>`<div class="ckcard" style="margin:0"><div class="ckhead"><span class="igdot ${i===0?'connected':''}"></span><b>${escAttr(s.name)}</b>${i>0?`<button class="btn mini" data-sx="${i}">✕</button>`:''}</div><div class="ckcardbody"><div class="ckline"><input class="ckin" data-k="host" data-i="${i}" placeholder="e.g. user@ip" value="${escAttr(s.host||'')}"><input class="ckin" data-k="port" data-i="${i}" placeholder="Port" value="${escAttr(s.port||'')}" style="flex:0 0 60px"><select class="cksel" data-k="python" data-i="${i}"><option ${s.python==='None'?'selected':''}>None</option><option ${s.python==='conda'?'selected':''}>conda</option><option ${s.python==='uv'?'selected':''}>uv</option></select><input class="ckin" data-k="venv" data-i="${i}" placeholder="~/venv" value="${escAttr(s.venv||'')}" style="flex:0 0 100px"><label class="cksub" style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="radio" name="ckdef" data-d="${i}" ${s.def?'checked':''}>default</label></div></div></div>`).join('');
-        body.querySelectorAll('#cksrvs [data-k]').forEach(el=>el.addEventListener('change',()=>{const v=typeof el.value==='string'?el.value.trim():el.value;cfg.servers[+el.dataset.i][el.dataset.k]=v;save()}));
-        body.querySelectorAll('#cksrvs [data-d]').forEach(el=>el.addEventListener('change',()=>{cfg.servers.forEach((s,j)=>s.def=j===+el.dataset.d);save()}));
-        body.querySelectorAll('#cksrvs [data-sx]').forEach(b=>b.addEventListener('click',()=>{cfg.servers.splice(+b.dataset.sx,1);save();paintSrvs()}));
-      }
-      function paintDirs(){const el=body.querySelector('#ckdirs');if(!el)return;el.innerHTML=cfg.modelDirs.map((d,i)=>`<span class="ckhwc" style="font-family:var(--mono)">${escHtml(d)}${cfg.modelDirs.length>1?`<i data-x="${i}">✕</i>`:''}</span>`).join('');el.querySelectorAll('[data-x]').forEach(x=>x.addEventListener('click',()=>{cfg.modelDirs.splice(+x.dataset.x,1);save();paintDirs()}))}
-      body.querySelector('#cksadd').addEventListener('click',()=>{cfg.servers.push({name:'Server '+(cfg.servers.length+1),host:'',port:'',python:'None',venv:'~/venv',def:false});save();paintSrvs()});
-      body.querySelector('#ckdadd').addEventListener('click',()=>{const el=body.querySelector('#ckdirs');if(el.querySelector('input'))return;const inp=document.createElement('input');inp.className='ckin';inp.placeholder='/path/to/models';el.appendChild(inp);inp.focus();inp.addEventListener('change',()=>{const v=inp.value.trim();if(v){cfg.modelDirs.push(v);save()}paintDirs()})});
-      paintSrvs();paintDirs();
-    }
-
-    /* — Recipes: existing prompt cookbook (cookbook.mjs) — */
-    function recipes(){
-      if(!Bridge.on()){needBridge(body);return}
-      let cat='';
-      async function load(){let items=[],cats=[];try{items=await RPC('cookbook','list',{category:cat})}catch(e){showErr(body,e);return}try{cats=await RPC('cookbook','categories')}catch(e){}
-        body.innerHTML=`<div class="ckline" style="margin-bottom:6px"><div class="tkchips" id="ckchips"></div><button class="btn mini" id="cknew" style="margin-left:auto">+ recipe</button></div><div id="ckrl"></div>`;
-        const chips=body.querySelector('#ckchips'),list=body.querySelector('#ckrl');
-        chips.innerHTML=`<span class="tkchip ${cat===''?'on':''}" data-c="">all</span>`+cats.map(c=>`<span class="tkchip ${cat===c?'on':''}" data-c="${escAttr(c)}">${escAttr(c)}</span>`).join('');
-        chips.querySelectorAll('.tkchip').forEach(el=>el.addEventListener('click',()=>{cat=el.dataset.c;load()}));
-        list.innerHTML=items.length?items.map(r=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(r.name)}</b> ${(r.builtin||r.isBuiltin)?'<span class="badge">built-in</span>':''}<div class="dim" style="font-size:10px">${escHtml(r.description||'')}</div></div><button class="btn mini" data-run="${r.id}">use</button></div>`).join(''):'<div class="qempty">No recipes.</div>';
-        list.querySelectorAll('[data-run]').forEach(b=>b.addEventListener('click',async()=>{const r=await RPC('cookbook','get',b.dataset.run);runForm(r)}));
-        body.querySelector('#cknew').addEventListener('click',newForm);
-      }
-      function runForm(r){const uniq=[...new Set((String(r.template||'').match(/{{\s*([\w.-]+)\s*}}/g)||[]).map(v=>v.replace(/[{}\s]/g,'')))];
-        body.innerHTML=`<div class="acctform"><div class="afh">${escAttr(r.name)}</div><div class="dim" style="font-size:10px">${escAttr(r.description||'')}</div>`+uniq.map(v=>`<div class="af-row"><label>${escAttr(v)}</label><input data-v="${escAttr(v)}"></div>`).join('')+`<div id="ckout" class="mailtext" style="max-height:200px;overflow:auto"></div><div class="compose-actions"><button class="btn" id="ckrun">RUN</button><button class="btn" id="ckback">← list</button></div></div>`;
-        body.querySelector('#ckrun').addEventListener('click',async()=>{const out=body.querySelector('#ckout');out.textContent='thinking…';const vv={};body.querySelectorAll('[data-v]').forEach(i=>vv[i.dataset.v]=i.value);try{const res=await RPC('cookbook','run',r.id,vv);out.textContent=res.ok?res.output:(res.error||'failed')}catch(e){out.textContent=e.message}});
-        body.querySelector('#ckback').addEventListener('click',load);}
-      function newForm(){body.innerHTML=`<div class="acctform"><div class="afh">New recipe</div><div class="af-row"><label>Name</label><input id="ckn"></div><div class="af-row"><label>Category</label><input id="ckc" value="custom"></div><div class="af-row"><label>Description</label><input id="ckd"></div><textarea id="ckt" placeholder="Template with {{variables}}…" style="min-height:140px"></textarea><div class="compose-actions"><button class="btn" id="cksave">CREATE</button><button class="btn" id="ckcancel">← list</button></div></div>`;body.querySelector('#cksave').addEventListener('click',async()=>{const r=await RPC('cookbook','add',{name:body.querySelector('#ckn').value.trim()||'Recipe',category:body.querySelector('#ckc').value.trim()||'custom',description:body.querySelector('#ckd').value.trim(),template:body.querySelector('#ckt').value});if(r.ok){Toast.show('Created');load()}else Toast.show(r.error||'failed')});body.querySelector('#ckcancel').addEventListener('click',load)}
-      load();
-    }
-    render();
   }
   /* ---------- BROWSER — real Chromium via the CDP web engine (bridge/webengine.mjs),
      painted on a canvas by panels/browser.js. The iframe/proxy-era _wbx and Electron
@@ -13344,379 +12723,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const t=tabs.find(x=>!x.url)||at();if(t){setActive(t.id);nav(t,u)}else newTab(u);
     });
   }
-    /* ---------- GALLERY ---------- */
-  function wireGallery(p){
-    const view=p.querySelector('#glview'),countEl=p.querySelector('#glcount');
-    const S=Store.get();S.gallery=Object.assign({albums:[],favs:[]},S.gallery);const G=S.gallery;
-    let items=[],tab='photos',fav=false,src='all',sort='random',q='',sel=null;
-    const thumbs={},rnd={},rrank=id=>rnd[id]??(rnd[id]=Math.random());
-    const setCount=()=>{countEl.textContent=items.length+(items.length===1?' photo':' photos')};
-    async function refresh(){try{items=await RPC('gallery','list');G.favs=G.favs.filter(id=>items.some(i=>i.id===id));Store.save()}catch(e){items=[]}setCount()}
-    function thumb(cell){const id=cell.dataset.id;if(thumbs[id]){cell.querySelector('img').src=thumbs[id];return}
-      RPC('gallery','get',id).then(d=>{if(d&&d.dataUri){thumbs[id]=d.dataUri;const im=cell.querySelector('img');if(im)im.src=d.dataUri}}).catch(()=>{})}
-    function visible(){let v=items.filter(i=>src==='all'||((i.tags||[]).includes('generated')?src==='generated':src==='imported'));
-      if(fav)v=v.filter(i=>G.favs.includes(i.id));
-      if(q)v=v.filter(i=>((i.prompt||'')+' '+(i.tags||[]).join(' ')).toLowerCase().includes(q));
-      if(sort==='newest')v.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-      else if(sort==='oldest')v.sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
-      else if(sort==='name')v.sort((a,b)=>String(a.prompt||'').localeCompare(String(b.prompt||'')));
-      else v.sort((a,b)=>rrank(a.id)-rrank(b.id));
-      return v}
-    function addFiles(fl,done){const files=[...fl].filter(f=>f.type.startsWith('image/'));
-      if(!files.length){Toast.show('Images only');return}
-      let n=0;files.forEach(f=>{const rd=new FileReader();rd.onload=async()=>{
-        const b64=String(rd.result).split(',')[1];
-        const r=await RPC('gallery','add',{prompt:f.name,mimeType:f.type,contentBase64:b64});
-        if(!r.ok)Toast.show(r.error||'import failed');
-        if(++n===files.length){Toast.show('Imported');await refresh();done()}};rd.readAsDataURL(f)})}
-    function imgConfig(back){view.innerHTML=`<div class="acctform"><div class="afh">Image provider (BYOK)</div><div class="af-row"><label>Provider</label><select id="ipp"><option value="openai">OpenAI (gpt-image-1)</option><option value="stability">Stability</option></select></div><div class="af-row"><label>API key</label><input id="ipk" type="password"></div><div class="compose-actions"><button class="btn" id="ipsave">SAVE</button><button class="btn" id="ipcancel">← back</button></div></div>`;
-      RPC('images','providers').then(ps=>{const s=view.querySelector('#ipp');if(Array.isArray(ps)&&ps.length&&s)s.innerHTML=ps.map(x=>`<option value="${escAttr(x.id)}">${escAttr(x.label)}</option>`).join('')}).catch(()=>{});
-      view.querySelector('#ipsave').addEventListener('click',async()=>{const r=await RPC('images','config',{provider:view.querySelector('#ipp').value,apiKey:view.querySelector('#ipk').value});if(r.ok){Toast.show('Provider configured');back()}else Toast.show(r.error||'failed')});
-      view.querySelector('#ipcancel').addEventListener('click',back);}
-    function renderPhotos(){
-      if(!Bridge.on()){needBridge(view);return}
-      view.innerHTML=`<div class="glbar"><input id="glq" placeholder="Search photos, tags…"><select id="glsrc"><option value="all">All sources</option><option value="imported">Imported</option><option value="generated">Generated</option></select><select id="glsort"><option value="random">Random</option><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="name">Name</option></select><button class="btn mini" id="glselect">Select</button></div><div class="glchips"><button class="glchip" id="glall">All</button><button class="glchip" id="glfavc">♥</button></div><div class="glgenrow"><input id="glprompt" placeholder="describe an image to generate…"><button class="btn mini" id="glgen">generate</button></div><div id="glmsg" style="font-size:10px;padding:2px 0"></div><div id="glgw"></div>`;
-      const gw=view.querySelector('#glgw'),qEl=view.querySelector('#glq');
-      qEl.value=q;view.querySelector('#glsrc').value=src;view.querySelector('#glsort').value=sort;
-      const chips=()=>{view.querySelector('#glall').classList.toggle('on',!fav);view.querySelector('#glfavc').classList.toggle('on',fav)};
-      function draw(){const v=visible();
-        gw.innerHTML=`${sel?`<div class="glselbar"><span class="dim">${sel.size} selected</span><span style="flex:1"></span><button class="btn mini" id="glalb">+ album</button><button class="btn mini" id="gldel">delete</button><button class="btn mini" id="glselx">✕</button></div>`:''}<div class="glgrid"><div class="gldrop" id="gldrop"><svg class="glupico"><use href="#i-frame"/></svg><span>Upload</span></div>${v.map(i=>{const on=sel&&sel.has(i.id),fv=G.favs.includes(i.id);return `<div class="glcell${on?' glon':''}" data-id="${i.id}"><img alt="${escAttr(i.prompt||'')}">${sel?'':`<button class="btn mini" data-rm="${i.id}">✕</button><button class="glfav${fv?' on':''}" data-fav="${i.id}">♥</button>`}</div>`}).join('')}${v.length?'':'<div class="glhint">No photos yet. Click Upload or drag-and-drop to get started!</div>'}</div>`;
-        const drop=gw.querySelector('#gldrop');
-        drop.addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;inp.onchange=()=>addFiles(inp.files,draw);inp.click()});
-        drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('glover')});
-        drop.addEventListener('dragleave',()=>drop.classList.remove('glover'));
-        drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('glover');addFiles(e.dataTransfer.files,draw)});
-        gw.querySelectorAll('.glcell').forEach(c=>{thumb(c);c.addEventListener('click',()=>{if(!sel)return;const id=c.dataset.id;sel.has(id)?sel.delete(id):sel.add(id);draw()})});
-        gw.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('gallery','remove',b.dataset.rm);await refresh();draw()}));
-        gw.querySelectorAll('[data-fav]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const id=b.dataset.fav,ix=G.favs.indexOf(id);ix<0?G.favs.push(id):G.favs.splice(ix,1);Store.save();draw()}));
-        if(!sel)return;
-        gw.querySelector('#glselx').addEventListener('click',()=>{sel=null;view.querySelector('#glselect').textContent='Select';draw()});
-        gw.querySelector('#gldel').addEventListener('click',async()=>{if(!sel.size){Toast.show('Nothing selected');return}for(const id of sel)await RPC('gallery','remove',id);Toast.show(sel.size+' removed');sel=new Set();await refresh();draw()});
-        gw.querySelector('#glalb').addEventListener('click',()=>{if(!sel.size){Toast.show('Nothing selected');return}const bar=gw.querySelector('.glselbar');
-          bar.innerHTML=`<select id="glpick">${G.albums.map(a=>`<option value="${a.id}">${escHtml(a.name)}</option>`).join('')}<option value="__new">+ new album…</option></select><input id="glpn" placeholder="album name" style="display:none"><span style="flex:1"></span><button class="btn mini" id="glpok">add</button><button class="btn mini" id="glpx">✕</button>`;
-          const pk=bar.querySelector('#glpick'),pn=bar.querySelector('#glpn');
-          if(!G.albums.length){pk.value='__new';pn.style.display=''}
-          pk.addEventListener('change',()=>{pn.style.display=pk.value==='__new'?'':'none'});
-          bar.querySelector('#glpx').addEventListener('click',draw);
-          bar.querySelector('#glpok').addEventListener('click',()=>{let al;
-            if(pk.value==='__new'){const nm=pn.value.trim();if(!nm){Toast.show('Album name?');return}al={id:'al'+Date.now().toString(36),name:nm,ids:[]};G.albums.push(al)}
-            else al=G.albums.find(a=>a.id===pk.value);
-            if(!al)return;for(const id of sel)if(!al.ids.includes(id))al.ids.push(id);
-            Store.save();Toast.show('Added to '+al.name);sel=null;view.querySelector('#glselect').textContent='Select';draw()});});}
-      qEl.addEventListener('input',()=>{q=qEl.value.trim().toLowerCase();draw()});
-      view.querySelector('#glsrc').addEventListener('change',e=>{src=e.target.value;draw()});
-      view.querySelector('#glsort').addEventListener('change',e=>{sort=e.target.value;draw()});
-      view.querySelector('#glselect').addEventListener('click',e=>{sel=sel?null:new Set();e.target.textContent=sel?'Cancel':'Select';draw()});
-      view.querySelector('#glall').addEventListener('click',()=>{fav=false;chips();draw()});
-      view.querySelector('#glfavc').addEventListener('click',()=>{fav=!fav;chips();draw()});
-      const gen=async()=>{const prompt=view.querySelector('#glprompt').value.trim(),msg=view.querySelector('#glmsg');
-        if(!prompt){Toast.show('Describe the image');return}
-        let st={configured:false};try{st=await RPC('images','status')}catch(e){}
-        if(!st.configured)return imgConfig(renderPhotos);
-        msg.style.color='var(--ink-faint)';msg.textContent='generating… (may take a while)';
-        try{const r=await RPC('images','generate',{prompt});if(r.ok){msg.textContent='';Toast.show('Image generated');await refresh();draw()}else{msg.style.color='var(--accent)';msg.textContent='✗ '+(r.error||'failed')}}catch(e){msg.style.color='var(--accent)';msg.textContent=e.message}};
-      view.querySelector('#glgen').addEventListener('click',gen);
-      view.querySelector('#glprompt').addEventListener('keydown',e=>{if(e.key==='Enter')gen()});
-      chips();draw();
-    }
-    function renderAlbums(){
-      view.innerHTML=`<div class="glbar"><span class="glhd">Albums</span><span style="flex:1"></span><button class="btn mini" id="glnal">+ album</button></div><div id="glalist"></div>`;
-      const list=view.querySelector('#glalist');
-      function draw(){list.innerHTML=G.albums.length?G.albums.map(a=>`<div class="lprow" data-al="${a.id}"><div style="flex:1;min-width:0"><b>${escHtml(a.name)}</b><div class="dim" style="font-size:10px">${a.ids.length} photo${a.ids.length===1?'':'s'}</div></div><button class="btn mini" data-rm="${a.id}">✕</button></div>`).join(''):'<div class="qempty">No albums yet. Create one to organize your photos.</div>';
-        list.querySelectorAll('.lprow').forEach(el=>el.addEventListener('click',e=>{if(e.target.dataset.rm)return;const a=G.albums.find(x=>x.id===el.dataset.al);if(a)renderAlbum(a)}));
-        list.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();G.albums=G.albums.filter(a=>a.id!==b.dataset.rm);Store.save();draw()}));}
-      view.querySelector('#glnal').addEventListener('click',()=>{const bar=view.querySelector('.glbar');
-        bar.innerHTML=`<input id="glnn" placeholder="album name"><button class="btn mini" id="glnok">create</button><button class="btn mini" id="glnx">✕</button>`;
-        const nn=bar.querySelector('#glnn');nn.focus();
-        const ok=()=>{const nm=nn.value.trim();if(!nm){Toast.show('Album name?');return}G.albums.push({id:'al'+Date.now().toString(36),name:nm,ids:[]});Store.save();renderAlbums()};
-        bar.querySelector('#glnok').addEventListener('click',ok);
-        nn.addEventListener('keydown',e=>{if(e.key==='Enter')ok()});
-        bar.querySelector('#glnx').addEventListener('click',renderAlbums);});
-      draw();
-    }
-    function renderAlbum(a){
-      const ids=Bridge.on()?a.ids.filter(id=>items.some(i=>i.id===id)):a.ids.slice();
-      view.innerHTML=`<div class="glbar"><button class="btn mini" id="glbk">← albums</button><span class="glhd">${escHtml(a.name)}</span><span class="dim" style="font-size:10px">${ids.length} photo${ids.length===1?'':'s'}</span></div>${ids.length?'<div class="glgrid">'+ids.map(id=>`<div class="glcell" data-id="${id}"><img alt=""><button class="btn mini" data-out="${id}">✕</button></div>`).join('')+'</div>':'<div class="qempty">Empty album. Select photos in the Photos tab, then “+ album”.</div>'}`;
-      view.querySelector('#glbk').addEventListener('click',renderAlbums);
-      view.querySelectorAll('.glcell').forEach(c=>thumb(c));
-      view.querySelectorAll('[data-out]').forEach(b=>b.addEventListener('click',()=>{a.ids=a.ids.filter(x=>x!==b.dataset.out);Store.save();renderAlbum(a)}));
-    }
-    // Canvas editing REMOVED (owner's decision 2026-07-25): the gallery is photos +
-    // albums + settings — no image editor is planned for CLONE FRAME.
-    async function renderSettings(){
-      view.innerHTML=`<div class="glcard"><div class="glcardh">AI Tagging</div><div class="glcardtx">Auto-tag photos by content with your <a id="glvm">vision model</a>. Your own tags are kept.</div><div class="glcardbtns"><button class="btn mini" id="glct">Clear AI tags</button><button class="btn mini" id="glst"><svg class="glbico"><use href="#i-chip"/></svg>Start AI tag</button></div></div><div class="glcard"><div class="glcardh">Image provider (BYOK)</div><div class="glcardtx" id="glpst">checking…</div><div class="glcardbtns"><button class="btn mini" id="glpc">Configure…</button><button class="btn mini" id="glpr" style="display:none">Remove key</button></div></div>`;
-      view.querySelector('#glvm').addEventListener('click',()=>openPanel('brain'));
-      view.querySelector('#glst').addEventListener('click',()=>Toast.show('AI tagging — coming soon'));
-      view.querySelector('#glct').addEventListener('click',()=>Toast.show('AI tagging — coming soon'));
-      const st=view.querySelector('#glpst'),rm=view.querySelector('#glpr');
-      view.querySelector('#glpc').addEventListener('click',()=>{if(!Bridge.on()){Toast.show('Bridge offline');return}imgConfig(renderSettings)});
-      rm.addEventListener('click',async()=>{await RPC('images','removeConfig');Toast.show('Provider removed');renderSettings()});
-      if(!Bridge.on()){st.textContent='Bridge offline — connect it to configure image generation.';return}
-      try{const r=await RPC('images','status');if(r.configured){st.textContent='Configured: '+r.provider+(r.model?' · '+r.model:'');rm.style.display=''}else st.textContent='No provider configured. Generation asks for a key on first use.'}catch(e){st.textContent='status unavailable'}
-    }
-    function setTab(t){tab=t;sel=null;p.querySelectorAll('.gltab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-      if(t==='photos')renderPhotos();else if(t==='albums')renderAlbums();else renderSettings()}
-    p.querySelectorAll('.gltab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.t)));
-    setCount();
-    if(Bridge.on())refresh().then(()=>setTab(tab));else setTab(tab);
-  }
-  /* ---------- COMPARE ---------- */
-  function wireCompare(p){
-    const body=p.querySelector('#cmpbody'),cfg=p.querySelector('#cmpcfg');
-    if(!Bridge.on()){needBridge(body);return}
-    const DEF={blind:true,parallel:true,shuffle:false,type:'chat',timeout:300,models:[]};
-    let st=Object.assign({},DEF,Store.get().compareCfg||{});
-    // pid = the provider that serves this model. Without it the run went to whichever
-    // provider sorted first, so a cross-vendor comparison hit one vendor with every model.
-    // Older saved selections carry only a display label — they still run, unrouted, as before.
-    st.models=(st.models||[]).map(m=>typeof m==='string'?{model:m,prov:'',pid:''}:Object.assign({pid:''},m)).filter(m=>m&&m.model);
-    const shortModel=s=>{const i=String(s).indexOf('::');return i>0?String(s).slice(i+2):String(s)};
-    const wireId=m=>m.pid?m.pid+'::'+m.model:m.model;
-    const tOut=()=>Math.max(5,Math.min(3600,parseInt(cfg.querySelector('#cmptimeout').value,10)||300));
-    function renderCfg(){
-      cfg.innerHTML=`<div class="cmpv2sub">Select models to compare side-by-side. Send the same prompt to all.</div>
-        <div class="cmpv2lbl">Mode:</div>
-        <div class="cmpv2chips">
-          <button class="cmpv2chip${st.blind?' on':''}" data-mode="blind"><span class="cmpv2ci">⊘</span>Blind</button>
-          <button class="cmpv2chip${st.parallel?' on':''}" data-mode="parallel"><span class="cmpv2ci">≡</span>Parallel</button>
-          <button class="cmpv2chip${st.shuffle?' on':''}" data-mode="shuffle"><span class="cmpv2ci">⇄</span>Shuffle</button>
-          <button class="cmpv2chip" data-act="save"><span class="cmpv2ci">↧</span>Save</button>
-          <button class="cmpv2chip" data-act="reset"><span class="cmpv2ci">↺</span>Reset</button>
-        </div>
-        <div class="cmpv2lbl">Type:</div>
-        <div class="cmpv2chips">
-          <button class="cmpv2chip${st.type==='chat'?' on':''}" data-type="chat"><span class="cmpv2ci">❝</span>Chat</button>
-          <button class="cmpv2chip" data-type="agent"><span class="cmpv2ci">&gt;_</span>Agent</button>
-          <button class="cmpv2chip" data-type="search"><span class="cmpv2ci">⌕</span>Search</button>
-          <button class="cmpv2chip" data-type="research"><span class="cmpv2ci">⌕+</span>Research</button>
-        </div>
-        <div class="cmpv2mlist" id="cmpmlist"></div>
-        <button class="cmpv2add" id="cmpadd">+ Add Model</button>
-        <div class="cmpv2pick" id="cmppick" hidden></div>
-        <div class="cmpv2foot"><label>Timeout:</label><input id="cmptimeout" type="number" min="5" max="3600" value="${st.timeout}"><span>seconds</span><button class="btn mini" id="cmpboard">⊞ Scoreboard</button></div>
-        <div class="cmpv2div"></div>
-        <div class="cmpv2run"><textarea id="cmpprompt" placeholder="prompt to send to all models…"></textarea><button class="cmpv2start" id="cmprun">▶ Start</button></div>`;
-      cfg.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.mode;st[k]=!st[k];b.classList.toggle('on',st[k])}));
-      cfg.querySelector('[data-act="save"]').addEventListener('click',()=>{st.timeout=tOut();Store.get().compareCfg=JSON.parse(JSON.stringify(st));Store.save();Toast.show('Comparison setup saved')});
-      cfg.querySelector('[data-act="reset"]').addEventListener('click',()=>{st=Object.assign({},DEF,{models:[]});delete Store.get().compareCfg;Store.save();renderCfg();Toast.show('Reset to defaults')});
-      cfg.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.type;
-        if(t!=='chat'){Toast.show(t[0].toUpperCase()+t.slice(1)+' runs — coming soon');return}
-        st.type='chat';cfg.querySelectorAll('[data-type]').forEach(x=>x.classList.toggle('on',x.dataset.type==='chat'))}));
-      cfg.querySelector('#cmptimeout').addEventListener('change',()=>{st.timeout=tOut()});
-      cfg.querySelector('#cmpadd').addEventListener('click',()=>{const pk=cfg.querySelector('#cmppick');if(pk.hidden)picker();else pk.hidden=true});
-      cfg.querySelector('#cmpboard').addEventListener('click',scoreboard);
-      cfg.querySelector('#cmprun').addEventListener('click',runCompare);
-      renderList();
-    }
-    function renderList(){const el=cfg.querySelector('#cmpmlist');
-      el.innerHTML=st.models.length?st.models.map((m,i)=>`<div class="cmpv2mrow"><button class="cmpv2mx" data-i="${i}" title="remove">✕</button><div class="cmpv2mfield">${escHtml(m.model)}${m.prov?' ('+escHtml(m.prov)+')':''}</div></div>`).join(''):'<div class="cmpv2mrow"><div class="cmpv2mfield dimmed">no models selected — use + Add Model</div></div>';
-      el.querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>{st.models.splice(+b.dataset.i,1);renderList();const pk=cfg.querySelector('#cmppick');if(!pk.hidden)picker()}));}
-    async function picker(){const pk=cfg.querySelector('#cmppick');pk.hidden=false;pk.innerHTML='<div class="qempty">loading models…</div>';
-      let provs=[];try{provs=await RPC('models','listProviders')}catch(e){pk.innerHTML='<div class="qempty">'+escHtml(e.message||'failed to list providers')+'</div>';return}
-      provs=(provs||[]).filter(pr=>pr.enabled!==false);
-      if(!provs.length){pk.innerHTML='<div class="qempty">No providers connected — add models in Brain.</div><button class="btn mini" id="cmpbrain" style="align-self:center">open Brain</button>';pk.querySelector('#cmpbrain').addEventListener('click',()=>openPanel('brain'));return}
-      // Keyed by provider AND model: two vendors can offer the same model name, and one
-      // checkbox must not tick for both. Selections saved before this carry no provider —
-      // they still run unrouted, and ticking that model here replaces them with a routed one.
-      const sel=new Set(st.models.filter(m=>m.pid).map(wireId));
-      pk.innerHTML=provs.map(pr=>{const lb=pr.label||pr.provider,off=new Set(pr.disabledModels||[]),ms=(pr.models||[]).filter(m=>!off.has(m));
-        return `<div class="cmpv2ph">${escAttr(lb)}</div>`+(ms.length?ms.map(m=>`<label class="cmpv2pl"><input type="checkbox" data-m="${escAttr(m)}" data-p="${escAttr(pr.id)}" data-l="${escAttr(lb)}"${sel.has(pr.id+'::'+m)?' checked':''}>${escAttr(m)}</label>`).join(''):`<button class="btn mini" data-load="${escAttr(pr.id)}" style="align-self:flex-start">load models</button>`)}).join('');
-      pk.querySelectorAll('input[data-m]').forEach(c=>c.addEventListener('change',()=>{const m=c.dataset.m,pid=c.dataset.p,lb=c.dataset.l;
-        st.models=st.models.filter(x=>!(x.model===m&&(x.pid===pid||!x.pid))); // clear this exact pick and any unrouted leftover
-        if(c.checked)st.models.push({model:m,prov:lb,pid});
-        renderList()}));
-      pk.querySelectorAll('[data-load]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='probing…';try{await RPC('models','listModels',b.dataset.load)}catch(e){}picker()}));}
-    function renderResults(results){
-      let arr=(results||[]).slice();
-      if(st.shuffle)for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}
-      if(!arr.length){body.innerHTML='<div class="qempty">No results.</div>';return}
-      const blind=st.blind&&arr.length>1;
-      body.innerHTML=(blind?'<div class="cmpv2rev"><span class="dim">blind mode — model names hidden</span><button class="btn mini" id="cmpreveal">reveal</button></div>':'')+
-        // The wire id carries the provider; the column header shows the model, not the id.
-        '<div class="cmpgrid">'+arr.map((x,i)=>`<div class="cmpcol"><div class="cmphd"><span class="cmpv2nm" data-real="${escAttr(shortModel(x.model))}">${blind?'MODEL '+String.fromCharCode(65+i):escAttr(shortModel(x.model))}</span> <span class="dim">${x.ms?x.ms+'ms':''}</span></div><div class="cmptext">${x.error?'<span style="color:var(--accent)">'+escAttr(x.error)+'</span>':escAttr(x.text||'')}</div></div>`).join('')+'</div>';
-      if(blind)body.querySelector('#cmpreveal').addEventListener('click',()=>{body.querySelectorAll('.cmpv2nm').forEach(n=>{n.textContent=n.dataset.real});body.querySelector('#cmpreveal').remove()});}
-    async function runCompare(){
-      const prompt=cfg.querySelector('#cmpprompt').value.trim(),models=st.models.map(wireId);
-      if(!prompt||!models.length){Toast.show('Prompt + at least one model');return}
-      const timeoutMs=tOut()*1000;
-      try{
-        let results=[];
-        if(st.parallel){
-          body.innerHTML='<div class="qempty">running on '+models.length+' models in parallel…</div>';
-          const r=await RPC('compare','run',{prompt,models,timeoutMs});
-          results=r.results||[];
-          if(r.error&&!results.length){body.innerHTML='<div class="qempty">'+escHtml(r.error)+'</div>';return}
-        }else{
-          for(let i=0;i<models.length;i++){
-            body.innerHTML='<div class="qempty">running '+escHtml(shortModel(models[i]))+' ('+(i+1)+'/'+models.length+')…</div>';
-            const r=await RPC('compare','run',{prompt,models:[models[i]],timeoutMs});
-            results.push(...(r.results||[]));
-          }
-        }
-        renderResults(results);
-      }catch(e){showErr(body,e)}}
-    async function scoreboard(){
-      let runs=[];try{runs=await RPC('compare','history',{limit:20})}catch(e){showErr(body,e);return}
-      body.innerHTML='<div class="cmpv2rev"><span class="dim">scoreboard — past runs (click to view)</span></div>'+
-        (runs.length?runs.map(r=>`<div class="lprow" data-id="${escAttr(r.id)}"><div style="flex:1;min-width:0"><b>${escAttr((r.prompt||'').slice(0,80))}</b><div class="dim" style="font-size:10px">${(r.models||[]).length} models · ${fmtTS(r.createdAt)}</div></div><button class="btn mini" data-del="${escAttr(r.id)}">✕</button></div>`).join(''):'<div class="qempty">No runs yet. Press Start to create the first.</div>');
-      body.querySelectorAll('.lprow[data-id]').forEach(row=>row.addEventListener('click',async()=>{try{const run=await RPC('compare','get',row.dataset.id);if(run)renderResults(run.results||[])}catch(e){showErr(body,e)}}));
-      body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('compare','remove',b.dataset.del);scoreboard()}));}
-    renderCfg();
-    body.innerHTML='<div class="qempty">Add models, write a prompt, press Start.</div>';
-  }
-  /* ---------- CALENDAR ---------- */
-  function wireCalendar(p){
-    const root=p.querySelector('#calroot');
-    if(!Bridge.on()){needBridge(root);return}
-    const pad=n=>String(n).padStart(2,'0'),dISO=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,fmtD=d=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
-    const MO=['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const WD=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
-    const DOW={mon:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],sun:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
-    const today=new Date();let cur=new Date(today.getFullYear(),today.getMonth(),1),sel=new Date(today),tab='month',conn={connected:false};
-    const ws=()=>Store.get().calWeekStart||'mon',calName=()=>Store.get().calName||'Personal';
-    async function refresh(){try{conn=await RPC('calendar','status')}catch(e){conn={connected:false}}}
-    /* ── (A) month view ── */
-    async function main(){await refresh();
-      root.innerHTML=`
-      <div class="cal2bar">
-        <button class="btn mini" id="c2prev" title="Previous month">‹</button><button class="btn mini" id="c2today">Today</button><span class="cal2mo">${MO[cur.getMonth()]} ${cur.getFullYear()}</span><button class="btn mini" id="c2next" title="Next month">›</button>
-        <div class="cal2tabs">${['Week','Month','Year','Agenda'].map(t=>`<button class="cal2tab${tab===t.toLowerCase()?' on':''}" data-tab="${t.toLowerCase()}">${t}</button>`).join('')}</div>
-        <button class="cal2ico" id="c2set" title="Calendar settings"><svg><use href="#i-gear"/></svg></button>
-        <button class="cal2ico" id="c2sync" title="Refresh">⟳</button>
-        <button class="btn mini cal2pri" id="c2new">+ New</button>
-      </div>
-      <div class="cal2quick"><input id="c2q" placeholder="Quick add — council on Ithaca Monday 2pm"><span class="cal2ret">↵</span></div>
-      ${conn.connected?'':`<div class="cal2conn"><span class="dim">CalDAV not connected — events won't sync.</span><button class="btn mini" id="c2conn">connect CalDAV</button></div>`}
-      <div class="cal2body" id="c2body"></div>
-      <div class="cal2foot"><button class="cal2ico" id="c2more" title="More">…</button><div class="cal2menu" id="c2menu" hidden></div></div>`;
-      root.querySelector('#c2prev').addEventListener('click',()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);main()});
-      root.querySelector('#c2next').addEventListener('click',()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);main()});
-      root.querySelector('#c2today').addEventListener('click',()=>{cur=new Date(today.getFullYear(),today.getMonth(),1);sel=new Date(today);main()});
-      root.querySelectorAll('.cal2tab').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.tab;if(t==='week'||t==='year'){Toast.show(t[0].toUpperCase()+t.slice(1)+' view — coming soon');return}tab=t;main()}));
-      root.querySelector('#c2set').addEventListener('click',settings);
-      root.querySelector('#c2sync').addEventListener('click',main);
-      root.querySelector('#c2new').addEventListener('click',()=>composer(sel));
-      const q=root.querySelector('#c2q');q.addEventListener('keydown',e=>{if(e.key==='Enter'&&q.value.trim())quickAdd(q.value.trim())});
-      const cbtn=root.querySelector('#c2conn');if(cbtn)cbtn.addEventListener('click',connForm);
-      const menu=root.querySelector('#c2menu');
-      root.querySelector('#c2more').addEventListener('click',()=>{if(!menu.hidden){menu.hidden=true;return}
-        menu.innerHTML=conn.connected?'<button class="btn mini" id="c2dis">disconnect CalDAV</button>':'<button class="btn mini" id="c2co2">connect CalDAV</button>';menu.hidden=false;
-        const d=menu.querySelector('#c2dis');if(d)d.addEventListener('click',async()=>{await RPC('calendar','disconnect');Toast.show('Calendar disconnected');main()});
-        const c=menu.querySelector('#c2co2');if(c)c.addEventListener('click',connForm)});
-      if(tab==='agenda')agenda();else grid();}
-    async function grid(){const body=root.querySelector('#c2body');
-      const off=ws()==='sun'?cur.getDay():(cur.getDay()+6)%7;
-      const start=new Date(cur.getFullYear(),cur.getMonth(),1-off);
-      const days=[...Array(42)].map((_,i)=>new Date(start.getFullYear(),start.getMonth(),start.getDate()+i));
-      let ev=[];if(conn.connected){try{ev=await RPC('calendar','events',{from:days[0].toISOString(),to:new Date(+days[41]+86400000).toISOString()})}catch(e){}}
-      const byDay={};ev.forEach(e=>{const k=String(e.start||'').slice(0,10);(byDay[k]=byDay[k]||[]).push(e)});
-      const tISO=dISO(today),sISO=dISO(sel);
-      body.innerHTML=`<div class="cal2grid cal2dowr">${DOW[ws()].map(d=>`<div class="cal2dow">${d}</div>`).join('')}</div>
-        <div class="cal2grid cal2days">${days.map(d=>{const k=dISO(d),out=d.getMonth()!==cur.getMonth(),evs=byDay[k]||[];
-          return `<div class="cal2cell${out?' out':''}${!out&&k===sISO?' sel':''}"${out?'':` data-day="${k}"`}><span class="cal2num${k===tISO?' today':''}">${d.getDate()}</span>${evs.slice(0,3).map(e=>`<span class="cal2ev" title="${escAttr(e.summary||'')}">${escAttr(e.summary||'(event)')}</span>`).join('')}${evs.length>3?`<span class="cal2evmore">+${evs.length-3}</span>`:''}</div>`}).join('')}</div>`;
-      body.querySelectorAll('[data-day]').forEach(c=>c.addEventListener('click',()=>{const[y,m,d]=c.dataset.day.split('-').map(Number);sel=new Date(y,m-1,d);
-        body.querySelectorAll('.cal2cell.sel').forEach(x=>x.classList.remove('sel'));c.classList.add('sel')}));}
-    async function agenda(){const body=root.querySelector('#c2body');
-      if(!conn.connected){body.innerHTML='<div class="qempty">Connect a CalDAV calendar to see your events.</div>';return}
-      let ev=[];try{ev=await RPC('calendar','upcoming',{limit:30})}catch(e){showErr(body,e);return}
-      body.innerHTML=ev.length?ev.map(e=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escAttr(e.summary||'(event)')}</b><div class="dim" style="font-size:10px">${fmtTS(e.start)}${e.location?' · '+escAttr(e.location):''}</div></div><button class="btn mini" data-del="${escAttr(e.uid)}">✕</button></div>`).join(''):'<div class="qempty">No upcoming events.</div>';
-      body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{await RPC('calendar','deleteEvent',b.dataset.del);agenda()}));}
-    async function quickAdd(t){let title=t,d=new Date(sel),h=9,mi=0;
-      const tm=t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)||t.match(/\b(\d{1,2}):(\d{2})\b/);
-      if(tm){h=+tm[1];mi=+(tm[2]||0);const ap=(tm[3]||'').toLowerCase();if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;title=title.replace(tm[0],'')}
-      const dm=t.match(/\b(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i);
-      if(dm){const w=dm[1].toLowerCase();d=new Date(today);if(w==='tomorrow')d.setDate(d.getDate()+1);else if(w!=='today'){d.setDate(d.getDate()+((WD.indexOf(w)-d.getDay()+7)%7||7))}title=title.replace(dm[0],'')}
-      title=title.replace(/\b(on|at)\s*$/i,'').replace(/\s{2,}/g,' ').trim()||t;
-      const start=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,mi);
-      const r=await RPC('calendar','createEvent',{summary:title,start:start.toISOString(),end:new Date(+start+3600000).toISOString()});
-      if(r.ok){Toast.show('Event created — '+title);main()}else Toast.show(r.error||'failed');}
-    function connForm(){root.innerHTML=`<div class="acctform"><div class="afh">Connect CalDAV</div><div class="af-row"><label>URL</label><input id="cvu" placeholder="https://…/caldav/…/"></div><div class="af-row"><label>Username</label><input id="cvus"></div><div class="af-row"><label>Password</label><input id="cvp" type="password"></div><div id="cvmsg" style="font-size:10px"></div><div class="compose-actions"><button class="btn cal2pri" id="cvsave">CONNECT</button><button class="btn" id="cvback">← back</button></div></div>`;
-      root.querySelector('#cvback').addEventListener('click',main);
-      root.querySelector('#cvsave').addEventListener('click',async()=>{const m=root.querySelector('#cvmsg');m.textContent='connecting…';const r=await RPC('calendar','connect',{url:root.querySelector('#cvu').value.trim(),user:root.querySelector('#cvus').value.trim(),pass:root.querySelector('#cvp').value});if(r.ok){Toast.show('Calendar connected');main()}else{m.style.color='var(--accent)';m.textContent=r.error||'failed'}});}
-    /* ── (B) settings ── */
-    async function settings(){await refresh();const w=ws();
-      root.innerHTML=`<div class="cal2set">
-        <div class="cal2sethd"><button class="btn mini" id="csback">←</button><span>Calendar Settings</span></div>
-        <div class="sethead">YOUR CALENDARS</div>
-        ${conn.connected?`<div class="cal2calrow"><span class="cal2dot"></span><input id="csname" value="${escAttr(calName())}"><button class="btn mini" id="csdel" title="Remove calendar">✕</button></div><div class="dim" style="font-size:10px;margin-top:3px">${escAttr(conn.url||'')}</div>`:'<div class="qempty" style="padding:10px 0">No calendar connected.</div>'}
-        <button class="btn mini" id="csnew" style="margin-top:8px">+ New calendar</button>
-        <div class="sethead">IMPORT CALENDAR</div>
-        <button class="btn mini" id="csimp">↥ Import .ics</button><div class="cal2help">Add events from an .ics file into your connected calendar.</div>
-        <div class="sethead">EXPORT CALENDAR</div>
-        <button class="btn mini" id="csexp">↧ ${escHtml(calName())}</button><div class="cal2help">Download the next 12 months as an .ics file.</div>
-        <div class="sethead">WEEK STARTS ON</div>
-        <div class="cal2tabs" style="margin:0;display:inline-flex">${[['mon','Monday'],['sun','Sunday']].map(([k,l])=>`<button class="cal2tab${w===k?' on':''}" data-ws="${k}">${l}</button>`).join('')}</div>
-        <div class="sethead">SYNC</div>
-        <button class="btn mini" id="cssync">⟳ Sync now</button><div class="cal2help">Live CalDAV sync also runs on every refresh. Manage connections in <a href="#" id="csint">Settings → Integrations</a>.</div>
-      </div>`;
-      root.querySelector('#csback').addEventListener('click',main);
-      const nm=root.querySelector('#csname');if(nm)nm.addEventListener('change',()=>{Store.get().calName=nm.value.trim()||'Personal';Store.save()});
-      const del=root.querySelector('#csdel');if(del)del.addEventListener('click',async()=>{await RPC('calendar','disconnect');Toast.show('Calendar removed');settings()});
-      root.querySelector('#csnew').addEventListener('click',connForm);
-      root.querySelector('#csimp').addEventListener('click',importIcs);
-      root.querySelector('#csexp').addEventListener('click',exportIcs);
-      root.querySelectorAll('[data-ws]').forEach(b=>b.addEventListener('click',()=>{Store.get().calWeekStart=b.dataset.ws;Store.save();settings()}));
-      root.querySelector('#cssync').addEventListener('click',async()=>{if(!conn.connected){Toast.show('Connect a calendar first');return}const ev=await RPC('calendar','events',{});Toast.show('Synced — '+ev.length+' events')});
-      root.querySelector('#csint').addEventListener('click',e=>{e.preventDefault();openPanel('integrations')});}
-    function importIcs(){if(!conn.connected){Toast.show('Connect a calendar first');return}
-      const f=document.createElement('input');f.type='file';f.accept='.ics,text/calendar';
-      f.addEventListener('change',async()=>{const file=f.files[0];if(!file)return;const text=await file.text();
-        const un=text.replace(/\r?\n[ \t]/g,''),evs=[],re=/BEGIN:VEVENT([\s\S]*?)END:VEVENT/gi;let m;
-        while((m=re.exec(un))!==null){const b=m[1],g=k=>{const r=b.match(new RegExp('^'+k+'[^:\\r\\n]*:(.*)$','mi'));return r?r[1].trim():''};
-          const iso=v=>{const x=v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/);return x?(x[4]?`${x[1]}-${x[2]}-${x[3]}T${x[4]}:${x[5]}:${x[6]||'00'}${x[7]||''}`:`${x[1]}-${x[2]}-${x[3]}`):''};
-          const ut=v=>v.replace(/\\n/gi,' ').replace(/\\([,;\\])/g,'$1');
-          const st=iso(g('DTSTART'));if(!st)continue;
-          evs.push({summary:ut(g('SUMMARY'))||'(imported)',start:st,end:iso(g('DTEND'))||st,location:ut(g('LOCATION'))})}
-        if(!evs.length){Toast.show('No events found in file');return}
-        Toast.show('Importing '+evs.length+' events…');let ok=0;
-        for(const e of evs){const r=await RPC('calendar','createEvent',e);if(r.ok)ok++}
-        Toast.show('Imported '+ok+'/'+evs.length+' events');settings()});
-      f.click();}
-    async function exportIcs(){if(!conn.connected){Toast.show('Connect a calendar first');return}
-      let ev=[];try{ev=await RPC('calendar','events',{from:new Date().toISOString(),to:new Date(Date.now()+365*86400000).toISOString()})}catch(e){Toast.show('export failed');return}
-      if(!ev.length){Toast.show('No events to export');return}
-      const dt=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)?';VALUE=DATE:'+v.replace(/-/g,''):':'+String(v).replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
-      const ie=s=>String(s).replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/[,;]/g,x=>'\\'+x);
-      const body=ev.map(e=>`BEGIN:VEVENT\r\nUID:${e.uid}\r\nDTSTART${dt(e.start||'')}\r\nDTEND${dt(e.end||e.start||'')}\r\nSUMMARY:${ie(e.summary||'')}\r\n${e.location?'LOCATION:'+ie(e.location)+'\r\n':''}END:VEVENT\r\n`).join('');
-      const blob=new Blob(['BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CLONE FRAME//HUB Calendar//EN\r\n'+body+'END:VCALENDAR\r\n'],{type:'text/calendar'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=calName().toLowerCase().replace(/\s+/g,'-')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-      Toast.show('Exported '+ev.length+' events');}
-    /* ── (C) new event composer ── */
-    function composer(day){const now=new Date();
-      const COLORS=['none','#e05252','#e8924d','#e8d24d','var(--ok)','#6fd0e8','#5a8fe8','#e87fc0','#e8836d'];
-      root.innerHTML=`<div class="cal2comp">
-        <div class="cal2cap">TODAY IS ${WD[now.getDay()]}, ${fmtD(now)} · ${pad(now.getHours())}:${pad(now.getMinutes())}</div>
-        <div class="cal2clock" id="ceclock">09:00</div>
-        <div class="cal2daylbl" id="ceday">${WD[day.getDay()]}, ${fmtD(day)}</div>
-        <div class="cal2fld"><input id="cetitle" placeholder="What's happening?"><span class="cal2ret">↵</span></div>
-        <div class="cal2row"><input type="date" id="cesd" value="${dISO(day)}"><span class="dim">to</span><input type="date" id="ceed" value="${dISO(day)}"><span class="dim" style="margin-left:auto">All day</span><div class="sw3" id="ceall" style="margin-left:0"><i></i></div></div>
-        <div class="cal2row" id="cetimes"><input type="time" id="cest" value="09:00"><span class="dim">–</span><input type="time" id="ceet" value="10:00"></div>
-        <div class="cal2fld"><input id="celoc" placeholder="Location"><span class="cal2ret">⌖</span></div>
-        <div class="cal2row"><select id="cerep"><option>Does not repeat</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Yearly</option></select></div>
-        <textarea id="cedesc" class="cal2desc" placeholder="Description"></textarea>
-        <div class="cal2row"><span class="dim">Reminder</span><select id="cerem"><option>15 minutes before</option><option>5 minutes before</option><option>30 minutes before</option><option>1 hour before</option><option>1 day before</option><option>None</option></select></div>
-        <div class="cal2row"><span class="dim">Color</span><div class="cal2sws">${COLORS.map((c,i)=>`<button class="cal2sw${i===0?' none on':''}" data-c="${c}"${c==='none'?'':` style="background:${c}"`}></button>`).join('')}<button class="cal2sw rain" data-c="custom" title="Custom color"></button><input type="color" id="cecol" hidden></div></div>
-        <div class="cal2row"><select id="cecal"><option>${escHtml(calName())}</option></select></div>
-        <div class="cal2note">Repeat, description, reminder and color stay local to this HUB — CalDAV syncs title, dates, times and location.</div>
-        <div class="compose-actions" style="margin-top:10px"><button class="btn" id="cecancel">✕ Cancel</button><button class="btn cal2pri" id="cecreate">＋ CREATE</button></div>
-      </div>`;
-      const g=id=>root.querySelector(id);
-      g('#cest').addEventListener('input',()=>{g('#ceclock').textContent=g('#cest').value||'09:00'});
-      g('#cesd').addEventListener('input',()=>{const[y,m,d]=g('#cesd').value.split('-').map(Number);if(y){const nd=new Date(y,m-1,d);g('#ceday').textContent=`${WD[nd.getDay()]}, ${fmtD(nd)}`;if(g('#ceed').value<g('#cesd').value)g('#ceed').value=g('#cesd').value}});
-      let allDay=false;g('#ceall').addEventListener('click',()=>{allDay=!allDay;g('#ceall').classList.toggle('on',allDay);g('#cetimes').style.opacity=allDay?.35:1;g('#cest').disabled=g('#ceet').disabled=allDay});
-      root.querySelectorAll('.cal2sw').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.c==='custom'){g('#cecol').click();return}root.querySelectorAll('.cal2sw').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
-      g('#cecol').addEventListener('input',()=>{root.querySelectorAll('.cal2sw').forEach(x=>x.classList.remove('on'));const r=root.querySelector('.cal2sw.rain');r.classList.add('on');r.style.background=g('#cecol').value});
-      g('#cecancel').addEventListener('click',main);
-      async function create(){const title=g('#cetitle').value.trim();if(!title){Toast.show('Give the event a title');return}
-        const sd=g('#cesd').value,ed=g('#ceed').value||sd;if(!sd){Toast.show('Pick a start date');return}
-        const start=allDay?sd:`${sd}T${g('#cest').value||'09:00'}`,end=allDay?ed:`${ed}T${g('#ceet').value||'10:00'}`;
-        if(g('#cerep').value!=='Does not repeat')Toast.show('Recurrence — coming soon · created as a single event');
-        const r=await RPC('calendar','createEvent',{summary:title,start,end,location:g('#celoc').value.trim()});
-        if(r.ok){const[y,m,d]=sd.split('-').map(Number);sel=new Date(y,m-1,d);cur=new Date(y,m-1,1);Toast.show('Event created');main()}else Toast.show(r.error||'failed');}
-      g('#cecreate').addEventListener('click',create);
-      g('#cetitle').addEventListener('keydown',e=>{if(e.key==='Enter')create()});}
-    main();
-  }
   /* ---------- REMINDERS ---------- */
   function wireReminders(p){
     const body=p.querySelector('#rmbody');
@@ -13984,11 +12990,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   function wireSearch(p){
     const q=p.querySelector('#gsq'),body=p.querySelector('#gsbody');
     if(!Bridge.on()){needBridge(body);return}
-    async function run(){const s=q.value.trim();if(!s){body.innerHTML='<div class="qempty">Type to search notes · library · contacts · recipes · tasks · reminders · research.</div>';return}
+    async function run(){const s=q.value.trim();if(!s){body.innerHTML='<div class="qempty">Type to search notes · tasks · reminders · research.</div>';return}
       body.innerHTML='<div class="qempty">searching…</div>';let res;try{res=await RPC('search','query',s,{limit:8})}catch(e){showErr(body,e);return}
       const groups=(res&&res.groups)||[];
       if(!groups.length){body.innerHTML='<div class="qempty">Nothing found.</div>';return}
-      const MAP={notes:'notes',library:'library',contacts:'contacts',cookbook:'cookbook',tasks:'tasks',reminders:'reminders',research:'research'};
+      const MAP={notes:'notes',tasks:'tasks',reminders:'reminders',research:'research'};
       body.innerHTML=groups.map(g=>`<div class="flygrp">${escAttr(g.label||g.module)}</div>`+(g.results||[]).map(r=>`<div class="lprow" data-m="${escAttr(g.module)}"><div style="flex:1;min-width:0"><b>${escAttr(r.title||'')}</b><div class="dim" style="font-size:10px">${escAttr(String(r.snippet||'').slice(0,90))}</div></div></div>`).join('')).join('');
       body.querySelectorAll('.lprow').forEach(el=>el.addEventListener('click',()=>{const m=MAP[el.dataset.m];if(m)openPanel(m)}));}
     q.addEventListener('input',()=>{clearTimeout(q._t);q._t=setTimeout(run,300)});
@@ -14145,15 +13151,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   registerPanel('email',{def:DEFS.email,mount:wireEmail});
   registerPanel('tasks',{def:DEFS.tasks,mount:wireTasks});
   registerPanel('approval',{def:DEFS.approval,mount:wireApproval});
-  registerPanel('contacts',{def:DEFS.contacts,mount:wireContacts});
-  registerPanel('integrations',{def:DEFS.integrations,mount:wireIntegrations});
   registerPanel('notes',{def:DEFS.notes,mount:wireNotes});
-  registerPanel('library',{def:DEFS.library,mount:wireLibrary});
-  registerPanel('cookbook',{def:DEFS.cookbook,mount:wireCookbook});
   registerPanel('research',{def:DEFS.research,mount:wireWebBrowser});
-  registerPanel('gallery',{def:DEFS.gallery,mount:wireGallery});
-  registerPanel('compare',{def:DEFS.compare,mount:wireCompare});
-  registerPanel('calendar',{def:DEFS.calendar,mount:wireCalendar});
   registerPanel('reminders',{def:DEFS.reminders,mount:wireReminders});
   registerPanel('brain',{def:DEFS.brain,mount:wireBrain});
   registerPanel('search',{def:DEFS.search,mount:wireSearch});
@@ -14435,7 +13434,7 @@ const Palette=(()=>{
   // Panel entries are GENERATED from the real panel registry (DEFS), so the palette
   // always covers every panel — BUG-L0-003: it listed 7, "notes" found nothing. A few
   // extra search keywords per key sharpen matching. All copy is English (owner, 2026-07-11).
-  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',contacts:'address book vcard carddav',calendar:'events caldav month',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',library:'documents research archive',research:'browser web navigate url search',search:'find global',brain:'memory skills',cookbook:'local models recipes download launch',compare:'model comparison side by side',gallery:'photos albums images',integrations:'connections connect services',theme:'themes appearance colors',settings:'settings preferences config'};
+  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',research:'browser web navigate url search',search:'find global',brain:'memory skills',theme:'themes appearance colors',settings:'settings preferences config'};
   const PANEL_ICON={terminal:'#i-term',shell:'#i-term2',harness:'#i-harness',lab:'#i-lab',matrix:'#i-cosmos',machine:'#i-chip',agents:'#i-agent',email:'#i-mail',automations:'#i-bolt',settings:'#i-gear'};
   const panelEntries=(()=>{
     const defs=(typeof DEFS!=='undefined'&&DEFS)?DEFS:null;
@@ -14754,7 +13753,7 @@ const Shortcuts=(()=>{
   //    outside agent (Pi, via /mod/app) can OPEN panels and READ the live screen — the things
   //    the browser can do but the bridge cannot see. Sibling of iT's op=it; only the always-on
   //    App controller parks it, so it is alive whenever the app is open. Reconnects on drop.
-  const APP_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell','it terminal':'shell',code:'terminal',connections:'integrations','my machine':'machine','my agents':'agents','model comparison':'compare',web:'research'};
+  const APP_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell','it terminal':'shell',code:'terminal','my machine':'machine','my agents':'agents',web:'research'};
   function appResolveKey(name){
     let t=String(name||'').trim().toLowerCase().replace(/\b(the|open|please|panel|tab|window)\b/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
     if(!t)return null;

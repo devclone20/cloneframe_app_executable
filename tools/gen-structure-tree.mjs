@@ -3,7 +3,7 @@
 //
 // Emits agent/STRUCTURE.md: a monorepo-style branch tree of the WHOLE body — panels,
 // kernel modules, bridge modules, tools, the agent's own mind (extensions · skills ·
-// lessons), tests, integrations — every branch read from the REAL sources, never
+// lessons), tests — every branch read from the REAL sources, never
 // hand-written. tools/build.mjs runs it on every build, so every edit that ships
 // refreshes the tree; bridge/pi.mjs ensureWorkspace() then syncs it into the live
 // workspace (~/.clone-frame-hub/agent). The header carries the commit + timestamp:
@@ -91,7 +91,6 @@ export function genStructureTree({ silent = false } = {}) {
   const exts = listFiles('agent/.pi/extensions', '.ts').map((f) => [f, headline(path.join(ROOT, 'agent/.pi/extensions', f))]);
   const skills = listDirs('agent/.pi/skills').map((d) => [d + '/', skillNote(d)]);
   const lessons = listFiles('agent/LESSONS', '.md').filter((f) => f !== 'README.md').map((f) => [f, '']);
-  const integrations = listDirs('integrations').map((d) => [d + '/', '']);
   const testCount = listFiles('tests', '.test.mjs').length + listFiles('tools', '.test.mjs').length;
   const kern = kernelModules();
 
@@ -125,8 +124,6 @@ export function genStructureTree({ silent = false } = {}) {
   L.push(...branch(exts, '│     │  '));
   L.push('│     └─ skills/               deep procedures you can invoke');
   L.push(...branch(skills, '│        ', 40));
-  L.push('├─ integrations/               self-contained optional integrations');
-  L.push(...branch(integrations, '│  ', 40));
   L.push(`├─ tests/                      ${testCount} node --test files — run: node --test tests/*.test.mjs tools/*.test.mjs`);
   L.push('├─ electron/                   native shell (WebContentsView browser path, v0.51+)');
   L.push('├─ context/                    machine maps (app-map.json — regenerated each build)');

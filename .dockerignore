@@ -35,9 +35,4 @@ secrets.*
 *.secret
 
 # heavy, not needed by the bridge (UI runs in the host browser)
-integrations/runtime/
-integrations/*/src/
-integrations/*/.venv/
-integrations/*/venv/
-integrations/*/node_modules/
 login-island/dist/

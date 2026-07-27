@@ -9,8 +9,8 @@
     }
     function go(name){
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
-      if(['addmodels','added','aidefaults','piagent','integrations','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,integrations:secIntegrations,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
+      if(['addmodels','added','aidefaults','piagent','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
     }
     // ----- MAGIC FRAMES — the little frame squares that hold docked tabs & their figures.
@@ -234,8 +234,8 @@
       pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{const v=s.value;if(!v)await RPC('models','setDefault',s.dataset.cap,{providerId:null});else{const parts=v.split('::');await RPC('models','setDefault',s.dataset.cap,{providerId:parts[0],model:parts[1]})}Toast.show('Saved')}));
     }
     async function secSearch(){
-      pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, docs, contacts…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · library · contacts · recipes · tasks · reminders · research).</div>';
-      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['integrations','Integrations'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
+      pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, tasks…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · tasks · reminders · research).</div>';
+      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
       const inp=pane.querySelector('#ssq'),res=pane.querySelector('#ssres');let tmr=null;
       inp.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
         const q=inp.value.trim().toLowerCase();
@@ -247,13 +247,6 @@
         res.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.go)));
       },250)});
       inp.focus();
-    }
-    async function secIntegrations(){
-      loading();
-      let list=[];try{const r=await RPC('integrations','list');list=Array.isArray(r)?r:(r&&r.items)||[]}catch(e){return fail(e)}
-      pane.innerHTML='<div class="sethead">INTEGRATIONS</div>'+(list.length?list.map(it=>`<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(it.name||it.type||'')}</b> <span class="dim" style="font-size:10px">${escHtml(it.type||'')} · ${escHtml(it.transport||'')}</span></span><span class="dim">${it.isDefault?'default':''}</span></div>`).join(''):'<div class="qempty" style="padding:12px">No integrations yet.</div>')+
-        '<div class="btnrow" style="margin-top:10px"><button class="btn" id="sint">OPEN INTEGRATIONS</button></div>';
-      pane.querySelector('#sint').addEventListener('click',()=>openPanel('integrations'));
     }
     async function secEmail(){
       loading();
@@ -278,12 +271,7 @@
     function secToolsList(){
       const TOOLS=[
         ['brain','Brain','persistent memory · which model answers','#i-brain'],
-        ['calendar','Calendar','CalDAV · events','#i-calendar'],
-        ['compare','Compare','same prompt across N models','#i-compare'],
-        ['cookbook','Cookbook','prompt recipes','#i-cookbook'],
         ['research','Browser','browse the web inside CLONE FRAME','#i-globe'],
-        ['gallery','Gallery','generate · import images','#i-gallery'],
-        ['library','Library','documents · knowledge','#i-library'],
         ['notes','Notes','markdown · search','#i-notes'],
         ['tasks','Tasks','cron · the agent works on its own','#i-tasks'],
         ['__theme','Theme','restyle the interface — pick or create a theme','#i-pal'],

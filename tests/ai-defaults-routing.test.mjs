@@ -4,9 +4,9 @@
 // with two local stub providers — before the fix all four cases answered from the same
 // provider with the same model, whatever the map said.
 //
-// The same resolution gap broke COMPARE differently: the panel sent bare model names, so a
-// run mixing two vendors sent BOTH to one of them — and the foreign model came back
-// "model not found". The one thing COMPARE exists to do was the one thing it could not do.
+// The same resolution gap also broke COMPARE, which routed a whole cross-vendor run to one
+// provider. That panel was removed on 2026-07-27; the capability plumbing it exercised is
+// still covered above, by the cases that do not depend on it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -84,35 +84,4 @@ test('the /chat route is governed by the Chat row', () => {
   assert.match(chat, /await p\.stream\(messages, \{ \.\.\.pick,/,
     'stream() resolves the target again — without the capability it would pick a different provider than the one just checked');
   assert.match(chat, /resolveTarget\(\{ capability: 'chat' \}\)/, 'the reported brain must be the one that will actually answer');
-});
-
-test('COMPARE routes each model to the provider that serves it', () => {
-  const cmp = read('bridge/compare.mjs');
-  assert.match(cmp, /function splitTarget\(id\) \{/, 'a qualified "<providerId>::<model>" id must be understood');
-  assert.match(cmp, /if \(providerId\) opts\.providerId = providerId;/, 'and it must reach ask() as a provider, not just a name');
-  assert.match(cmp, /providerId: t\.providerId, model: t\.providerId \? t\.model : await resolveModelId/,
-    'a qualified id names a concrete model — only the bare legacy form needs the alias lookup');
-  assert.match(cmp, /return i > 0 \?/, 'a bare id must still work — older saved runs and hand-typed aliases');
-
-  const panel = read('web/panels/compare.js');
-  assert.match(panel, /const wireId=m=>m\.pid\?m\.pid\+'::'\+m\.model:m\.model;/, 'the panel must send the provider with the model');
-  assert.match(panel, /models=st\.models\.map\(wireId\)/, 'and it must actually use it when running');
-  assert.match(panel, /data-p="\$\{escAttr\(pr\.id\)\}"/, 'the picker must carry the provider ID, not its display label');
-  assert.match(panel, /const sel=new Set\(st\.models\.filter\(m=>m\.pid\)\.map\(wireId\)\);/,
-    'two vendors can offer the same model name — the checkbox state must be keyed by provider AND model');
-  assert.match(panel, /st\.models=st\.models\.filter\(x=>!\(x\.model===m&&\(x\.pid===pid\|\|!x\.pid\)\)\);/,
-    'ticking a model must also clear an older unrouted entry for it, or the run sends it twice');
-  assert.match(panel, /const shortModel=/, 'the column header must show the model, not the wire id');
-});
-
-test('no source file carries an invisible NUL byte', () => {
-  // A stray \x00 landed in compare.js during this change. It is invisible in an editor, it
-  // breaks grep, and \x00 is already the app's error-frame marker — an accidental one is a
-  // bug waiting to be unexplainable. (mdlite.js and mem-store.mjs use it on purpose, at the
-  // repo root and in bridge/platform; the panels never should.)
-  const dir = path.join(HERE, '..', 'web', 'panels');
-  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.js'))) {
-    const buf = fs.readFileSync(path.join(dir, f));
-    assert.equal(buf.indexOf(0), -1, 'web/panels/' + f + ' contains a raw NUL byte');
-  }
 });

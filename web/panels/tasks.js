@@ -1,7 +1,7 @@
   function wireTasks(p){
     const card=p.querySelector('#tkcard'),foot=p.querySelector('#tkfoot'),cnt=p.querySelector('#tkcount'),tabs=[...p.querySelectorAll('.tktab')];
     let tab='tasks',tasks=[],cat='all',q='',mode='recent',sel=new Set(),acat='all',aq='',menuId=null;
-    const ICO={email:'#i-mail',research:'#i-cosmos',memory:'#i-chip',calendar:'#i-cosmos',chats:'#i-agent',documents:'#i-frame',skills:'#i-lab'};
+    const ICO={email:'#i-mail',research:'#i-cosmos',memory:'#i-chip',chats:'#i-agent',documents:'#i-frame',skills:'#i-lab'};
     const ico=c=>ICO[c]||'#i-bolt';
     const rel=relTime; // kernel relTime (T-046) — single-sourced s/m/h/d/w/y
     function clock(){const d=new Date();foot.textContent=d.toLocaleDateString('en-GB',{weekday:'long'})+', '+d.toLocaleDateString('en-GB')+' · '+d.toLocaleTimeString('en-GB',{hour12:false}).replace(/:/g,'.')}

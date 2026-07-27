@@ -683,7 +683,6 @@
         if(a==='files')pickFiles(false);
         else if(a==='folder')pickFiles(true);
         else if(a==='slash'){const i=$('#cdin');i.value='/'+i.value.replace(/^\//,'');i.focus();i.dispatchEvent(new Event('input',{bubbles:true}))}
-        else if(a==='connectors')openPanel('integrations');
       }));
     }
     let micDevs=[],micHold=localStorage.getItem('cfhub.micHold')!=='0',micSel=localStorage.getItem('cfhub.mic')||'',rec=null,recOn=false;
@@ -868,7 +867,7 @@
     // to a real DEFS key. open_panel used to take the raw string case-sensitively and always
     // report success — so a title/phrase opened nothing yet looked like it worked, and the
     // model kept retrying (owner: "hard to open any tab"). null = no match.
-    const PANEL_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell',code:'terminal',connections:'integrations','my machine':'machine','my agents':'agents','model comparison':'compare'};
+    const PANEL_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell',code:'terminal','my machine':'machine','my agents':'agents'};
     function resolvePanelKey(name){
       if(typeof DEFS==='undefined')return null;
       let t=String(name||'').trim().toLowerCase().replace(/\b(the|open|please)\b/g,'').replace(/\b(panel|tab|window)\b/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
@@ -943,7 +942,7 @@ ANSWER DISCIPLINE:
           return r?('opened HUB tab: '+key+' ('+(DEFS[key].title||key)+')'):('could not open "'+key+'" — it may be under construction');
         }
         if(c.name==='open_terminal'){const cwd=String(a.cwd||'').trim();const wasOpen=instancesOf('shell').length>0;if(cwd)pendingShellCwd=cwd;openPanel('shell',{newInstance:!!a.newWindow});if(cwd&&wasOpen&&!a.newWindow)Bus.emit('shell:addcwd',cwd);return 'opened iT — live terminal '+(a.newWindow?'window':'')+(cwd?' at '+cwd:'')}
-        if(c.name==='open_settings'){const sec=String(a.section||'').trim().toLowerCase();openPanel('settings');const map={agent:'agenttools',agenttools:'agenttools',permissions:'agenttools',it:'itterm',itterm:'itterm','it terminal':'itterm',tools:'tools',models:'addmodels',addmodels:'addmodels','add models':'addmodels',added:'added',aidefaults:'aidefaults',pi:'piagent',piagent:'piagent','pi agent':'piagent',appearance:'appearance',theme:'appearance',account:'account',folders:'folders',servers:'servers','online server':'servers',system:'system',email:'email',integrations:'integrations',reminders:'reminders',search:'search'};const key=map[sec]||sec||'agenttools';setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+key+'"]');if(b)b.click()},80);return 'opened Settings → '+key}
+        if(c.name==='open_settings'){const sec=String(a.section||'').trim().toLowerCase();openPanel('settings');const map={agent:'agenttools',agenttools:'agenttools',permissions:'agenttools',it:'itterm',itterm:'itterm','it terminal':'itterm',tools:'tools',models:'addmodels',addmodels:'addmodels','add models':'addmodels',added:'added',aidefaults:'aidefaults',pi:'piagent',piagent:'piagent','pi agent':'piagent',appearance:'appearance',theme:'appearance',account:'account',folders:'folders',servers:'servers','online server':'servers',system:'system',email:'email',reminders:'reminders',search:'search'};const key=map[sec]||sec||'agenttools';setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+key+'"]');if(b)b.click()},80);return 'opened Settings → '+key}
         if(c.name==='open_app'){if(!full)return 'REFUSED — enable "Full machine control" in Settings → Agent Tools';const app=String(a.app||'').trim();if(!app)return 'no app name';let out='';const m=await Bridge.shell('open -a '+shq(app),tk=>{out+=tk});return (m&&m.exit===0)?('opened app: '+app):('could not open "'+app+'" '+trunc(out,120))}
         if(c.name==='open_path'){if(!full)return 'REFUSED — enable "Full machine control"';const pth=String(a.path||'').trim();if(!pth)return 'no path';let out='';const m=await Bridge.shell('open '+shq(pth),tk=>{out+=tk});return (m&&m.exit===0)?('opened in Finder: '+pth):('could not open "'+pth+'" '+trunc(out,120))}
         if(c.name==='open_url'){if(!full)return 'REFUSED — enable "Full machine control"';const u=String(a.url||'');if(!/^https?:\/\//i.test(u))return 'url must start with http(s)://';await Bridge.shell('open '+shq(u),()=>{});return 'opened: '+u}

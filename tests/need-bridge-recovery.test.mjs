@@ -52,8 +52,7 @@ test('it does nothing when the bridge is not actually up', () => {
 test('every bridge-gated panel goes through needBridge', () => {
   // The recovery is inherited by calling needBridge. A panel that hand-rolls its own empty
   // state gets nothing, which is exactly how these ten came to be stranded.
-  const gated = ['notes', 'reminders', 'approval', 'contacts', 'calendar', 'compare',
-    'integrations', 'library', 'search', 'harness'];
+  const gated = ['notes', 'reminders', 'approval', 'search', 'harness'];
   for (const name of gated) {
     const src = read('web/panels/' + name + '.js');
     assert.match(src, /needBridge\(/, name + '.js gates on the bridge without using needBridge — it will strand');

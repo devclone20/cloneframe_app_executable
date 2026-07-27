@@ -174,20 +174,18 @@ function streamHead(res) {
 // ── generic module RPC (tasks/approvals/style/contacts/integrations) ─────────
 // One token-gated route serves every backend module: POST /mod/<name> {fn, args}.
 // Modules are lazily imported so one broken module never affects the others.
-const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './style.mjs', contacts: './contacts.mjs', integrations: './integrations.mjs',
-  models: './models.mjs', calendar: './calendar.mjs', notes: './notes.mjs', library: './library.mjs', research: './research.mjs',
-  cookbook: './cookbook.mjs', gallery: './gallery.mjs', compare: './compare.mjs', reminders: './reminders.mjs', admin: './admin.mjs',
-  scheduled: './scheduled.mjs', oauth: './oauth.mjs', images: './images.mjs', search: './search.mjs', web: './web.mjs',
+const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './style.mjs',
+  models: './models.mjs', notes: './notes.mjs', research: './research.mjs', reminders: './reminders.mjs', admin: './admin.mjs',
+  scheduled: './scheduled.mjs', oauth: './oauth.mjs', search: './search.mjs', web: './web.mjs',
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
   webengine: './webengine.mjs', folders: './folders.mjs', servers: './servers.mjs', acp: './acp.mjs',
   robinhood: './robinhood.mjs', okxai: './okxai.mjs', virtuals: './virtuals.mjs',
   pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs',
   app: './app.mjs', pi: './pi.mjs', rpcallow: './rpcallow.mjs', session: './session.mjs',
   email: './domains/mail/mail.mjs' };
-const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style', contacts: 'Contacts', integrations: 'Integrations',
-  models: 'Models', calendar: 'Calendar', notes: 'Notes', library: 'Library', research: 'Research',
-  cookbook: 'Cookbook', gallery: 'Gallery', compare: 'Compare', reminders: 'Reminders', admin: 'Admin',
-  scheduled: 'Scheduled', oauth: 'OAuth', images: 'Images', search: 'Search', web: 'Web',
+const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style',
+  models: 'Models', notes: 'Notes', research: 'Research', reminders: 'Reminders', admin: 'Admin',
+  scheduled: 'Scheduled', oauth: 'OAuth', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',
   webengine: 'Webengine',
   robinhood: 'Robinhood', okxai: 'OkxAi', virtuals: 'Virtuals',

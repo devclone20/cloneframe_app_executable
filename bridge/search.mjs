@@ -6,13 +6,10 @@
 // one module can never take down the others — that module's group is simply
 // omitted from the result.
 
-const MODULES = ['notes', 'library', 'contacts', 'cookbook', 'tasks', 'reminders', 'research'];
+const MODULES = ['notes', 'tasks', 'reminders', 'research'];
 
 const LABELS = {
   notes: 'Notes',
-  library: 'Library',
-  contacts: 'Contacts',
-  cookbook: 'Cookbook',
   tasks: 'Tasks',
   reminders: 'Reminders',
   research: 'Research',
@@ -33,60 +30,6 @@ function matchesAny(needle, ...fields) {
 function cap(rows, limit) {
   return Array.isArray(rows) ? rows.slice(0, Math.max(0, limit)) : [];
 }
-
-// ── per-module searchers ─────────────────────────────────────────────────────
-// Each returns Array<{id, title, snippet}>. Any throw propagates to the
-// caller, which is always a try/catch in query().
-
-async function searchNotes(needle, limit) {
-  const { Notes } = await import('./notes.mjs');
-  const rows = Notes.list({ search: needle });
-  return cap(rows, limit).map((n) => ({
-    id: n.id,
-    title: n.title || '(untitled)',
-    snippet: n.snippet || '',
-  }));
-}
-
-async function searchLibrary(needle, limit) {
-  const { Library } = await import('./library.mjs');
-  let rows;
-  if (typeof Library.search === 'function') {
-    rows = Library.search(needle).map((d) => ({
-      id: d.docId,
-      title: d.name,
-      snippet: Array.isArray(d.excerpts) ? d.excerpts.join(' … ') : '',
-    }));
-  } else {
-    rows = Library.list({ search: needle }).map((d) => ({
-      id: d.id,
-      title: d.name,
-      snippet: d.snippet || '',
-    }));
-  }
-  return cap(rows, limit);
-}
-
-async function searchContacts(needle, limit) {
-  const { Contacts } = await import('./contacts.mjs');
-  const rows = Contacts.list({ search: needle });
-  return cap(rows, limit).map((c) => ({
-    id: c.id,
-    title: c.displayName || 'Unnamed',
-    snippet: Array.isArray(c.emails) ? c.emails.join(', ') : '',
-  }));
-}
-
-async function searchCookbook(needle, limit) {
-  const { Cookbook } = await import('./cookbook.mjs');
-  const rows = Cookbook.list().filter((r) => matchesAny(needle, r.name, r.description, r.category));
-  return cap(rows, limit).map((r) => ({
-    id: r.id,
-    title: r.name,
-    snippet: r.description || '',
-  }));
-}
-
 async function searchTasks(needle, limit) {
   const { Tasks } = await import('./tasks.mjs');
   const rows = Tasks.list().filter((t) => matchesAny(needle, t.name, t.category));
@@ -119,9 +62,6 @@ async function searchResearch(needle, limit) {
 
 const SEARCHERS = {
   notes: searchNotes,
-  library: searchLibrary,
-  contacts: searchContacts,
-  cookbook: searchCookbook,
   tasks: searchTasks,
   reminders: searchReminders,
   research: searchResearch,

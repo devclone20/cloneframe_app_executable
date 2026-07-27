@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "note": "Every integration ships in its own folder under integrations/. Each folder holds its manifest (integration.json), license (NOTICE.md), an install.sh that populates it (upstream source into src/, built runtime alongside), and — after install — the runnable app. install-all.sh installs them all so a fresh CLONE FRAME download runs self-contained.",
-  "integrations": ["framer"]
-}

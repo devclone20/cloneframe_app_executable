@@ -57,22 +57,15 @@ Columns: **key** (what `open_panel{panel}` takes) · UI title · what the user d
 | `folders` | FOLDERS | file manager over the bridge: tree, create/edit/organize, open iT at cwd | `wireFolders` | files, folders |
 | `email` | EMAIL | real mail client (IMAP/SMTP/OAuth): accounts, folders, compose, scheduled, approvals | `wireEmail`, `const Mail` | oauth, scheduled, approvals (+HTTP `/email/*`) |
 | `approval` | APPROVAL | approve/edit/reject agent-drafted emails before send | `wireApproval` | approvals |
-| `contacts` | CONTACTS | address book: vCard/CSV import, CardDAV | `wireContacts` | contacts |
-| `calendar` | CALENDAR | CalDAV month view, events | `wireCalendar` | calendar |
 | `reminders` | REMINDERS | time-based reminders the agent fires | `wireReminders` | reminders |
 | `tasks` | TASKS | cron-scheduled autonomous agent tasks + runs/logs | `wireTasks` | tasks |
 | `automations` | AUTOMATIONS | gated-autonomy queue: propose actions, human approves/vetoes | `wireAutomations` | — |
 | `notes` | NOTES | notes + to-dos, images, search, archive | `wireNotes` | notes |
-| `library` | LIBRARY | document/research archive, versioning, deep-research kick-off | `wireLibrary` | library, research |
 | `research` | BROWSER | the in-app web browser (tabs, direct-iframe/proxy hybrid; native WebContentsView under Electron) | `wireWebBrowser`, `#wbxroot` | web |
 | `search` | SEARCH | global search across everything | `wireSearch` | search |
 | `brain` | BRAIN | agent memory & skills manager | `wireBrain` | models |
-| `cookbook` | COOKBOOK | local model recipes: download/launch local models | `wireCookbook` | cookbook, models |
-| `compare` | MODEL COMPARISON | one prompt across many models side-by-side | `wireCompare` | compare, models |
-| `gallery` | GALLERY | photos/albums/edit | `wireGallery` | gallery, images |
-| `integrations` | CONNECTIONS | connect/disconnect external service integrations | `wireIntegrations` | integrations |
 | `theme` | THEME | pick/customize themes | `wireTheme` | — |
-| `settings` | SETTINGS | full settings hub (`#setnav` sections — see §3) | `wireSettings` | pty, models, search, integrations, reminders, permissions, admin, folders, servers |
+| `settings` | SETTINGS | full settings hub (`#setnav` sections — see §3) | `wireSettings` | pty, models, search, reminders, permissions, admin, folders, servers |
 
 **Gone (do not reference):** `economyos` (CLI ECONOMY OS), `wallet`, `integrate` — these panel
 keys no longer exist; `open_panel` with them shows a "Coming soon" toast. The bridge modules
@@ -81,8 +74,8 @@ have no UI panel.
 
 **Menu groups** (`const MENU` — feeds both the cell "+" add-menu and the tri flyout):
 Workspace (terminal, shell, folders, harness, lab, matrix, machine, agents) · Tools (brain,
-calendar, compare, cookbook, research, gallery, library, notes, tasks, theme) · Communication
-(email, contacts, reminders, approval, automations, integrations) · System (search, wallet
+research, notes, tasks, theme) · Communication
+(email, reminders, approval, automations) · System (search, wallet
 sign-in, settings).
 
 ---
@@ -92,7 +85,7 @@ sign-in, settings).
 Canonical handles (the `SECS` array / `SEC` map anchors): `agenttools` (agent permissions — alias
 `agent`, `permissions`) · `itterm` (iT — alias `it`) · `addmodels` (alias `models`; DeepSeek/custom
 cloud preset) · `added` · `aidefaults` · `tools` · `appearance` (alias `theme`) · `account` ·
-`folders` · `servers` · `system` · `email` · `integrations` · `reminders` · `search` ·
+`folders` · `servers` · `system` · `email` · `reminders` · `search` ·
 `shortcuts` · `licenses` · `users`.
 
 ---
@@ -132,7 +125,7 @@ Three channels, all local. **Never guess screen state — read it.**
 | `servers.list` · `ssh.list` | saved droplets · saved SSH hosts (secrets masked) |
 | `web.search/fetchUrl/frameable` | web eyes: search, readable page text, will-it-frame |
 | `search.query` | cross-app search over all HUB stores |
-| per-panel stores | `notes/contacts/library/tasks/approvals/scheduled/reminders/calendar/gallery/compare/cookbook/research.list|get|count` — read any panel's data without opening it |
+| per-panel stores | `notes/tasks/approvals/scheduled/reminders/research.list|get|count` — read any panel's data without opening it |
 | `nft.known/soul` · `virtuals.byWallet` · `robinhood.status` · `acp.status` · `okxai.status` | web3 read-only state |
 | HTTP `GET /health` | `{ok,name,version}` — is the bridge up (no auth) |
 
@@ -177,7 +170,7 @@ clone-frame-hub/
 │  ├─ hub-bridge.mjs     #   router: /mod dispatch, /shell, /chat, /provider-chat, WS /stream
 │  ├─ pty.mjs · keeper.mjs · ssh.mjs      # iT: live PTYs · persistence · remote hosts
 │  ├─ matrix.mjs          # cluster engine lifecycle
-│  ├─ email.mjs · calendar.mjs · …        # one module per panel domain
+│  ├─ email.mjs · notes.mjs · …          # one module per panel domain
 │  └─ launch.sh          #   the double-click launcher (Chrome --app default; HUB_SHELL=electron)
 ├─ electron/             # optional native shell (real in-app browser views)
 ├─ context/              # AGENTS.md (laws+tools) · APP-MAP.md (this) — mirrored to ~/.clone-frame-hub/

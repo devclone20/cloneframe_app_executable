@@ -45,11 +45,11 @@
 | **Terminal** | pty, iT multiplexer, `it` CLI (data-plane behind Stream) |
 | **Chat** | model chat, provider-chat, shell exec (the ex-router fat handlers) |
 | **Mail** | email (IMAP/SMTP), oauth, scheduled send, approvals |
-| **PIM** | calendar, contacts, notes, tasks, reminders |
-| **Content** | library, gallery, images, files, folders |
-| **Agent** | nft/soul, harness, models, brain, research, compare, cookbook |
+| **PIM** | notes, tasks, reminders |
+| **Content** | files, folders |
+| **Agent** | nft/soul, harness, models, brain, research |
 | **Web3** | acp, okxai, virtuals, robinhood (on cli-gate / evm) |
-| **Web** | in-app browser, proxy, search, servers, integrations, admin, permissions (SSRF-guarded) |
+| **Web** | in-app browser, proxy, search, servers, admin, permissions (SSRF-guarded) |
 | **Wallet** | wallet/auth surfaces |
 | **Theme** | token layer, ds4 (Instrument console), ds5 (Soft carbon) |
 

@@ -147,15 +147,8 @@
   registerPanel('email',{def:DEFS.email,mount:wireEmail});
   registerPanel('tasks',{def:DEFS.tasks,mount:wireTasks});
   registerPanel('approval',{def:DEFS.approval,mount:wireApproval});
-  registerPanel('contacts',{def:DEFS.contacts,mount:wireContacts});
-  registerPanel('integrations',{def:DEFS.integrations,mount:wireIntegrations});
   registerPanel('notes',{def:DEFS.notes,mount:wireNotes});
-  registerPanel('library',{def:DEFS.library,mount:wireLibrary});
-  registerPanel('cookbook',{def:DEFS.cookbook,mount:wireCookbook});
   registerPanel('research',{def:DEFS.research,mount:wireWebBrowser});
-  registerPanel('gallery',{def:DEFS.gallery,mount:wireGallery});
-  registerPanel('compare',{def:DEFS.compare,mount:wireCompare});
-  registerPanel('calendar',{def:DEFS.calendar,mount:wireCalendar});
   registerPanel('reminders',{def:DEFS.reminders,mount:wireReminders});
   registerPanel('brain',{def:DEFS.brain,mount:wireBrain});
   registerPanel('search',{def:DEFS.search,mount:wireSearch});
@@ -437,7 +430,7 @@ const Palette=(()=>{
   // Panel entries are GENERATED from the real panel registry (DEFS), so the palette
   // always covers every panel — BUG-L0-003: it listed 7, "notes" found nothing. A few
   // extra search keywords per key sharpen matching. All copy is English (owner, 2026-07-11).
-  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',contacts:'address book vcard carddav',calendar:'events caldav month',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',library:'documents research archive',research:'browser web navigate url search',search:'find global',brain:'memory skills',cookbook:'local models recipes download launch',compare:'model comparison side by side',gallery:'photos albums images',integrations:'connections connect services',theme:'themes appearance colors',settings:'settings preferences config'};
+  const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',research:'browser web navigate url search',search:'find global',brain:'memory skills',theme:'themes appearance colors',settings:'settings preferences config'};
   const PANEL_ICON={terminal:'#i-term',shell:'#i-term2',harness:'#i-harness',lab:'#i-lab',matrix:'#i-cosmos',machine:'#i-chip',agents:'#i-agent',email:'#i-mail',automations:'#i-bolt',settings:'#i-gear'};
   const panelEntries=(()=>{
     const defs=(typeof DEFS!=='undefined'&&DEFS)?DEFS:null;
@@ -756,7 +749,7 @@ const Shortcuts=(()=>{
   //    outside agent (Pi, via /mod/app) can OPEN panels and READ the live screen — the things
   //    the browser can do but the bridge cannot see. Sibling of iT's op=it; only the always-on
   //    App controller parks it, so it is alive whenever the app is open. Reconnects on drop.
-  const APP_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell','it terminal':'shell',code:'terminal',connections:'integrations','my machine':'machine','my agents':'agents','model comparison':'compare',web:'research'};
+  const APP_ALIASES={browser:'research',agent:'terminal',it:'shell',iterm:'shell','it terminal':'shell',code:'terminal','my machine':'machine','my agents':'agents',web:'research'};
   function appResolveKey(name){
     let t=String(name||'').trim().toLowerCase().replace(/\b(the|open|please|panel|tab|window)\b/g,'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
     if(!t)return null;

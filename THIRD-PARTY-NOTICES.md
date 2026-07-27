@@ -6,10 +6,6 @@ Each keeps its own license. Two classes:
 1. **npm dependencies** — of the bridge daemon (`bridge/package.json`), of the login
    bundle (`login-island/`, built offline into the vendored `privy-login.js`), and
    vendored browser assets (`vendor/`). Listed here in full.
-2. **Bundled integrations** under `integrations/<tool>/` — each folder is populated by
-   its own `install.sh` (see `integrations/README.md`) and ships its own upstream
-   `LICENSE`; a per-tool `integrations/<tool>/NOTICE.md` records origin, license, and
-   our integration boundary.
 
 Only components CLONE FRAME actually distributes get a notice here. A tool the app can
 optionally drive on the user's own machine — because the user separately installed it —
@@ -92,20 +88,6 @@ chmod +x bridge/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
 ```
 
 ---
-
-## 2. Bundled integrations (`integrations/<tool>/`)
-
-CLONE FRAME bundles the integration below today. It is used at arm's length — its
-files are loaded into the browser at launch — and is **not linked in-process**.
-
-| Tool | Path | Origin | License | Frame |
-|---|---|---|---|---|
-| **Framer** (our extension) | `integrations/framer` | pattern per github.com/MartinWie/Framer | MIT | BROWSER |
-
-The Framer extension is our own code (MIT). (The previously-listed Chrome for Testing
-runtime is retired — the app now launches the user's own branded Google Chrome; see
-`bridge/launch.sh`. Nothing under `integrations/runtime/` ships or is downloaded any
-more.)
 
 ## 3. iT — CLONE FRAME's own terminal (no third-party code)
 

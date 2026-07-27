@@ -1,6 +1,6 @@
 {
   "generated": "tools/gen-app-map.mjs",
-  "count": 27,
+  "count": 20,
   "panels": [
     {
       "key": "terminal",
@@ -33,29 +33,9 @@
       "sub": "agent emails waiting for you"
     },
     {
-      "key": "contacts",
-      "title": "CONTACTS",
-      "sub": "address book · vCard · CSV · CardDAV"
-    },
-    {
-      "key": "integrations",
-      "title": "CONNECTIONS",
-      "sub": "all service connections in one place"
-    },
-    {
       "key": "notes",
       "title": "NOTES",
       "sub": "markdown · to-dos · search"
-    },
-    {
-      "key": "library",
-      "title": "LIBRARY",
-      "sub": "documents · research · archive"
-    },
-    {
-      "key": "cookbook",
-      "title": "COOKBOOK",
-      "sub": "local models · launch · download"
     },
     {
       "key": "research",
@@ -66,21 +46,6 @@
       "key": "matrix",
       "title": "MATRIX",
       "sub": "distributed AI cluster · your devices, one brain"
-    },
-    {
-      "key": "gallery",
-      "title": "GALLERY",
-      "sub": "photos · albums"
-    },
-    {
-      "key": "compare",
-      "title": "MODEL COMPARISON",
-      "sub": "same prompt · side-by-side"
-    },
-    {
-      "key": "calendar",
-      "title": "CALENDAR",
-      "sub": "CalDAV · month view"
     },
     {
       "key": "reminders",
@@ -95,7 +60,7 @@
     {
       "key": "search",
       "title": "SEARCH",
-      "sub": "everything — notes · docs · contacts…"
+      "sub": "everything — notes · tasks · reminders…"
     },
     {
       "key": "automations",
