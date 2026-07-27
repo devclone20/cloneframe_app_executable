@@ -74,6 +74,7 @@
         let k=itKeymap.alias[k0]||k0;
         if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';else if(code==='Minus')k='-';else if(code==='Period')k='.';
         else if(e.altKey&&/^Key[A-Z]$/.test(code))k=code.slice(3).toLowerCase();
+        else if(e.altKey&&/^Digit[0-9]$/.test(code))k=code.slice(5); // ⌥2 is "@" on a PT layout — bind the KEY, not the glyph
         const mods=[];if(e.ctrlKey)mods.push('ctrl');if(e.altKey)mods.push('alt');if(e.shiftKey)mods.push('shift');if(e.metaKey)mods.push('cmd');
         return mods.length?mods.concat(k).join('+'):null;
       };
@@ -87,7 +88,13 @@
           const id=row.dataset.a;
           row.querySelector('[data-k="re"]').addEventListener('click',()=>{
             row.classList.add('rec');row.querySelector('.c').textContent='press keys…';
-            const done=()=>{removeEventListener('keydown',onk,true);kmDraw()};
+            // While armed this eats EVERY keystroke in the whole app (capture + stopPropagation),
+            // and a modifier-less key leaves evCombo empty — so it used to stay armed silently and
+            // the app simply stopped accepting typing. It must never outlive the user's attention:
+            // a click elsewhere, leaving the window, or 8 seconds of quiet all disarm it.
+            let t=null;
+            const done=()=>{clearTimeout(t);removeEventListener('keydown',onk,true);removeEventListener('pointerdown',off,true);removeEventListener('blur',off);kmDraw()};
+            const off=ev=>{if(ev&&ev.type==='pointerdown'&&row.contains(ev.target))return;done()};
             const onk=e=>{e.preventDefault();e.stopPropagation();
               if((e.key||'')==='Escape'){done();return}
               const c=evCombo(e);if(!c)return;
@@ -95,6 +102,9 @@
               done();
             };
             addEventListener('keydown',onk,true);
+            addEventListener('pointerdown',off,true);
+            addEventListener('blur',off);
+            t=setTimeout(done,8000);
           });
           row.querySelector('[data-k="un"]').addEventListener('click',()=>{itKeymap.set(id,'none');kmDraw()});
           row.querySelector('[data-k="rs"]').addEventListener('click',()=>{itKeymap.reset(id);kmDraw()});
@@ -200,8 +210,22 @@
       loading();
       let defs={},provs=[];try{defs=await RPC('models','getDefaults');provs=await RPC('models','listProviders')}catch(e){return fail(e)}
       const caps=[['chat','Chat'],['email_summary','Email summary'],['email_reply','Email reply'],['email_tags','Email tags']];
-      const opts=sel=>['<option value="">— default (machine) —</option>'].concat(provs.flatMap(pr=>(pr.models||[]).map(m=>`<option value="${pr.id}::${escAttr(m)}" ${sel&&sel.providerId===pr.id&&sel.model===m?'selected':''}>${escAttr(pr.label||pr.provider)} · ${escAttr(m)}</option>`))).join('');
-      pane.innerHTML='<div class="sethead">AI DEFAULTS — which model does what</div>'+caps.map(c=>`<div class="setline"><span style="flex:1">${c[1]}</span><select data-cap="${c[0]}" class="setsel">${opts(defs[c[0]])}</select></div>`).join('')+'<div style="font-size:10px;color:var(--ink-faint);padding:6px 2px">No selection → uses your machine\'s Anthropic key (default brain).</div>';
+      const offered=sel=>!!(sel&&provs.some(pr=>pr.id===sel.providerId&&(pr.models||[]).includes(sel.model)));
+      const opts=(cap,sel)=>{
+        const rows=[`<option value="">${cap==='chat'?'— first provider you added —':'— follow Chat —'}</option>`]
+          .concat(provs.flatMap(pr=>(pr.models||[]).map(m=>`<option value="${pr.id}::${escAttr(m)}" ${sel&&sel.providerId===pr.id&&sel.model===m?'selected':''}>${escAttr(pr.label||pr.provider)} · ${escAttr(m)}</option>`)));
+        // A default whose provider or model has since been removed still sits on disk and is
+        // still quietly ignored. Show it, so the owner can see WHY the model they picked is
+        // not the one answering — an empty select would just look like they never chose.
+        if(sel&&!offered(sel))rows.splice(1,0,`<option value="" selected disabled>${escAttr(sel.model||'?')} — no longer available</option>`);
+        return rows.join('');
+      };
+      const anyModel=provs.some(pr=>(pr.models||[]).length);
+      pane.innerHTML='<div class="sethead">AI DEFAULTS — which model does what</div>'
+        +caps.map(c=>`<div class="setline"><span style="flex:1">${c[1]}</span><select data-cap="${c[0]}" class="setsel">${opts(c[0],defs[c[0]])}</select></div>`).join('')
+        +'<div style="font-size:10px;color:var(--ink-faint);padding:6px 2px;line-height:1.6">'
+        +(anyModel?'':'<b>No models to choose from yet</b> — add a provider in <b>Add Models</b> first.<br>')
+        +'Chat is the general default: everything not listed here follows it, including research, recipes and comparisons. With nothing selected the app uses the first provider you added, and falls back to a key in <code>~/.env.local</code>.</div>';
       pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{const v=s.value;if(!v)await RPC('models','setDefault',s.dataset.cap,{providerId:null});else{const parts=v.split('::');await RPC('models','setDefault',s.dataset.cap,{providerId:parts[0],model:parts[1]})}Toast.show('Saved')}));
     }
     async function secSearch(){

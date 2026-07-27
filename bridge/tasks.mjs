@@ -415,6 +415,7 @@ async function runEmailSummary(task) {
     [{ role: 'user', content: `Unread emails received:\n\n${lines}` }],
     {
       system: 'You are an assistant that summarizes email. Write a clear, concise executive summary in English, grouping by topic when it makes sense, and highlight what needs attention. Do not invent content.',
+      capability: 'email_summary', // Settings → AI Defaults; unset falls through to 'chat'
       maxTokens: 900,
     },
   );
@@ -467,6 +468,7 @@ async function runEmailAutoReply(task) {
       [{ role: 'user', content: `Email recebido de ${c.from?.address || c.from?.name || '?'} com assunto "${c.subject || ''}":\n\n${(full.text || full.headers?.subject || '').slice(0, 6000)}` }],
       {
         system: 'You are the user\'s personal assistant. Draft a polite, professional and concise reply in English, in the voice of someone replying on their own behalf. Return ONLY the reply body, with no subject line and no placeholder signature.',
+        capability: 'email_reply',
         maxTokens: 800,
       },
     );
@@ -511,6 +513,7 @@ async function runEmailTags(task) {
     [{ role: 'user', content: `Classify each email into a single tag from: invoice, urgent, newsletter, personal, work, social, notification, other.\nReturn ONLY JSON in the format {"<uid>":"<tag>"}.\n\nEmails:\n${JSON.stringify(payload)}` }],
     {
       system: 'You are an email classifier. Respond exclusively with valid JSON — no extra text, no markdown.',
+      capability: 'email_tags',
       maxTokens: 600,
     },
   );

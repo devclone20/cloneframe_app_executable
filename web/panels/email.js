@@ -344,7 +344,14 @@
       g('tbai').addEventListener('click',async()=>{
         const topic=(active.subject||'our work on CLONE FRAME').trim();
         ta.value='';ta.placeholder='AI drafting…';
-        await Brain.stream([{role:'user',content:'Write a professional, warm email, ~100 words, in English, about: '+topic+'. Sign as iCLONE — CLONE FRAME. Return only the email body.'}],t=>{ta.value+=t;active.body=ta.value;ta.scrollTop=ta.scrollHeight},null);
+        // Brain.stream throws when a configured provider fails — it no longer hides the
+        // failure behind demo prose, so the draft button has to say what went wrong.
+        try{
+          await Brain.stream([{role:'user',content:'Write a professional, warm email, ~100 words, in English, about: '+topic+'. Sign as iCLONE — CLONE FRAME. Return only the email body.'}],t=>{ta.value+=t;active.body=ta.value;ta.scrollTop=ta.scrollHeight},null);
+        }catch(e){
+          const msg=friendlyErr((e&&e.message)||'draft failed');
+          Toast.show('Draft failed — '+msg);
+        }finally{ta.placeholder='Write your message…'}
       });
       // send / via approval / schedule
       async function doSend(){

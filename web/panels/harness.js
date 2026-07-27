@@ -97,7 +97,9 @@
       let p=null;
       if(type==='shell'){if(cwd)pendingShellCwd=cwd;p=openPanel('shell',{newInstance:true})}
       else{p=openPanel(type,{newInstance:true});if(type==='research'&&url&&p)Bus.emit('web:open',{url,target:p.dataset.key||''})}
-      if(p&&d.cell)d.cell.dataset.panelKey=p.dataset.key;
+      // Persist the link, don't just stamp the element: a rebuild wipes the element and the
+      // window would be orphaned exactly as before. Grid.linkPanel writes both.
+      if(p&&d.cell)Grid.linkPanel(d.cell,p.dataset.key);
       return;
     }
     // BUG-L2-004 Part 2: a singleton reopened from its frame tile brings the window back,
@@ -108,6 +110,23 @@
   // Removing a square that holds a hidden docked window closes that window for real
   // (dispose hook reaps its pty sessions) — a tile ✕ must never leak an invisible panel.
   Bus.on('cell:removed',pk=>{const p=open[pk];if(p&&p.dataset.docked)close(p)});
+  // Safety net. A docked window is invisible and holds real resources — pty sessions, Chrome
+  // tabs — and its ONLY handle is the square that carries its key. Persisting that key across
+  // a grid rebuild is the fix; this is the guarantee. After any dock change, a hidden window
+  // that no square claims any more is not something to leave running where nobody can reach
+  // it: close it, which runs its dispose hook and reaps what it was holding.
+  Bus.on('dock:refresh',()=>{
+    let claimed=null;
+    for(const k of Object.keys(open)){
+      const p=open[k];
+      if(!p||!p.dataset.docked||!p.isConnected)continue;
+      if(claimed===null){
+        claimed=new Set();
+        try{Grid.cells().forEach(el=>{if(el.dataset.panelKey)claimed.add(el.dataset.panelKey)})}catch(_){claimed=null;break}
+      }
+      if(!claimed.has(k))close(p);
+    }
+  });
   // T-060 — the whole panel set registers here, at the end of IIFE init (before any openPanel can
   // fire): openPanel dispatches every mount through the registry and the legacy wireX if-ladder is
   // gone. def = the DEFS entry (unchanged), mount = the same wireX the if-ladder used, so behaviour
@@ -443,11 +462,18 @@ const Palette=(()=>{
   }
   function openP(){openF=true;pal.style.display='block';input.value='';sel=0;renderL();input.focus();Bus.emit('help','palette')}
   function closeP(){openF=false;pal.style.display='none';Bus.emit('help',null)}
+  // ⌘K on Apple hardware, ⌃K elsewhere. NOT both: on macOS ⌃K is "delete to end of line" in
+  // every text field, so accepting it opened this palette mid-sentence — and the Enter that
+  // followed ran whatever entry happened to be selected. That is how "random windows" opened.
+  const MAC=/Mac|iP(hone|ad|od)/.test(navigator.platform||navigator.userAgent||'');
   addEventListener('keydown',e=>{
-    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openF?closeP():openP();return}
+    if((MAC?e.metaKey:(e.metaKey||e.ctrlKey))&&!e.altKey&&e.key.toLowerCase()==='k'){e.preventDefault();openF?closeP():openP();return}
     if(!openF)return;
-    if(e.key==='Escape')closeP();
-    else if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,filtered.length-1);renderL()}
+    if(e.key==='Escape'){closeP();return}
+    // Arrows and Enter steer the palette only while the palette's own box holds focus —
+    // an Enter pressed anywhere else must never run whichever entry happens to be selected.
+    if(document.activeElement!==input)return;
+    if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,filtered.length-1);renderL()}
     else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);renderL()}
     else if(e.key==='Enter'){const a=filtered[sel];if(a){closeP();a.run()}}
   });
@@ -484,12 +510,20 @@ const Shortcuts=(()=>{
   const GO={t:'terminal',h:'harness',l:'lab',a:'agent',m:'machine',n:'agents',u:'automations',d:'settings'};
   addEventListener('keydown',e=>{
     if(e.key==='Escape'&&open){toggle(false);return}
-    const el=document.activeElement;
-    if(el&&(/INPUT|TEXTAREA|SELECT/.test(el.tagName)||el.isContentEditable))return;
+    // isKeySink also covers the BROWSER's <canvas> and xterm — a letter typed into a page or
+    // a shell is text, never a chord. A modifier held means the user is aiming at a shortcut
+    // or composing a character (⌥2 is "@" on this keyboard), so the chord stands down.
+    if(isKeySink(document.activeElement))return;
+    const bare=!e.metaKey&&!e.ctrlKey&&!e.altKey;
+    if(!bare){gAt=0;return}
     if(e.key==='?'){e.preventDefault();toggle();return}
-    if(e.key==='g'&&!e.metaKey&&!e.ctrlKey){gAt=Date.now();return}
+    if(e.key==='g'){gAt=Date.now();return}
     if(gAt&&Date.now()-gAt<800&&GO[e.key]){e.preventDefault();Panels.openPanel(GO[e.key]);gAt=0;return}
-    if((e.metaKey||e.ctrlKey)&&e.key==='\\'){const t=Panels.top();if(t){t.dataset.snapped?Snap.restore(t):Snap.apply(t,'max')}}
+    gAt=0;
+  });
+  // ⌘\ maximizes the top window from anywhere, including from inside a text field.
+  addEventListener('keydown',e=>{
+    if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key==='\\'){const t=Panels.top();if(t){t.dataset.snapped?Snap.restore(t):Snap.apply(t,'max')}}
   });
   return{toggle};
 })();
@@ -777,7 +811,8 @@ const Shortcuts=(()=>{
   let appCtlWs=null;
   function appCtlConnect(){
     if(appCtlWs)return;
-    const b=window.__CFHUB_BRIDGE__;if(!b||!b.token||!Bridge.on())return;
+    // Same store as every other live socket — see BridgeClient.wsAuth.
+    const b=BridgeClient.wsAuth();if(!b.token||!Bridge.on())return;
     let s;try{s=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?op=app',['cfhub','cfhub.bearer.'+b.token])}catch(_){return}
     appCtlWs=s;
     s.onmessage=e=>{

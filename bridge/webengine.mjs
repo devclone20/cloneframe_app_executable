@@ -65,6 +65,9 @@ const S = {
   inputWs: null,        // socket that last carried input — a popup's causal owner
   inputAt: 0,
   dls: new Map(),       // guid -> { guid, name, url, total, got, state, ts }
+  cover: null,          // { left, top, width, height } of the app's own window (see _parkBounds)
+  pk: new Map(),        // passkey ceremony tag -> { tabId, at } (see _onPasskey)
+  signin: null,         // live sign-in window: { tabId, origin, at, settle }
 };
 
 // ── the private session ──────────────────────────────────────────────────────
@@ -206,6 +209,162 @@ function _onData(chunk) {
   }
 }
 
+// ── the passkey moment ───────────────────────────────────────────────────────
+// A security key or a platform passkey is the one thing a painted browser cannot do
+// alone: the ceremony is a NATIVE dialog drawn by Chrome, and a headless engine has no
+// window to draw it on. Measured on this machine, 2026-07-27, on a real
+// navigator.credentials.get():
+//   --headless=new      → no dialog, the promise never settles (still pending at 6s,
+//                         22s, 60s). That is exactly the "it just sits there" the owner
+//                         reported at Google's "confirm with your security key" step.
+//   headful, on screen  → Chrome shows "Insert your security key and tap it" and the
+//                         ceremony completes.
+// So a sign-in needs a real window. Two more measurements decide WHERE that window lives:
+//   off-screen  → macOS clamps it back: --window-position=-4000 lands at left:-1240,
+//                 leaving a 40px sliver of Chrome on the desktop forever.
+//   minimized   → the compositor starves: 3 screencast frames in 3s (vs 30 visible).
+//   fully covered by another window → 30 frames in 3s, identical to exposed.
+// Hence: in sign-in mode the engine runs headful with every window parked exactly under
+// the app's own window, which hides it completely at full frame rate, and a ceremony
+// raises that window for the seconds it takes.
+const PK_BINDING = '__cfPasskey';
+const PK_TAG_RE = /^[A-Za-z0-9_]{1,64}$/;
+// Runs in the page's own world. It does not decide anything: it announces the ceremony
+// and WAITS, so the window is already up before Chrome is asked to draw the dialog —
+// no race between raising a window and the native prompt appearing. Every failure path
+// falls through to the untouched original: a broken shim must never break a login.
+const PASSKEY_SHIM = `(() => {
+  if (window.__cfPkShim) return; window.__cfPkShim = 1;
+  const creds = navigator.credentials; if (!creds) return;
+  const gates = (window.__cfPkGates = window.__cfPkGates || {});
+  let n = 0;
+  const wrap = (name) => {
+    const orig = creds[name];
+    if (typeof orig !== 'function') return;
+    creds[name] = function (opts) {
+      // Only a WebAuthn ceremony needs a window. Password/federated credentials draw
+      // nothing, and conditional mediation is the silent autofill hint every passkey
+      // site fires on load — raising a window for that would be a jump-scare.
+      if (!opts || !opts.publicKey || opts.mediation === 'conditional'
+          || typeof window.${PK_BINDING} !== 'function') return orig.call(creds, opts);
+      const tag = 't' + (++n) + '_' + Date.now().toString(36);
+      let origin = ''; try { origin = location.origin; } catch (e) {}
+      const gate = new Promise((res) => { gates[tag] = res; });
+      try { window.${PK_BINDING}(JSON.stringify({ phase: 'ask', tag: tag, kind: name, origin: origin })); }
+      catch (e) { delete gates[tag]; return orig.call(creds, opts); }
+      return gate.then((verdict) => {
+        delete gates[tag];
+        if (verdict === 'refuse') throw new DOMException('Passkey sign-in was cancelled in CLONE FRAME.', 'NotAllowedError');
+        const end = () => { try { window.${PK_BINDING}(JSON.stringify({ phase: 'end', tag: tag })); } catch (e) {} };
+        return orig.call(creds, opts).then((r) => { end(); return r; }, (e) => { end(); throw e; });
+      });
+    };
+  };
+  wrap('get'); wrap('create');
+})();`;
+
+// Chrome hands out one window id per engine window (one window per tab, see open()).
+async function _windowId(tab) {
+  if (tab.windowId) return tab.windowId;
+  const r = await _send('Browser.getWindowForTarget', { targetId: tab.id }, undefined, 5000);
+  tab.windowId = r.windowId;
+  return tab.windowId;
+}
+// Where a hidden engine window sits: exactly on the app's own viewport, so the app covers
+// it completely. Without a reported cover rect there is nowhere safe to hide, so it goes to
+// the top-left at a default size and the panel says so.
+//
+// The window must ALSO be at least as large as the viewport the panel asked for. Headless
+// renders any emulated size regardless of window geometry; HEADFUL does not — an emulated
+// viewport larger than the window's page area is scaled to fit and letterboxed, and the
+// panel then stretches that frame across its canvas. That is the "ficou destorcido" the
+// owner saw the first time sign-in mode ran. CHROME_UI is everything setWindowBounds counts
+// inside the window that the page never gets: tab strip, address bar, and Chrome's
+// "unsupported command-line flag" infobar (--disable-blink-features=AutomationControlled
+// earns it, and that flag stays — it is what keeps the owner's browsing from being read as
+// a bot). Measured too tight at 92: a 900px viewport came back 869px tall, an aspect error
+// of 3.4% that the panel stretched across the canvas. Generous on purpose — the excess only
+// ever applies when the app window is smaller than the page it is showing.
+const CHROME_UI = 170;
+const WIN_FRAME = 16;
+function _parkBounds() {
+  const c = S.cover;
+  if (!c) return { left: 0, top: 30, width: 1280, height: 800 };
+  return {
+    left: Math.round(_num(c.left)), top: Math.max(0, Math.round(_num(c.top))),
+    width: Math.max(520, Math.round(_num(c.width) || 1280)),
+    height: Math.max(420, Math.round(_num(c.height) || 800)),
+  };
+}
+// The page area a parked window can actually show. Growing the window instead was the
+// obvious move and it does not work: macOS refuses to make a window taller than the screen,
+// so the request was silently clamped and the frame came back short anyway (measured —
+// asking for 900px of page height returned 869 whether the window was 992 or 1070 tall).
+function _pageBox() {
+  const b = _parkBounds();
+  return { w: Math.max(200, b.width - WIN_FRAME), h: Math.max(200, b.height - CHROME_UI) };
+}
+async function _placeWindow(tab, raise) {
+  if (!S.headful || !tab) return;
+  try {
+    const windowId = await _windowId(tab);
+    await _send('Browser.setWindowBounds', { windowId, bounds: { ..._parkBounds(tab), windowState: 'normal' } }, undefined, 5000);
+    // A live sign-in window is the one window meant to be looked at: it stays in front
+    // for as long as the sign-in lasts, and then it stops existing.
+    if (raise || (S.signin && S.signin.tabId === tab.id)) await _send('Target.activateTarget', { targetId: tab.id }, undefined, 5000);
+  } catch { /* the window may be closing; the ceremony still gets its answer */ }
+}
+// Every window follows the app when it moves, resizes, or when a viewport grows.
+async function _placeAll() {
+  if (!S.headful) return;
+  for (const tab of S.tabs.values()) await _placeWindow(tab, false);
+}
+
+// Release a waiting shim. The tag is one this engine minted, but it arrives from the
+// page, so it is matched against a fixed shape before it is ever named in an expression
+// — no page-supplied text reaches the JS this module evaluates (module invariant, :12-19).
+function _releasePasskey(tab, tag, verdict) {
+  if (!PK_TAG_RE.test(String(tag || ''))) return Promise.resolve();
+  return _send('Runtime.evaluate', {
+    expression: `(()=>{const g=window.__cfPkGates&&window.__cfPkGates[${JSON.stringify(String(tag))}];if(g)g(${JSON.stringify(verdict === 'refuse' ? 'refuse' : 'go')});})()`,
+  }, tab.sessionId, 5000).catch(() => { /* page navigated away mid-ceremony */ });
+}
+
+async function _onPasskey(tab, payload) {
+  let m; try { m = JSON.parse(String(payload || '')); } catch { return; }
+  const tag = String(m.tag || '');
+  if (!PK_TAG_RE.test(tag)) return;
+  if (m.phase === 'end') {
+    S.pk.delete(tag);
+    // The credential prompt closed. Whatever the page does next is the real outcome, so
+    // the "has it finished" clock starts again from here.
+    if (S.signin && S.signin.tabId === tab.id) { S.signin.busy = false; S.signin.at = Date.now(); }
+    await _placeWindow(tab, false);
+    _pushWatchers(tab.id, { t: 'passkey', id: tab.id, phase: 'done', tag });
+    return;
+  }
+  if (m.phase !== 'ask') return;
+  S.pk.set(tag, { tabId: tab.id, at: Date.now() });
+  // A page that is asking for a key is a page mid-sign-in, however still it looks. This is
+  // the flag that stops the sign-in being declared finished while the owner is typing the
+  // password into the system prompt — the engine used to carry the session across before
+  // the login had happened, so nothing was signed in.
+  if (S.signin && S.signin.tabId === tab.id) {
+    S.signin.busy = true;
+    if (S.signin.settle) { clearTimeout(S.signin.settle); S.signin.settle = null; }
+  }
+  const origin = String(m.origin || '').slice(0, 200);
+  if (!S.headful) {
+    // Headless has no dialog to show. Say so and hold the call: the panel offers sign-in
+    // mode, or cancels — either answer is better than the silent forever-wait.
+    _pushWatchers(tab.id, { t: 'passkey', id: tab.id, phase: 'blocked', tag, origin });
+    return;
+  }
+  await _placeWindow(tab, true);
+  _pushWatchers(tab.id, { t: 'passkey', id: tab.id, phase: 'open', tag, origin });
+  await _releasePasskey(tab, tag, 'go');
+}
+
 function _onMessage(msg) {
   if (msg.id !== undefined) {
     const p = S.pending.get(msg.id);
@@ -246,6 +405,7 @@ function _onMessage(msg) {
     // No visit is recorded anywhere: the browser keeps no history by design (owner's
     // order, 2026-07-25). The url/title push below only feeds the live tab strip.
     if (changed) _pushWatchers(tab.id, { t: 'tab', id: tab.id, url: tab.url, title: tab.title });
+    if (S.signin) _signinWatch(tab);
   } else if (ev === 'Target.targetCreated') {
     const info = params.targetInfo;
     if (!info || info.type !== 'page' || S.tabs.has(info.targetId)) return;
@@ -285,6 +445,9 @@ function _onMessage(msg) {
     d.state = String(params.state || d.state);
     if (d.state === 'completed') d.path = path.join(DOWNLOAD_DIR, d.name);
     _pushDownload(d);
+  } else if (ev === 'Runtime.bindingCalled' && params.name === PK_BINDING) {
+    const tab = S.bySession.get(msg.sessionId);
+    if (tab) _onPasskey(tab, params.payload).catch(() => { /* tab died mid-ceremony */ });
   } else if (ev === 'Log.entryAdded') {
     const tab = S.bySession.get(msg.sessionId);
     if (tab && params.entry) { tab.console.push({ level: params.entry.level, text: String(params.entry.text || '').slice(0, 600), ts: Date.now() }); if (tab.console.length > 200) tab.console.shift(); }
@@ -296,10 +459,13 @@ function _onMessage(msg) {
     if (tab && params.response) { tab.net.push({ url: String(params.response.url || '').slice(0, 300), status: params.response.status, type: params.type, ts: Date.now() }); if (tab.net.length > 300) tab.net.shift(); }
   } else if (ev === 'Target.targetDestroyed') {
     const tab = S.tabs.get(params.targetId);
-    if (tab) { S.tabs.delete(tab.id); S.bySession.delete(tab.sessionId); _pushWatchers(tab.id, { t: 'gone', id: tab.id }); }
+    // The sign-in announcement goes FIRST: 'gone' makes a panel with no tabs left open a
+    // fresh one, and while sign-in mode is on a fresh tab is a fresh window — the owner
+    // closed the window and watched another appear.
+    if (tab) { S.tabs.delete(tab.id); S.bySession.delete(tab.sessionId); _signinClosed(tab.id); _pushWatchers(tab.id, { t: 'gone', id: tab.id }); }
   } else if (ev === 'Target.detachedFromTarget') {
     const tab = S.bySession.get(params.sessionId);
-    if (tab) { S.tabs.delete(tab.id); S.bySession.delete(tab.sessionId); _pushWatchers(tab.id, { t: 'gone', id: tab.id }); }
+    if (tab) { S.tabs.delete(tab.id); S.bySession.delete(tab.sessionId); _signinClosed(tab.id); _pushWatchers(tab.id, { t: 'gone', id: tab.id }); }
   }
 }
 
@@ -409,6 +575,10 @@ async function _spawnEngine() {
     for (const t of targetInfos || []) {
       if (t.type === 'page' && !S.tabs.has(t.targetId)) await _attachOnce(t.targetId, t);
     }
+    // In sign-in mode this includes the engine's own about:blank startup window, which
+    // must never be closed (Chrome exits with it) — so it is hidden with the rest. Seen
+    // on screen before this line existed: a stray Chrome window sitting beside the app.
+    if (S.headful) for (const tab of S.tabs.values()) await _placeWindow(tab, false);
   } catch (e) {
     try { proc.kill('SIGKILL'); } catch { /* already gone */ }
     if (S.proc === proc) { S.proc = null; S.ready = false; }
@@ -469,6 +639,18 @@ async function _attach(targetId, info) {
   await _send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId).catch(() => { /* older Chrome */ });
   // Best-effort observability domains — a page that refuses one must not block attach.
   await _send('Runtime.enable', {}, sessionId).catch(() => {});
+  // The passkey channel (see PASSKEY_SHIM), installed in the BACKGROUND and never awaited:
+  // opening a tab must not wait on it. Page.addScriptToEvaluateOnNewDocument is known to
+  // hang on a target that has no document yet, and three awaited 5s budgets would have put
+  // up to 15s in front of every new tab — a browser that "stopped working". Order still
+  // matters (addBinding first, or the shim finds no window.__cfPasskey and steps aside),
+  // so the calls chain; only the chain is detached. The shim is registered for future
+  // documents AND evaluated once for the document already here, since attach can land
+  // either side of the first load.
+  _send('Runtime.addBinding', { name: PK_BINDING }, sessionId, 5000)
+    .then(() => _send('Page.addScriptToEvaluateOnNewDocument', { source: PASSKEY_SHIM }, sessionId, 5000))
+    .then(() => _send('Runtime.evaluate', { expression: PASSKEY_SHIM }, sessionId, 5000))
+    .catch(() => { /* a page that refuses the channel still browses — it just cannot announce a ceremony */ });
   // DOM.getNodeForLocation — what the page context menu hit-tests with — needs the DOM
   // agent awake. Without it the call crawls and answers nothing, so a right-click sat
   // there for seconds and then offered a menu that knew nothing about the link under it.
@@ -504,6 +686,7 @@ async function _adoptSpawned(info) {
   if (!S.ctx || info.browserContextId !== S.ctx) return;
   if (tab.claimed || tab.spawnT) return;
   if (!tab.ctx) tab.ctx = S.ctx;                 // popups inherit the private session
+  _placeWindow(tab, false).catch(() => { /* headless, or the popup died first */ });
   tab.spawnT = setTimeout(() => { tab.spawnT = null; _announceSpawn(tab); }, SPAWN_SETTLE_MS);
   if (tab.spawnT.unref) tab.spawnT.unref();
 }
@@ -704,6 +887,13 @@ export const Webengine = {
       profile: path.join(hubRoot(), 'web-engine'),
       tabs: Webengine.tabs(),
       lastExit: S.lastExit,
+      // Where sign-in mode hides its windows, and where it would put them right now.
+      // Without this, a misplaced window is a guessing game (it was one, once).
+      cover: S.cover,
+      coverAt: S.coverAt || null,   // last time the app reported where it is (see setCover)
+      signin: S.signin ? { tabId: S.signin.tabId, origin: S.signin.origin, startUrl: S.signin.startUrl, moved: !!S.signin.moved, seen: S.signin.seen || 0, waiting: !!S.signin.settle } : null,
+      park: S.headful ? _parkBounds() : null,
+      pageBox: S.headful ? _pageBox() : null,
     };
   },
 
@@ -728,6 +918,9 @@ export const Webengine = {
       const r = await _send('Target.createTarget', { url: u, newWindow: true, background: !!background, browserContextId: ctx });
       const tab = _claim(await _attachOnce(r.targetId));
       tab.ctx = ctx; // marks this tab as the owner's — wipe() only ever destroys these
+      // In sign-in mode the engine is headful, so a new tab is a real Chrome window that
+      // would otherwise land on top of everything. Park it under the app before it is seen.
+      await _placeWindow(tab, false);
       return { ok: true, id: tab.id, url: u };
     } catch (e) { return { ok: false, error: e.message }; }
   },
@@ -740,10 +933,16 @@ export const Webengine = {
     // inherit the session of a page the owner just closed.
     let origin = '';
     try { origin = new URL(tab.url).origin; } catch { /* about:blank / never navigated */ }
-    if (origin) await _send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }, tab.sessionId).catch(() => { /* page already gone */ });
+    // The sign-in window is the one tab whose closing MEANS "keep this" — closing it is
+    // how anyone ends a sign-in, and erasing the site would throw away the very session
+    // the window was opened to get.
+    const isSignin = !!(S.signin && S.signin.tabId === tab.id);
+    if (origin && !isSignin) await _send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }, tab.sessionId).catch(() => { /* page already gone */ });
     try { await _send('Target.closeTarget', { targetId: tab.id }); } catch (e) { return { ok: false, error: e.message }; }
-    // targetDestroyed also fires; deleting here just makes close() synchronous-honest.
+    // targetDestroyed also fires; deleting here just makes close() synchronous-honest —
+    // which is also why the sign-in announcement has to be made from here as well.
     S.tabs.delete(tab.id); S.bySession.delete(tab.sessionId);
+    if (isSignin) _signinClosed(tab.id);
     return { ok: true };
   },
 
@@ -812,7 +1011,14 @@ export const Webengine = {
       // existing window, where only the active tab composites. Casting a tab is
       // the declaration that the owner is looking at it — make it its window's
       // active tab so frames actually flow. No-op for our one-window-per-tab targets.
-      await _send('Target.activateTarget', { targetId: tab.id }).catch(() => { /* best-effort */ });
+      // Skipped in sign-in mode: there activateTarget also RAISES a real Chrome window,
+      // and casting must never yank a parked window in front of the app. Nothing is lost —
+      // a covered headful window composites at full rate without ever being active
+      // (measured: 30 frames/3s covered, the same as exposed).
+      if (!S.headful) await _send('Target.activateTarget', { targetId: tab.id }).catch(() => { /* best-effort */ });
+      // Casting is the moment the panel says "the owner is looking at this" — a good time
+      // to make sure the real window behind it is still where the app is.
+      else await _placeWindow(tab, false);
       await _send('Page.startScreencast', {
         format: 'jpeg',
         quality: _clampInt(quality, 1, 100, 70),
@@ -850,13 +1056,32 @@ export const Webengine = {
     const tab = _tab(id);
     if (!tab) return { ok: false, error: 'no such tab' };
     try {
+      let w = _clampInt(width, 64, 4096, 1280), h = _clampInt(height, 64, 4096, 800);
+      // Headless renders any emulated viewport whatever the window looks like; HEADFUL
+      // caps it at the window's page area and letterboxes the rest — and the panel, which
+      // stretches every frame across its canvas, turns that letterbox into the stretched
+      // picture the owner reported. So in sign-in mode the request is scaled DOWN to what
+      // the window can really show, BOTH axes by the same factor: the frame comes back a
+      // little softer, never the wrong shape.
+      if (S.headful) {
+        // Put the window where it belongs FIRST. The clamp below measures the parked
+        // bounds, so measuring before the window has actually got there clamps against a
+        // window that no longer exists: a freshly opened tab was still at the spawn size
+        // (1280x800) and the very first frame came back 2400x1390 instead of 2400x1440,
+        // while every later frame was exact. Order, not arithmetic.
+        await _placeWindow(tab, false);
+        await new Promise((r) => setTimeout(r, 120)); // let the widget catch up with its window
+        const box = _pageBox();
+        const k = Math.min(1, box.w / w, box.h / h);
+        if (k < 1) { w = Math.max(64, Math.round(w * k)); h = Math.max(64, Math.round(h * k)); }
+      }
       await _send('Emulation.setDeviceMetricsOverride', {
-        width: _clampInt(width, 64, 4096, 1280),
-        height: _clampInt(height, 64, 4096, 800),
+        width: w, height: h,
         deviceScaleFactor: Math.min(Math.max(_num(scale) || 1, 0.25), 3),
         mobile: false,
       }, tab.sessionId);
-      return { ok: true };
+      tab.vw = w; tab.vh = h;
+      return { ok: true, width: w, height: h };
     } catch (e) { return { ok: false, error: e.message }; }
   },
 
@@ -1178,11 +1403,77 @@ export const Webengine = {
   consoleLog({ id } = {}) { const tab = (id != null ? _tab(id) : _primaryTab()); if (!tab) return { ok: false, error: 'no tab open' }; return { ok: true, entries: tab.console.slice(-60) }; },
   network({ id } = {}) { const tab = (id != null ? _tab(id) : _primaryTab()); if (!tab) return { ok: false, error: 'no tab open' }; return { ok: true, requests: tab.net.slice(-60) }; },
 
-  // reveal mode: relaunch headful (visible) so the user can complete an OAuth login or a
-  // heavy-WebGL session. The profile singleton lock means one instance, so every tab's URL
-  // is snapshotted and the tabs are rebuilt after the relaunch — in a NEW private context,
-  // so a login made here lives as long as the browser stays open, never longer.
-  // unreveal() returns to headless.
+  // Sign-in mode. A passkey or a security key needs a real window to draw its dialog on
+  // (see "the passkey moment"), which headless does not have, so signing in means running
+  // the engine headful with its windows parked under the app's own window. The profile
+  // singleton lock means one instance, so this is a relaunch: every tab's URL is
+  // snapshotted and rebuilt afterwards in a NEW private context. That CLEARS the current
+  // session — which is why it belongs before a sign-in, never in the middle of one.
+  // `cover` is the app window's screen rect; without it there is nowhere to hide.
+  // ── the sign-in window: open it, use it, and it disappears ────────────────
+  // Open a REAL Chrome window on `url` and leave it in front. Everything a sign-in can
+  // ask for works there — password, passkey, security key, an SMS code — because it is a
+  // genuine browser window, not a picture of one.
+  async signinStart({ url, cover } = {}) {
+    const u = _safeUrl(url);
+    if (!u || u === 'about:blank') return { ok: false, error: 'a sign-in needs a page to sign in to' };
+    if (cover) S.cover = { left: _num(cover.left), top: _num(cover.top), width: _num(cover.width), height: _num(cover.height) };
+    S.signin = null;
+    const r = await _relaunch(true);
+    if (r.ok === false) return r;
+    const t = await Webengine.open({ url: u });
+    if (!t.ok) return t;
+    const tab = _tab(t.id);
+    if (tab) { _signinArm(tab, u); await _placeWindow(tab, true); }
+    return { ok: true, id: t.id, url: u, origin: _originOf(u) };
+  },
+  // Done. Take the session out of the window, put the engine back to windowless, and put
+  // the session into it — so the owner lands signed in, with nothing left open.
+  async signinFinish() {
+    if (!S.headful) return { ok: false, error: 'no sign-in window is open' };
+    const cookies = await _harvestCookies();
+    const tabs = [...S.tabs.values()].map((t) => ({ url: t.url, casting: t.casting }));
+    if (S.signin && S.signin.settle) clearTimeout(S.signin.settle);
+    S.signin = null;
+    const r = await _relaunch(false, { cookies, tabs: tabs.filter((t) => /^https?:\/\//i.test(t.url)) });
+    // Which sites actually came across — the one number that says whether a sign-in
+    // survived, and the first thing to look at when it did not.
+    const domains = [...new Set(cookies.map((c) => String(c.domain || '').replace(/^\./, '')))].sort().slice(0, 25);
+    return { ...r, carried: cookies.length, restored: r.restored || 0, rejected: r.rejected || 0, domains };
+  },
+  // Walked away from it: close the window and keep nothing.
+  async signinCancel() {
+    if (S.signin && S.signin.settle) clearTimeout(S.signin.settle);
+    S.signin = null;
+    if (!S.headful) return { ok: true, headful: false };
+    return _relaunch(false);
+  },
+
+  async signin({ on = true, cover } = {}) {
+    if (cover) S.cover = { left: _num(cover.left), top: _num(cover.top), width: _num(cover.width), height: _num(cover.height) };
+    const r = await _relaunch(!!on);
+    return { ...r, signin: S.headful, cover: S.cover };
+  },
+  // The app window moved or resized: hidden windows must follow it or they peek out.
+  async setCover({ left, top, width, height } = {}) {
+    S.cover = { left: _num(left), top: _num(top), width: _num(width), height: _num(height) };
+    S.coverAt = Date.now();
+    await _placeAll();
+    return { ok: true, cover: S.cover };
+  },
+  // The owner's answer to a ceremony this engine could not serve: 'go' lets the page ask
+  // Chrome anyway (it will hang — only useful once sign-in mode is on), 'refuse' rejects
+  // it with NotAllowedError so the site offers its other sign-in methods instead of
+  // spinning forever.
+  async passkey({ tag, verdict = 'refuse' } = {}) {
+    const rec = S.pk.get(String(tag || ''));
+    if (!rec) return { ok: false, error: 'no such ceremony' };
+    const tab = _tab(rec.tabId);
+    if (!tab) { S.pk.delete(String(tag)); return { ok: false, error: 'tab is gone' }; }
+    S.pk.delete(String(tag));
+    await _releasePasskey(tab, tag, verdict === 'go' ? 'go' : 'refuse');
+    return { ok: true, verdict: verdict === 'go' ? 'go' : 'refuse' };
+  },
   async reveal() { return _relaunch(true); },
   async unreveal() { return _relaunch(false); },
 
@@ -1259,16 +1550,182 @@ async function _historyStep(id, delta) {
 // at their pages — in a fresh private context, so the relaunch also drops every cookie
 // and cache the old one held (the engine restart IS a wipe; this is by design).
 S.headful = false;
-async function _relaunch(headful) {
+async function _relaunch(headful, { cookies, tabs } = {}) {
   headful = !!headful;
-  if (S.proc && S.ready && S.headful === headful) return { ok: true, headful, unchanged: true };
-  const snap = [...S.tabs.values()].map((t) => ({ url: t.url, casting: t.casting }));
+  if (!cookies && !tabs && S.proc && S.ready && S.headful === headful) return { ok: true, headful, unchanged: true };
+  const snap = tabs || [...S.tabs.values()].map((t) => ({ url: t.url, casting: t.casting }));
   const proc = S.proc;
-  if (proc) { try { proc.stdio[3].end(); } catch { /* pipe gone */ } try { proc.kill('SIGTERM'); } catch { /* gone */ } await _waitExit(proc, 2000); try { proc.kill('SIGKILL'); } catch { /* gone */ } }
+  if (proc) {
+    try { proc.stdio[3].end(); } catch { /* pipe gone */ }
+    try { proc.kill('SIGTERM'); } catch { /* gone */ }
+    await _waitExit(proc, 2000);
+    try { proc.kill('SIGKILL'); } catch { /* gone */ }
+    // WAIT for it to actually be gone. Chrome holds a singleton lock on the profile
+    // directory, and _spawnEngine deletes that directory and starts a new Chrome on it:
+    // racing a process that is still dying gives a Chrome that exits on arrival, which
+    // surfaces to the owner as "Browser engine unavailable" and leaves sign-in mode stuck
+    // half-on. This is the wait that was missing.
+    await _waitExit(proc, 3000);
+  }
   S.proc = null; S.ready = false; S.headful = headful;
-  try { await _spawnEngine(); } catch (e) { return { ok: false, error: e.message }; }
-  for (const s of snap) { if (!/^https?:\/\//i.test(s.url)) continue; try { const r = await Webengine.open({ url: s.url }); if (r.ok && s.casting) await Webengine.castStart({ id: r.id }); } catch { /* one tab failing must not abort the rest */ } }
-  return { ok: true, headful };
+  // Every ceremony waiting on the old engine died with it — its page no longer exists.
+  S.pk.clear();
+  try { await _spawnEngine(); }
+  catch (e) {
+    // One honest retry: the lock is the usual reason, and it clears in well under a second.
+    await new Promise((r) => setTimeout(r, 900));
+    try { await _spawnEngine(); } catch { return { ok: false, error: e.message }; }
+  }
+  // Cookies BEFORE the first page loads, or the rebuilt tab arrives signed out and the
+  // whole point of carrying them across is lost.
+  let restored = 0, rejected = 0;
+  if (cookies && cookies.length) {
+    try {
+      const ctx = await _ensureCtx();
+      const r = await _restoreCookies(cookies, ctx);
+      restored = r.restored; rejected = r.rejected;
+    } catch { /* a session that refuses to travel is reported, never faked */ }
+  }
+  const rebuilt = [];
+  for (const s of snap) {
+    if (!/^https?:\/\//i.test(s.url)) continue;
+    try { const r = await Webengine.open({ url: s.url }); if (r.ok) { rebuilt.push({ id: r.id, url: s.url }); if (s.casting) await Webengine.castStart({ id: r.id }); } }
+    catch { /* one tab failing must not abort the rest */ }
+  }
+  // The caller has to be able to re-bind: after a relaunch every tab id the panel held is
+  // a corpse, and a panel that guesses opens a tab nobody asked for (which, in sign-in
+  // mode, is a second real window on the owner's desktop — exactly what he reported).
+  return { ok: true, headful, restored, rejected, tabs: rebuilt };
+}
+
+// ── the sign-in window ───────────────────────────────────────────────────────
+// What the owner asked for, and it is the right shape: a real window appears ONLY for the
+// sign-in, and when it is done it GOES AWAY — no external browser is left sitting around.
+// The session survives because a session is cookies: they are read out of the private
+// context before the headful engine dies and written into the headless one before its
+// first page loads. Everything else about that window (its history, its cache) dies with
+// it, exactly like the rest of this browser.
+// Limits, stated honestly: sites that keep their session in localStorage rather than
+// cookies will not carry across, and a provider that binds its cookies to the device
+// profile (Google's own DBSC sessions) can invalidate them on first refresh — which is why
+// the target here is the SITE's session (github.com), not the provider's.
+// Only the fields a session actually needs. The exotic ones a live Chrome reports back
+// (sameParty, sourcePort, partitionKey, priority) are the ones whose shape drifts between
+// versions, and Storage.setCookies is ALL-OR-NOTHING: one cookie Chrome dislikes rejects
+// the whole call, so a single odd field silently costs the entire sign-in.
+const COOKIE_FIELDS = ['name', 'value', 'domain', 'path', 'secure', 'httpOnly', 'sameSite', 'expires'];
+function _cookieParams(list) {
+  return (list || []).map((c) => {
+    const o = {};
+    for (const k of COOKIE_FIELDS) if (c[k] !== undefined && c[k] !== null) o[k] = c[k];
+    return o;
+  }).filter((c) => c.name && c.domain);
+}
+// Restore them, and know how many really landed. Batch first because it is one round trip;
+// if Chrome refuses the batch, go one at a time so the session is not lost to whichever
+// single cookie it disliked, and report the truth either way.
+async function _restoreCookies(cookies, ctx) {
+  if (!cookies || !cookies.length) return { restored: 0, rejected: 0 };
+  try {
+    await _send('Storage.setCookies', { cookies, browserContextId: ctx }, undefined, 20000);
+    return { restored: cookies.length, rejected: 0 };
+  } catch { /* fall through to one-by-one */ }
+  let restored = 0, rejected = 0;
+  for (const c of cookies) {
+    try { await _send('Storage.setCookies', { cookies: [c], browserContextId: ctx }, undefined, 8000); restored++; }
+    catch { rejected++; }
+  }
+  return { restored, rejected };
+}
+async function _harvestCookies() {
+  if (!S.ctx) return [];
+  try {
+    const r = await _send('Storage.getCookies', { browserContextId: S.ctx }, undefined, 20000);
+    return _cookieParams(r && r.cookies);
+  } catch { return []; }
+}
+// While a sign-in is live the window is meant to be SEEN: it is the one moment this
+// browser asks the owner to look at a real Chrome window.
+function _signinArm(tab, url) {
+  S.signin = {
+    tabId: tab.id, origin: _originOf(url), startUrl: String(url || ''),
+    moved: false, at: Date.now(), settle: null, seen: 0,
+    busy: false,        // a credential prompt is open — see _onPasskey
+    tries: 0,
+    before: new Set(),  // the cookies that existed BEFORE the sign-in (filled just below)
+  };
+  // A sign-in is finished when the SITE HAS GIVEN A SESSION, not when the page stops
+  // moving. Remember what was there first so "new" means something.
+  _harvestCookies().then((list) => {
+    if (S.signin && S.signin.tabId === tab.id) for (const c of list) S.signin.before.add(c.domain + '|' + c.name);
+  }).catch(() => {});
+}
+function _originOf(u) { try { return new URL(String(u)).origin; } catch { return ''; } }
+// Hostnames, tested as hostnames. The first cut tested the whole URL against a pattern
+// anchored with (^|\.), which can never match "https://accounts.google.com/…" — the
+// character before the host is a slash. So nothing was ever recognised as an auth page and
+// the finish detector could not work. Measured on the owner's own run.
+const AUTH_HOSTS = /(^|\.)(accounts\.google\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com|auth0\.com|okta\.com|duosecurity\.com|id\.atlassian\.com)$/i;
+function _isAuthUrl(u) {
+  try {
+    const x = new URL(String(u));
+    if (AUTH_HOSTS.test(x.hostname)) return true;
+    // A site's own login path counts too, so "finished" never fires on the form itself.
+    if (/^\/(login|signin|sign_in|session|sessions|oauth|authorize)/i.test(x.pathname)) return true;
+    return false;
+  } catch { return false; }
+}
+// The sign-in is "probably finished" when the window is back on the site it started from
+// and has stopped moving. The owner can always say so first with the panel's Done button;
+// this only saves them the click.
+// Closing the window IS "I'm done" — it is what anyone would do, and it needs no visible
+// app behind it. The cookies live in the browser context, not in the window, so they are
+// still there to be harvested after the tab is gone.
+function _signinClosed(tabId) {
+  const s = S.signin;
+  if (!s || s.tabId !== tabId) return;
+  if (s.settle) { clearTimeout(s.settle); s.settle = null; }
+  for (const ws of S.wsClients) _wsSend(ws, { t: 'signin', phase: 'ready', closed: true });
+}
+function _signinWatch(tab) {
+  const s = S.signin;
+  if (!s || !tab || tab.id !== s.tabId) return;
+  s.seen = (s.seen || 0) + 1;   // how many navigations this watcher actually saw
+  if (String(tab.url || '') !== s.startUrl) s.moved = true;   // sticky: it went somewhere
+  // Finished = it has been somewhere, it is no longer on any sign-in page, and it stopped.
+  // Keying on "back at the origin it started from" was wrong the moment the owner pressed
+  // SIGN IN while already inside Google's flow: the origin WAS the provider, so the
+  // condition could never come true.
+  const back = s.moved && !_isAuthUrl(tab.url) && /^https?:/i.test(String(tab.url || ''));
+  if (s.settle) { clearTimeout(s.settle); s.settle = null; }
+  if (!back || s.busy) return;   // busy = a credential prompt is open; nothing has finished
+  // The minimum age is folded into the WAIT, never used as an early return. Returning
+  // early was a trap: the check only runs when a navigation arrives, so a sign-in whose
+  // LAST navigation landed a moment before the minimum was never re-examined and the
+  // window sat there forever — reproduced 3 times out of 3 at the boundary, and it is
+  // what the owner met on his own run.
+  const wait = Math.max(2500, 4000 - (Date.now() - s.at));
+  s.settle = setTimeout(async () => {
+    s.settle = null;
+    if (S.signin !== s || s.busy) return;
+    // Second signal: the site has actually GIVEN something. A page that merely stopped
+    // moving proves nothing — it looks identical while a system password prompt is up.
+    // Waiting for a cookie the sign-in did not have before is waiting for the session
+    // itself. Soft, not absolute: after ~3 more looks, trust the quiet, because a site
+    // that reuses its cookie names would otherwise never be declared done (and closing
+    // the window by hand always works regardless).
+    let fresh = 0;
+    try { fresh = (await _harvestCookies()).filter((c) => !s.before.has(c.domain + '|' + c.name)).length; } catch { fresh = 0; }
+    if (!fresh && s.tries < 3) {
+      s.tries++;
+      s.settle = setTimeout(() => { s.settle = null; _signinWatch(tab); }, 3000);
+      if (s.settle.unref) s.settle.unref();
+      return;
+    }
+    _pushWatchers(tab.id, { t: 'signin', phase: 'ready', url: tab.url, fresh });
+    for (const ws of S.wsClients) _wsSend(ws, { t: 'signin', phase: 'ready', url: tab.url, fresh });
+  }, wait);
+  if (s.settle.unref) s.settle.unref();
 }
 
 export default Webengine;

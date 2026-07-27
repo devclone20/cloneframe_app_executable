@@ -7,6 +7,16 @@
     const stCell=persisted(KEY,null); let st=stCell.get(); // kernel persisted (T-046)
     if(!st||!Array.isArray(st.sessions))st={sessions:[],active:null};
     const saveSt=()=>stCell.set(st);
+    // A gate that outlived its agent run is not a decision the owner can still make. The run
+    // died with the window or the reload, and the tool was never executed — but the card came
+    // back with live APPROVE/REJECT buttons wired to an empty pendingGates map. Buttons that
+    // did nothing, on a request that no longer existed, in the one place in the app that is
+    // supposed to be real governance. Retire them on load and say what happened; nothing is
+    // ever silently approved.
+    (()=>{let n=0;
+      for(const s of (st.sessions||[]))for(const m of (s.msgs||[]))if(m&&m.role==='gate'&&!m.resolved){m.resolved='expired';n++}
+      if(n)saveSt();
+    })();
     const active=()=>st.sessions.find(x=>x.id===st.active)||null;
     function newSession(){
       // default to pi (the app's first-class agent) when installed; otherwise the first
@@ -388,7 +398,14 @@
       pop.querySelector('#cdmq').addEventListener('input',e=>{list.innerHTML=rows(e.target.value.trim().toLowerCase());wireRows()});
       pop.querySelector('#cdmadd').addEventListener('click',()=>{closePops();openPanel('settings')});
       pop.querySelector('#cdmmore').addEventListener('click',()=>{closePops();openPanel('settings');setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="addmodels"]');if(b)b.click()},80)});
-      pop.addEventListener('keydown',e=>{const mq=pop.querySelector('#cdmq');if(document.activeElement===mq&&mq.value)return;const n=+e.key;if(n>=1&&n<=4){const r=list.querySelectorAll('.cdmrow')[n-1];if(r)r.click()}});
+      // The search box takes focus as this opens, so a bare digit typed there is TEXT — it used
+      // to both insert the character and click that row. ⌘1…4 stays available as the shortcut.
+      pop.addEventListener('keydown',e=>{
+        const mq=pop.querySelector('#cdmq'),pick=(e.metaKey||e.ctrlKey)&&!e.altKey;
+        if(!pick&&(document.activeElement===mq||e.altKey))return;
+        const n=+((e.code||'').indexOf('Digit')===0?e.code.slice(5):e.key); // layout-proof
+        if(n>=1&&n<=4){e.preventDefault();const r=list.querySelectorAll('.cdmrow')[n-1];if(r)r.click()}
+      });
       pop.querySelector('#cdmq').focus();
     }
     function popInft(){
@@ -807,7 +824,7 @@
         tr.innerHTML=`<div class="cdwelcome"><div class="cwbrand">&lt;/&gt; CODE</div><div class="cwsub">Yours to command.</div><div class="cwtip">Talk to your model in natural language. Pick the model and the harness below — or open the real terminal ( ❯_ ), the diff ( ⧉ ) and the web browser on the right.</div></div>`;
       }else{
         tr.innerHTML=cur.msgs.map(m=>m.role==='gate'
-          ?`<div class="cdgate${m.resolved?' done':''}"><div class="cdgate-hd">⛔ HARNESS GATE · ${escHtml((m.gates||[]).join(' · ')||'OWNER')}</div><div class="cdgate-tool">${escHtml(m.tool)} ${escHtml(m.gargs||'')}</div>${m.resolved?`<div class="cdgate-res ${m.resolved}">${m.resolved==='approved'?'✓ approved by owner':'✕ rejected by owner'}</div>`:`<div class="cdgate-btns"><button class="cdgate-ok" data-gateok="${escAttr(m.gid)}">APPROVE</button><button class="cdgate-no" data-gateno="${escAttr(m.gid)}">REJECT</button></div>`}</div>`
+          ?`<div class="cdgate${m.resolved?' done':''}${m.resolved==='expired'?' expired':''}"><div class="cdgate-hd">⛔ HARNESS GATE · ${escHtml((m.gates||[]).join(' · ')||'OWNER')}</div><div class="cdgate-tool">${escHtml(m.tool)} ${escHtml(m.gargs||'')}</div>${m.resolved?`<div class="cdgate-res ${m.resolved}">${m.resolved==='approved'?'✓ approved by owner':m.resolved==='expired'?'⏱ the session ended before you answered — this was never run':'✕ rejected by owner'}</div>`:`<div class="cdgate-btns"><button class="cdgate-ok" data-gateok="${escAttr(m.gid)}">APPROVE</button><button class="cdgate-no" data-gateno="${escAttr(m.gid)}">REJECT</button></div>`}</div>`
           :m.role==='sys'?`<div class="cdmsg sys">${escHtml(m.content)}</div>`:`<div class="cdmsg ${m.role==='user'?'user':'ai'}">${m.role==='user'?escHtml(m.content):MDLite.render(m.content||'…')}</div>`).join('');
       }
       // Restore: a pinned reader (or a session switch / a just-sent turn) rides the bottom

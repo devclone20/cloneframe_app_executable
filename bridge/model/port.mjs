@@ -85,7 +85,11 @@ export function createModelPort({ registry, fetchImpl = fetch, envAnthropicKey =
     let rec = null;
     if (providerId && registry?._raw) rec = registry._raw(String(providerId));
     if (!rec && capability && registry?.getDefaults) {
-      const def = registry.getDefaults()[capability];
+      const defs = registry.getDefaults() || {};
+      // An unset capability follows 'chat' — the general default, and what the row says in
+      // Settings. Without this, choosing a model for Chat still left every other job on
+      // "whichever provider sorts first", which is the arbitrariness this map exists to end.
+      const def = defs[capability] || (capability !== 'chat' ? defs.chat : null);
       if (def?.providerId && registry._raw) { rec = registry._raw(def.providerId); if (!model) model = def.model; }
     }
     if (!rec && registry?.listProviders) {

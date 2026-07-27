@@ -79,7 +79,7 @@ export function loadEnvProvider() {
 // is the model for "an env ANTHROPIC_API_KEY is all there is". Overridable via env.
 export const DEFAULT_MODEL = process.env.HUB_BRIDGE_MODEL || 'claude-sonnet-5';
 
-// ask(messages, {system, model, maxTokens, signal}) -> string
+// ask(messages, {system, model, capability, providerId, maxTokens, signal}) -> string
 // messages: [{role:'user'|'assistant', content:string}]
 // Provider-agnostic: delegates to the shared model port. Throws (key-free) when
 // no provider is configured/reachable or the wire errors. Returns the text.
@@ -89,14 +89,21 @@ export async function ask(messages, opts = {}) {
   // loadKey from here); by call time both modules are fully loaded.
   const { modelPort } = await import('./model/port.mjs');
   const port = await modelPort();
-  const target = port.resolveTarget({});
+  // Settings → AI Defaults maps a capability to a provider+model. Nothing read that map:
+  // resolveTarget({}) ignores it and falls back to "whichever provider sorts first", so the
+  // owner picked a model in Settings, saw "Saved", and the app went on using another one.
+  // The email jobs name their own capability; everything else follows 'chat', which is what
+  // the row means — the general default.
+  const capability = opts.capability || 'chat';
+  const pick = { capability, providerId: opts.providerId, model: opts.model };
+  const target = port.resolveTarget(pick);
   if (!target) throw new Error('no model configured — add a provider in Settings → Add Models, or set ANTHROPIC_API_KEY');
-  // Supply a concrete default model ONLY when the resolved target is Anthropic
-  // (its env-key fallback has no model); every other provider uses its own
-  // configured default (pass model:undefined so the port picks it). This keeps
-  // the background helpers agnostic while preserving prior env-only behavior.
-  const model = opts.model || (target.anthropic ? DEFAULT_MODEL : undefined);
-  return port.ask(msgs, { system: opts.system, model, maxTokens: opts.maxTokens || 1024, signal: opts.signal });
+  // Anthropic needs a concrete model id and a bare env key carries none (it resolves to
+  // 'auto'), so substitute the default ONLY there. A target that resolved a real model —
+  // including one chosen in AI Defaults — keeps it; the old unconditional substitution
+  // overwrote an explicitly configured Anthropic model with this constant.
+  const model = opts.model || (target.anthropic && (!target.model || target.model === 'auto') ? DEFAULT_MODEL : target.model);
+  return port.ask(msgs, { ...pick, model, system: opts.system, maxTokens: opts.maxTokens || 1024, signal: opts.signal });
 }
 
 export function hasBrain() { return !!(loadKey() || loadEnvProvider()); }

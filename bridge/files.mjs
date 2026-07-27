@@ -29,10 +29,45 @@ const SECRET_FILES = new Set([
   path.join(HOME, '.env'), path.join(HOME, '.env.local'), path.join(HOME, '.env.production'),
   path.join(HOME, '.netrc'), path.join(HOME, '.npmrc'), path.join(HOME, '.pgpass'),
 ]);
+// Canonicalise before comparing. This guard used to compare raw strings, and that left two
+// separate ways straight past it:
+//
+//   CASE — macOS ships APFS case-INSENSITIVE by default, so `~/.SSH/id_ed25519` and
+//     `~/.ssh/id_ed25519` are the SAME FILE to the kernel and two different strings here.
+//     An audit walked out with a real private key through `~/.SSH/`, read the Google token
+//     store through `~/.CLONE-FRAME-HUB/oauth.json`, and listed `~/.Clone-Frame-Hub/` entry
+//     by entry — while SECURITY.md promised all three were blocked server-side.
+//   SYMLINK — a link placed anywhere the agent may write, pointing into `~/.ssh`, was just
+//     as invisible to a string compare.
+//
+// realpathSync.native answers both: it returns the on-disk casing AND resolves links.
+//
+// Paths that do not exist yet have no realpath, and those matter — `write` and `mkdir` are
+// exactly how a new file appears inside a secret directory. So walk up to the nearest
+// ancestor that does exist, canonicalise that, and re-attach the tail.
+function canon(f) {
+  let head = String(f), tail = '';
+  for (;;) {
+    try { return tail ? path.join(fs.realpathSync.native(head), tail) : fs.realpathSync.native(head); }
+    catch { /* not on disk yet — try the parent */ }
+    const up = path.dirname(head);
+    if (up === head) return String(f); // reached the root and found nothing real
+    tail = tail ? path.join(path.basename(head), tail) : path.basename(head);
+    head = up;
+  }
+}
+// Fold case only where the filesystem does. Folding on Linux would refuse a genuinely
+// distinct path that the owner is entitled to read.
+const FOLD = process.platform === 'darwin' || process.platform === 'win32';
+const norm = (s) => (FOLD ? String(s).toLowerCase() : String(s));
+// Canonicalised once at load: the protected locations do not move while the daemon runs.
+const CANON_SECRET_DIRS = SECRET_DIRS.map((d) => norm(canon(d)));
+const CANON_SECRET_FILES = new Set([...SECRET_FILES].map((f) => norm(canon(f))));
 function isSecret(f) {
   if (!f) return false;
-  if (SECRET_FILES.has(f)) return true;
-  return SECRET_DIRS.some(b => f === b || f.startsWith(b + path.sep));
+  const c = norm(canon(f));
+  if (CANON_SECRET_FILES.has(c)) return true;
+  return CANON_SECRET_DIRS.some((b) => c === b || c.startsWith(b + path.sep));
 }
 const SECRET_ERR = { ok: false, error: 'refused: protected location (keys/tokens/secrets)' };
 
@@ -44,6 +79,8 @@ const PUBLIC_HUB_FILES = new Set([
   path.join(HOME, '.clone-frame-hub', 'AGENTS.md'),
   path.join(HOME, '.clone-frame-hub', 'APP-MAP.md'),
 ]);
+const CANON_PUBLIC_HUB_FILES = new Set([...PUBLIC_HUB_FILES].map((f) => norm(canon(f))));
+const isPublicHubFile = (f) => CANON_PUBLIC_HUB_FILES.has(norm(canon(f)));
 
 // Shallow, budgeted tree measurement for copy(). Uses lstat so symlinks are counted
 // as entries but never followed — no infinite loops, no accidental traversal into
@@ -93,7 +130,9 @@ export const Files = {
     // Default stays modest for agent/tool callers; the iT/FOLDERS file viewer passes its
     // own big maxKB (65536) — the owner reads and edits large source files in-app.
     const f = resolve(p, opts.cwd); const maxKB = opts.maxKB || 512;
-    if (!PUBLIC_HUB_FILES.has(f) && isSecret(f)) return SECRET_ERR;
+    // The allowlist is canonicalised the same way the guard is: a reader asking for
+    // ~/.CLONE-FRAME-HUB/AGENTS.md means the same file, and should get the same answer.
+    if (!isPublicHubFile(f) && isSecret(f)) return SECRET_ERR;
     try {
       const st = fs.statSync(f);
       if (st.size > maxKB * 1024) return { ok: false, error: `file too large (${Math.round(st.size / 1024)}KB > ${maxKB}KB)` };

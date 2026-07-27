@@ -1109,6 +1109,7 @@
       let k=itKeymap.alias[k0]||k0;
       if(code==='BracketRight')k=']';else if(code==='BracketLeft')k='[';else if(code==='Equal')k='=';else if(code==='Minus')k='-';else if(code==='Period')k='.';
       else if(e.altKey&&/^Key[A-Z]$/.test(code))k=code.slice(3).toLowerCase(); // ⌥ mutates e.key on macOS
+      else if(e.altKey&&/^Digit[0-9]$/.test(code))k=code.slice(5); // ⌥2 is "@" on a PT layout — bind the KEY, not the glyph
       const mods=[];if(e.ctrlKey)mods.push('ctrl');if(e.altKey)mods.push('alt');if(e.shiftKey)mods.push('shift');if(e.metaKey)mods.push('cmd');
       return mods.length?mods.concat(k).join('+'):null;
     }
@@ -1301,7 +1302,10 @@
     let ctlWs=null,ctlDown=false;
     function ctlConnect(){
       if(!primary||ctlDown||ctlWs)return;
-      const b=window.__CFHUB_BRIDGE__;if(!b||!b.token||!Bridge.on())return;
+      // BridgeClient.wsAuth, not the injected global: that global is a one-shot the server
+      // writes only during the launch window, so after any later reload this control socket
+      // returned silently and the `it` CLI simply stopped reaching the app.
+      const b=BridgeClient.wsAuth();if(!b.token||!Bridge.on())return;
       let s;try{s=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?op=it',['cfhub','cfhub.bearer.'+b.token])}catch(_){return}
       ctlWs=s;
       s.onmessage=e=>{
@@ -1455,11 +1459,31 @@
       newSurface(npn,seed,'code',true);pn.w.focus=npn.id;
       renderGrid(pn.w);renderAll();saveState();
     }
-    async function lsDir(dir){
-      if(tree.kids.has(dir))return tree.kids.get(dir);
-      let entries=[];try{const r=await RPC('files','list',dir);if(r&&r.ok)entries=(r.entries||[]).filter(e=>!e.name.startsWith('.'))}catch(_){}
-      entries.sort((a,b)=>((a.type==='dir')===(b.type==='dir'))?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));
-      tree.kids.set(dir,entries);return entries;
+    // The tree cached every listing for the life of the session — including the EMPTY list a
+    // FAILED call produced. So a folder first read while the bridge was down stayed empty
+    // forever, and a file dropped in Finder never appeared, though the ⤢ button promises
+    // exactly that ("drop files there and they appear here"). Three changes: only a success
+    // is cached, it expires, and concurrent asks for the same folder share one request.
+    const LS_TTL=4000;
+    const lsInflight=new Map();
+    async function lsDir(dir,force){
+      const hit=tree.kids.get(dir);
+      if(hit&&!force&&Date.now()-hit.at<LS_TTL)return hit.entries;
+      const running=lsInflight.get(dir);
+      if(running&&!force)return running;
+      const job=(async()=>{
+        let r=null;
+        try{r=await RPC('files','list',dir)}catch(e){r=null}
+        // A failure is not an empty folder. Keep the last good listing rather than replacing
+        // it with nothing, and do not cache the failure — the next look tries again.
+        if(!r||!r.ok)return hit?hit.entries:[];
+        const entries=(r.entries||[]).filter(e=>!e.name.startsWith('.'));
+        entries.sort((a,b)=>((a.type==='dir')===(b.type==='dir'))?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));
+        tree.kids.set(dir,{at:Date.now(),entries});
+        return entries;
+      })();
+      lsInflight.set(dir,job);
+      try{return await job}finally{if(lsInflight.get(dir)===job)lsInflight.delete(dir)}
     }
     function expandTo(dir){
       if(!dir||!tree.root||!(dir===tree.root||dir.startsWith(tree.root+'/')))return;

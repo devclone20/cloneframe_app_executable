@@ -123,6 +123,20 @@ async function resolveModelId(Models, requested) {
   return raw;
 }
 
+// A requested id may carry the provider that serves it: "<providerId>::<model>", the same
+// encoding Settings → AI Defaults and the LAB model picker already use.
+//
+// Without it every model in a run resolved through ask() with no provider, which means
+// "whichever provider sorts first" — so comparing a GPT against a Claude sent BOTH to one
+// vendor and the foreign one came back "model not found". The one thing COMPARE exists to
+// do was the one thing it could not do. A bare id (older saved runs, or a hand-typed alias)
+// still works exactly as before.
+function splitTarget(id) {
+  const s = String(id);
+  const i = s.indexOf('::');
+  return i > 0 ? { providerId: s.slice(0, i), model: s.slice(i + 2) } : { providerId: null, model: s };
+}
+
 function normalizeModels(models) {
   const out = [];
   const seen = new Set();
@@ -165,21 +179,25 @@ export async function run(input = {}) {
   const Models = await loadModels();
   const resolved = [];
   for (const reqId of requested) {
-    resolved.push({ requested: reqId, model: await resolveModelId(Models, reqId) });
+    const t = splitTarget(reqId);
+    // A qualified id already names a concrete API model on a known provider — only the bare
+    // form needs the alias lookup.
+    resolved.push({ requested: reqId, providerId: t.providerId, model: t.providerId ? t.model : await resolveModelId(Models, t.model) });
   }
 
-  const results = await Promise.all(resolved.map(async ({ requested: reqId, model }) => {
+  const results = await Promise.all(resolved.map(async ({ requested: reqId, providerId, model }) => {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const opts = { model, maxTokens: tokens, signal: controller.signal };
+      if (providerId) opts.providerId = providerId;
       if (sys) opts.system = sys;
       const text = await ask(messages, opts);
-      return { model: reqId, resolvedModel: model, text: String(text ?? ''), ms: Date.now() - started };
+      return { model: reqId, providerId: providerId || null, resolvedModel: model, text: String(text ?? ''), ms: Date.now() - started };
     } catch (e) {
       const error = controller.signal.aborted ? `timed out after ${timeout}ms` : (e?.message || String(e));
-      return { model: reqId, resolvedModel: model, text: '', ms: Date.now() - started, error };
+      return { model: reqId, providerId: providerId || null, resolvedModel: model, text: '', ms: Date.now() - started, error };
     } finally {
       clearTimeout(timer);
     }

@@ -609,7 +609,16 @@ export const Models = {
   setModelEnabled,
   brainStatus,
   // server-only (RPC blocks _-prefixed): the model port + the chat relay use these
-  _raw: getRecord,
+  //
+  // _raw hands back a record whose apiKey is the REAL key, never the Keychain sentinel.
+  // It used to be getRecord itself, and every one of its callers (all three live in
+  // model/port.mjs) fed the record straight into an Authorization header — so the whole
+  // brain route authenticated as `Bearer keychain:v1` and 401'd: POST /chat, and with it
+  // tasks, style, compare, research, cookbook and every email summary. The truthiness
+  // guard `if (kind === 'api' && !apiKey) throw` never fired, because the sentinel is a
+  // non-empty string. Resolving here rather than at each call site means a future consumer
+  // cannot reintroduce the same bug by forgetting.
+  _raw: (id) => { const r = getRecord(id); return r ? { ...r, apiKey: resolveKey(r) } : null; },
   _isAnthropic: (provider, baseUrl) => isAnthropic(provider, baseUrl),
   _baseUrl: (u) => normalizeBaseUrl(u),
   _streamConfig: streamConfig,

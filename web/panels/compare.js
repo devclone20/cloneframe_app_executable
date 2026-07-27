@@ -3,7 +3,12 @@
     if(!Bridge.on()){needBridge(body);return}
     const DEF={blind:true,parallel:true,shuffle:false,type:'chat',timeout:300,models:[]};
     let st=Object.assign({},DEF,Store.get().compareCfg||{});
-    st.models=(st.models||[]).map(m=>typeof m==='string'?{model:m,prov:''}:m).filter(m=>m&&m.model);
+    // pid = the provider that serves this model. Without it the run went to whichever
+    // provider sorted first, so a cross-vendor comparison hit one vendor with every model.
+    // Older saved selections carry only a display label — they still run, unrouted, as before.
+    st.models=(st.models||[]).map(m=>typeof m==='string'?{model:m,prov:'',pid:''}:Object.assign({pid:''},m)).filter(m=>m&&m.model);
+    const shortModel=s=>{const i=String(s).indexOf('::');return i>0?String(s).slice(i+2):String(s)};
+    const wireId=m=>m.pid?m.pid+'::'+m.model:m.model;
     const tOut=()=>Math.max(5,Math.min(3600,parseInt(cfg.querySelector('#cmptimeout').value,10)||300));
     function renderCfg(){
       cfg.innerHTML=`<div class="cmpv2sub">Select models to compare side-by-side. Send the same prompt to all.</div>
@@ -47,11 +52,16 @@
       let provs=[];try{provs=await RPC('models','listProviders')}catch(e){pk.innerHTML='<div class="qempty">'+escHtml(e.message||'failed to list providers')+'</div>';return}
       provs=(provs||[]).filter(pr=>pr.enabled!==false);
       if(!provs.length){pk.innerHTML='<div class="qempty">No providers connected — add models in Brain.</div><button class="btn mini" id="cmpbrain" style="align-self:center">open Brain</button>';pk.querySelector('#cmpbrain').addEventListener('click',()=>openPanel('brain'));return}
-      const sel=new Set(st.models.map(m=>m.model));
+      // Keyed by provider AND model: two vendors can offer the same model name, and one
+      // checkbox must not tick for both. Selections saved before this carry no provider —
+      // they still run unrouted, and ticking that model here replaces them with a routed one.
+      const sel=new Set(st.models.filter(m=>m.pid).map(wireId));
       pk.innerHTML=provs.map(pr=>{const lb=pr.label||pr.provider,off=new Set(pr.disabledModels||[]),ms=(pr.models||[]).filter(m=>!off.has(m));
-        return `<div class="cmpv2ph">${escAttr(lb)}</div>`+(ms.length?ms.map(m=>`<label class="cmpv2pl"><input type="checkbox" data-m="${escAttr(m)}" data-p="${escAttr(lb)}"${sel.has(m)?' checked':''}>${escAttr(m)}</label>`).join(''):`<button class="btn mini" data-load="${escAttr(pr.id)}" style="align-self:flex-start">load models</button>`)}).join('');
-      pk.querySelectorAll('input[data-m]').forEach(c=>c.addEventListener('change',()=>{const m=c.dataset.m,pv=c.dataset.p;
-        if(c.checked){if(!st.models.some(x=>x.model===m))st.models.push({model:m,prov:pv})}else st.models=st.models.filter(x=>x.model!==m);renderList()}));
+        return `<div class="cmpv2ph">${escAttr(lb)}</div>`+(ms.length?ms.map(m=>`<label class="cmpv2pl"><input type="checkbox" data-m="${escAttr(m)}" data-p="${escAttr(pr.id)}" data-l="${escAttr(lb)}"${sel.has(pr.id+'::'+m)?' checked':''}>${escAttr(m)}</label>`).join(''):`<button class="btn mini" data-load="${escAttr(pr.id)}" style="align-self:flex-start">load models</button>`)}).join('');
+      pk.querySelectorAll('input[data-m]').forEach(c=>c.addEventListener('change',()=>{const m=c.dataset.m,pid=c.dataset.p,lb=c.dataset.l;
+        st.models=st.models.filter(x=>!(x.model===m&&(x.pid===pid||!x.pid))); // clear this exact pick and any unrouted leftover
+        if(c.checked)st.models.push({model:m,prov:lb,pid});
+        renderList()}));
       pk.querySelectorAll('[data-load]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='probing…';try{await RPC('models','listModels',b.dataset.load)}catch(e){}picker()}));}
     function renderResults(results){
       let arr=(results||[]).slice();
@@ -59,10 +69,11 @@
       if(!arr.length){body.innerHTML='<div class="qempty">No results.</div>';return}
       const blind=st.blind&&arr.length>1;
       body.innerHTML=(blind?'<div class="cmpv2rev"><span class="dim">blind mode — model names hidden</span><button class="btn mini" id="cmpreveal">reveal</button></div>':'')+
-        '<div class="cmpgrid">'+arr.map((x,i)=>`<div class="cmpcol"><div class="cmphd"><span class="cmpv2nm" data-real="${escAttr(x.model)}">${blind?'MODEL '+String.fromCharCode(65+i):escAttr(x.model)}</span> <span class="dim">${x.ms?x.ms+'ms':''}</span></div><div class="cmptext">${x.error?'<span style="color:var(--accent)">'+escAttr(x.error)+'</span>':escAttr(x.text||'')}</div></div>`).join('')+'</div>';
+        // The wire id carries the provider; the column header shows the model, not the id.
+        '<div class="cmpgrid">'+arr.map((x,i)=>`<div class="cmpcol"><div class="cmphd"><span class="cmpv2nm" data-real="${escAttr(shortModel(x.model))}">${blind?'MODEL '+String.fromCharCode(65+i):escAttr(shortModel(x.model))}</span> <span class="dim">${x.ms?x.ms+'ms':''}</span></div><div class="cmptext">${x.error?'<span style="color:var(--accent)">'+escAttr(x.error)+'</span>':escAttr(x.text||'')}</div></div>`).join('')+'</div>';
       if(blind)body.querySelector('#cmpreveal').addEventListener('click',()=>{body.querySelectorAll('.cmpv2nm').forEach(n=>{n.textContent=n.dataset.real});body.querySelector('#cmpreveal').remove()});}
     async function runCompare(){
-      const prompt=cfg.querySelector('#cmpprompt').value.trim(),models=st.models.map(m=>m.model);
+      const prompt=cfg.querySelector('#cmpprompt').value.trim(),models=st.models.map(wireId);
       if(!prompt||!models.length){Toast.show('Prompt + at least one model');return}
       const timeoutMs=tOut()*1000;
       try{
@@ -74,7 +85,7 @@
           if(r.error&&!results.length){body.innerHTML='<div class="qempty">'+escHtml(r.error)+'</div>';return}
         }else{
           for(let i=0;i<models.length;i++){
-            body.innerHTML='<div class="qempty">running '+escHtml(models[i])+' ('+(i+1)+'/'+models.length+')…</div>';
+            body.innerHTML='<div class="qempty">running '+escHtml(shortModel(models[i]))+' ('+(i+1)+'/'+models.length+')…</div>';
             const r=await RPC('compare','run',{prompt,models:[models[i]],timeoutMs});
             results.push(...(r.results||[]));
           }

@@ -42,6 +42,145 @@
       if(x)x.classList.toggle('blank',blank);
       if(blank&&!hidden&&x&&document.activeElement!==x)setTimeout(()=>{try{x.focus()}catch(_){}},30);
     }
+    // ── the passkey moment ────────────────────────────────────────────────────
+    // A passkey or security key prompt is drawn by a real browser WINDOW. The engine that
+    // paints this canvas has none, so that prompt could never appear and the page waited
+    // forever — the owner's "it just stops at 'confirm with your key'". The engine now
+    // announces the ceremony instead of swallowing it: either it already holds a real
+    // window (sign-in mode) and raises it, or it says so here and offers to turn that on.
+    // The app's own window rect is what the engine hides behind, so it travels with it.
+    let signinOn=false, coverT=0, coverSig='';
+    // screenX/screenY are the VIEWPORT's origin on the desktop, so they pair with
+    // inner*, never outer* — an outer size hung off the viewport origin overhangs the
+    // window by its title bar, and the engine window pokes out below the app.
+    const coverRect=()=>({left:window.screenX||0,top:window.screenY||0,
+      width:window.innerWidth||1280,height:window.innerHeight||800});
+    function coverWatch(on){
+      if(coverT){clearInterval(coverT);coverT=0}
+      const s=el('wbrsign');
+      if(s){
+        s.classList.toggle('on',!!on);
+        s.title=on
+          ? 'Sign-in window is open. Finish signing in there — click to bring the session back and close it.'
+          : 'Sign in — opens a real browser window on this site so a password, passkey, security key or SMS code all work. It closes when you are done and the session comes back here.';
+      }
+      if(!on)return;
+      // Dragging a window fires no event anywhere, so the rect is sampled. It is four
+      // numbers and a string compare; the RPC only leaves when the window actually moved.
+      // 1s was too slack in practice — the owner saw the real window still sitting at the
+      // app's OLD position after moving it. Also fire on resize, which does have an event.
+      pushCover();
+      coverT=setInterval(pushCover,400);
+      if(!p._wbrCoverRz){p._wbrCoverRz=()=>{if(signinOn)pushCover()};window.addEventListener('resize',p._wbrCoverRz)}
+    }
+    function pushCover(){
+      const c=coverRect(),sig=[c.left,c.top,c.width,c.height].join(',');
+      if(sig===coverSig)return;
+      coverSig=sig;eng('setCover',c).catch(()=>{});
+    }
+    function pkHide(){const k=el('wbrpk');if(!k)return;k.style.display='none';k.innerHTML=''}
+    function pkShow(html){const k=el('wbrpk');if(!k)return;k.innerHTML='<div class="wbr-pkbox">'+html+'</div>';k.style.display=''}
+    // Open a real window on a site, sign in there, and have it GO AWAY — the session comes
+    // back here in cookies. No external browser is left sitting around, which is the whole
+    // point (owner's brief: "nenhuma janela exterior fica aberta").
+    // Starting or finishing a sign-in RESTARTS the engine, so every socket gets {t:'down'}.
+    // That is not a crash — it is this panel's own request coming back — and treating it as
+    // one is what wiped the sign-in card (leaving no way to finish) and opened a spare tab,
+    // which in sign-in mode is a second real window on the desktop. Both were reported.
+    let siBusy=false;
+    // After a relaunch every eid the panel holds is dead. Re-bind to what the engine
+    // actually rebuilt instead of guessing.
+    function adoptTabs(list,activeEid){
+      tabs.forEach(x=>owned.delete(x.eid));
+      tabs=(list||[]).filter(x=>x&&x.id).map(x=>{owned.add(x.id);return{id:'t'+(++uid),eid:x.id,url:x.url||'',title:x.title||''}});
+      since=0;
+      if(!tabs.length){active=null;newTab('');return}
+      active=(tabs.find(x=>x.eid===activeEid)||tabs[tabs.length-1]).id;
+      setActive(active);
+    }
+    // A sign-in belongs to the SITE, never to the identity provider. Pressing SIGN IN while
+    // already inside Google's flow used to open the window on accounts.google.com — the
+    // wrong place to start, and a page the "finished" test can never leave. So the panel
+    // remembers the last real site it was on and signs in THERE.
+    const AUTHY=/(^|\.)(accounts\.google\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com|auth0\.com|okta\.com|duosecurity\.com)$/i;
+    const isAuthUrl=u=>{try{const x=new URL(u);return AUTHY.test(x.hostname)||/^\/(login|signin|sign_in|session|sessions|oauth|authorize)/i.test(x.pathname)}catch(_){return false}};
+    let siteOrigin='';
+    function noteSite(u){try{const x=new URL(u);if(/^https?:$/.test(x.protocol)&&!AUTHY.test(x.hostname))siteOrigin=x.origin}catch(_){}}
+
+    async function signinBegin(url){
+      if(signinOn||siBusy){Toast&&Toast.show('A sign-in window is already open');return false}
+      const t=at();
+      const here=url||(t&&t.url)||'';
+      let origin='';
+      try{origin=new URL(here).origin}catch(_){origin=''}
+      if(!origin||isAuthUrl(here))origin=siteOrigin||origin;
+      if(!origin){Toast&&Toast.show('Open the site you want to sign in to first');return false}
+      pkShow('<h3>Opening a sign-in window…</h3><p>A real browser window is coming up on <b>'+escHtml(hostOf(origin))+'</b>.</p>');
+      siBusy=true;
+      const r=await eng('signinStart',{url:origin,cover:coverRect()}).catch(e=>({ok:false,error:String((e&&e.message)||e)}));
+      siBusy=false;
+      if(!r||r.ok===false){pkHide();Toast&&Toast.show('Could not open the sign-in window: '+((r&&r.error)||'engine refused'));return false}
+      adoptTabs([{id:r.id,url:r.url}],r.id);
+      signinOn=true;coverSig='';coverWatch(true);siCard();
+      return true;
+    }
+    function siCard(lead){
+      pkShow('<h3>Sign in in the window</h3>'+
+        '<p>'+(lead||'A real browser window is in front. Sign in there however you like — password, passkey, security key, a code by SMS.')+'</p>'+
+        '<p class="fine">When you are done the window closes and your session comes back here. Nothing stays open.</p>'+
+        '<div class="row"><button class="btn acc" id="wbrsidone">I’m done</button><button class="btn" id="wbrsicancel">Cancel</button></div>');
+      const d=el('wbrsidone'),c=el('wbrsicancel');
+      if(d)d.addEventListener('click',()=>signinEnd());
+      if(c)c.addEventListener('click',async()=>{
+        pkShow('<h3>Closing the window…</h3><p>Nothing is carried back.</p>');
+        siBusy=true;
+        const r=await eng('signinCancel').catch(()=>null);
+        siBusy=false;
+        signinOn=false;coverWatch(false);pkHide();try{window.focus()}catch(_){}
+        if(r&&r.tabs)adoptTabs(r.tabs,null);
+      });
+    }
+    let siEnding=false;
+    async function signinEnd(){
+      if(!signinOn||siEnding)return;
+      siEnding=true;
+      pkShow('<h3>Bringing your session back…</h3><p>Closing the window and carrying the session into CLONE FRAME.</p>');
+      siBusy=true;
+      const r=await eng('signinFinish').catch(e=>({ok:false,error:String((e&&e.message)||e)}));
+      siBusy=false;
+      signinOn=false;siEnding=false;coverWatch(false);pkHide();
+      try{window.focus()}catch(_){}
+      if(!r||r.ok===false){Toast&&Toast.show('Sign-in window closed — '+((r&&r.error)||'nothing carried'));return}
+      adoptTabs(r.tabs,(r.tabs&&r.tabs.length)?r.tabs[r.tabs.length-1].id:null);
+      Toast&&Toast.show(r.restored
+        ? 'Signed in · '+r.restored+'/'+(r.carried||0)+' cookies carried'+(r.rejected?' ('+r.rejected+' refused)':'')+' · no window left open'
+        : 'Window closed, but nothing carried — the site keeps its session outside cookies');
+    }
+    function pkOn(m){
+      if(m.phase==='done'){pkHide();try{window.focus()}catch(_){}return}
+      const host=hostOf(m.origin||'')||'This page';
+      if(m.phase==='open'){
+        // macOS has no way to send a window back down (minimize+restore raises it again,
+        // measured), so the honest instruction is the true one: click back here.
+        pkShow('<h3>Approve with your key</h3><p><b>'+escHtml(host)+'</b> is asking for your passkey. The real sign-in window is now in front — approve it there, then click back on CLONE FRAME. The page carries on here.</p>');
+        return;
+      }
+      pkShow('<h3>This sign-in needs your key</h3>'+
+        '<p><b>'+escHtml(host)+'</b> asked for a passkey or security key. That prompt is drawn by a real browser window; the Browser paints an engine that has none, so it can never appear and the page would wait forever.</p>'+
+        '<p class="fine">A sign-in window opens on this site, you sign in there with your key, and it closes again — your session comes back here and nothing stays open.</p>'+
+        '<div class="row"><button class="btn acc" id="wbrpkgo">Open a sign-in window</button><button class="btn" id="wbrpkno">Use another method</button></div>');
+      const no=el('wbrpkno'),go=el('wbrpkgo');
+      // Refusing answers the page with NotAllowedError, which is what makes a site show
+      // its "try another way" — silence is the one thing that helps nobody.
+      if(no)no.addEventListener('click',()=>{eng('passkey',{tag:m.tag,verdict:'refuse'}).catch(()=>{});pkHide()});
+      if(go)go.addEventListener('click',async()=>{
+        go.disabled=true;go.textContent='Opening…';
+        // The waiting page is answered before the engine restarts under it.
+        await eng('passkey',{tag:m.tag,verdict:'refuse'}).catch(()=>{});
+        await signinBegin(m.origin||(at()&&at().url)||'');
+      });
+    }
+
     const cleanTitle=t=>{const x=(t.title||'').trim();return (!x||x==='about:blank'||x===t.url)?(hostOf(t.url)||''):x};
     function renderTabs(){
       startSync();
@@ -333,7 +472,8 @@
     // the subprotocol (never the URL). Falls back to the HTTP poll loop on failure.
     const wsSend=o=>{try{if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}catch(_){}};
     function wsConnect(){
-      const b=window.__CFHUB_BRIDGE__;if(!b||!b.token)return;
+      // Same store as every other live socket — see BridgeClient.wsAuth.
+      const b=BridgeClient.wsAuth();if(!b.token)return;
       let s;try{s=new WebSocket(b.endpoint.replace(/^http/,'ws')+'/stream?op=web',['cfhub','cfhub.bearer.'+b.token])}catch(_){return}
       s.binaryType='arraybuffer';
       ws=s;
@@ -352,7 +492,7 @@
         else if(m.t==='tab'){const t=tabs.find(x=>x.eid===m.id);if(t){let ch=false;
           // chrome-error:// is engine vocabulary — a failed navigation keeps the LAST
           // real address in the bar/label (Chrome's own bar does the same).
-          if(m.url&&m.url!=='about:blank'&&!/^chrome-error:/.test(m.url)&&m.url!==t.url){t.url=m.url;ch=true;if(/google\.[^/]+\/sorry\//.test(m.url))Toast&&Toast.show('Google is asking for a human check — solve it right here, once')}
+          if(m.url&&m.url!=='about:blank'&&!/^chrome-error:/.test(m.url)&&m.url!==t.url){t.url=m.url;ch=true;noteSite(m.url);if(/google\.[^/]+\/sorry\//.test(m.url))Toast&&Toast.show('Google is asking for a human check — solve it right here, once')}
           if(m.title&&m.title!=='about:blank'&&!/^chrome-error:/.test(m.title)&&m.title!==t.title){t.title=m.title;ch=true}
           if(ch){renderTabs();addrSync(at())}}}
         else if(m.t==='loading'){const t=at();if(t&&t.eid===m.id){if(m.on)progStart();else progDone()}}
@@ -380,8 +520,17 @@
         // The page wants a file. Put the owner's REAL macOS picker up — the file never
         // leaves his hands until he chooses it — then stage the bytes and answer the page.
         else if(m.t==='file'){pickUpload(m)}
-        else if(m.t==='gone'){const i=tabs.findIndex(x=>x.eid===m.id);if(i>=0){tabs.splice(i,1);if(!tabs.length)newTab('');else if(!at())setActive((tabs[i]||tabs[i-1]||tabs[0]).id);else renderTabs()}}
-        else if(m.t==='down'){tabs=[];renderTabs();newTab('');Toast&&Toast.show('Browser engine restarted')}
+        // While a sign-in is live an empty tab list must stay empty: opening one would be
+        // opening another real window, which is what the owner saw when he closed the
+        // sign-in window and a new one appeared in its place.
+        else if(m.t==='gone'){const i=tabs.findIndex(x=>x.eid===m.id);if(i>=0){tabs.splice(i,1);if(!tabs.length){if(signinOn||siBusy){renderTabs()}else newTab('')}else if(!at())setActive((tabs[i]||tabs[i-1]||tabs[0]).id);else renderTabs()}}
+        else if(m.t==='passkey')pkOn(m);
+        // The engine noticed the sign-in window came back to the site it started on and
+        // settled there: finish without making the owner say so.
+        else if(m.t==='signin'&&m.phase==='ready'&&signinOn)signinEnd();
+        // A restart this panel asked for is not a crash: keep the card, keep the tabs, and
+        // let signinBegin/signinEnd re-bind to what the engine rebuilt.
+        else if(m.t==='down'){if(siBusy)return;tabs=[];renderTabs();pkHide();newTab('');Toast&&Toast.show('Browser engine restarted')}
       };
       s.onclose=()=>{if(ws!==s)return;ws=null;wsOk=false;if(document.body.contains(p))setTimeout(wsConnect,1500)};
       s.onerror=()=>{};
@@ -450,9 +599,11 @@
       c.addEventListener('wheel',e=>{e.preventDefault();const q=xy(e);sendInput({kind:'wheel',x:q.x,y:q.y,deltaX:e.deltaX,deltaY:e.deltaY})},{passive:false});
       c.tabIndex=0;
       c.addEventListener('keydown',e=>{
-        // let the app's own shortcuts (⌘L address · ⌘T tab · ⌘W close · ⌘R reload ·
-        // ⌘F find · ⌘+ ⌘− ⌘0 zoom) win — they belong to the browser, not to the page
-        if(e.metaKey&&['l','t','w','r','f','=','+','-','0'].includes(e.key.toLowerCase()))return;
+        // The app's own shortcuts win — they belong to the browser, not to the page:
+        // ⌘L address · ⌘T tab · ⌘W close · ⌘R reload · ⌘F find · ⌘+ ⌘− ⌘0 zoom · ⌘K palette.
+        // This is the ONLY list allowed to keep bubbling now that everything else stops here,
+        // and its test must mirror the window router's (⌘ OR ⌃) or ⌃T dies on Windows.
+        if((e.metaKey||e.ctrlKey)&&['l','t','w','r','f','k','=','+','-','0'].includes(String(e.key||'').toLowerCase()))return;
         if(e.key==='Escape'&&(ctxEl||(el('wbrfind')||{}).style?.display===''))
           {e.preventDefault();closeCtx();closeFind();return}
         // Clipboard has to be BRIDGED: the page lives in another process, so its own ⌘C
@@ -478,11 +629,14 @@
             .catch(()=>Toast&&Toast.show('The clipboard is not readable here'));
           return;
         }
-        e.preventDefault();
+        // A key typed into a PAGE is not a command to the app. preventDefault alone left the
+        // event bubbling to every window-level shortcut, so typing a Portuguese word with
+        // "ga"/"gu" in a web page fired the g-chord and opened a panel. Stop it here.
+        e.preventDefault();e.stopPropagation();
         const printable=e.key.length===1&&!e.metaKey&&!e.ctrlKey;
         sendInput({kind:'key',type:'down',key:e.key,code:e.code,keyCode:e.keyCode,text:printable?e.key:'',modifiers:(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0)});
       });
-      c.addEventListener('keyup',e=>{if(e.metaKey&&['l','t','w','r'].includes(e.key.toLowerCase()))return;sendInput({kind:'key',type:'up',key:e.key,code:e.code,keyCode:e.keyCode,modifiers:(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0)})});
+      c.addEventListener('keyup',e=>{if(e.metaKey&&['l','t','w','r'].includes(e.key.toLowerCase()))return;e.stopPropagation();sendInput({kind:'key',type:'up',key:e.key,code:e.code,keyCode:e.keyCode,modifiers:(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0)})});
       // keep the engine viewport in step with the stage as the window resizes
       if('ResizeObserver' in window){const ro=new ResizeObserver(()=>{const t=at();if(t)castOn(t)});ro.observe(el('wbrstage'));p._wbrRO=ro}
     }
@@ -504,6 +658,10 @@
             '</div>'+
             IB('wbrcopy','Copy link','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>')+
             IB('wbrwin','New browser window','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>')+
+            // Always present, never hidden: a control the owner can only reach when a page
+            // happens to ask for a key is a control that does not exist. Off is the resting
+            // state; the accent only comes on once a real window is being held.
+            '<button class="wbr-ib wbr-sign" id="wbrsign" title="Sign in — opens a real browser window on this site so a password, passkey, security key or SMS code all work. It closes when you are done and the session comes back here.">SIGN IN</button>'+
             '<div class="wbr-prog" id="wbrprog"></div>'+
           '</div>'+
           // empty and display:none until something is actually downloading
@@ -516,6 +674,8 @@
           // nothing to recall and nothing to look at but the address bar (owner's order,
           // 2026-07-25). This layer only covers the canvas's white while no page is loaded.
           '<div class="wbr-start" id="wbrstart"></div>'+
+          // the passkey moment (see pkOn) — empty and hidden until a page asks for a key
+          '<div class="wbr-pk" id="wbrpk" style="display:none"></div>'+
         '</div>';
       const i=inp();
       const go=()=>{const t=at();if(t)nav(t,i.value);else newTab(i.value)};
@@ -524,6 +684,13 @@
       el('wbrreload').addEventListener('click',()=>{const t=at();if(t){progStart();eng('reload',{id:t.eid}).catch(()=>{})}});
       el('wbrcopy').addEventListener('click',()=>{const t=at();if(!t||!t.url){Toast&&Toast.show('Open a page first');return}try{navigator.clipboard.writeText(t.url);Toast&&Toast.show('Link copied')}catch(_){Toast&&Toast.show('Could not copy')}});
       el('wbrwin').addEventListener('click',()=>openPanel('research',{newInstance:true}));
+      el('wbrsign').addEventListener('click',async()=>{
+        const b=el('wbrsign');if(!b||b.disabled)return;
+        b.disabled=true;
+        try{ if(signinOn)await signinEnd(); else await signinBegin(); }
+        finally { b.disabled=false }
+      });
+      coverWatch(false); // resting state + the honest tooltip, before any engine answer
       i.addEventListener('keydown',e=>{if(e.key==='Enter')go();else if(e.key==='Escape'){const t=at();i.value=(t&&t.url)||'';i.blur()}});
       // Click-to-focus selects the whole URL (every browser does this) — without it,
       // typing APPENDS to the old address and "google.com" becomes garbage.
@@ -563,6 +730,8 @@
         closeCtx();
         if(paintT){clearInterval(paintT);paintT=0}clearTimeout(metaT);
         if(moveT){clearTimeout(moveT);moveT=0}if(wheelT){clearTimeout(wheelT);wheelT=0}
+        if(coverT){clearInterval(coverT);coverT=0}
+        if(p._wbrCoverRz){window.removeEventListener('resize',p._wbrCoverRz);p._wbrCoverRz=null}
         if(ws){const s=ws;ws=null;wsOk=false;try{s.close()}catch(_){}}
         if(p._wbrRO){try{p._wbrRO.disconnect()}catch(_){}}
         const mine=tabs.filter(t=>t.eid);tabs=[];
@@ -574,6 +743,9 @@
       };
       if(!tabs.length)openClean();
       wsConnect();
+      // Sign-in mode belongs to the ENGINE, not to a window: a second ⧉ browser window
+      // must show the same state, and a reopened one must not forget it.
+      eng('status').then(s=>{if(s&&s.headful){signinOn=true;coverSig='';coverWatch(true);eng('setCover',coverRect()).catch(()=>{})}}).catch(()=>{});
       paintT=setInterval(paintTick,33);metaLoop();
     }
 

@@ -53,7 +53,7 @@ async function port() {
 // boot banner. Async (the port lazily loads the registry). Never exposes the key.
 export async function brain() {
   try {
-    const t = (await port()).resolveTarget({});
+    const t = (await port()).resolveTarget({ capability: 'chat' });
     if (!t) return { ready: false, provider: null, model: null };
     const model = (t.anthropic && (!t.model || t.model === 'auto')) ? BRAIN_MODEL : t.model;
     return { ready: true, provider: t.provider || 'model', model };
@@ -65,8 +65,11 @@ export async function brain() {
 // local / Anthropic all work with no code change. \x00ERR\x00 framing preserved (the
 // port throws a key-free "<label> <status> <body>" that we frame; abort → "timeout").
 export async function handleChat(req, res, body, { streamHead }) {
+  // 'chat' is the Settings → AI Defaults row that governs this route (the default brain
+  // behind CODE and LAB). An explicit body.model still wins — that is the model picker.
+  const pick = { model: body.model, capability: 'chat' };
   let p, t;
-  try { p = await port(); t = p.resolveTarget({ model: body.model }); } catch { t = null; }
+  try { p = await port(); t = p.resolveTarget(pick); } catch { t = null; }
   if (!t) {
     res.writeHead(501, { 'Content-Type': 'text/plain' });
     res.end('no model configured — add a provider in Settings → Add Models, or set an API key (e.g. DEEPSEEK_API_KEY) in ~/.env.local');
@@ -82,7 +85,9 @@ export async function handleChat(req, res, body, { streamHead }) {
   const to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT);
   req.on('close', () => ctl.abort());
   try {
-    await p.stream(messages, { system, model, maxTokens: Number(body.max_tokens) || 2048, signal: ctl.signal, onText: (d) => res.write(d) });
+    // `pick` must ride along: stream() resolves the target again internally, and without
+    // the capability it would resolve a DIFFERENT provider than the one checked above.
+    await p.stream(messages, { ...pick, system, model, maxTokens: Number(body.max_tokens) || 2048, signal: ctl.signal, onText: (d) => res.write(d) });
     res.end();
   } catch (e) {
     res.end('\x00ERR\x00' + (e.name === 'AbortError' ? 'timeout' : e.message));

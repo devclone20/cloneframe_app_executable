@@ -111,9 +111,31 @@ into logs or a proxied page), the `Host` allowlist blocks DNS-rebinding tricks,
 and the in-app browser renders pages in a sandbox that cannot see the token at
 all. You never manage any of this by hand.
 
-**What you might see:** if the token ever goes stale (for example after a manual
-restart), the window simply reloads and re-pairs. If a page ever looks
-disconnected, close it and run `./launch.sh` again.
+### Why a window sometimes will not pair
+
+The Bridge hands the token to a page **only** when the request is a genuine
+navigation a *person* performed. Browsers mark those with `Sec-Fetch-User: ?1`,
+and the Bridge requires it — along with a top-level document navigation, and a
+pairing latch that is armed for 120 seconds after launch and spent by the first
+window that takes it.
+
+That third condition is the one that surprises people, and it is deliberate: a
+page opened by a script, by automation, or fetched with `curl` will **never** be
+given the token, no matter how many times it retries. It is what stops other
+software on your machine from quietly taking control of the app.
+
+So there is nothing to work around. If a window shows **WEB** in the bottom-right
+instead of **APP**, launch it again through `./launch.sh` or the app icon — that
+arms the latch and opens a real window. Needing a second window while one is
+already running is fine; the launcher re-arms the latch by proving ownership of
+the token file.
+
+**What you might see:** a bottom-right badge reading `APP` when paired and `WEB`
+when not. A terminal pane distinguishes *"HUB Bridge session expired"* (it was
+paired, the token has moved on — relaunch) from *"HUB Bridge not connected"*
+(the daemon is not running — start it). And `/health` reports `"stale": true`
+when the files on disk are newer than the running daemon: restart the daemon,
+because reloading the window is not enough.
 
 ---
 
@@ -140,14 +162,26 @@ flowchart TD
 
 This is the quickest path.
 
-1. Open **Settings** in the top bar.
-2. Find the **Model / API key** section.
-3. Paste your key into the field for your provider. Use your real key; the
-   examples below are only placeholders:
-   - Anthropic → `sk-ant-YOURKEY`
-   - OpenAI → `sk-YOURKEY`
-   - Any other provider → its own key, e.g. `pck_YOURKEY`
-4. Save. Go to **CODE** and start a chat to confirm it answers.
+1. Open **MY MACHINE** and go to **BRAIN**.
+2. Paste your key. The app detects the provider from the key's shape — Anthropic
+   `sk-ant-…`, OpenAI `sk-…`, and so on — and you can also pick it by hand.
+3. Press **CONNECT**. The app asks *your provider* which models that key may
+   call, and stores the list. **A key the provider rejects is not stored**: you
+   are told at that moment, in the provider's own words, rather than discovering
+   it on your first message.
+4. Choose the model on that row.
+5. Go to **CODE** or **LAB** and send a message to confirm it answers.
+
+Each key has an **ON / OFF** switch. OFF parks it — the key is kept, nothing
+routes to it, one click brings it back. Pasting a new key for a provider that
+already has one replaces it. This is how you swap a key without losing the one
+you had.
+
+**Which model answers what** lives in **Settings → AI Defaults**. *Chat* is the
+general default: everything not listed there follows it, including research,
+recipes and comparisons. Leave a row unset and it follows Chat; leave Chat unset
+and the app uses the first provider you added, then falls back to a key in
+`~/.env.local`.
 
 **Where your key lives — and where it does not:**
 
