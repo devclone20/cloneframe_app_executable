@@ -454,7 +454,16 @@ server.listen(PORT, HOST, async () => {
   console.log(line);
   console.log(`  Opened via the launcher, the Chrome app window auto-connects.`);
   console.log(`  For the dev preview (other origin), paste into MY MACHINE → HUB BRIDGE:`);
-  console.log(`  \x1b[38;5;176m${pair}\x1b[0m`);
+  // The pairing token is the WHOLE authentication for this daemon, and this banner is
+  // the first thing anyone copies into a bug report or a screen recording. Printing it
+  // by default put it in every launch.log, every scrollback and every "here is my
+  // terminal output" — the one place a local-only secret must never end up. The dev
+  // path still exists, on purpose, but you now have to ask for it.
+  if (process.env.HUB_BRIDGE_SHOW_TOKEN === '1') {
+    console.log(`  \x1b[38;5;176m${pair}\x1b[0m`);
+  } else {
+    console.log(`  \x1b[38;5;176m${endpoint}#token=\x1b[2m…\x1b[0m\x1b[38;5;176m\x1b[0m   \x1b[2m(hidden — HUB_BRIDGE_SHOW_TOKEN=1 to print it)\x1b[0m`);
+  }
   console.log(`  (token at ~/.clone-frame-hub/bridge.token · chmod 600)`);
   console.log(line + '\n');
   bootTasks();

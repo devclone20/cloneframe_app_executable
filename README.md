@@ -594,6 +594,17 @@ cd cloneframe_app_executable/bridge && npm install   # only 3 optional email dep
 # or build the double-click app:  cd bridge && ./make-app.sh   -> "CLONE FRAME HUB.app"
 ```
 
+You do **not** need to build anything to run it: the committed `index.html` at the
+repository root *is* the app, and it is byte-for-byte what `npm run build` produces
+from `web/`. If you want to change the app, or run the tests, install the one root
+dev dependency too:
+
+```bash
+cd cloneframe_app_executable && npm install   # esbuild, for the single-file build
+npm run build                                  # web/ -> dist/index.html
+npm test                                       # builds first, then runs the suite
+```
+
 **Requirements:** Node ≥ 18 and a Chromium browser (Chrome, Brave, Edge, or Chrome
 for Testing) for the app window.
 
