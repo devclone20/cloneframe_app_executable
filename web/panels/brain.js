@@ -143,7 +143,20 @@
       mEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('models','removeProvider',b.dataset.rm);loadModels()}));
       const cfgOf=()=>({kind:mEl.querySelector('#brk').value,provider:mEl.querySelector('#brp').value.trim(),label:mEl.querySelector('#brp').value.trim(),baseUrl:mEl.querySelector('#bru').value.trim(),apiKey:mEl.querySelector('#brkey').value});
       mEl.querySelector('#brtest').addEventListener('click',async()=>{const m=mEl.querySelector('#brmsg');m.textContent='testing…';try{const r=await RPC('models','testProvider',cfgOf());m.style.color=r.ok?'var(--ok)':'var(--accent)';m.textContent=r.ok?('✓ '+(r.models?r.models.length+' models':'ok')):('✗ '+(r.error||'failed'))}catch(e){m.style.color='var(--accent)';m.textContent=e.message}});
-      mEl.querySelector('#bradd').addEventListener('click',async()=>{const r=await RPC('models','addProvider',cfgOf());if(r.ok){Toast.show('Model added');loadModels()}else Toast.show(r.error||'failed')});
+      // Check the key against the vendor BEFORE storing it — the same guard MY MACHINE got,
+      // which this door never received. TEST sits right here, but its verdict did not gate
+      // ADD: press ADD without testing, or after a failed test, and the app said "Model
+      // added" over a key that can never work. Connecting a model is the only thing between
+      // a new owner and a working app; failing it silently reads as the app being broken.
+      mEl.querySelector('#bradd').addEventListener('click',async()=>{
+        const c=cfgOf(),m=mEl.querySelector('#brmsg'),btn=mEl.querySelector('#bradd');
+        btn.disabled=true;btn.textContent='CHECKING…';m.style.color='';m.textContent='checking the key with the provider…';
+        let t=null;try{t=await RPC('models','testProvider',c)}catch(e){t={ok:false,error:(e&&e.message)||'could not reach the provider'}}
+        btn.disabled=false;btn.textContent='ADD';
+        if(!t||!t.ok){m.style.color='var(--accent)';m.textContent='✗ '+friendlyErr((t&&t.error)||'the provider did not accept this');return}
+        const r=await RPC('models','addProvider',c);
+        if(r.ok){m.textContent='';Toast.show('Model added · '+((t.models&&t.models.length)?t.models.length+' models':'ok'));loadModels()}
+        else{m.style.color='var(--accent)';m.textContent='✗ '+((r&&r.error)||'failed')}});
     }
     function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='add')renderAdd();else renderSettings()}
     render();
