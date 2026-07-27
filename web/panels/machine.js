@@ -86,10 +86,26 @@
       b.active=id;Store.save();
       Keys.set(id,key);
       field.value='';
+      // ONE key, everywhere. This panel is the only door for adding a model, but the app has
+      // two registries and they are not the same thing: this one lives in the browser and is
+      // what makes the app work with NO bridge at all, while the bridge registry is the only
+      // one pi, the scheduled tasks, research, recipes and COMPARE can read. A key added here
+      // used to reach only the first, so it worked in LAB and not in a task — "why does my key
+      // work in one screen and not the other". Register it in both when the bridge is up.
+      let shared=false;
+      if(Bridge.on()){
+        try{
+          const provs=await RPC('models','listProviders').catch(()=>[]);
+          const twin=(provs||[]).find(x=>String(x.label||'').toLowerCase()===hit[1].toLowerCase()||String(x.provider||'').toLowerCase()===id);
+          if(twin)await RPC('models','removeProvider',twin.id); // a replaced key must not leave the old one behind
+          const r=await RPC('models','addProvider',{kind:'api',provider:id,label:hit[1],baseUrl:hit[2],apiKey:key});
+          if(r&&r.ok){shared=true;if(models.length)await RPC('models','setModels',r.id,models).catch(()=>{});Bus.emit('models:changed')}
+        }catch(_){/* the browser-side key still works — never fail CONNECT over the mirror */}
+      }
       Brain.update();renderBrains();
       Toast.show(err
         ?(hit[1]+' key stored, but its model list is unreachable — '+friendlyErr(err))
-        :(hit[1]+' connected · '+(keep||'pick a model')+(was?' — key replaced':'')));
+        :(hit[1]+' connected · '+(keep||'pick a model')+(was?' — key replaced':'')+(shared?' · shared with your machine':'')));
     });
     // ---- HUB BRIDGE ----
     const brStat=p.querySelector('#brstat'),brInfo=p.querySelector('#brinfo'),brEp=p.querySelector('#brep');

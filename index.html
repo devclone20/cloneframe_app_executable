@@ -10725,7 +10725,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       let known=[];try{known=await RPC('models','knownProviders')}catch(e){return fail(e)}
       const locals=known.filter(k=>k.kind==='local'),apis=known.filter(k=>k.kind==='api');
       const opt=(k,seld)=>`<option value="${k.provider}" data-url="${escAttr(k.baseUrl||'')}"${seld?' selected':''}>${escAttr(k.label)}</option>`;
+      // This is the ADVANCED view of the same registry MY MACHINE writes to — a local
+      // endpoint, a custom base URL, a provider the key-prefix detector does not know.
+      // Say so, or it reads as a competing place to put a key, which is exactly how
+      // "my key works in one screen and not the other" starts.
       pane.innerHTML=`
+        <div class="brn-desc" style="padding:0 2px 10px;line-height:1.6">For a cloud key, use <b>MY MACHINE → BRAIN</b> — it detects the provider, checks the key, and registers it here too. This page is for what that cannot do: a <b>local</b> server, a custom base URL, or a provider by hand.</div>
         <div class="mcard">
           <div class="mchead"><svg><use href="#i-chip"/></svg><b>Add Local Models</b><span class="tag">(Endpoint)</span><span class="acts"><button class="btn" id="ltest">▷ TEST</button></span></div>
           <div class="mcsub">Add a local model server (Ollama, llama.cpp, vLLM).</div>
@@ -11223,10 +11228,26 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       b.active=id;Store.save();
       Keys.set(id,key);
       field.value='';
+      // ONE key, everywhere. This panel is the only door for adding a model, but the app has
+      // two registries and they are not the same thing: this one lives in the browser and is
+      // what makes the app work with NO bridge at all, while the bridge registry is the only
+      // one pi, the scheduled tasks, research, recipes and COMPARE can read. A key added here
+      // used to reach only the first, so it worked in LAB and not in a task — "why does my key
+      // work in one screen and not the other". Register it in both when the bridge is up.
+      let shared=false;
+      if(Bridge.on()){
+        try{
+          const provs=await RPC('models','listProviders').catch(()=>[]);
+          const twin=(provs||[]).find(x=>String(x.label||'').toLowerCase()===hit[1].toLowerCase()||String(x.provider||'').toLowerCase()===id);
+          if(twin)await RPC('models','removeProvider',twin.id); // a replaced key must not leave the old one behind
+          const r=await RPC('models','addProvider',{kind:'api',provider:id,label:hit[1],baseUrl:hit[2],apiKey:key});
+          if(r&&r.ok){shared=true;if(models.length)await RPC('models','setModels',r.id,models).catch(()=>{});Bus.emit('models:changed')}
+        }catch(_){/* the browser-side key still works — never fail CONNECT over the mirror */}
+      }
       Brain.update();renderBrains();
       Toast.show(err
         ?(hit[1]+' key stored, but its model list is unreachable — '+friendlyErr(err))
-        :(hit[1]+' connected · '+(keep||'pick a model')+(was?' — key replaced':'')));
+        :(hit[1]+' connected · '+(keep||'pick a model')+(was?' — key replaced':'')+(shared?' · shared with your machine':'')));
     });
     // ---- HUB BRIDGE ----
     const brStat=p.querySelector('#brstat'),brInfo=p.querySelector('#brinfo'),brEp=p.querySelector('#brep');
@@ -13835,16 +13856,36 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const hub=agent.skills.filter(s=>s.source==='hub'),own=agent.skills.filter(s=>s.source!=='hub');
       const q=skQ?(s=>((s.name||'')+' '+(s.description||'')).toLowerCase().includes(skQ)):(()=>true);
       const sec=(title,note,list)=>list.length?`<div class="af-sec">${escHtml(title)} · ${list.length}</div><div class="brn-desc" style="margin:-4px 0 6px">${escHtml(note)}</div>`+list.filter(q).map(agentSkillRow).join(''):'';
+      const names=(title,note,list)=>list.length?`<div class="af-sec">${escHtml(title)} · ${list.length}</div><div class="brn-desc" style="margin:-4px 0 6px">${escHtml(note)}</div>`
+        +`<div class="tkchips brn-chips">${list.map(n=>`<span class="tkchip">${escHtml(String(n).replace(/\.(md|json|ts|yaml)$/,''))}</span>`).join('')}</div>`:'';
+      const a=agent.assets||{},iss=agent.issues||[];
       el.innerHTML=
         `<div class="setline"><span style="flex:1">pi <b>${escHtml(agent.version||'?')}</b> · ${agent.skills.length} skills · ${agent.extensions.length} extensions${agent.curriculum.present?' · curriculum '+Math.round(agent.curriculum.bytes/1024)+'KB':''}</span><button class="btn mini" id="bsrefresh">Refresh</button></div>`
+        // A folder pi cannot load is the one thing the owner must see — it is invisible to
+        // the agent no matter what is inside it, and only they can decide what it should say.
+        +(iss.length?`<div class="af-sec" style="color:var(--accent)">NEEDS A SKILL.md · ${iss.length}</div><div class="brn-desc" style="margin:-4px 0 6px">pi loads a skill by its SKILL.md header. Without one the folder is invisible to your agent, whatever is inside it.</div>`
+          +iss.map(x=>`<div class="lprow"><div style="flex:1;min-width:0"><b>${escHtml(x.folder)}</b><div class="brn-desc">${escHtml(x.source)} · contains ${escHtml((x.contains||[]).slice(0,4).join(', ')||'nothing')}</div></div><button class="btn mini" data-fix="${escAttr(x.folder)}" data-src="${escAttr(x.source)}">Write it</button></div>`).join(''):'')
         +sec('CRAFTS FROM CLONE FRAME','Installed with the app — refreshed whenever it updates.',hub)
         +sec('YOUR OWN PI SKILLS','From ~/.pi — pi loads these everywhere, not only in this app.',own)
         +(agent.extensions.length?`<div class="af-sec">EXTENSIONS · ${agent.extensions.length}</div><div class="brn-desc" style="margin:-4px 0 6px">Code that runs inside the agent — tools and limits, not prompts.</div>`
           +agent.extensions.map(x=>`<div class="lprow"><div style="flex:1"><b>${escHtml(x.name)}</b></div><span class="badge">${Math.max(1,Math.round(x.bytes/1024))}KB</span></div>`).join(''):'')
         +(agent.commands.length?`<div class="af-sec">SLASH COMMANDS · ${agent.commands.length}</div>`
           +agent.commands.slice(0,40).map(c=>`<div class="lprow"><div style="flex:1"><b>/${escHtml(c.name)}</b><div class="brn-desc">${escHtml(c.description||'')}</div></div></div>`).join('')
-          :'<div class="af-sec">SLASH COMMANDS</div><div class="brn-desc">Not read yet — pi reports these itself, so the list appears once a CODE session has run. Asking it here would cold-start the agent just to draw a panel.</div>');
+          :'<div class="af-sec">SLASH COMMANDS</div><div class="brn-desc" style="margin:-4px 0 8px">Not read yet — pi reports these itself, so the list appears once a CODE session has run. Asking it here would cold-start the agent just to draw a panel.</div>')
+        +names('SUB-AGENTS','Roles the agent can delegate to — builder, critic, reader, and the chains that order them.',a.agents||[])
+        +names('DORMANT','Shipped but not armed. Guardrails live here until the owner asks for them.',a.dormant||[])
+        +names('GUARDRAIL RULES','Rule files on disk. An EXAMPLE is a template, not an active guard.',a.guardrails||[])
+        +names('THEMES','Colour schemes available to the agent terminal.',a.themes||[])
+        +(a.packages&&a.packages.length?`<div class="af-sec">NPM PACKAGES · ${a.packages.length}</div><div class="brn-desc" style="margin:-4px 0 6px">Installed under the agent — what its tools import at runtime.</div>`:'')
+        +(a.packages&&a.packages.length?`<div class="tkchips brn-chips">${a.packages.slice(0,24).map(n=>`<span class="tkchip">${escHtml(n)}</span>`).join('')}${a.packages.length>24?`<span class="tkchip">+${a.packages.length-24} more</span>`:''}</div>`:'')
+        +(agent.curriculum.present?`<div class="af-sec">CURRICULUM</div><div class="brn-desc">AGENTS.md — ${Math.round(agent.curriculum.bytes/1024)}KB of field guide the agent reads to know this app, the iT CLI and how to work here.</div>`:'');
       const rf=el.querySelector('#bsrefresh');if(rf)rf.addEventListener('click',()=>loadAgentBrain(true));
+      el.querySelectorAll('[data-fix]').forEach(b=>b.addEventListener('click',async()=>{
+        b.disabled=true;b.textContent='writing…';
+        try{const r=await RPC('pi','repairSkill',{folder:b.dataset.fix,source:b.dataset.src});
+          if(r&&r.ok){Toast.show('Wrote SKILL.md for '+b.dataset.fix+' — edit it to say when the agent should use it');loadAgentBrain(true)}
+          else{b.disabled=false;b.textContent='Write it';Toast.show((r&&r.error)||'could not write it')}}
+        catch(e){b.disabled=false;b.textContent='Write it';Toast.show(friendlyErr(e.message||'failed'))}}));
     }
     async function loadAgentBrain(force){
       if(agent&&!force)return renderAgentBrain();
@@ -13924,24 +13965,17 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       if(!Bridge.on()){needBridge(mEl);return}
       let provs=[];try{provs=await RPC('models','listProviders')}catch(e){showErr(mEl,e);return}
       if(!body.querySelector('#brnmodels'))return;
-      mEl.innerHTML=`<div class="acctform" style="padding:6px 0">`+(provs.length?provs.map(pr=>`<div class="acctrow"><div style="flex:1;min-width:0"><b>${escHtml(pr.label||pr.provider)}</b> <span class="badge">${escHtml(pr.kind)}</span><div class="brn-desc">${escHtml(pr.baseUrl||'')}</div></div><button class="btn mini" data-rm="${pr.id}">remove</button></div>`).join(''):'<div class="qempty">No models. Add a local server or an API.</div>')+`<div class="af-sec">＋ Add</div><div class="af-row"><label>Type</label><select id="brk"><option value="api">API (cloud)</option><option value="local">Local (Ollama/vLLM)</option></select></div><div class="af-row"><label>Provider</label><input id="brp" placeholder="anthropic / openai / deepseek / ollama"></div><div class="af-row"><label>Base URL</label><input id="bru" placeholder="https://api…/v1  or  http://localhost:11434/v1"></div><div class="af-row"><label>API key</label><input id="brkey" type="password" placeholder="(empty for local)"></div><div id="brmsg" style="font-size:10px"></div><div class="compose-actions"><button class="btn" id="brtest">TEST</button><button class="btn" id="bradd">ADD</button></div></div>`;
-      mEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('models','removeProvider',b.dataset.rm);loadModels()}));
-      const cfgOf=()=>({kind:mEl.querySelector('#brk').value,provider:mEl.querySelector('#brp').value.trim(),label:mEl.querySelector('#brp').value.trim(),baseUrl:mEl.querySelector('#bru').value.trim(),apiKey:mEl.querySelector('#brkey').value});
-      mEl.querySelector('#brtest').addEventListener('click',async()=>{const m=mEl.querySelector('#brmsg');m.textContent='testing…';try{const r=await RPC('models','testProvider',cfgOf());m.style.color=r.ok?'var(--ok)':'var(--accent)';m.textContent=r.ok?('✓ '+(r.models?r.models.length+' models':'ok')):('✗ '+(r.error||'failed'))}catch(e){m.style.color='var(--accent)';m.textContent=e.message}});
-      // Check the key against the vendor BEFORE storing it — the same guard MY MACHINE got,
-      // which this door never received. TEST sits right here, but its verdict did not gate
-      // ADD: press ADD without testing, or after a failed test, and the app said "Model
-      // added" over a key that can never work. Connecting a model is the only thing between
-      // a new owner and a working app; failing it silently reads as the app being broken.
-      mEl.querySelector('#bradd').addEventListener('click',async()=>{
-        const c=cfgOf(),m=mEl.querySelector('#brmsg'),btn=mEl.querySelector('#bradd');
-        btn.disabled=true;btn.textContent='CHECKING…';m.style.color='';m.textContent='checking the key with the provider…';
-        let t=null;try{t=await RPC('models','testProvider',c)}catch(e){t={ok:false,error:(e&&e.message)||'could not reach the provider'}}
-        btn.disabled=false;btn.textContent='ADD';
-        if(!t||!t.ok){m.style.color='var(--accent)';m.textContent='✗ '+friendlyErr((t&&t.error)||'the provider did not accept this');return}
-        const r=await RPC('models','addProvider',c);
-        if(r.ok){m.textContent='';Toast.show('Model added · '+((t.models&&t.models.length)?t.models.length+' models':'ok'));loadModels()}
-        else{m.style.color='var(--accent)';m.textContent='✗ '+((r&&r.error)||'failed')}});
+      // READ-ONLY, deliberately. This used to be a second form for adding a provider — a
+      // different door, to a different registry, without the check the other one had. Three
+      // doors over two registries is how "my key works in one screen and not the other"
+      // happens. There is now ONE door: MY MACHINE → BRAIN, which registers the key in both.
+      mEl.innerHTML=`<div class="acctform" style="padding:6px 0">`
+        +(provs.length?provs.map(pr=>`<div class="acctrow"><div style="flex:1;min-width:0"><b>${escHtml(pr.label||pr.provider)}</b> <span class="badge">${escHtml(pr.kind)}</span><div class="brn-desc">${escHtml(pr.baseUrl||'')}${(pr.models||[]).length?' · '+(pr.models||[]).length+' models':''}</div></div><button class="btn mini" data-rm="${escAttr(pr.id)}">remove</button></div>`).join('')
+          :'<div class="qempty" style="padding:12px">No model connected to your machine yet.</div>')
+        +`<div class="brn-desc" style="padding:8px 2px 4px;line-height:1.6">These are the models your <b>machine</b> can use — what pi, your scheduled tasks, research, recipes and COMPARE reach for. Add or replace one in <b>MY MACHINE → BRAIN</b>: the key you paste there is checked with the provider and registered in both places.</div>`
+        +`<div class="compose-actions" style="justify-content:flex-start"><button class="btn" id="brgo">OPEN MY MACHINE</button></div></div>`;
+      mEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{await RPC('models','removeProvider',b.dataset.rm);Bus.emit('models:changed');loadModels()}));
+      const go=mEl.querySelector('#brgo');if(go)go.addEventListener('click',()=>openPanel('machine'));
     }
     function render(){if(tab==='memories')renderMem();else if(tab==='skills')renderSkills();else if(tab==='add')renderAdd();else renderSettings()}
     render();

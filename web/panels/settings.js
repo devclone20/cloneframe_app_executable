@@ -162,7 +162,12 @@
       let known=[];try{known=await RPC('models','knownProviders')}catch(e){return fail(e)}
       const locals=known.filter(k=>k.kind==='local'),apis=known.filter(k=>k.kind==='api');
       const opt=(k,seld)=>`<option value="${k.provider}" data-url="${escAttr(k.baseUrl||'')}"${seld?' selected':''}>${escAttr(k.label)}</option>`;
+      // This is the ADVANCED view of the same registry MY MACHINE writes to — a local
+      // endpoint, a custom base URL, a provider the key-prefix detector does not know.
+      // Say so, or it reads as a competing place to put a key, which is exactly how
+      // "my key works in one screen and not the other" starts.
       pane.innerHTML=`
+        <div class="brn-desc" style="padding:0 2px 10px;line-height:1.6">For a cloud key, use <b>MY MACHINE → BRAIN</b> — it detects the provider, checks the key, and registers it here too. This page is for what that cannot do: a <b>local</b> server, a custom base URL, or a provider by hand.</div>
         <div class="mcard">
           <div class="mchead"><svg><use href="#i-chip"/></svg><b>Add Local Models</b><span class="tag">(Endpoint)</span><span class="acts"><button class="btn" id="ltest">▷ TEST</button></span></div>
           <div class="mcsub">Add a local model server (Ollama, llama.cpp, vLLM).</div>

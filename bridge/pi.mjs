@@ -524,17 +524,35 @@ function readSkill(dir, name, source) {
 async function brain() {
   const skills = [];
   const roots = [];
+  const issues = [];
   for (const { source, dir } of SKILL_ROOTS) {
     let names = [];
     try { names = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch {}
     roots.push({ source, dir, count: 0, present: names.length > 0 });
     for (const n of names.sort()) {
       const s = readSkill(dir, n, source);
-      // A directory with no SKILL.md is not a skill pi can load — say so rather than
-      // listing a folder the agent will never read.
-      if (s) { skills.push(s); roots[roots.length - 1].count++; }
+      if (s) { skills.push(s); roots[roots.length - 1].count++; continue; }
+      // A folder with no SKILL.md is not a skill pi can load. Silently skipping it hid the
+      // problem from the only person who can fix it — so it is REPORTED instead, with the
+      // path and what is inside, and the panel offers to write the missing header.
+      let has = [];
+      try { has = fs.readdirSync(path.join(dir, n)).slice(0, 8); } catch {}
+      issues.push({ kind: 'no-skill-md', folder: n, source, dir: path.join(dir, n), contains: has });
     }
   }
+  // Everything else pi carries, by topic. Counted, never invented: an empty category is
+  // reported as empty rather than dropped, so the panel can show the whole shape.
+  const countDir = (d, filter) => {
+    try { return fs.readdirSync(d).filter((f) => !f.startsWith('.') && (!filter || filter(f))); } catch { return []; }
+  };
+  const PI_HOME = path.join(WORKSPACE, '.pi');
+  const assets = {
+    agents: countDir(path.join(PI_HOME, 'agents'), (f) => f.endsWith('.md')),
+    dormant: countDir(path.join(PI_HOME, 'dormant'), (f) => f.endsWith('.ts')),
+    guardrails: countDir(path.join(PI_HOME, 'guardrails')),
+    themes: countDir(path.join(PI_HOME, 'themes'), (f) => f.endsWith('.json')),
+    packages: countDir(path.join(PI_HOME, 'npm', 'node_modules'), (f) => !f.startsWith('.')),
+  };
   const extensions = [];
   try {
     for (const f of fs.readdirSync(EXT_DIR).sort()) {
@@ -564,8 +582,34 @@ async function brain() {
   let curriculum = { present: false, bytes: 0 };
   try { const st = fs.statSync(path.join(WORKSPACE, 'AGENTS.md')); curriculum = { present: true, bytes: st.size }; } catch {}
   const s = status();
-  return { ok: true, installed: !!s.installed, version: s.version || null, skills, extensions, commands: cmds, commandSource: cmdSource, curriculum, roots };
+  return { ok: true, installed: !!s.installed, version: s.version || null, skills, extensions, commands: cmds, commandSource: cmdSource, curriculum, roots, assets, issues };
 }
 
-export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
+/**
+ * Give a skill folder the SKILL.md it is missing, so pi will actually load it.
+ * A folder without one is invisible to the agent no matter what is inside it; this writes
+ * the two-field header pi needs and leaves the body pointing at whatever was already there.
+ * Refuses anything that is not a direct child of a known skills root, and never overwrites.
+ * @param {{folder:string, source:'hub'|'global'}} sel
+ */
+function repairSkill({ folder, source } = {}) {
+  const root = SKILL_ROOTS.find((r) => r.source === source);
+  if (!root) return { ok: false, error: 'unknown skills root' };
+  const name = String(folder || '');
+  // Path containment, not string trust: the folder name comes from the client.
+  if (!name || !/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') return { ok: false, error: 'invalid skill folder name' };
+  const dir = path.join(root.dir, name);
+  if (path.dirname(dir) !== root.dir) return { ok: false, error: 'refused — outside the skills root' };
+  let inside = [];
+  try { if (!fs.statSync(dir).isDirectory()) return { ok: false, error: 'not a folder' }; inside = fs.readdirSync(dir); }
+  catch { return { ok: false, error: 'that folder is not there' }; }
+  const file = path.join(dir, 'SKILL.md');
+  if (fs.existsSync(file)) return { ok: false, error: 'it already has a SKILL.md' };
+  const title = name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const body = `---\nname: ${name}\ndescription: ${title} — describe here WHEN the agent should reach for this skill. pi reads this line to decide; write it as a trigger, not a title.\n---\n\n# ${title}\n\nThis header was written by CLONE FRAME so pi can load the folder at all — it had files\nbut no SKILL.md, which makes a skill invisible to the agent.\n\nReplace this body with what the skill actually does and how to use it.\n\nFiles already in this folder:\n\n${inside.map((f) => `- \`${f}\``).join('\n') || '- (none)'}\n`;
+  try { fs.writeFileSync(file, body, { mode: 0o644 }); } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  return { ok: true, path: file, name };
+}
+
+export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
 export default Pi;

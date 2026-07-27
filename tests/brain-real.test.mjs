@@ -33,8 +33,38 @@ test('the skills shown are the ones pi actually loads', () => {
   assert.match(pi, /source: 'hub', dir: path\.join\(WORKSPACE, '\.pi', 'skills'\)/, 'the app-installed skills root');
   assert.match(pi, /source: 'global', dir: path\.join\(os\.homedir\(\), '\.pi', 'agent', 'skills'\)/, "the owner's own skills root");
   assert.match(pi, /if \(s\) \{ skills\.push\(s\)/, 'a folder with no SKILL.md is not a skill pi can load');
-  assert.match(pi, /commands, brain, handlePiChat/, 'brain must be on the RPC surface');
+  assert.match(pi, /export const Pi = \{[^}]*\bbrain\b/, 'brain must be on the RPC surface');
   assert.match(brain, /RPC\('pi','brain'\)/, 'the panel must read the detector, not a local array');
+});
+
+test('a folder pi cannot load is reported, not silently skipped', () => {
+  // Skipping it hid the problem from the only person who can fix it: a folder with no
+  // SKILL.md is invisible to the agent no matter what is inside it.
+  assert.match(pi, /issues\.push\(\{ kind: 'no-skill-md'/, 'a malformed skill folder must be reported');
+  assert.match(brain, /NEEDS A SKILL\.md/, 'and shown to the owner');
+  assert.match(brain, /RPC\('pi','repairSkill'/, 'with a way to fix it in place');
+});
+
+test('writing a SKILL.md cannot escape the skills roots', () => {
+  // The folder name arrives from the client. Containment by path, not by string trust.
+  const fn = pi.slice(pi.indexOf('function repairSkill('), pi.indexOf('export const Pi'));
+  assert.match(fn, /\/\^\[A-Za-z0-9\._-\]\+\$\//, 'the folder name must be a strict allowlist');
+  assert.match(fn, /if \(path\.dirname\(dir\) !== root\.dir\) return \{ ok: false/,
+    'the resolved path must be a direct child of a known skills root');
+  assert.match(fn, /if \(fs\.existsSync\(file\)\) return \{ ok: false, error: 'it already has a SKILL\.md' \}/,
+    'it must never overwrite a real skill');
+  assert.match(fn, /name === '\.' \|\| name === '\.\.'/, 'and refuse the relative names outright');
+});
+
+test('the whole agent is shown, by topic', () => {
+  // "Everything we have" — not just the skills. Each category is counted from disk and
+  // reported empty rather than dropped, so the panel shows the real shape of the agent.
+  for (const k of ['agents', 'dormant', 'guardrails', 'themes', 'packages']) {
+    assert.ok(new RegExp('\\b' + k + ':').test(pi), 'the bridge must report ' + k);
+  }
+  for (const label of ['SUB-AGENTS', 'DORMANT', 'GUARDRAIL RULES', 'THEMES', 'NPM PACKAGES', 'CURRICULUM']) {
+    assert.ok(brain.includes(label), 'the panel is missing the ' + label + ' topic');
+  }
 });
 
 test('drawing the panel never cold-starts the agent', () => {
