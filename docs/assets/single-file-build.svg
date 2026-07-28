@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 420" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="420" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1097" height="417" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="412" width="1100" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">the single-file build — developed as many files, shipped as one</text>
+
+  <!-- sources -->
+  <rect x="40" y="70" width="330" height="270" rx="10" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+  <text x="60" y="100" fill="#3fd68f" font-weight="bold">SOURCE — many small files</text>
+  <rect x="60" y="118" width="290" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="76" y="140" fill="#c9d1d9" font-size="13">web/index.html</text>
+  <text x="76" y="160" fill="#566070" font-size="11">shell + styles</text>
+  <rect x="60" y="184" width="290" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="76" y="206" fill="#c9d1d9" font-size="13">web/panels/*.js</text>
+  <text x="76" y="226" fill="#566070" font-size="11">27 panels, one file each</text>
+  <rect x="60" y="250" width="290" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="76" y="272" fill="#c9d1d9" font-size="13">web/scripts/core/kernel.js</text>
+  <text x="76" y="292" fill="#566070" font-size="11">esbuild-bundled</text>
+
+  <!-- build -->
+  <path d="M370 205 436 205" stroke="#566070" stroke-width="2.5"/>
+  <path d="M429 199 438 205 429 211" fill="none" stroke="#566070" stroke-width="2.5"/>
+  <rect x="444" y="160" width="240" height="90" rx="10" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+  <text x="564" y="192" text-anchor="middle" fill="#e8b86d" font-weight="bold">tools/build.mjs</text>
+  <text x="564" y="214" text-anchor="middle" fill="#8b949e" font-size="12">//@cfbuild-include</text>
+  <text x="564" y="232" text-anchor="middle" fill="#8b949e" font-size="12">raw splice · same scope</text>
+  <path d="M684 205 750 205" stroke="#566070" stroke-width="2.5"/>
+  <path d="M743 199 752 205 743 211" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+  <!-- output -->
+  <rect x="758" y="140" width="302" height="130" rx="10" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+  <text x="778" y="172" fill="#6fb7d9" font-weight="bold">dist/index.html</text>
+  <text x="778" y="196" fill="#c9d1d9" font-size="13">ONE self-contained file</text>
+  <text x="778" y="218" fill="#8b949e" font-size="12">runs with zero build tools —</text>
+  <text x="778" y="236" fill="#8b949e" font-size="12">a fresh clone just opens it</text>
+
+  <!-- golden sha -->
+  <rect x="758" y="292" width="302" height="66" rx="10" fill="#161b22" stroke="#e8b86d" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="778" y="318" fill="#e8b86d" font-weight="bold" font-size="13">golden sha256</text>
+  <text x="778" y="340" fill="#8b949e" font-size="12">byte-for-byte reproducible — proven</text>
+  <path d="M909 270 909 290" stroke="#e8b86d" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <text x="420" y="330" fill="#8b949e" font-size="13">the single-file app and the modular source</text>
+  <text x="420" y="352" fill="#8b949e" font-size="13">are always exactly the same program</text>
+</svg>

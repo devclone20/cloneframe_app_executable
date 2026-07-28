@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="620" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1197" height="617" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="612" width="1200" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="600" y="31" text-anchor="middle" font-size="13" fill="#8b949e">CLONE FRAME HUB — the whole system in one picture</text>
+
+  <!-- the pilot -->
+  <rect x="40" y="76" width="300" height="46" rx="23" fill="#161b22" stroke="#ff3b30" stroke-width="2"/>
+  <text x="190" y="105" text-anchor="middle"><tspan fill="#ff6b61" font-weight="bold">YOU</tspan><tspan fill="#8b949e"> — the pilot</tspan></text>
+  <path d="M190 122 190 158" stroke="#566070" stroke-width="2"/>
+  <path d="M185 151 190 159 195 151" fill="none" stroke="#566070" stroke-width="2"/>
+  <path d="M185 129 190 121 195 129" fill="none" stroke="#566070" stroke-width="2"/>
+
+  <!-- WINDOW card -->
+  <rect x="40" y="162" width="300" height="330" rx="10" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+  <text x="60" y="192"><tspan fill="#6fb7d9" font-weight="bold">WINDOW</tspan><tspan fill="#8b949e" font-size="12"> · index.html</tspan></text>
+  <text x="60" y="216" fill="#8b949e" font-size="12">the frame grid you see</text>
+  <g>
+    <rect x="60" y="232" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="120" y="232" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="180" y="232" width="52" height="52" rx="6" fill="#0d1117" stroke="#ff3b30" stroke-width="1.5"/>
+    <rect x="240" y="232" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="60" y="292" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="120" y="292" width="52" height="52" rx="6" fill="#0d1117" stroke="#6fb7d9" stroke-width="1.5"/>
+    <rect x="180" y="292" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <rect x="240" y="292" width="52" height="52" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <text x="206" y="264" text-anchor="middle" fill="#ff6b61" font-size="11">CODE</text>
+    <text x="146" y="324" text-anchor="middle" fill="#6fb7d9" font-size="11">iT</text>
+  </g>
+  <text x="60" y="374" fill="#c9d1d9" font-size="13">frames · panels · terminal</text>
+  <text x="60" y="396" fill="#c9d1d9" font-size="13">browser · email · agents</text>
+  <text x="60" y="436" fill="#8b949e" font-size="12">draws everything —</text>
+  <text x="60" y="456" fill="#8b949e" font-size="12">touches nothing directly</text>
+
+  <!-- channels -->
+  <text x="457" y="238" text-anchor="middle" fill="#6fb7d9" font-size="12" font-weight="bold">CONTROL</text>
+  <text x="457" y="256" text-anchor="middle" fill="#8b949e" font-size="11">HTTP POST /mod/&lt;name&gt;</text>
+  <path d="M348 268 566 268" stroke="#6fb7d9" stroke-width="2.5"/>
+  <path d="M558 262 567 268 558 274" fill="none" stroke="#6fb7d9" stroke-width="2.5"/>
+
+  <text x="457" y="330" text-anchor="middle" fill="#b18bf5" font-size="12" font-weight="bold">DATA</text>
+  <text x="457" y="348" text-anchor="middle" fill="#8b949e" font-size="11">token-gated WebSocket</text>
+  <path d="M348 360 566 360" stroke="#b18bf5" stroke-width="2.5"/>
+  <path d="M558 354 567 360 558 366" fill="none" stroke="#b18bf5" stroke-width="2.5"/>
+
+  <text x="457" y="404" text-anchor="middle" fill="#566070" font-size="11">the ONLY two channels</text>
+
+  <!-- BRIDGE card -->
+  <rect x="574" y="162" width="290" height="330" rx="10" fill="#161b22" stroke="#ff3b30" stroke-width="2"/>
+  <text x="594" y="192"><tspan fill="#ff6b61" font-weight="bold">HUB BRIDGE</tspan><tspan fill="#8b949e" font-size="12"> · local daemon</tspan></text>
+  <text x="594" y="214" fill="#8b949e" font-size="12">127.0.0.1:8765 · loopback only</text>
+  <rect x="594" y="232" width="250" height="78" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="614" y="260" fill="#c9d1d9" font-size="13" font-weight="bold">Router</text>
+  <text x="614" y="282" fill="#8b949e" font-size="12">transport · security ·</text>
+  <text x="614" y="300" fill="#8b949e" font-size="12">dispatch — nothing else</text>
+  <rect x="594" y="326" width="250" height="58" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="614" y="350" fill="#c9d1d9" font-size="13">every call: token ✓</text>
+  <text x="614" y="370" fill="#c9d1d9" font-size="13">host ✓ · loopback ✓</text>
+  <text x="594" y="428" fill="#8b949e" font-size="12">the only thing that ever</text>
+  <text x="594" y="448" fill="#8b949e" font-size="12">touches your real machine</text>
+
+  <!-- model sources above bridge -->
+  <rect x="500" y="76" width="210" height="46" rx="23" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
+  <text x="605" y="98" text-anchor="middle" fill="#56d0e0" font-size="12" font-weight="bold">YOUR MODEL — cloud key</text>
+  <text x="605" y="114" text-anchor="middle" fill="#8b949e" font-size="11">optional · never leaves you</text>
+  <rect x="730" y="76" width="210" height="46" rx="23" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+  <text x="835" y="98" text-anchor="middle" fill="#3fd68f" font-size="12" font-weight="bold">MATRIX — local cluster</text>
+  <text x="835" y="114" text-anchor="middle" fill="#8b949e" font-size="11">your hardware · no key</text>
+  <path d="M640 122 690 160" stroke="#566070" stroke-width="2"/>
+  <path d="M799 122 760 160" stroke="#566070" stroke-width="2"/>
+
+  <!-- MACHINE card -->
+  <rect x="900" y="162" width="260" height="330" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+  <text x="920" y="192"><tspan fill="#e6edf3" font-weight="bold">YOUR MACHINE</tspan></text>
+  <text x="920" y="214" fill="#8b949e" font-size="12">the real world</text>
+  <rect x="920" y="232" width="220" height="50" rx="8" fill="#0d1117" stroke="#3fd68f" stroke-width="1.5"/>
+  <text x="936" y="252" fill="#3fd68f" font-size="13" font-weight="bold">shell</text>
+  <text x="936" y="270" fill="#8b949e" font-size="11">a real terminal · your zsh</text>
+  <rect x="920" y="292" width="220" height="50" rx="8" fill="#0d1117" stroke="#e8b86d" stroke-width="1.5"/>
+  <text x="936" y="312" fill="#e8b86d" font-size="13" font-weight="bold">files</text>
+  <text x="936" y="330" fill="#8b949e" font-size="11">plain folders · ~/CloneFrame</text>
+  <rect x="920" y="352" width="220" height="50" rx="8" fill="#0d1117" stroke="#6fb7d9" stroke-width="1.5"/>
+  <text x="936" y="372" fill="#6fb7d9" font-size="13" font-weight="bold">network</text>
+  <text x="936" y="390" fill="#8b949e" font-size="11">in-app browser · SSRF-guarded</text>
+  <rect x="920" y="412" width="220" height="50" rx="8" fill="#0d1117" stroke="#b18bf5" stroke-width="1.5"/>
+  <text x="936" y="432" fill="#b18bf5" font-size="13" font-weight="bold">wallet</text>
+  <text x="936" y="450" fill="#8b949e" font-size="11">unsigned tx only — you sign</text>
+
+  <path d="M866 328 892 328" stroke="#566070" stroke-width="2.5"/>
+  <path d="M885 322 894 328 885 334" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+  <text x="600" y="558" text-anchor="middle" fill="#8b949e" font-size="13">the window never talks to a tool's port directly — every call crosses the bridge's gate</text>
+  <text x="600" y="584" text-anchor="middle" fill="#566070" font-size="12">local-first · bring your own model · your keys never leave this picture</text>
+</svg>

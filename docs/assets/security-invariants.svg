@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="560" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1097" height="557" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="552" width="1100" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">the security model — eight invariants, each locked by a positive AND a negative test</text>
+
+  <!-- invariants, two columns -->
+  <g font-size="13">
+    <rect x="40" y="66" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="58" y="88"><tspan fill="#ff6b61" font-weight="bold">1</tspan><tspan fill="#c9d1d9"> loopback bind + pairing token</tspan></text>
+    <text x="58" y="107" fill="#566070" font-size="11">reachable only from your own machine</text>
+
+    <rect x="40" y="128" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="58" y="150"><tspan fill="#ff6b61" font-weight="bold">2</tspan><tspan fill="#c9d1d9"> Sec-Fetch-Dest gate</tspan></text>
+    <text x="58" y="169" fill="#566070" font-size="11">token served only on real navigation</text>
+
+    <rect x="40" y="190" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="58" y="212"><tspan fill="#ff6b61" font-weight="bold">3</tspan><tspan fill="#c9d1d9"> SSRF re-checked on EVERY redirect hop</tspan></text>
+    <text x="58" y="231" fill="#566070" font-size="11">a page can never steer the proxy inward</text>
+
+    <rect x="40" y="252" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="58" y="274"><tspan fill="#ff6b61" font-weight="bold">4</tspan><tspan fill="#c9d1d9"> soul / origin allowlist</tspan></text>
+    <text x="58" y="293" fill="#566070" font-size="11">privileged inputs from trusted origins only</text>
+
+    <rect x="552" y="66" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="570" y="88"><tspan fill="#ff6b61" font-weight="bold">5</tspan><tspan fill="#c9d1d9"> command gate fails CLOSED</tspan></text>
+    <text x="570" y="107" fill="#566070" font-size="11">no rule matched → refused, not allowed</text>
+
+    <rect x="552" y="128" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="570" y="150"><tspan fill="#ff6b61" font-weight="bold">6</tspan><tspan fill="#c9d1d9"> rm -rf / · mkfs · dd — always blocked</tspan></text>
+    <text x="570" y="169" fill="#566070" font-size="11">even in root mode</text>
+
+    <rect x="552" y="190" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="570" y="212"><tspan fill="#ff6b61" font-weight="bold">7</tspan><tspan fill="#c9d1d9"> secrets redacted from every log line</tspan></text>
+    <text x="570" y="231" fill="#566070" font-size="11">keys never reach disk in cleartext</text>
+
+    <rect x="552" y="252" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
+    <text x="570" y="274"><tspan fill="#ff6b61" font-weight="bold">8</tspan><tspan fill="#c9d1d9"> media URL scheme guard</tspan></text>
+    <text x="570" y="293" fill="#566070" font-size="11">no javascript: · no data:text/html</text>
+  </g>
+
+  <!-- the two pillars -->
+  <rect x="40" y="332" width="508" height="96" rx="10" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+  <text x="60" y="362" fill="#e8b86d" font-weight="bold">the wallet is the sole signer</text>
+  <text x="60" y="386" fill="#c9d1d9" font-size="13">the app only builds UNSIGNED transactions —</text>
+  <text x="60" y="406" fill="#c9d1d9" font-size="13">it never sees a private key or seed phrase</text>
+
+  <rect x="552" y="332" width="508" height="96" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+  <text x="572" y="362" fill="#e6edf3" font-weight="bold">powerful things default OFF</text>
+  <text x="572" y="386" fill="#c9d1d9" font-size="13">shell · file-write · web · email autonomy —</text>
+  <text x="572" y="406" fill="#c9d1d9" font-size="13">opt-in switches in Settings, one by one</text>
+
+  <text x="550" y="470" text-anchor="middle" fill="#8b949e" font-size="13">every dangerous edge has exactly ONE home in the code —</text>
+  <text x="550" y="492" text-anchor="middle" fill="#8b949e" font-size="13">so each promise is enforced in one place, and provable there</text>
+  <text x="550" y="524" text-anchor="middle" fill="#566070" font-size="12">full model &amp; threat notes: SECURITY.md</text>
+</svg>

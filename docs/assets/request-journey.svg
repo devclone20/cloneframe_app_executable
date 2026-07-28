@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="330" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1197" height="327" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="322" width="1200" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="600" y="31" text-anchor="middle" font-size="13" fill="#8b949e">a request's journey — press enter, watch it cross the system</text>
+
+  <!-- pipeline -->
+  <g font-size="13">
+    <rect x="40" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#ff3b30" stroke-width="2"/>
+    <text x="120" y="114" text-anchor="middle" fill="#ff6b61" font-weight="bold">you act</text>
+    <text x="120" y="136" text-anchor="middle" fill="#8b949e" font-size="12">in a panel</text>
+    <text x="120" y="158" text-anchor="middle" fill="#566070" font-size="11">step 1</text>
+
+    <path d="M200 130 226 130" stroke="#566070" stroke-width="2.5"/>
+    <path d="M219 124 228 130 219 136" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+    <rect x="232" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+    <text x="312" y="114" text-anchor="middle" fill="#6fb7d9" font-weight="bold">BridgeClient</text>
+    <text x="312" y="136" text-anchor="middle" fill="#8b949e" font-size="12">adds the token</text>
+    <text x="312" y="158" text-anchor="middle" fill="#566070" font-size="11">step 2</text>
+
+    <path d="M392 130 418 130" stroke="#566070" stroke-width="2.5"/>
+    <path d="M411 124 420 130 411 136" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+    <rect x="424" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#ff3b30" stroke-width="2"/>
+    <text x="504" y="114" text-anchor="middle" fill="#ff6b61" font-weight="bold">router</text>
+    <text x="504" y="136" text-anchor="middle" fill="#8b949e" font-size="12">checks the gate</text>
+    <text x="504" y="158" text-anchor="middle" fill="#566070" font-size="11">step 3</text>
+
+    <path d="M584 130 610 130" stroke="#566070" stroke-width="2.5"/>
+    <path d="M603 124 612 130 603 136" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+    <rect x="616" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+    <text x="696" y="114" text-anchor="middle" fill="#e8b86d" font-weight="bold">domain</text>
+    <text x="696" y="136" text-anchor="middle" fill="#8b949e" font-size="12">interprets {fn,args}</text>
+    <text x="696" y="158" text-anchor="middle" fill="#566070" font-size="11">step 4</text>
+
+    <path d="M776 130 802 130" stroke="#566070" stroke-width="2.5"/>
+    <path d="M795 124 804 130 795 136" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+    <rect x="808" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+    <text x="888" y="114" text-anchor="middle" fill="#3fd68f" font-weight="bold">platform</text>
+    <text x="888" y="136" text-anchor="middle" fill="#8b949e" font-size="12">port does the work</text>
+    <text x="888" y="158" text-anchor="middle" fill="#566070" font-size="11">step 5</text>
+
+    <path d="M968 130 994 130" stroke="#566070" stroke-width="2.5"/>
+    <path d="M987 124 996 130 987 136" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+    <rect x="1000" y="86" width="160" height="88" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+    <text x="1080" y="114" text-anchor="middle" fill="#e6edf3" font-weight="bold">machine</text>
+    <text x="1080" y="136" text-anchor="middle" fill="#8b949e" font-size="12">executes</text>
+    <text x="1080" y="158" text-anchor="middle" fill="#566070" font-size="11">step 6</text>
+  </g>
+
+  <!-- return path -->
+  <path d="M1080 174 1080 218 120 218 120 176" fill="none" stroke="#3fd68f" stroke-width="2" stroke-dasharray="7 5"/>
+  <path d="M115 183 120 175 125 183" fill="none" stroke="#3fd68f" stroke-width="2"/>
+  <text x="600" y="240" text-anchor="middle"><tspan fill="#3fd68f" font-size="12">{ ok, data }</tspan><tspan fill="#8b949e" font-size="12"> — the result flows back to your frame</tspan></text>
+
+  <text x="600" y="286" text-anchor="middle" fill="#8b949e" font-size="13">live terminal keystrokes skip this and stream the DATA WebSocket straight to a real pty —</text>
+  <text x="600" y="306" text-anchor="middle" fill="#8b949e" font-size="13">your zsh, your prompt, vim and tmux all feel native</text>
+</svg>

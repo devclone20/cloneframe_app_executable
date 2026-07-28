@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 400" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="400" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1097" height="397" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="392" width="1100" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">bring your own model — the app ships none, on purpose</text>
+
+  <!-- start -->
+  <rect x="420" y="66" width="260" height="46" rx="23" fill="#161b22" stroke="#ff3b30" stroke-width="2"/>
+  <text x="550" y="95" text-anchor="middle" fill="#ff6b61" font-weight="bold">connect a model</text>
+
+  <path d="M470 112 320 150" stroke="#566070" stroke-width="2"/>
+  <path d="M322 141 318 151 329 149" fill="none" stroke="#566070" stroke-width="2"/>
+  <path d="M630 112 780 150" stroke="#566070" stroke-width="2"/>
+  <path d="M771 149 782 151 778 141" fill="none" stroke="#566070" stroke-width="2"/>
+
+  <!-- cloud path -->
+  <rect x="70" y="158" width="440" height="130" rx="10" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
+  <text x="90" y="188" fill="#56d0e0" font-weight="bold">CLOUD — your API key</text>
+  <text x="90" y="212" fill="#c9d1d9" font-size="13">Anthropic · OpenAI · DeepSeek · Gemini</text>
+  <text x="90" y="234" fill="#c9d1d9" font-size="13">+ any OpenAI-compatible endpoint</text>
+  <text x="90" y="266" fill="#566070" font-size="11">the key lives in your session — never in code, logs, or this repo</text>
+
+  <!-- local path -->
+  <rect x="590" y="158" width="440" height="130" rx="10" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+  <text x="610" y="188" fill="#3fd68f" font-weight="bold">LOCAL — the MATRIX cluster</text>
+  <text x="610" y="212" fill="#c9d1d9" font-size="13">models served from your own hardware</text>
+  <text x="610" y="234" fill="#c9d1d9" font-size="13">no key · no cloud · no leak</text>
+  <text x="610" y="266" fill="#566070" font-size="11">your devices become the provider</text>
+
+  <path d="M290 288 470 330" stroke="#566070" stroke-width="2"/>
+  <path d="M461 329 472 331 468 321" fill="none" stroke="#566070" stroke-width="2"/>
+  <path d="M810 288 630 330" stroke="#566070" stroke-width="2"/>
+  <path d="M632 321 628 331 639 329" fill="none" stroke="#566070" stroke-width="2"/>
+
+  <!-- done -->
+  <rect x="420" y="316" width="260" height="46" rx="23" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+  <text x="550" y="345" text-anchor="middle"><tspan fill="#3fd68f" font-weight="bold">✓ live in every panel</tspan></text>
+</svg>

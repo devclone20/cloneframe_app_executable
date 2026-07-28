@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 400" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="400" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1097" height="397" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="392" width="1100" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">recommended — run sandboxed in Docker</text>
+
+  <!-- host browser -->
+  <rect x="40" y="120" width="280" height="120" rx="10" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+  <text x="60" y="150" fill="#6fb7d9" font-weight="bold">your host browser</text>
+  <text x="60" y="174" fill="#c9d1d9" font-size="13">http://127.0.0.1:8765</text>
+  <text x="60" y="198" fill="#8b949e" font-size="12">published to loopback ONLY —</text>
+  <text x="60" y="216" fill="#8b949e" font-size="12">never your network</text>
+
+  <path d="M320 180 392 180" stroke="#6fb7d9" stroke-width="2.5"/>
+  <path d="M385 174 394 180 385 186" fill="none" stroke="#6fb7d9" stroke-width="2.5"/>
+
+  <!-- container -->
+  <rect x="400" y="70" width="420" height="250" rx="10" fill="#161b22" stroke="#3fd68f" stroke-width="2.5"/>
+  <text x="420" y="100"><tspan fill="#3fd68f" font-weight="bold">DOCKER CONTAINER</tspan><tspan fill="#8b949e" font-size="12"> — the sandbox</tspan></text>
+  <rect x="420" y="118" width="380" height="76" rx="8" fill="#0d1117" stroke="#ff3b30" stroke-width="1.5"/>
+  <text x="440" y="146" fill="#ff6b61" font-weight="bold" font-size="13">HUB Bridge · container mode</text>
+  <text x="440" y="170" fill="#8b949e" font-size="12">the same daemon, boxed in</text>
+  <rect x="420" y="206" width="380" height="94" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+  <text x="440" y="234" fill="#c9d1d9" font-size="13">shell · files · network</text>
+  <text x="440" y="256" fill="#8b949e" font-size="12">all confined to the container —</text>
+  <text x="440" y="276" fill="#8b949e" font-size="12">your host machine stays out of reach</text>
+
+  <path d="M820 180 892 180" stroke="#566070" stroke-width="2.5"/>
+  <path d="M885 174 894 180 885 186" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+  <!-- volumes -->
+  <rect x="900" y="120" width="160" height="120" rx="10" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+  <text x="920" y="150" fill="#b18bf5" font-weight="bold">volumes</text>
+  <text x="920" y="174" fill="#c9d1d9" font-size="12">cfhub-state</text>
+  <text x="920" y="194" fill="#c9d1d9" font-size="12">cfhub-data</text>
+  <text x="920" y="218" fill="#8b949e" font-size="11">your data persists</text>
+
+  <text x="550" y="356" text-anchor="middle" fill="#8b949e" font-size="13">docker compose up --build → open http://127.0.0.1:8765 · stop with docker compose down</text>
+</svg>

@@ -67,49 +67,7 @@ Everything below is one of these two boxes. **You** drive a window; the window s
 to a **local daemon** over two narrow, checked channels; the daemon is the only thing
 that ever touches your real machine.
 
-```mermaid
-flowchart LR
-    You(["🧑‍✈️ You — the pilot"])
-
-    subgraph WIN["🪟 Window · index.html — the frame grid"]
-      direction TB
-      UI["Frames · panels · terminal · browser"]
-    end
-
-    subgraph BR["⚙️ HUB Bridge · local daemon · 127.0.0.1:8765"]
-      direction TB
-      RT["Router — transport · security · dispatch"]
-    end
-
-    subgraph MACH["💻 Your machine — the real world"]
-      direction TB
-      SH["Shell + real terminal"]
-      FS["Your files · ~/CloneFrame"]
-      NET["Network · in-app browser"]
-      WAL["Your wallet · unsigned tx only"]
-    end
-
-    CLOUD["☁️ Your model<br/>cloud API key (optional)"]
-    LOCAL["🧠 MATRIX<br/>local model cluster"]
-
-    You <--> UI
-    UI ==>|"CONTROL · HTTP POST /mod"| RT
-    UI ==>|"DATA · token-gated WebSocket"| RT
-    RT --> SH & FS & NET & WAL
-    RT --> CLOUD
-    RT --> LOCAL
-
-    classDef you fill:#f85149,stroke:#b62324,color:#fff
-    classDef win fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef bridge fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef mach fill:#30363d,stroke:#8b949e,color:#fff
-    classDef ext fill:#1b7c83,stroke:#0f5c61,color:#fff
-    class You you
-    class UI win
-    class RT bridge
-    class SH,FS,NET,WAL mach
-    class CLOUD,LOCAL ext
-```
+![The whole system in one picture — you, the window, the bridge, your machine](docs/assets/arch-one-picture.svg)
 
 The window **never** talks to a tool's port directly. There are only **two channels**:
 a **CONTROL** channel (HTTP `POST /mod/<name>` with a small `{fn, args}` body the
@@ -126,28 +84,7 @@ This is the single most important rule in the whole system, so it gets its own
 picture. A malicious web page, another local user, or a rogue script has **no path**
 to your machine that skips these checks.
 
-```mermaid
-flowchart TD
-    subgraph GATE["🛡️ Every request crosses the same gate"]
-      direction TB
-      A["Loopback only — binds 127.0.0.1"] --> B["Host-header allowlist — blocks DNS-rebind"]
-      B --> C["Bearer pairing token — per session"]
-      C --> D["Sec-Fetch-Dest gate — token only on real navigation"]
-      D --> E["_private functions unreachable by RPC"]
-    end
-
-    CTRL["CONTROL<br/>HTTP POST /mod/&lt;name&gt;<br/>{ fn, args }"]:::ctrl --> GATE
-    DATA["DATA<br/>WebSocket /stream<br/>token in subprotocol, never the URL"]:::data --> GATE
-    GATE --> OK(["✅ Dispatched to a named module"]):::ok
-    BAD(["❌ Anything else — refused"]):::bad
-    GATE -.->|"fails any check"| BAD
-
-    classDef ctrl fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef data fill:#8957e5,stroke:#6e40c9,color:#fff
-    classDef ok fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef bad fill:#cf222e,stroke:#82071e,color:#fff
-    style GATE fill:#0d1117,stroke:#f85149,color:#e6edf3
-```
+![The boundary law — two channels, one gate of five checks, nothing else](docs/assets/boundary-law.svg)
 
 ---
 
@@ -157,41 +94,7 @@ The interface is a single `index.html`, but it is not a blob — it is a small k
 a **panel registry**, and a fleet of self-contained panels. Every panel is registered
 in one data-driven table and mounted on demand; adding a new one is a single line.
 
-```mermaid
-flowchart TD
-    subgraph WINDOW["🪟 index.html"]
-      direction TB
-      BUS["📻 Bus — pub/sub, the only wiring between modules"]
-      KERNEL["🧩 Kernel<br/>escapers · panelBus · time/fetch/persisted<br/>dragGesture · URL-scheme guards"]
-      REG["🗂️ Panel registry<br/>registerPanel · openPanel"]
-      CLIENT["📡 BridgeClient<br/>the ONE egress — token, headers, timeouts"]
-
-      subgraph PANELS["🧱 27 self-registering panels · web/panels/*"]
-        direction LR
-        P1["CODE · iT · BROWSER"]
-        P2["LAB · HARNESS · MATRIX"]
-        P3["NOTES · EMAIL · …"]
-      end
-    end
-
-    REG --> PANELS
-    PANELS --> BUS
-    PANELS --> KERNEL
-    PANELS --> CLIENT
-    CLIENT ==> BRIDGE(["⚙️ HUB Bridge"])
-
-    classDef core fill:#8957e5,stroke:#6e40c9,color:#fff
-    classDef reg fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef panel fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef egress fill:#e16f24,stroke:#bc4c00,color:#fff
-    class BUS,KERNEL core
-    class REG reg
-    class P1,P2,P3 panel
-    class CLIENT egress
-    class BRIDGE egress
-    style WINDOW fill:#0d1117,stroke:#30363d,color:#e6edf3
-    style PANELS fill:#0d1117,stroke:#2da44e,color:#e6edf3
-```
+![Inside the window — Bus, Kernel, panel registry, BridgeClient, 27 panels](docs/assets/inside-window.svg)
 
 Every panel reaches the outside world through **one** client (`BridgeClient`), so
 there is a single place where the pairing token, headers, and timeouts live. Panels
@@ -206,52 +109,7 @@ nothing else. Domain modules hold the meaning. Underneath them, a thin **platfor
 service layer** owns every mechanical concern (storage, HTTP, model calls, the safety
 guard) so nothing is duplicated and every dangerous edge has exactly one home.
 
-```mermaid
-flowchart TD
-    IN(["📡 /mod/&lt;name&gt; from the window"]):::in
-
-    subgraph ROUTER["🚦 Router · hub-bridge.mjs"]
-      R["transport + security + dispatch only"]
-    end
-
-    subgraph DOMAINS["🗂️ Domains — the meaning"]
-      direction LR
-      D1["chat"]
-      D2["mail"]
-      D3["pim"]
-      D4["content"]
-      D5["agent"]
-      D6["web3"]
-    end
-
-    subgraph PLATFORM["🔧 Platform service layer — one home per concern"]
-      direction LR
-      S1["json-store"]
-      S2["http · SSRF"]
-      S3["llm (model port)"]
-      S4["evm"]
-      S5["dav"]
-      S6["cli-gate"]
-      S7["shell-guard"]
-      S8["redact"]
-    end
-
-    OS(["💻 Files · processes · network · your model"]):::os
-
-    IN --> R --> DOMAINS --> PLATFORM --> OS
-
-    classDef in fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef router fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef domain fill:#d4a72c,stroke:#9e6a03,color:#111
-    classDef port fill:#576270,stroke:#32383f,color:#fff
-    classDef os fill:#30363d,stroke:#8b949e,color:#fff
-    class R router
-    class D1,D2,D3,D4,D5,D6 domain
-    class S1,S2,S3,S4,S5,S6,S7,S8 port
-    style ROUTER fill:#0d1117,stroke:#e16f24,color:#e6edf3
-    style DOMAINS fill:#0d1117,stroke:#d4a72c,color:#e6edf3
-    style PLATFORM fill:#0d1117,stroke:#576270,color:#e6edf3
-```
+![Inside the bridge — router, domains, platform service layer, your machine](docs/assets/inside-bridge.svg)
 
 Because every dangerous operation funnels through one port — one SSRF check, one
 catastrophic-command guard, one secret redactor, one fail-closed command gate — the
@@ -263,27 +121,7 @@ security promises below are **provable**, not scattered.
 
 What actually happens when you type a command and press enter:
 
-```mermaid
-flowchart LR
-    A["🖱️ You act in a panel"]:::a
-    B["📡 BridgeClient adds the token"]:::b
-    C["🚦 Router checks the gate"]:::c
-    D["🗂️ Domain interprets {fn, args}"]:::d
-    E["🔧 Platform port does the work"]:::e
-    F["💻 Machine executes"]:::f
-    G["🖥️ Result flows back to the frame"]:::g
-
-    A --> B --> C --> D --> E --> F
-    F -->|"{ ok, data }"| G --> A
-
-    classDef a fill:#f85149,stroke:#b62324,color:#fff
-    classDef b fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef c fill:#cf222e,stroke:#82071e,color:#fff
-    classDef d fill:#d4a72c,stroke:#9e6a03,color:#111
-    classDef e fill:#576270,stroke:#32383f,color:#fff
-    classDef f fill:#30363d,stroke:#8b949e,color:#fff
-    classDef g fill:#2da44e,stroke:#1a7f37,color:#fff
-```
+![A request's journey — panel to BridgeClient to router to domain to platform to machine and back](docs/assets/request-journey.svg)
 
 Live terminal keystrokes take the **DATA** channel instead: they stream over the
 token-gated WebSocket straight to a real pseudo-terminal, so the shell feels native —
@@ -296,46 +134,7 @@ your `zsh`, your prompt, `vim` and `tmux` all work.
 Open the launcher and any of these mount instantly, each in its own draggable,
 dockable frame. Dock one into a grid square and its live session keeps running.
 
-```mermaid
-flowchart TB
-    subgraph CODE["💻 Code & shell"]
-      direction LR
-      c1["CODE"]; c2["iT terminal"]; c3["BROWSER"]; c4["FOLDERS"]
-    end
-    subgraph AGENTS["🤖 Agents & harness"]
-      direction LR
-      a1["LAB"]; a2["AGENT"]; a3["MY AGENTS"]; a4["HARNESS"]; a5["BRAIN"]
-    end
-    subgraph AI["🧠 Local AI"]
-      direction LR
-      m1["MATRIX"]; m2["MY MACHINE"]; m3["MODEL COMPARISON"]; m4["COOKBOOK"]
-    end
-    subgraph PIM["🗓️ Personal"]
-      direction LR
-      p1["NOTES"]; p2["CALENDAR"]; p3["CONTACTS"]; p4["TASKS"]; p5["REMINDERS"]
-    end
-    subgraph FLOW["📨 Comms & flows"]
-      direction LR
-      f1["EMAIL"]; f2["AUTOMATIONS"]; f3["APPROVAL"]; f4["CONNECTIONS"]
-    end
-    subgraph SYS["⚙️ Content & system"]
-      direction LR
-      s1["GALLERY"]; s2["LIBRARY"]; s3["SETTINGS"]; s4["THEME"]; s5["SEARCH"]
-    end
-
-    classDef code fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef ag fill:#8957e5,stroke:#6e40c9,color:#fff
-    classDef ai fill:#1b7c83,stroke:#0f5c61,color:#fff
-    classDef pim fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef flow fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef sys fill:#576270,stroke:#32383f,color:#fff
-    class c1,c2,c3,c4 code
-    class a1,a2,a3,a4,a5 ag
-    class m1,m2,m3,m4 ai
-    class p1,p2,p3,p4,p5 pim
-    class f1,f2,f3,f4 flow
-    class s1,s2,s3,s4,s5 sys
-```
+![The frame grid — 27 panels in six families](docs/assets/frame-grid.svg)
 
 The four families you reach from the **top bar** are **CODE · HARNESS · LAB · MATRIX**;
 the rest open from the launcher, the command palette, or Settings.
@@ -356,27 +155,7 @@ on this Mac, add more nodes, load a model, and chat — no cloud key, nothing le
 your hardware. When the engine is off, MATRIX shows clearly-labelled **demo data** so
 you can see the shape before you go live.
 
-```mermaid
-flowchart TD
-    ENGINE["🟢 MATRIX engine — this machine"]:::engine
-
-    subgraph NODES["🖥️ Your nodes"]
-      direction LR
-      N1["This Mac"]; N2["＋ add node"]; N3["＋ add node"]
-    end
-
-    MODELS["📦 Models loaded across the cluster"]:::models
-    CHAT["💬 Chat with your local brain"]:::chat
-
-    ENGINE --> NODES --> MODELS --> CHAT
-
-    classDef engine fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef node fill:#1b7c83,stroke:#0f5c61,color:#fff
-    classDef models fill:#8957e5,stroke:#6e40c9,color:#fff
-    classDef chat fill:#1f6feb,stroke:#1158c7,color:#fff
-    class N1,N2,N3 node
-    style NODES fill:#0d1117,stroke:#1b7c83,color:#e6edf3
-```
+![MATRIX — engine, nodes, models, chat: one local brain](docs/assets/matrix-cluster.svg)
 
 ---
 
@@ -385,19 +164,7 @@ flowchart TD
 CLONE FRAME does not ship a model. Every chat in the app routes to **the model you
 chose** — the app itself is model-agnostic from end to end. Two ways to connect one:
 
-```mermaid
-flowchart TD
-    Start(["Connect a model"]):::start
-    Start --> A["☁️ Cloud API key<br/>Anthropic · OpenAI · DeepSeek · Gemini ·<br/>+ any OpenAI-compatible endpoint"]:::cloud
-    Start --> B["🧠 Local — MATRIX cluster<br/>your own hardware, no key"]:::local
-    A --> Done(["✅ Live in every panel"]):::done
-    B --> Done
-
-    classDef start fill:#f85149,stroke:#b62324,color:#fff
-    classDef cloud fill:#1b7c83,stroke:#0f5c61,color:#fff
-    classDef local fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef done fill:#1f6feb,stroke:#1158c7,color:#fff
-```
+![Bring your own model — cloud API key or local MATRIX cluster](docs/assets/byom.svg)
 
 Your key stays in your **session** and is never written into the app, the logs, or
 this repository. Full walkthrough: [docs/CONNECT.md](docs/CONNECT.md).
@@ -410,29 +177,7 @@ Because every dangerous edge has exactly one home (see *Inside the bridge*), the
 promises are enforced in one place each — and each one has a positive **and** a
 negative regression test in the suite.
 
-```mermaid
-flowchart TD
-    subgraph INV["🔒 Invariants — locked by tests"]
-      direction TB
-      I1["Loopback bind + pairing token"]
-      I2["Sec-Fetch-Dest gate — token only on real navigation"]
-      I3["SSRF re-checked on EVERY redirect hop"]
-      I4["Soul / origin allowlist for privileged inputs"]
-      I5["Command gate fails CLOSED"]
-      I6["rm -rf / · mkfs · dd blocked — even in root mode"]
-      I7["Secrets redacted from every log line"]
-      I8["Media URL scheme guard — no javascript:/data:text/html"]
-    end
-
-    WALLET["👛 Wallet is the sole signer<br/>the app only builds UNSIGNED transactions"]:::wallet
-    PERMS["🔘 Powerful things default OFF<br/>shell · file-write · web · email autonomy"]:::perms
-
-    classDef inv fill:#cf222e,stroke:#82071e,color:#fff
-    classDef wallet fill:#d4a72c,stroke:#9e6a03,color:#111
-    classDef perms fill:#576270,stroke:#32383f,color:#fff
-    class I1,I2,I3,I4,I5,I6,I7,I8 inv
-    style INV fill:#0d1117,stroke:#cf222e,color:#e6edf3
-```
+![The security model — eight invariants locked by tests, wallet signs, defaults off](docs/assets/security-invariants.svg)
 
 - **Loopback only.** The bridge binds `127.0.0.1` and is reachable only from your own
   machine — never the network.
@@ -461,31 +206,7 @@ small files. A tiny build step reassembles them with a strict guarantee: the bui
 output is byte-for-byte reproducible, and a frozen checksum proves it never changed by
 accident.
 
-```mermaid
-flowchart LR
-    subgraph SRC["✍️ Source — many small files"]
-      direction TB
-      MAIN["web/index.html<br/>shell + styles"]
-      PAN["web/panels/*.js<br/>27 panels"]
-      KRN["web/scripts/core/kernel.js"]
-    end
-
-    BUILD["🔧 tools/build.mjs"]:::build
-    OUT["📦 dist/index.html<br/>ONE self-contained file"]:::out
-    GOLD["🔒 golden sha256<br/>identity guarantee"]:::gold
-
-    PAN -->|"//@cfbuild-include · raw splice"| BUILD
-    KRN -->|"esbuild bundle"| BUILD
-    MAIN --> BUILD --> OUT
-    OUT -.->|"checked against"| GOLD
-
-    classDef src fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef build fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef out fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef gold fill:#d4a72c,stroke:#9e6a03,color:#111
-    class MAIN,PAN,KRN src
-    style SRC fill:#0d1117,stroke:#2da44e,color:#e6edf3
-```
+![The single-file build — many source files, one reproducible index.html, a golden sha256](docs/assets/single-file-build.svg)
 
 A fresh clone runs `dist/index.html` with **no build tools** — the panels are spliced
 back into the same scope at build time, so the single-file app and the modular source
@@ -498,28 +219,7 @@ are always exactly the same program.
 Under the hood the whole system is organised as eight layers, each resting on the one
 below. This is why a change in one place cannot quietly break a distant panel.
 
-```mermaid
-flowchart BT
-    L0["L0 · Foundation — single-file build · tests · hygiene"]:::l0
-    L1["L1 · Platform service layer — storage · http · model · guards"]:::l1
-    L2["L2 · Domains — mail · pim · content · agent · web3 · chat"]:::l2
-    L3["L3 · Protocol & router — /mod is the only seam"]:::l3
-    L4["L4 · Frontend kernel — escapers · bus · utils · scheme guards"]:::l4
-    L5["L5 · Design system — UI primitives · panel registry"]:::l5
-    L6["L6 · Panels — 27 self-registering frames"]:::l6
-    L7["L7 · Hardening — the security regression suite"]:::l7
-
-    L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
-
-    classDef l0 fill:#30363d,stroke:#8b949e,color:#fff
-    classDef l1 fill:#576270,stroke:#32383f,color:#fff
-    classDef l2 fill:#1b7c83,stroke:#0f5c61,color:#fff
-    classDef l3 fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef l4 fill:#8957e5,stroke:#6e40c9,color:#fff
-    classDef l5 fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef l6 fill:#2da44e,stroke:#1a7f37,color:#fff
-    classDef l7 fill:#cf222e,stroke:#82071e,color:#fff
-```
+![Eight layers — foundation to hardening, each resting on the one below](docs/assets/eight-layers.svg)
 
 ---
 
@@ -559,28 +259,7 @@ docker compose up --build          # builds the image and starts the sandboxed b
 # stop it with:  docker compose down
 ```
 
-```mermaid
-flowchart LR
-    HB["🌐 Your host browser<br/>http://127.0.0.1:8765"]:::host
-
-    subgraph BOX["🐳 Docker container — the sandbox"]
-      direction TB
-      BR["⚙️ HUB Bridge · container mode"]:::bridge
-      IN["Shell · files · network<br/>confined to the container"]:::inside
-      BR --> IN
-    end
-
-    VOL["💾 Named volumes<br/>your data persists"]:::vol
-
-    HB ==>|"127.0.0.1:8765 · loopback only"| BR
-    BR --> VOL
-
-    classDef host fill:#1f6feb,stroke:#1158c7,color:#fff
-    classDef bridge fill:#e16f24,stroke:#bc4c00,color:#fff
-    classDef inside fill:#30363d,stroke:#8b949e,color:#fff
-    classDef vol fill:#8957e5,stroke:#6e40c9,color:#fff
-    style BOX fill:#0d1117,stroke:#2da44e,color:#e6edf3
-```
+![Docker sandbox — host browser on loopback, bridge confined to the container, data in named volumes](docs/assets/docker-sandbox.svg)
 
 The port is published to your host's **loopback only**; your data persists in named
 Docker volumes (`cfhub-state`, `cfhub-data`). The terminal, file tree, and browser all

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 380" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="redline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b30" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff3b30" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="380" rx="14" fill="#0d1117"/>
+  <rect x="1.5" y="1.5" width="1097" height="377" rx="13" fill="none" stroke="#30363d" stroke-width="3"/>
+  <rect x="0" y="372" width="1100" height="4" fill="url(#redline)" opacity="0.9"/>
+
+  <circle cx="28" cy="26" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="26" r="6" fill="#febc2e"/>
+  <circle cx="72" cy="26" r="6" fill="#28c840"/>
+  <g fill="none" stroke="#ff3b30" stroke-linejoin="round">
+    <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
+    <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
+  </g>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">MATRIX — your own devices, one local brain</text>
+
+  <!-- engine -->
+  <rect x="40" y="80" width="240" height="220" rx="10" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+  <text x="60" y="110"><tspan fill="#3fd68f" font-weight="bold">ENGINE</tspan></text>
+  <text x="60" y="132" fill="#8b949e" font-size="12">starts on this Mac</text>
+  <circle cx="70" cy="160" r="5" fill="#3fd68f"/>
+  <text x="84" y="165" fill="#c9d1d9" font-size="13">running</text>
+  <text x="60" y="196" fill="#8b949e" font-size="12">no cloud key</text>
+  <text x="60" y="216" fill="#8b949e" font-size="12">nothing leaves</text>
+  <text x="60" y="236" fill="#8b949e" font-size="12">your hardware</text>
+  <text x="60" y="272" fill="#566070" font-size="11">off? demo data, clearly labelled</text>
+
+  <path d="M280 190 336 190" stroke="#566070" stroke-width="2.5"/>
+  <path d="M329 184 338 190 329 196" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+  <!-- nodes -->
+  <rect x="344" y="80" width="300" height="220" rx="10" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
+  <text x="364" y="110" fill="#56d0e0" font-weight="bold">NODES</text>
+  <rect x="364" y="126" width="260" height="42" rx="8" fill="#0d1117" stroke="#56d0e0" stroke-width="1.5"/>
+  <text x="380" y="152"><tspan fill="#c9d1d9">this Mac</tspan><tspan fill="#3fd68f" font-size="12">   ● online</tspan></text>
+  <rect x="364" y="176" width="260" height="42" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="380" y="202" fill="#566070">+ add a device</text>
+  <rect x="364" y="226" width="260" height="42" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="380" y="252" fill="#566070">+ add a device</text>
+
+  <path d="M644 190 700 190" stroke="#566070" stroke-width="2.5"/>
+  <path d="M693 184 702 190 693 196" fill="none" stroke="#566070" stroke-width="2.5"/>
+
+  <!-- models + chat -->
+  <rect x="708" y="80" width="352" height="100" rx="10" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+  <text x="728" y="110" fill="#b18bf5" font-weight="bold">MODELS</text>
+  <text x="728" y="134" fill="#c9d1d9" font-size="13">loaded across the cluster</text>
+  <text x="728" y="158" fill="#8b949e" font-size="12">pick one · share the weights</text>
+
+  <rect x="708" y="200" width="352" height="100" rx="10" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+  <text x="728" y="230" fill="#6fb7d9" font-weight="bold">CHAT</text>
+  <text x="728" y="254" fill="#c9d1d9" font-size="13">with your fully local brain</text>
+  <text x="728" y="278" fill="#8b949e" font-size="12">live in every panel of the app</text>
+
+  <path d="M884 180 884 194" stroke="#566070" stroke-width="2"/>
+  <path d="M879 188 884 196 889 188" fill="none" stroke="#566070" stroke-width="2"/>
+
+  <text x="550" y="344" text-anchor="middle" fill="#8b949e" font-size="13">start the engine · add nodes · load a model · chat — no key, no cloud, no leak</text>
+</svg>
