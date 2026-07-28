@@ -10,6 +10,9 @@
     tabs.forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
     async function loadTasks(){try{tasks=await RPC('tasks','list');cnt.textContent=tasks.length;return true}catch(e){showErr(card,e);return false}}
     function show(){if(!Bridge.on()){needBridge(card);return}if(tab==='tasks')tTasks();else if(tab==='activity')tActivity();else tAdd()}
+    // AUTOMATIONS reports what runs on a clock. Announcing every change from the one
+    // panel that makes them keeps that report from being a snapshot of a moment gone by.
+    const announce=()=>{try{Bus.emit('tasks:changed')}catch(_){}};
     async function tTasks(){
       if(!await loadTasks())return;
       let pausedAll=false;try{pausedAll=await RPC('tasks','isPausedAll')}catch(e){}
@@ -19,18 +22,18 @@
         <div class="tkchips">${Object.entries(c).map(([k,n])=>`<span class="tkchip ${k===cat?'on':''}" data-c="${escAttr(k)}">${escAttr(k)} (${n})</span>`).join('')}</div>
         ${mode==='select'?`<div class="tkbulk"><span>${sel.size} selected</span><button class="btn mini" id="tkbp">⏸ pause</button><button class="btn mini" id="tkbr">▶ resume</button><button class="btn mini" id="tkbd">✕ delete</button></div>`:''}
         <div class="tklist" id="tklist"></div>`;
-      card.querySelector('#tkpauseall').addEventListener('click',async()=>{try{await RPC('tasks','pauseAll',!pausedAll);Toast.show(!pausedAll?'All tasks paused':'Resumed')}catch(e){Toast.show(e.message)}tTasks()});
-      card.querySelectorAll('.tksegb').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.m;if(mode==='recent')sel.clear();tTasks()}));
+      card.querySelector('#tkpauseall').addEventListener('click',async()=>{try{await RPC('tasks','pauseAll',!pausedAll);Toast.show(!pausedAll?'All tasks paused':'Resumed')}catch(e){Toast.show(e.message)}announce();tTasks()});
+      card.querySelectorAll('.tksegb').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.m;if(mode==='recent')sel.clear();announce();tTasks()}));
       card.querySelector('#tkq').addEventListener('input',e=>{q=e.target.value;list()});
-      card.querySelectorAll('.tkchip').forEach(el=>el.addEventListener('click',()=>{cat=el.dataset.c;tTasks()}));
+      card.querySelectorAll('.tkchip').forEach(el=>el.addEventListener('click',()=>{cat=el.dataset.c;announce();tTasks()}));
       if(mode==='select'){
         card.querySelector('#tkbp').addEventListener('click',()=>bulk('paused'));
         card.querySelector('#tkbr').addEventListener('click',()=>bulk('running'));
-        card.querySelector('#tkbd').addEventListener('click',async()=>{for(const id of sel){const t=tasks.find(x=>x.id===id);if(t&&!t.isBuiltin)try{await RPC('tasks','remove',id)}catch(e){}}sel.clear();Toast.show('Deleted (built-ins kept)');tTasks()});
+        card.querySelector('#tkbd').addEventListener('click',async()=>{for(const id of sel){const t=tasks.find(x=>x.id===id);if(t&&!t.isBuiltin)try{await RPC('tasks','remove',id)}catch(e){}}sel.clear();Toast.show('Deleted (built-ins kept)');announce();tTasks()});
       }
       list();
     }
-    async function bulk(st){for(const id of sel){try{await RPC('tasks','setState',id,st)}catch(e){}}Toast.show(st==='paused'?'Selected paused':'Selected resumed');tTasks()}
+    async function bulk(st){for(const id of sel){try{await RPC('tasks','setState',id,st)}catch(e){}}Toast.show(st==='paused'?'Selected paused':'Selected resumed');announce();tTasks()}
     function list(){
       const el=card.querySelector('#tklist');if(!el)return;
       const ql=q.trim().toLowerCase();
@@ -44,11 +47,11 @@
         <button class="btn mini tkmore" data-menu="${t.id}">⋮</button></div>
         ${menuId===t.id?`<div class="tkmenu"><button class="btn mini" data-log="${t.id}">run log · session</button>${t.isBuiltin?'':`<button class="btn mini" data-rm="${t.id}">✕ delete</button>`}</div>`:''}`).join('')||'<div class="qempty">no tasks match</div>';
       el.querySelectorAll('[data-sel]').forEach(cb=>cb.addEventListener('change',()=>{cb.checked?sel.add(cb.dataset.sel):sel.delete(cb.dataset.sel);const n=card.querySelector('.tkbulk span');if(n)n.textContent=sel.size+' selected'}));
-      el.querySelectorAll('[data-st]').forEach(b=>b.addEventListener('click',async()=>{const t=tasks.find(x=>x.id===b.dataset.st);try{await RPC('tasks','setState',t.id,t.state==='running'?'paused':'running')}catch(e){Toast.show(e.message)}tTasks()}));
-      el.querySelectorAll('[data-run]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='…';try{const r=await RPC('tasks','runNow',b.dataset.run);Toast.show('run: '+((r.run&&r.run.status)||'ok'))}catch(e){Toast.show(e.message)}tTasks()}));
+      el.querySelectorAll('[data-st]').forEach(b=>b.addEventListener('click',async()=>{const t=tasks.find(x=>x.id===b.dataset.st);try{await RPC('tasks','setState',t.id,t.state==='running'?'paused':'running')}catch(e){Toast.show(e.message)}announce();tTasks()}));
+      el.querySelectorAll('[data-run]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='…';try{const r=await RPC('tasks','runNow',b.dataset.run);Toast.show('run: '+((r.run&&r.run.status)||'ok'))}catch(e){Toast.show(e.message)}announce();tTasks()}));
       el.querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',()=>{menuId=menuId===b.dataset.menu?null:b.dataset.menu;list()}));
       el.querySelectorAll('[data-log]').forEach(b=>b.addEventListener('click',()=>taskLog(b.dataset.log)));
-      el.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{try{await RPC('tasks','remove',b.dataset.rm)}catch(e){Toast.show(e.message)}menuId=null;tTasks()}));
+      el.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{try{await RPC('tasks','remove',b.dataset.rm)}catch(e){Toast.show(e.message)}menuId=null;announce();tTasks()}));
     }
     async function taskLog(id){
       let runs=[],sess=[];try{runs=await RPC('tasks','activity',id,{limit:20})}catch(e){}try{sess=await RPC('tasks','session',id)}catch(e){}

@@ -115,8 +115,19 @@
         '<div class="compose-actions"><button class="btn" id="acadd">+ ADD ACCOUNT</button><button class="btn" id="acback">BACK</button></div></div>';
       listEl.querySelector('#acadd').addEventListener('click',()=>renderAddForm());
       listEl.querySelector('#acback').addEventListener('click',()=>folder?openFolder(folder):boot());
-      listEl.querySelectorAll('[data-def]').forEach(b=>b.addEventListener('click',async()=>{await Mail.setDefault(b.dataset.def);await boot(b.dataset.def)}));
-      listEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{if(b.dataset.armed){await Mail.removeAccount(b.dataset.rm);Toast.show('Account removed');await boot()}else{b.dataset.armed='1';b.textContent='confirm?';setTimeout(()=>{if(b){b.removeAttribute('data-armed');b.textContent='remove'}},2500)}}));
+      listEl.querySelectorAll('[data-def]').forEach(b=>b.addEventListener('click',async()=>{
+        let r;try{r=await Mail.setDefault(b.dataset.def)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
+        if(!(r&&r.ok)){Toast.show('Could not change the default: '+((r&&r.error)||'unknown'));return}
+        await boot(b.dataset.def)}));
+      // Removal reports the bridge's own answer. It used to say "Account removed"
+      // no matter what came back, which is how a Google account that stayed put
+      // still looked gone until the panel redrew it.
+      listEl.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async()=>{
+        if(!b.dataset.armed){b.dataset.armed='1';b.textContent='confirm?';setTimeout(()=>{if(b&&b.dataset.armed){b.removeAttribute('data-armed');b.textContent='remove'}},2500);return}
+        b.disabled=true;b.textContent='removing…';
+        let r;try{r=await Mail.removeAccount(b.dataset.rm)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
+        if(!(r&&r.ok)){Toast.show('Could not remove it: '+((r&&r.error)||'unknown'));b.disabled=false;b.textContent='remove';b.removeAttribute('data-armed');return}
+        Toast.show('Account removed');Bus.emit('email:accounts');await boot()}));
     }
 
     // ---------- boot ----------
@@ -140,7 +151,26 @@
     }
     async function loadFolders(){
       note('loading…');setBusy(true);
-      try{folders=await Mail.folders(acct.id)}catch(e){setBusy(false);note('Could not list the folders: '+escHtml(e.message));return}
+      // An authorisation that has run out is not the same failure as a network hiccup, and
+      // the owner can only act on one of them. Google expires and revokes refresh tokens
+      // routinely (unverified app, password change, 6 months idle) — the panel used to print
+      // the vendor's sentence and stop, which reads as "the email is broken" when the fix is
+      // thirty seconds away.
+      try{folders=await Mail.folders(acct.id)}catch(e){
+        setBusy(false);
+        const msg=String((e&&e.message)||'');
+        if(/expired|revoked|invalid_grant|unauthor|token unavailable|auth/i.test(msg)){
+          note('<b>This account needs to sign in again.</b><br>'
+            +escHtml(acct.email||'')+' — its authorisation has expired or was revoked.<br><br>'
+            +'<span class="dim">Google retires a refresh token on a password change, a permissions review, or six months idle. Nothing here is lost: reconnect and the inbox comes back.</span><br><br>'
+            +'<button class="btn acc" id="emreauth">RECONNECT THIS ACCOUNT</button>'
+            +'<div class="dim" style="margin-top:10px;font-size:10px">Or connect it as plain <b>IMAP/SMTP</b> with an app password — same screen, and it does not expire.</div>');
+          const b=listEl.querySelector('#emreauth');
+          if(b)b.addEventListener('click',()=>{openPanel('settings');setTimeout(()=>{const n=document.querySelector('#setnav [data-sec="email"]');if(n)n.click()},90)});
+          return;
+        }
+        note('Could not list the folders: '+escHtml(msg));return;
+      }
       setBusy(false);
       folders=folders.slice().sort((a,b)=>{const oa=FMAP[a.specialUse]?FMAP[a.specialUse][1]:50,ob=FMAP[b.specialUse]?FMAP[b.specialUse][1]:50;return oa-ob||fname(a).localeCompare(fname(b))});
       updateCounts();
@@ -363,12 +393,24 @@
           else cmsg('✗ '+(r.error||'failed'),1)}
         catch(e){cmsg('✗ '+e.message,1)}
       }
-      function viaApproval(){
+      // Into the REAL queue — the one bridge/approvals.mjs owns and the APPROVAL panel
+      // reads. This used to call a browser-only Approvals.propose(), so a message sent
+      // "via approval" landed in a store nothing else could see: it never appeared in
+      // APPROVAL, and approving it there could never have sent it.
+      async function viaApproval(){
         const d=active;
         if(!d.to.trim()){cmsg('Missing recipient',1);return}
+        if(!d.body||!d.body.trim()){cmsg('Nothing to approve — the message is empty',1);return}
+        let r;
+        try{r=await RPC('approvals','add',{type:'ai_email',accountId:acct.id,
+          to:d.to.split(',').map(s=>s.trim()).filter(Boolean),
+          subject:d.subject||'',body:d.body,generatedBy:'you'})}
+        catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
+        if(!r||r.ok===false){cmsg('✗ '+((r&&r.error)||'could not queue it'),1);return}
         Caps.set('automations',1);
-        Approvals.propose('email',d.subject||'(agent email)',d.body,{to:d.to,subject:d.subject,accountId:acct.id});
-        Toast.show('Proposed — approve in AUTOMATIONS');
+        Bus.emit('approvals:changed');
+        closeDraft(d);
+        Toast.show('Waiting for your approval — open APPROVAL to send it');
       }
       g('csend').addEventListener('click',doSend);
       g('csendcv').addEventListener('click',()=>menu(g('csendcv'),[{html:'➤ Send now'},{html:'🛡 Via approval'},{html:'⏰ Schedule send…'}],i=>{
@@ -404,5 +446,8 @@
     refreshBtn.addEventListener('click',()=>{if(Mail.on()&&acct&&folder)loadFolders();else boot()});
     q.addEventListener('input',()=>{clearTimeout(q._t);q._t=setTimeout(()=>{if(inList)renderList()},200)});
     panelBus(p).on('bridge:changed',()=>{boot()});
+    // SETTINGS is the other door onto the same account list. Removing an account there
+    // must not leave this panel showing it.
+    panelBus(p).on('email:accounts',()=>{boot()});
     boot();
   }

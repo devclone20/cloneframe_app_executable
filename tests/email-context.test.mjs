@@ -50,8 +50,10 @@ test('list/getAccount never leak `pass`; a store write stamps {version, accounts
 
   const list = await E.listAccounts();
   assert.equal(list.length, 2);
-  // public projection shape: exactly {id,email,display,isDefault} — no `pass`.
-  assert.deepEqual(Object.keys(list[0]).sort(), ['display', 'email', 'id', 'isDefault']);
+  // public projection shape: exactly {id,email,display,kind,isDefault} — no `pass`.
+  // `kind` says how the account authenticates (imap/smtp vs google sign-in), which the
+  // panels show and which decides where a removal is routed.
+  assert.deepEqual(Object.keys(list[0]).sort(), ['display', 'email', 'id', 'isDefault', 'kind']);
   assert.equal('pass' in list[0], false);
   assert.equal(JSON.stringify(list).includes('DUMMY-PASS'), false);
 

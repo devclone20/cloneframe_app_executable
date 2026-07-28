@@ -251,8 +251,6 @@
     async function secEmail(){
       loading();
       let acc=[];try{const r=await Mail.accounts();acc=Array.isArray(r)?r:(r&&r.accounts)||[]}catch(e){return fail(e)}
-      const AUT=[['off','Off','agents never send — you write and send yourself'],['show-first','Show first','the agent composes; you review, then it sends'],['direct','Direct','the agent composes and sends directly (factory default)'],['full-auto','Full-auto','autonomous email — the agent sends on its own, within your rules']];
-      const cur=(Store.get().email&&Store.get().email.autonomy)||'direct';
       // There was no way to CONNECT an account anywhere in the app. This page listed
       // accounts and offered autonomy levels for an inbox that could never exist, and the
       // EMAIL panel opened onto nothing. The bridge had addAccount/testAccount all along —
@@ -275,11 +273,16 @@
         F('emsh','SMTP host','smtp.example.com')+F('emsp','SMTP port','465')+
         '<div id="emmsg" style="font-size:10px;padding:2px 2px"></div>'+
         '<div class="compose-actions"><button class="btn" id="emtest">TEST</button><button class="btn acc" id="emadd">CONNECT</button></div></div>'+
-        '<div class="sethead" style="margin-top:14px">AGENT AUTONOMY</div>'+
-        '<div class="setline" style="display:block;padding:8px 12px"><div class="dim" style="font-size:10px;margin-bottom:8px">How much can an AI agent do with your email? Factory default is <b style="color:var(--fg)">Direct</b>.</div>'+
-        '<div class="emaut" style="display:flex;flex-direction:column;gap:6px">'+AUT.map(a=>`<button class="emautb" data-a="${a[0]}" style="all:unset;cursor:pointer;display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:9px;border:1px solid ${a[0]===cur?'var(--accent)':'var(--line)'};background:${a[0]===cur?'color-mix(in srgb,var(--accent) 12%,transparent)':'transparent'}"><span style="width:13px;height:13px;flex:none;margin-top:1px;border-radius:50%;border:2px solid ${a[0]===cur?'var(--accent)':'var(--ink-faint)'};background:${a[0]===cur?'var(--accent)':'transparent'}"></span><span><b style="font-size:11px;color:var(--fg)">${a[1]}</b><div class="dim" style="font-size:10px;margin-top:1px">${a[2]}</div></span></button>`).join('')+'</div></div>'+
+        // Four autonomy levels used to sit here — off / show first / direct / full-auto.
+        // SETTINGS wrote the choice to the browser store and no agent path ever read it, so
+        // picking "Off" did not stop anything and picking "Full-auto" did not start anything.
+        // What DOES gate an agent email is the autoEmail permission the daemon enforces, and
+        // AUTOMATIONS is where you can see it. A label is a promise; this one was not kept.
+        '<div class="sethead" style="margin-top:14px">WHAT AN AGENT MAY DO WITH THIS</div>'+
+        '<div class="setline" style="display:block;padding:10px 12px"><div class="dim" style="font-size:10px;line-height:1.6">An agent can only send from your account when <b style="color:var(--fg)">Send email without asking</b> is on in <b style="color:var(--fg)">Machine</b>. With it off, everything it writes waits for you in <b style="color:var(--fg)">APPROVAL</b>.</div>'+
+        '<div class="btnrow" style="margin-top:9px"><button class="btn mini" id="semauto">OPEN AUTOMATIONS</button></div></div>'+
         '<div class="btnrow" style="margin-top:12px"><button class="btn" id="sem">OPEN EMAIL</button></div>';
-      pane.querySelectorAll('.emautb').forEach(b=>b.addEventListener('click',()=>{const s=Store.get();s.email=Object.assign({},s.email,{autonomy:b.dataset.a});Store.save();Toast.show('Email autonomy: '+b.dataset.a);secEmail()}));
+      pane.querySelector('#semauto').addEventListener('click',()=>{Caps.set('automations',1);openPanel('automations')});
       pane.querySelector('#sem').addEventListener('click',()=>{Caps.set('email',1);openPanel('email')});
       const g=id=>pane.querySelector('#'+id),msg=g('emmsg');
       function fillPreset(){
@@ -309,8 +312,17 @@
           if(r&&r.ok){Caps.set('email',1);Toast.show('Email connected — opening your inbox');secEmail();openPanel('email')}
           else{b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr((r&&r.error)||'could not connect'))}}
         catch(e){b.disabled=false;b.textContent='CONNECT';show(false,friendlyErr(e.message||'failed'))}});
-      pane.querySelectorAll('[data-emdef]').forEach(b=>b.addEventListener('click',async()=>{await Mail.setDefault(b.dataset.emdef);Toast.show('Default account changed');secEmail()}));
-      pane.querySelectorAll('[data-emrm]').forEach(b=>b.addEventListener('click',async()=>{await Mail.removeAccount(b.dataset.emrm);Toast.show('Account removed');secEmail()}));
+      // Report what the bridge actually did. Announcing success without reading the
+      // result is how a removal that never happened looked like one that did.
+      pane.querySelectorAll('[data-emdef]').forEach(b=>b.addEventListener('click',async()=>{
+        let r;try{r=await Mail.setDefault(b.dataset.emdef)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
+        Toast.show(r&&r.ok?'Default account changed':('Could not change the default: '+((r&&r.error)||'unknown')));secEmail()}));
+      pane.querySelectorAll('[data-emrm]').forEach(b=>b.addEventListener('click',async()=>{
+        if(!b.dataset.armed){b.dataset.armed='1';b.textContent='confirm?';setTimeout(()=>{if(b&&b.dataset.armed){b.removeAttribute('data-armed');b.textContent='remove'}},2500);return}
+        b.disabled=true;b.textContent='removing…';
+        let r;try{r=await Mail.removeAccount(b.dataset.emrm)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
+        Toast.show(r&&r.ok?'Account removed':('Could not remove it: '+((r&&r.error)||'unknown')));
+        Bus.emit('email:accounts');secEmail()}));
     }
     async function secReminders(){
       loading();
@@ -359,7 +371,7 @@
         `<div class="autotoggle"><div><b>Restrict the agent to a list</b><div class="sub">Off = everything is allowed except what you block. On = nothing is allowed except what you allow.</div></div><div class="sw3 ${rpcp.mode==='allowlist'?'on':''}" id="rpcmode"><i></i></div></div>`+
         `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>`+
         '<div class="secnote">This is a guardrail on the agent, not a security boundary — anything already holding the bridge token can call a module directly. For confinement inside the agent itself, install the guardrails from <span class="path">pi.dev</span>.</div>';
-      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
+      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
       // app_rpc allowlist. The textarea edits whichever list the current mode uses, so the
       // owner never has to reason about two lists at once; flipping the mode re-renders.

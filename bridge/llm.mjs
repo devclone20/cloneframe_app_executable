@@ -28,6 +28,42 @@ function readEnv(name) {
 
 export function loadKey() { return readEnv('ANTHROPIC_API_KEY'); }
 
+/**
+ * WHERE a key came from, without ever handing back the key.
+ *
+ * The owner replaced a key in the app and other screens still said they had one. They
+ * were right: an environment file is a second, independent copy that the app read and
+ * never showed them. You cannot fix a key you cannot see, so every place one lives is
+ * now reportable — the variable and the file, never the value.
+ *
+ * @param {string} name
+ * @returns {{name:string, source:'process'|string}|null}
+ */
+export function envKeySource(name) {
+  const p = process.env[name];
+  if (p && p.trim()) return { name, source: 'process' };
+  for (const f of [path.join(homedir(), '.env.local'), path.join(homedir(), '.env')]) {
+    try {
+      if (new RegExp('^\\s*' + name + '\\s*=\\s*\\S', 'm').test(fs.readFileSync(f, 'utf8'))) {
+        return { name, source: f.replace(homedir(), '~') };
+      }
+    } catch {}
+  }
+  return null;
+}
+
+/** Every model key the environment carries: {name, source, provider}. Never a value. */
+export function envKeySources() {
+  const out = [];
+  for (const w of [{ env: 'ANTHROPIC_API_KEY', provider: 'anthropic' }, ...WELL_KNOWN_ENV]) {
+    const hit = envKeySource(w.env);
+    if (hit) out.push({ ...hit, provider: w.provider });
+  }
+  const generic = envKeySource('CFHUB_LLM_API_KEY');
+  if (generic) out.push({ ...generic, provider: readEnv('CFHUB_LLM_PROVIDER') || 'custom' });
+  return out;
+}
+
 // Well-known OpenAI-compatible providers: env var → sensible base + a default model.
 // The base/model are always overridable by CFHUB_LLM_BASE_URL / CFHUB_LLM_MODEL.
 const WELL_KNOWN_ENV = [
@@ -108,4 +144,4 @@ export async function ask(messages, opts = {}) {
 
 export function hasBrain() { return !!(loadKey() || loadEnvProvider()); }
 
-export default { ask, loadKey, loadEnvProvider, hasBrain, DEFAULT_MODEL };
+export default { ask, loadKey, loadEnvProvider, hasBrain, envKeySource, envKeySources, DEFAULT_MODEL };

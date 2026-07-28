@@ -10,7 +10,12 @@
     "pretest": "npm run build",
     "build:check": "scripts/build-check.sh",
     "smoke": "scripts/dev-smoke.sh",
-    "test": "node --test tests/*.test.mjs tools/*.test.mjs"
+    "test": "node --test tests/*.test.mjs tools/*.test.mjs",
+    "key": "node tools/key.mjs status",
+    "key:set": "node tools/key.mjs set",
+    "key:reset": "node tools/key.mjs reset",
+    "pair": "node tools/pair.mjs",
+    "pair:new": "node tools/pair.mjs --new"
   },
   "devDependencies": {
     "esbuild": "0.25.5"

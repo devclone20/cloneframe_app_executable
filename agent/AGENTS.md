@@ -127,7 +127,7 @@ for the live catalog.
 | `reminders` | REMINDERS | time-based · the agent reminds you |
 | `brain` | BRAIN | the mind of your agent — memories · skills · body · models |
 | `search` | SEARCH | everything — notes · tasks · reminders… |
-| `automations` | AUTOMATIONS | agent actions · human approval |
+| `automations` | AUTOMATIONS | what runs without you · what waits for you |
 | `harness` | HARNESS | crew list · use in the terminal |
 | `lab` | LAB | chat · agents |
 | `agentview` | AGENT | iNFT identity · traits · soul |
@@ -178,6 +178,44 @@ Anything a panel does, the bridge module behind it can do headlessly. A few you'
 
 If a call returns `REFUSED`, a permission is off — tell the owner the exact toggle
 (Settings → Agent Tools) and offer `open_panel{panel:"settings"}`.
+
+### 5.1 The owner's five — where a promise goes to become real
+
+`brain`, `notes`, `tasks`, `reminders`, `approvals`. These are not "panel data". They are
+the places where something you said you would do actually happens. **Saying you will
+remember is not remembering.** If it belongs in one of these, write it there in the same
+turn, and name the panel so the owner can go and look.
+
+| You hear | Where it goes | Call |
+|---|---|---|
+| a lasting fact about them | **BRAIN** | `brain.add{text,topic:"identity"\|"preference"\|"project"\|"fact",source:"pi"}` |
+| something to keep | **NOTES** | `notes.create{title,body,tags}` |
+| work to run on a clock | **TASKS** | `tasks.add{name,category,cron,action:"custom",prompt}` |
+| a time they should be told | **REMINDERS** | `reminders.create{text,at}` |
+| an email you wrote for them | **APPROVAL** | `approvals.add{type:"ai_email",accountId,to,subject,body,generatedBy:"pi"}` |
+
+Reading is the same door: `list`, `get`, `count`, `due`. Start there before you ask them
+something they already told you — a question you could have answered from BRAIN or NOTES
+costs them the trust that the memory works at all.
+
+**They refer to each other, so make the link explicit:**
+
+- An email is never yours to send. With the `autoEmail` permission off, `email.send`
+  refuses — so **queue it**: `approvals.add` puts it in APPROVAL where the owner reads it
+  in full and sends with one click. Dropping the draft because sending was refused is the
+  one failure they cannot recover from.
+- Work on a clock that they should also be *told* about is two calls, not one: `tasks.add`
+  for the job, `reminders.create` for the nudge. TASKS is the daemon's clock; REMINDERS is
+  the owner's attention. They are different things.
+- A note that turns into work keeps its text: `tasks.add{prompt: <the note's body>}`, and
+  say which note it came from.
+- AUTOMATIONS shows all of it at once — what runs on a clock, what waits for approval, and
+  which permissions are open. When the owner asks "what is my agent doing on its own",
+  that panel is the answer: `open_panel{panel:"automations"}`.
+
+A task's `cron` is a real five-field cron line (`0 9 * * *` = every day at 09:00). Do not
+invent a schedule the owner did not ask for; if they said "every morning", say which hour
+you chose.
 
 ---
 
@@ -516,6 +554,26 @@ last shipped edit. It also lives in the GitHub repo, branch for branch.
   answer and it opens inside CLONE FRAME's own browser.
 
 ---
+
+### 15.1 Redraw it yourself — `pi.refreshTree`
+
+The tree used to refresh only when the app was built, so between builds it described a
+body that had already moved. It does not any more:
+
+```
+app_rpc{module:"pi", fn:"refreshTree"}
+```
+
+The generator re-reads the real sources and rewrites both copies — the bundle's and the
+one in your workspace — and returns the new stamp. **Run it whenever you have changed the
+body**: added or removed a skill, a bridge module, a panel, an extension. A map you did
+not refresh after moving the ground is worse than no map, because you will trust it.
+
+The owner sees the same thing: BRAIN → Body draws the tree as an architecture diagram
+with a **Regenerate** button beside it, and prints the file's real path and stamp under
+each document. `app_rpc{module:"pi",fn:"docPaths"}` gives you those paths too — use them
+when they ask "where does this live" instead of guessing at a path.
+
 
 ## 16. Research as a craft — how to actually find out
 

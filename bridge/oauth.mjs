@@ -178,8 +178,11 @@ function accounts() {
 function removeAccount(email) {
   try {
     const store = loadStore();
+    // Lowercase BOTH sides. Comparing a lowercased argument against a stored address
+    // that kept its capitals meant a removal quietly matched nothing and still
+    // answered ok — a silent failure the caller had no way to see.
     const key = String(email || '').toLowerCase();
-    store.accounts = store.accounts.filter((a) => a.email !== key);
+    store.accounts = store.accounts.filter((a) => String(a.email || '').toLowerCase() !== key);
     saveStore(store);
     return { ok: true };
   } catch (e) {

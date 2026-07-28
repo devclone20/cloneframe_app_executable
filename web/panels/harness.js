@@ -702,8 +702,17 @@ const Shortcuts=(()=>{
   });
 
   // pending approvals LIGHT UP the frame squares (agent/harness) + badge; clicking opens AUTOMATIONS
+  // The count comes from the bridge — the same queue APPROVAL and AUTOMATIONS read. It
+  // used to come from a browser-only store, so the squares lit for actions that were not
+  // in the real queue and stayed dark for the ones that were.
+  let pendingN=0;
+  async function refreshPending(){
+    if(!Bridge.on()){pendingN=0;lightSquares();return}
+    try{const c=await RPC('approvals','count');pendingN=(c&&c.pending)||0}catch(_){pendingN=0}
+    lightSquares();
+  }
   function lightSquares(){
-    const n=Approvals.pendingCount();
+    const n=pendingN;
     document.querySelectorAll('.cell.occ').forEach(cell=>{
       const t=cell.dataset.type;
       const relevant=(t==='agent'||t==='harness'||t==='automations');
@@ -714,10 +723,11 @@ const Shortcuts=(()=>{
       }else cell.classList.remove('autopulse');
     });
   }
-  Bus.on('approvals:changed',lightSquares);
-  Bus.on('camera',lightSquares); // rebuilds badges after the grid rebuild
-  Grid.el.addEventListener('click',e=>{if(e.target.closest('.autobadge')){Panels.openPanel('automations')}},true);
-  lightSquares();
+  Bus.on('approvals:changed',refreshPending);
+  Bus.on('bridge:changed',refreshPending);
+  Bus.on('camera',lightSquares); // rebuilds badges after the grid rebuild — count unchanged
+  Grid.el.addEventListener('click',e=>{if(e.target.closest('.autobadge')){Panels.openPanel('approval')}},true);
+  refreshPending();
 
   // brand — animated logo (several animations + color change)
   (function brandLogo(){

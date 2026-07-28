@@ -358,13 +358,37 @@ export function addProvider(input = {}) {
     createdAt: Date.now(),
   };
   if (record.apiKey && kcStore(record.id, record.apiKey)) record.apiKey = KC_SENTINEL;
+
+  // A NEW KEY REPLACES THE OLD ONE. It used to push unconditionally, so pasting a fresh
+  // key for a provider you already had left the previous record in place with its previous
+  // key — two Anthropic rows, two Keychain entries, and whichever sorted first decided
+  // which key the app actually used. The owner saw "connected" on a key they had replaced.
+  // Same vendor at the same base URL is the same provider: it is superseded, not stacked.
+  const supersedes = store.providers.filter((p) => p.provider === provider && p.baseUrl === baseUrl);
+  for (const old of supersedes) {
+    kcDelete(old.id);                                   // the old secret dies with the record
+    for (const cap of Object.keys(store.defaults)) {    // and every job that pointed at it
+      if (store.defaults[cap] && store.defaults[cap].providerId === old.id) {
+        store.defaults[cap] = { ...store.defaults[cap], providerId: record.id };
+      }
+    }
+  }
+  if (supersedes.length) {
+    // Keep what the owner had chosen: the replacement inherits the models and the enabled
+    // flags of the record it replaces, so re-pasting a key does not undo their setup.
+    const prev = supersedes[supersedes.length - 1];
+    record.models = Array.isArray(prev.models) ? prev.models : [];
+    record.disabledModels = Array.isArray(prev.disabledModels) ? prev.disabledModels : [];
+    record.enabled = prev.enabled !== false;
+    store.providers = store.providers.filter((p) => !supersedes.includes(p));
+  }
   store.providers.push(record);
   try {
     saveStore(store);
   } catch (e) {
     return { ok: false, error: e.message || String(e) };
   }
-  return { ok: true, id: record.id };
+  return { ok: true, id: record.id, replaced: supersedes.length };
 }
 
 /**
@@ -583,6 +607,48 @@ export function setModelEnabled(id, model, enabled) {
  * issue there never breaks importing this module.
  * @returns {Promise<{available:boolean, model:string|null}>}
  */
+/**
+ * Every place a model key lives on this machine, and which one the app actually uses.
+ *
+ * The owner pasted a new key and other screens kept saying they had one. Both were
+ * telling the truth about different stores: a registered provider keeps its key in the
+ * Keychain, while ~/.env.local can carry an independent copy the app read and never
+ * showed. A key you cannot see is a key you cannot replace. Values NEVER leave here —
+ * only the variable name and the file it sits in.
+ *
+ * `shadowed` means an env key is present but ignored, because a provider for the same
+ * vendor is registered and registered providers always win (see model/port resolveTarget).
+ */
+export async function keyAudit() {
+  const store = loadStore();
+  const providers = store.providers.map((p) => ({
+    id: p.id,
+    provider: p.provider,
+    label: p.label || p.provider,
+    kind: p.kind,
+    hasKey: !!p.apiKey,
+    where: p.apiKey === KC_SENTINEL ? 'keychain' : (p.apiKey ? 'disk' : 'none'),
+  }));
+  let env = [];
+  try {
+    const m = await import('./llm.mjs');
+    env = (m.envKeySources ? m.envKeySources() : []).map((e) => ({
+      ...e,
+      shadowed: providers.some((p) => p.provider === e.provider && p.kind === 'api'),
+    }));
+  } catch {}
+  // What ask() would actually reach for right now, named the same way resolveTarget does.
+  let active = { source: 'none' };
+  const usable = store.providers.filter((p) => p.enabled !== false);
+  if (usable.length) {
+    const first = usable.find((p) => (p.models || []).length) || usable[0];
+    active = { source: 'provider', provider: first.provider, id: first.id, label: first.label || first.provider };
+  } else if (env.length) {
+    active = { source: 'env', provider: env[0].provider, variable: env[0].name, file: env[0].source };
+  }
+  return { ok: true, providers, env, active };
+}
+
 export async function brainStatus() {
   try {
     const m = await import('./llm.mjs');
@@ -608,6 +674,7 @@ export const Models = {
   setModels,
   setModelEnabled,
   brainStatus,
+  keyAudit,
   // server-only (RPC blocks _-prefixed): the model port + the chat relay use these
   //
   // _raw hands back a record whose apiKey is the REAL key, never the Keychain sentinel.

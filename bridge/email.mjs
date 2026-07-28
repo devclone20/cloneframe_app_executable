@@ -40,17 +40,31 @@ export class EmailError extends Error {
 // rides along with the passwords, and the password itself never leaves this
 // module unmasked: publicSummary() (listAccounts) and sanitizeAccount()
 // (getAccount) both drop `pass` before anything reaches a client — unchanged.
-const store = openStore({ name: 'accounts', version: 1, shape: { accounts: [] }, root: hubRoot() });
+const store = openStore({ name: 'accounts', version: 1, shape: { accounts: [], defaultId: null }, root: hubRoot() });
 
+// Which account is the default is stored ONCE, by id, at the top of the store — not as
+// a flag repeated on every row. The old per-row `isDefault` could not name an OAuth
+// account at all, because those rows are virtual and never written here; the owner
+// could see "make default" on their Gmail and clicking it changed nothing. One field
+// that can name any account, real or virtual, removes that whole class of bug.
 function loadStore() {
   const data = store.read(); // never throws; ENOENT/corrupt → {version, accounts:[]}
-  return { accounts: Array.isArray(data.accounts) ? data.accounts : [] };
+  const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+  // Migrate an older store written with per-row flags, once, on first read.
+  const legacy = accounts.find((a) => a && a.isDefault);
+  const defaultId = typeof data.defaultId === 'string' ? data.defaultId : (legacy ? legacy.id : null);
+  return { accounts, defaultId };
 }
 
 function saveStore(s) {
-  // Project to exactly {accounts} — never let a stray in-memory or hand-edited
-  // key get persisted alongside the account credentials.
-  store.write({ accounts: Array.isArray(s.accounts) ? s.accounts : [] });
+  // Project to exactly {accounts, defaultId} — never let a stray in-memory or
+  // hand-edited key get persisted alongside the account credentials, and strip the
+  // legacy per-row flag so it can never drift back into a second source of truth.
+  const accounts = (Array.isArray(s.accounts) ? s.accounts : []).map((a) => {
+    const { isDefault, ...rest } = a; // eslint-disable-line no-unused-vars
+    return rest;
+  });
+  store.write({ accounts, defaultId: typeof s.defaultId === 'string' ? s.defaultId : null });
 }
 
 // ── OAuth-backed Gmail accounts ──────────────────────────────────────────────
@@ -101,8 +115,14 @@ function smtpAuthShape(auth) {
   return auth.accessToken ? { type: 'OAuth2', user: auth.user, accessToken: auth.accessToken } : auth;
 }
 
-function publicSummary(acct) {
-  return { id: acct.id, email: acct.email, display: acct.display || acct.email, isDefault: !!acct.isDefault };
+function publicSummary(acct, defaultId) {
+  return {
+    id: acct.id,
+    email: acct.email,
+    display: acct.display || acct.email,
+    kind: acct.authType === 'xoauth2' ? 'google sign-in' : 'imap/smtp',
+    isDefault: acct.id === defaultId,
+  };
 }
 
 function sanitizeAccount(acct) {
@@ -460,20 +480,32 @@ async function appendRawToSent(accountId, raw) {
 
 /** @returns {Promise<{id:string,email:string,display:string,isDefault:boolean}[]>} */
 export async function listAccounts() {
-  const own = loadStore().accounts;
+  const { accounts: own, defaultId } = loadStore();
   const oauthEmails = oauthAccountEmails();
   const oauthSet = new Set(oauthEmails);
   // OAuth (secure token, no password) SUPERSEDES a stored password account for the same
   // address — one row per email, and it uses XOAUTH2. The password record stays in the
   // store (untouched), so removing the OAuth connection restores it.
-  const oauthRows = oauthEmails.map((email) => publicSummary(oauthAccountShape(email)));
-  const ownRows = own.filter((a) => !oauthSet.has(a.email)).map(publicSummary);
-  return [...oauthRows, ...ownRows];
+  const rows = [
+    ...oauthEmails.map((email) => oauthAccountShape(email)),
+    ...own.filter((a) => !oauthSet.has(a.email)),
+  ];
+  // A default that names an account that is gone (removed, or an OAuth sign-in that
+  // was revoked) must not leave the app with none: fall back to the first row.
+  const def = rows.some((a) => a.id === defaultId) ? defaultId : (rows[0] ? rows[0].id : null);
+  return rows.map((a) => publicSummary(a, def));
 }
 
 /** @returns {Promise<object|null>} full config minus password, or null */
 export async function getAccount(id) {
-  return sanitizeAccount(getAccountRaw(id));
+  const acct = sanitizeAccount(getAccountRaw(id));
+  if (!acct) return null;
+  // isDefault is no longer a field ON the row, so stamp it from the one place that
+  // decides — otherwise this door and listAccounts() could disagree about the same
+  // account, which is the whole class of bug the single field was meant to end.
+  const rows = await listAccounts();
+  const row = rows.find((a) => a.id === id);
+  return { ...acct, isDefault: !!(row && row.isDefault) };
 }
 
 /** @returns {Promise<{ok:boolean, imap:boolean, smtp:boolean, error?:string}>} */
@@ -511,9 +543,8 @@ export async function addAccount(cfgIn) {
     smtpHost: cfg.smtpHost,
     smtpPort: Number(cfg.smtpPort),
     smtpSecure: cfg.smtpSecure !== false,
-    isDefault: cfg.isDefault === true || isFirst,
   };
-  if (record.isDefault) store.accounts.forEach((a) => { a.isDefault = false; });
+  if (cfg.isDefault === true || isFirst || !store.defaultId) store.defaultId = id;
   store.accounts.push(record);
   try {
     saveStore(store);
@@ -523,30 +554,60 @@ export async function addAccount(cfgIn) {
   return { ok: true, id };
 }
 
-/** @returns {Promise<{ok:boolean, error?:string}>} */
+/**
+ * Remove an account, whichever of the two stores it lives in.
+ *
+ * There are two, and only one of them is this module's: a password account is a row in
+ * accounts.json, while a Google sign-in lives in oauth.mjs and appears here as a virtual
+ * `oauth:<email>` row. The old code searched accounts.json alone, so removing a Gmail
+ * account found nothing, answered `not found`, and left it on screen — the exact bug the
+ * owner hit. An id is now routed to the store that actually owns it.
+ *
+ * Removing a Google sign-in deliberately does NOT touch a password record for the same
+ * address: listAccounts() lets OAuth supersede it, so the password account reappears.
+ * @returns {Promise<{ok:boolean, error?:string, kind?:string}>}
+ */
 export async function removeAccount(id) {
+  if (typeof id !== 'string' || !id) return { ok: false, error: 'not found' };
   const store = loadStore();
-  const idx = store.accounts.findIndex((a) => a.id === id);
-  if (idx === -1) return { ok: false, error: 'not found' };
-  const wasDefault = store.accounts[idx].isDefault;
-  store.accounts.splice(idx, 1);
-  if (wasDefault && store.accounts.length) store.accounts[0].isDefault = true;
+
+  if (id.startsWith('oauth:')) {
+    const email = id.slice(6);
+    if (!oauthAccountEmails().includes(email)) return { ok: false, error: 'not found' };
+    let res;
+    try { res = OAuth.removeAccount(email); }
+    catch (e) { return { ok: false, error: e.message || String(e) }; }
+    if (!res || res.ok !== true) return { ok: false, error: (res && res.error) || 'could not remove the sign-in' };
+    // Verify against the store rather than trusting the return: this is the assertion
+    // whose absence let a silent failure read as success for the whole life of the bug.
+    if (oauthAccountEmails().includes(email)) return { ok: false, error: 'the sign-in is still there after removing it' };
+  } else {
+    const idx = store.accounts.findIndex((a) => a.id === id);
+    if (idx === -1) return { ok: false, error: 'not found' };
+    store.accounts.splice(idx, 1);
+  }
+
+  if (store.defaultId === id) store.defaultId = null; // listAccounts() picks the next one
   try {
     saveStore(store);
   } catch (e) {
     return { ok: false, error: e.message || String(e) };
   }
+  // Whatever it was, its live IMAP connection and cached threads go with it.
   await evictClient(id);
   chains.delete(id);
-  return { ok: true };
+  return { ok: true, kind: id.startsWith('oauth:') ? 'google sign-in' : 'imap/smtp' };
 }
 
-/** @returns {Promise<{ok:boolean, error?:string}>} */
+/**
+ * Make an account the default. Accepts a virtual OAuth id too — the reason the default
+ * moved out of the account rows and into one store-level field.
+ * @returns {Promise<{ok:boolean, error?:string}>}
+ */
 export async function setDefault(id) {
+  if (!getAccountRaw(id)) return { ok: false, error: 'not found' };
   const store = loadStore();
-  const acct = store.accounts.find((a) => a.id === id);
-  if (!acct) return { ok: false, error: 'not found' };
-  store.accounts.forEach((a) => { a.isDefault = a.id === id; });
+  store.defaultId = id;
   try {
     saveStore(store);
   } catch (e) {

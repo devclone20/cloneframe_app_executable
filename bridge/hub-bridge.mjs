@@ -174,7 +174,7 @@ function streamHead(res) {
 // ── generic module RPC (tasks/approvals/style/contacts/integrations) ─────────
 // One token-gated route serves every backend module: POST /mod/<name> {fn, args}.
 // Modules are lazily imported so one broken module never affects the others.
-const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './style.mjs',
+const MODULES = { brain: './brain.mjs', tasks: './tasks.mjs', approvals: './approvals.mjs', style: './style.mjs',
   models: './models.mjs', notes: './notes.mjs', research: './research.mjs', reminders: './reminders.mjs', admin: './admin.mjs',
   scheduled: './scheduled.mjs', oauth: './oauth.mjs', search: './search.mjs', web: './web.mjs',
   browser: './browser.mjs', harness: './harness.mjs', nft: './nft.mjs', files: './files.mjs', permissions: './permissions.mjs',
@@ -183,7 +183,7 @@ const MODULES = { tasks: './tasks.mjs', approvals: './approvals.mjs', style: './
   pty: './pty.mjs', it: './it.mjs', ssh: './ssh.mjs', keeper: './keeper.mjs', matrix: './matrix.mjs',
   app: './app.mjs', pi: './pi.mjs', rpcallow: './rpcallow.mjs', session: './session.mjs',
   email: './domains/mail/mail.mjs' };
-const MODEXPORT = { tasks: 'Tasks', approvals: 'Approvals', style: 'Style',
+const MODEXPORT = { brain: 'Brain', tasks: 'Tasks', approvals: 'Approvals', style: 'Style',
   models: 'Models', notes: 'Notes', research: 'Research', reminders: 'Reminders', admin: 'Admin',
   scheduled: 'Scheduled', oauth: 'OAuth', search: 'Search', web: 'Web',
   browser: 'Browser', harness: 'Harness', nft: 'NFT', files: 'Files', permissions: 'Permissions', acp: 'Acp',

@@ -1363,6 +1363,32 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brn-doc-body{max-height:300px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.65;color:var(--ink-dim);white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
 .brn-doc-body.md{font-family:inherit;white-space:normal}
 .brn-doc textarea{all:unset;display:block;width:100%;box-sizing:border-box;max-height:300px;min-height:200px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.6;color:var(--fg);font-family:var(--mono);caret-color:var(--accent)}
+/* the body drawn as an architecture diagram — layers top to bottom, face → hands → mind */
+.brn-arch{max-height:460px;overflow:auto;padding:12px}
+.brn-layer{position:relative;border:1px solid var(--line);border-radius:10px;padding:10px 12px 11px 40px}
+.brn-layer .rail{position:absolute;left:0;top:0;bottom:0;width:28px;border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.brn-layer .rail span{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-faint);writing-mode:vertical-rl;transform:rotate(180deg);text-transform:uppercase;white-space:nowrap}
+.brn-layer.hot{border-color:color-mix(in srgb,var(--accent) 34%,var(--line))}
+.brn-layer.hot .rail{border-right-color:color-mix(in srgb,var(--accent) 34%,var(--line))}
+.brn-layer.hot .rail span{color:var(--accent)}
+.brn-lhd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.brn-lhd b{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg)}
+.brn-lhd code{font-family:var(--mono);font-size:10px;color:var(--accent)}
+.brn-lhd .n{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
+.brn-lnote{font-size:10.5px;line-height:1.55;color:var(--ink-dim);margin-top:3px}
+.brn-lnote code{font-family:var(--mono);font-size:10px;color:var(--accent);margin-right:5px}
+.brn-grp{margin-top:9px}
+.brn-grp-hd{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px}
+.brn-parts{display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:5px}
+.brn-part{border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-width:0}
+.brn-part:hover{border-color:color-mix(in srgb,var(--fg) 22%,var(--line))}
+.brn-part b{display:block;font-family:var(--mono);font-size:10px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brn-part i{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-style:normal;font-size:9.5px;line-height:1.45;color:var(--ink-faint);margin-top:2px}
+.brn-wire{position:relative;padding:10px 0 10px 40px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-faint)}
+.brn-wire::before{content:'';position:absolute;left:14px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent,var(--line) 22%,var(--line) 78%,transparent)}
+.brn-seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.brn-seg button{all:unset;padding:3px 9px;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer}
+.brn-seg button.on{color:var(--fg);background:color-mix(in srgb,var(--fg) 8%,transparent)}
 .brn-card{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;cursor:pointer}
 .brn-card:hover{border-color:color-mix(in srgb,var(--fg) 22%,var(--line))}
 .brn-card.sel{border-color:var(--accent)}
@@ -2725,8 +2751,7 @@ const Store=(()=>{
   let s={theme:'void',motion:true,cells:{},tri:null,wdock:null,guideHidden:false,guideDocked:false,
          density:'cosy',customThemes:{},brain:{active:'auto',providers:[]},
          caps:{terminal:1,harness:1,lab:1,machine:0,agents:0,automations:0,email:0,tasks:0,approval:0},
-         wallet:null,agents:[],automations:[],approvals:[],profile:{name:'',avatar:''},
-         autonomy:{enabled:false,requireApproval:true},activeAgent:55101,
+         wallet:null,agents:[],profile:{name:'',avatar:''},activeAgent:55101,
          soul:'',lang:'en',onboarded:false,bridge:{endpoint:''},
          email:{connected:false,mode:'mailto',address:'',sent:[],drafts:[]}};
   try{
@@ -2745,12 +2770,17 @@ const Store=(()=>{
     s.customThemes=s.customThemes||{};
     s.caps=Object.assign({terminal:1,harness:1,lab:1,machine:0,agents:0,automations:0},s.caps);
     s.profile=Object.assign({name:'',avatar:''},s.profile);
-    s.autonomy=Object.assign({enabled:false,requireApproval:true},s.autonomy);
-    s.agents=s.agents||[];s.automations=s.automations||[];s.approvals=s.approvals||[];
+    s.agents=s.agents||[];
     if(!s.activeAgent)s.activeAgent=55101;s.lang=s.lang||'en';
     s.caps=Object.assign({email:0,tasks:0,approval:0},s.caps);
     s.email=Object.assign({connected:false,mode:'mailto',address:'',sent:[],drafts:[]},s.email);
-    if(!s.email.autonomy)s.email.autonomy='direct'; // agent email autonomy (L9): off|show-first|direct|full-auto — factory default direct (Q4)
+    // The shapes below were written by controls that nothing read. `autonomy` and
+    // `approvals` belonged to the browser-side approval machine (removed — bridge/approvals.mjs
+    // owns the queue); `automations` was never read by anything; `email.autonomy` was four
+    // levels SETTINGS wrote and no agent path consulted, so the choice never took effect.
+    // Deleted on load rather than left behind as a shape that looks meaningful.
+    for(const k of ['autonomy','approvals','automations'])if(k in s)delete s[k];
+    if(s.email&&'autonomy' in s.email)delete s.email.autonomy;
     s.bridge=Object.assign({endpoint:''},s.bridge);
     s.magic=Object.assign({dist:'organized'},s.magic); // Magic Frames (Settings): frame-square placement
     delete s.parked; // PARKED feature removed (owner 2026-07-24) — dock chips now close for real
@@ -4431,58 +4461,14 @@ const RPC=(()=>{
   };
 })();
 
-/* ---------- Approvals: autonomy state machine (I17)
-   Proposal → Safety veto → Queue → OWNER signs → Executed. NOTHING self-initiates.
-   Every outbound action (email/post/tx/job/api) passes through here. No secrets on the client. ---------- */
-const Approvals=(()=>{
-  // Safety rules (fail-closed): any action touching secrets/keys/seed → automatic VETO
-  const DANGER=/(seed\s*phrase|private\s*key|chave\s*privada|palavra-passe|password|0x[a-fA-F0-9]{40}\b.*(transfer|send|drain))/i;
-  const TYPES={
-    email:{label:'EMAIL',icon:'#i-frame',verb:'send email',fin:false},
-    post:{label:'SOCIAL POST',icon:'#i-frame',verb:'post',fin:false},
-    tx:{label:'TRANSACTION',icon:'#i-wallet',verb:'sign transaction',fin:true},
-    acp:{label:'ACP JOB',icon:'#i-harness',verb:'create/accept ACP job',fin:true},
-    api:{label:'API CALL',icon:'#i-chip',verb:'call external API',fin:false},
-  };
-  function safetyScreen(a){
-    const blob=(a.title+' '+a.body).toString();
-    if(DANGER.test(blob))return{verdict:'VETO',reason:'sensitive material / non-allowlisted value movement'};
-    return{verdict:'CLEAR',reason:'no secrets in the payload · within policy'};
-  }
-  function propose(type,title,body,meta){
-    const s=safetyScreen({title,body});
-    const item={id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-      type,title,body,meta:meta||{},ts:Date.now(),
-      status:s.verdict==='VETO'?'vetoed':'pending',safety:s,fin:!!TYPES[type]?.fin};
-    Store.get().approvals.unshift(item);
-    if(Store.get().approvals.length>50)Store.get().approvals.length=50;
-    Store.save();Bus.emit('approvals:changed');
-    Toast.show(s.verdict==='VETO'?'Action BLOCKED by Safety (fail-closed)':'Action queued — approve in AUTOMATIONS');
-    return item;
-  }
-  async function approve(id,sig){
-    const it=Store.get().approvals.find(x=>x.id===id);
-    if(!it||it.status!=='pending')return;
-    it.status='approved';it.approvedAt=Date.now();it.sig=sig||null;
-    Store.save();Bus.emit('approvals:changed');
-    // EXECUTION — real connectors isolated by type (never fires without this approval)
-    it.status='executing';Bus.emit('approvals:changed');
-    if(it.type==='email'&&it.meta&&it.meta.to){
-      const r=await Mailer.send(it.meta.to,it.meta.subject||it.title,it.body);
-      it.status='done';it.result=`Email prepared for ${it.meta.to} — opened in your client (${r.via}). ✉`;
-    }else{
-      await new Promise(r=>setTimeout(r,700));
-      it.status='done';it.result='executed (demo) — the real connector attaches once you configure it';
-    }
-    Store.save();Bus.emit('approvals:changed');
-  }
-  function reject(id){
-    const it=Store.get().approvals.find(x=>x.id===id);
-    if(!it)return;it.status='rejected';Store.save();Bus.emit('approvals:changed');
-  }
-  const pendingCount=()=>Store.get().approvals.filter(x=>x.status==='pending').length;
-  return{TYPES,propose,approve,reject,pendingCount};
-})();
+/* ---------- Approvals lived here: a browser-side state machine with a hardcoded
+   safety regex, a 50-item store, and an executor whose non-email branch waited 700ms and
+   wrote "executed (demo) — the real connector attaches once you configure it".
+   It was a SECOND approval queue. bridge/approvals.mjs owns the real one — the queue the
+   APPROVAL panel reads and the daemon can actually send from — so an email proposed here
+   went somewhere nothing else could see: it never reached APPROVAL, and approving it
+   there could never have sent it. EMAIL now queues through RPC('approvals','add') and the
+   frame squares count through RPC('approvals','count'). One queue. ---------- */
 
 /* ---------- file:// rescue. Double-clicking index.html opens it with no server, and
    wallet sign-in cannot exist there: Privy's SDK throws ("Embedded wallet is only
@@ -4786,20 +4772,10 @@ const Panels=(()=>{
     reminders:{icon:'#i-reminders',title:'REMINDERS',sub:'time-based · the agent reminds you',w:600,h:540,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="rmnote" placeholder="remind me to…"><input id="rmwhen" type="datetime-local" style="flex:0 0 auto"><button class="btn mini" id="rmadd">+</button></div><div class="lpbody" id="rmbody"></div></div>`},
     brain:{icon:'#i-brain',title:'BRAIN',sub:'the mind of your agent — memories · skills · body · models',w:720,h:620,pad:false,body:()=>`<div class="brn-wrap"><div class="thp-tabs" id="brntabs"><button class="thp-tab on" data-t="memories">Memories</button><button class="thp-tab" data-t="skills">Skills</button><button class="thp-tab" data-t="body">Body</button><button class="thp-tab" data-t="add">Add</button><button class="thp-tab" data-t="settings">Settings</button></div><div class="brn-body" id="brnbody"></div></div>`},
     search:{icon:'#i-search',title:'SEARCH',sub:'everything — notes · tasks · reminders…',w:640,h:560,pad:false,body:()=>`<div class="listpanel"><div class="lphead"><input id="gsq" placeholder="search everything…"></div><div class="lpbody" id="gsbody"></div></div>`},
-    automations:{icon:'#i-automations',title:'AUTOMATIONS',sub:'agent actions · human approval',w:540,h:560,body:()=>{
-      const au=Store.get().autonomy;
-      return `<div class="autohint">Your agent can act on its own — send email, post, create jobs. <b>Nothing starts on its own:</b> every action enters a queue, passes <b>Safety</b> (veto) and only executes after <b>you approve</b>. HARNESS_ENGINE spine.</div>
-        <div class="autotoggle"><div><b>Agent autonomy</b><div class="sub">let the agent propose actions</div></div><div class="sw3 ${au.enabled?'on':''}" id="autosw"><i></i></div></div>
-        <div class="autotoggle"><div><b>Require approval (recommended)</b><div class="sub">never execute without your click</div></div><div class="sw3 ${au.requireApproval?'on':''}" id="apsw"><i></i></div></div>
-        <div class="sethead">PROPOSE AN ACTION (demo)</div>
-        <div class="acts">
-          <button class="actbtn" data-act="email"><svg><use href="#i-frame"/></svg>Send email</button>
-          <button class="actbtn" data-act="post"><svg><use href="#i-frame"/></svg>Post (X)</button>
-          <button class="actbtn" data-act="acp"><svg><use href="#i-harness"/></svg>Create ACP job</button>
-          <button class="actbtn" data-act="tx"><svg><use href="#i-wallet"/></svg>Sign tx</button>
-        </div>
-        <div class="sethead">APPROVAL QUEUE <span id="qcount" style="color:var(--accent)"></span></div>
-        <div id="queue"></div>`}},
+    automations:{icon:'#i-automations',title:'AUTOMATIONS',sub:'what runs without you · what waits for you',w:620,h:620,body:()=>
+      `<div class="autohint">Everything your agent does on its own, in one place: the jobs on a clock, the actions
+        waiting for your yes, and exactly what it is allowed to do without asking.</div>
+       <div id="autoroot"></div>`},
     harness:{icon:'#i-harness',title:'HARNESS',sub:'crew list · use in the terminal',w:640,h:580,pad:false,body:()=>`
       <div class="hnwrap"><div class="hnlist" id="hnlist"></div><div class="hndetail" id="hndetail"></div></div>`},
     lab:{icon:'#i-lab',title:'LAB',sub:'chat · agents',w:720,h:600,pad:false,noscale:true,body:()=>`
