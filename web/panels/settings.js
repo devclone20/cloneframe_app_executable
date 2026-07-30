@@ -1,13 +1,46 @@
   function wireSettings(p){
+    // Single quotes, like iT's qpath after a971b2e. JSON.stringify wraps a path in DOUBLE
+    // quotes, and zsh still expands $(...), `...` and $VAR inside those — so a folder whose
+    // NAME contained a command substitution would have executed when the owner clicked
+    // "Open in Finder". Same defect class as the iT one, a different panel.
+    const shq=v=>"'"+String(v).replace(/'/g,"'\\''")+"'";
     // ----- sidebar-nav settings (left column of sections, content pane on the right) -----
     const nav=p.querySelector('#setnav'),pane=p.querySelector('#setpane');
     const loading=()=>{pane.innerHTML='<div class="qempty" style="padding:16px">loading…</div>'};
     const fail=e=>{pane.innerHTML='<div class="qempty" style="color:var(--accent);padding:16px">'+escHtml(e.message||e)+'</div>'};
+    // This deliberately does NOT call the global needBridge(el): that one re-mounts the whole
+    // panel on pairing, which in SETTINGS would throw the owner back to the default section.
+    // What it DOES borrow from the global is the two things it was missing — telling the two
+    // failures apart, and recovering without a reload.
+    let cur=null;
     function needBridge(){
-      pane.innerHTML='<div class="qempty" style="padding:22px;line-height:1.7">Connect the <b>HUB Bridge</b> (MY MACHINE) for this section.<br><br><button class="btn" id="spm">OPEN MY MACHINE</button></div>';
+      // "Connect the HUB Bridge" is the wrong instruction when the bridge is already running
+      // and only this window is unpaired. Same conflation wave W removed from Bridge.on().
+      const why=(Bridge.unpaired&&Bridge.unpaired())
+        ? 'The <b>HUB Bridge</b> is running — this window just is not paired with it yet.'
+        : 'Connect the <b>HUB Bridge</b> (MY MACHINE) for this section.';
+      pane.innerHTML='<div class="qempty" data-setneedbridge style="padding:22px;line-height:1.7">'+why+'<br><br><button class="btn" id="spm">OPEN MY MACHINE</button></div>';
       pane.querySelector('#spm').addEventListener('click',()=>openPanel('machine'));
     }
+    // One subscription for the life of the window, and it has to work in BOTH directions.
+    //
+    // Pairing used to leave all twelve gated sections showing the card until the owner clicked
+    // away and back — the app had recovered and CONFIG had not noticed. Losing the bridge was
+    // the mirror image, and measured live: with AGENT TOOLS open, Bridge.disconnect() left the
+    // permission toggles on screen, fully clickable, writing to a daemon that was no longer
+    // reachable. A control that cannot work must not look like one.
+    //
+    // `go(cur)` is the whole mechanism either way: it re-reads Bridge.on() and picks the card
+    // or the section. It re-runs only when the two disagree, so a section that recovered on its
+    // own is never mounted twice.
+    const GATED=['addmodels','added','aidefaults','piagent','email','reminders','agenttools','session','users','system','folders','servers'];
+    panelBus(p).on('bridge:changed',()=>{
+      if(!p.isConnected||!cur||!GATED.includes(cur))return;
+      const showingCard=!!pane.querySelector('[data-setneedbridge]');
+      if(Bridge.on()===showingCard)go(cur);   // paired but still carded, or unpaired but not
+    });
     function go(name){
+      cur=name;
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
       if(['addmodels','added','aidefaults','piagent','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
       const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
@@ -365,6 +398,12 @@
         '<div class="sethead">GRANULAR POWERS'+(mc?' <span style="color:var(--accent);font-weight:400">· all covered by Full machine control</span>':'')+'</div><div style="font-size:10px;color:var(--ink-faint);line-height:1.5;margin-bottom:8px">Everything is <b>OFF</b> by default. Enable only what you want — or flip the master switch above.</div>'+
         rows.map(r=>{const own=r[0]==='autoEmail'||r[0]==='ssh'||r[0]==='matrix';return `<div class="autotoggle" style="${mc&&!own?'opacity:.55':''}"><div><b>${r[1]}</b><div class="sub">${r[2]}</div></div><div class="sw3 ${(perms[r[0]]||(mc&&!own))?'on':''}" data-perm="${r[0]}"><i></i></div></div>`}).join('')+
         '<div class="secnote">Root mode asks for your password at the moment (never stored). Catastrophic patterns (rm -rf /, mkfs, dd to disk) are ALWAYS blocked, even as root.</div>'+
+        // What these switches ARE, said plainly. Only ssh, matrix and root are enforced in the
+        // daemon; the rest are checked in the agent's tool loop. bridge/rpcallow.mjs says why in
+        // its own header — whoever holds the pairing token already has a shell, so there is no
+        // boundary at that layer to lose. That is a sound design, and nothing on screen said it.
+        // A row that reads like a lock will be read as a lock.
+        '<div class="secnote">These shape what your agent <b>reaches for</b> in normal operation — they are not a sandbox. <b>ssh</b>, <b>MATRIX</b> and <b>Root mode</b> are enforced inside the HUB Bridge itself; the rest are enforced in the agent&rsquo;s own tool loop. Any process holding your pairing token already has a shell on this machine, so treat that token the way you treat your password.</div>'+
         '<div class="sethead">AGENT TOOLS — what the agent may use</div>'+(tools.length?tools.map(t=>`<div class="autotoggle"><div><b>${escHtml(t.name)}</b><div class="sub">${escHtml(t.kind||'')} ${escHtml((t.scopes||[]).join(' '))}</div></div><div class="sw3 ${t.enabled?'on':''}" data-tool="${t.id}"><i></i></div></div>`).join(''):'<div style="font-size:10px;color:var(--ink-faint)">No tools.</div>')+
         '<div class="sethead">app_rpc ALLOWLIST — yours to write</div>'+
         '<div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">Through <span class="path">app_rpc</span> the agent can call any bridge module — that is the point, and CLONE FRAME ships it <b>wide open</b>. If you want a narrower agent, write your own list here. It applies to <b>the agent\'s</b> calls only; this interface is never constrained by it.<br><span style="color:var(--ink-dim)">One entry per line: <span class="path">module</span> for a whole module, or <span class="path">module.fn</span> for one function.</span></div>'+
@@ -517,7 +556,7 @@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v@@CF_VERSION@@ EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -578,7 +617,7 @@
         wrap.appendChild(row);
         const kids=document.createElement('div');kids.className='fld-kids';kids.style.display='none';wrap.appendChild(kids);
         let loaded=false,open=false;
-        row.querySelector('.fld-rev').addEventListener('click',async e=>{e.stopPropagation();const rr=await RPC('folders','revealPath',it.rel);if(rr&&rr.ok&&Bridge.on())Bridge.shell('open '+JSON.stringify(rr.abs),()=>{})});
+        row.querySelector('.fld-rev').addEventListener('click',async e=>{e.stopPropagation();const rr=await RPC('folders','revealPath',it.rel);if(rr&&rr.ok&&Bridge.on())Bridge.shell('open '+shq(rr.abs),()=>{})});
         row.addEventListener('click',async()=>{
           if(!isDir){openFile(it);return}
           open=!open;wrap.classList.toggle('open',open);kids.style.display=open?'':'none';
@@ -595,7 +634,7 @@
         return wrap;
       }
       tops.forEach(n=>{const t=totals[n.rel]||{};treeRoot.appendChild(fldRow({name:n.rel,type:'dir',rel:n.rel,desc:n.desc,items:t.items,bytes:t.bytes},0))});
-      pane.querySelector('#foreveal').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+JSON.stringify(s.root),()=>{});Toast.show('Opening '+s.root)});
+      pane.querySelector('#foreveal').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+shq(s.root),()=>{});Toast.show('Opening '+s.root)});
       pane.querySelector('#forecreate').addEventListener('click',async()=>{const r=await RPC('folders','ensure');Toast.show('Structure ensured — '+((r&&r.created&&r.created.length)||0)+' created');secFolders()});
     }
     async function secServers(){

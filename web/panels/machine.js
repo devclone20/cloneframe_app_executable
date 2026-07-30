@@ -45,10 +45,28 @@
       }).join('');
       brains.innerHTML=fixed+provs;
     }
-    brains.addEventListener('click',e=>{
+    brains.addEventListener('click',async e=>{
       const b=Store.get().brain;
       const rm=e.target.dataset.rm,tog=e.target.dataset.tog;
-      if(rm){b.providers=b.providers.filter(x=>x.id!==rm);Keys.del(rm);if(b.active===rm)b.active='auto';Store.save();Brain.update();renderBrains();return}
+      if(rm){
+        const gone=b.providers.find(x=>x.id===rm);
+        b.providers=b.providers.filter(x=>x.id!==rm);Keys.del(rm);
+        if(b.active===rm)b.active='auto';Store.save();Brain.update();renderBrains();
+        // CONNECT mirrors a key into the machine registry (Keychain-backed) so pi, scheduled
+        // tasks and research can use it — see "ONE key, everywhere" below. Remove only cleared
+        // the BROWSER copy, so a key the owner believed he had deleted went on living on disk
+        // and went on working for the agent. The replace path already removed its twin (line
+        // ~100); removal did not. Same operation, applied to one half.
+        if(Bridge.on()){
+          try{
+            const provs=await RPC('models','listProviders').catch(()=>[]);
+            const label=String((gone&&gone.label)||'').toLowerCase();
+            const twin=(provs||[]).find(x=>String(x.label||'').toLowerCase()===label||String(x.provider||'').toLowerCase()===rm);
+            if(twin){await RPC('models','removeProvider',twin.id);Bus.emit('models:changed')}
+          }catch(_){/* the browser copy is already gone; say nothing rather than claim failure */}
+        }
+        return;
+      }
       // OFF parks the key without discarding it: the session key stays, the record stays, and
       // nothing routes to it until it is switched back on.
       if(tog){const p=b.providers.find(x=>x.id===tog);if(p){p.off=!p.off;Store.save();Brain.update();renderBrains();Toast.show(p.name+(p.off?' switched off — key kept':' switched on'))}return}
@@ -115,6 +133,13 @@
         brStat.innerHTML='<span class="brdot on"></span>connected';
         brInfo.innerHTML='<b style="color:var(--ok)">● '+escHtml(inf.name)+' v'+escHtml(inf.version)+'</b> · '+((inf.brain&&inf.brain!=='none')?('brain: <b>'+escHtml(inf.model||'model')+'</b>'+(inf.provider?' · '+escHtml(inf.provider):'')):'<span style="color:var(--warn)">no brain — add a provider or set DEEPSEEK_API_KEY / ANTHROPIC_API_KEY in ~/.env.local</span>')+'<br>cwd: '+escHtml(inf.cwd||'');
         if(brEp)brEp.value='';
+      }else if(Bridge.unpaired()){
+        // The daemon answered /health but this window holds no token. Bridge.info() is null in
+        // BOTH failures, so without unpaired() this branch told the owner to start a daemon that
+        // was already running — and this is the panel every other panel's error state routes to.
+        // Same two nodes, different sentence: E2 is a pairing problem, not a "start it" problem.
+        brStat.innerHTML='<span class="brdot"></span>not paired';
+        brInfo.textContent='the HUB Bridge is running — it just has not paired with this window. Run npm run pair to copy the link, then paste it below (with #token=…) and press CONNECT.';
       }else{
         brStat.innerHTML='<span class="brdot"></span>disconnected';
         brInfo.textContent='run the command above, then paste the link it prints (with #token=…).';

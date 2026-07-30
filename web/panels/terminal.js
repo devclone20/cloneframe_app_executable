@@ -24,7 +24,7 @@
       // BUG-L9-005: born on a dead default); '' (machine brain) stays as manual fallback
       const avail=(typeof models!=='undefined'&&(models.find(m=>m.v==='pi')||models.find(m=>m.v&&m.on!==false)))||null;
       const x={id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),title:'New session',ts:Date.now(),model:avail?avail.v:'',harness:hDefault,msgs:[]};
-      st.sessions.unshift(x);st.active=x.id;saveSt();return x;
+      stashDraft();st.sessions.unshift(x);st.active=x.id;saveSt();return x;
     }
 
     /* ----- layout (resizable panes + collapsible rail, Claude-Code style) — persisted apart from sessions ----- */
@@ -70,11 +70,14 @@
     }
     async function refreshBranch(){try{let b='';await Bridge.shell('git rev-parse --abbrev-ref HEAD 2>/dev/null||true',t=>{b+=t},null,null,{sid:termSid});b=b.trim();branch=(b&&b!=='HEAD')?b:''}catch(e){}}
     function promptHTML(){
-      const gitseg=branch?`<span class="pl s3"> ⎇ ${branch}</span>`:'';
-      const hs=ssh?'my-server':host;
-      if(theme==='robby')return `<div class="tprompt robby"><span class="pl s1">➜</span><span class="pl s2">${hs} ${cwd}</span>${branch?`<span class="pl s3">git:(${branch})</span>`:''}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
-      if(theme==='powerlevel')return `<div class="tprompt"><span class="pl s1"> ${hs} </span><span class="pl s2"> ${cwd} </span>${gitseg}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
-      return `<div class="tprompt"><span class="pl s1"> ${ssh?'ssh':'AR'} </span><span class="pl s2"> ${hs} </span><span class="pl s3"> ${cwd} </span>${gitseg}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
+      // cwd and branch come from the MACHINE, not from us: a directory named
+      // `<img src=x onerror=…>` or a branch of that shape in a cloned repo used to be
+      // interpolated raw into innerHTML and execute inside the app.
+      const cw=escHtml(cwd),br=escHtml(branch),hs=escHtml(ssh?'my-server':host);
+      const gitseg=branch?`<span class="pl s3"> ⎇ ${br}</span>`:'';
+      if(theme==='robby')return `<div class="tprompt robby"><span class="pl s1">➜</span><span class="pl s2">${hs} ${cw}</span>${branch?`<span class="pl s3">git:(${br})</span>`:''}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
+      if(theme==='powerlevel')return `<div class="tprompt"><span class="pl s1"> ${hs} </span><span class="pl s2"> ${cw} </span>${gitseg}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
+      return `<div class="tprompt"><span class="pl s1"> ${ssh?'ssh':'AR'} </span><span class="pl s2"> ${hs} </span><span class="pl s3"> ${cw} </span>${gitseg}<input autocomplete="off" spellcheck="false" id="tin"></div>`;
     }
     function renderShell(){
       if(pane!=='term')return;
@@ -179,7 +182,9 @@
       const IC_OPEN='<svg class="ic" viewBox="0 0 16 16" fill="none"><path d="M1.6 5.4h11.1l-1.2 6.1a1 1 0 0 1-1 .8H2.6a1 1 0 0 1-1-1zm0 0V4a1 1 0 0 1 1-1H6l1.3 1.3H13a1 1 0 0 1 1 1v.7" stroke="currentColor" stroke-width="1.1"/></svg>';
       const IC_FILE='<svg class="ic fic" viewBox="0 0 16 16" fill="none"><path d="M4 1.6h5l3 3V14a.5.5 0 0 1-.5.5H4.5A.5.5 0 0 1 4 14zM9 1.6V4a.5.5 0 0 0 .5.5H12" stroke="currentColor" stroke-width="1.1"/></svg>';
       const q=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote for git args (paths w/ spaces safe)
-      const shell=cmd=>new Promise(res=>{let o='';Bridge.shell(cmd,t=>{o+=t}).then(()=>res(o)).catch(()=>res(o))});
+      // {sid:termSid} — without it every git command ran in the bridge's AMBIENT cwd session,
+      // so the PROJECT pane could root itself on a different directory than the terminal.
+      const shell=cmd=>new Promise(res=>{let o='';Bridge.shell(cmd,t=>{o+=t},null,null,{sid:termSid}).then(()=>res(o)).catch(()=>res(o))});
 
       let root='',repoTop='',isRepo=false,rootedFor='__none__',busyT=false;
       const open=new Set();                 // absolute dir paths currently expanded
@@ -332,27 +337,46 @@
     }
 
     /* ----- models + harnesses (Settings ⇄ CODE: adding an API there surfaces its models here) ----- */
-    let models=[],harnesses=[],hDefault=null,piOk=false;
+    let models=[],harnesses=[],hDefault=null,piOk=false,piProbed=false,provsLoaded=false;
+    // Starts false on purpose: before the first successful list, "no crews" is not something
+    // this panel knows. harnessGates() turns that into a closed gate rather than an open one.
+    let harnessesLoaded=false;
+    // Ask again, right now, before routing a turn on a stale answer.
+    async function refreshPiOk(){
+      try{const ps=await RPC('pi','status');piOk=!!(ps&&ps.installed);piProbed=true}catch(_){}
+      return piOk;
+    }
     async function loadModels(){
       const inf=Bridge.info&&Bridge.info();
       models=[{v:'',label:'machine'+(inf&&inf.model?' · '+inf.model:''),prov:'HUB Bridge',on:true}];
       if(Bridge.on()){
         // the raw Pi coding agent — its own agentic loop + tools (the app is its body); BYOK
-        // through pi's own login, so it only appears when actually installed on this machine
-        try{const ps=await RPC('pi','status');piOk=!!(ps&&ps.installed);
+        // through pi's own login, so it only appears when actually installed on this machine.
+        // A FAILED probe is not an answer: it used to set piOk=false, and a session pinned to
+        // pi then silently streamed from the machine brain under the label "pi".
+        try{const ps=await RPC('pi','status');piOk=!!(ps&&ps.installed);piProbed=true;
           // show the LLM pi runs on (its BYOK model) right in the picker
           if(piOk)models.push({v:'pi',label:'pi',prov:(ps&&ps.model)?ps.model:'coding agent',on:true,piModel:ps&&ps.model});
-        }catch(_){piOk=false}
-        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>models.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))})}catch(_){}
+        }catch(_){ if(piOk)models.push({v:'pi',label:'pi',prov:'coding agent',on:true}); }
+        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>models.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))});provsLoaded=true}catch(_){}
       }
       syncPickers();
     }
     async function loadHarnesses(){
-      if(Bridge.on()){try{harnesses=await RPC('harness','list');const a=harnesses.find(h=>h.activeForTerminal);hDefault=a?{id:a.id,name:a.name}:null;const cur=active();if(cur&&!cur.harness&&hDefault){cur.harness=hDefault;saveSt()}}catch(_){}}
+      // harnessesLoaded is the difference between "there are no crews" and "I never found out".
+      // Only the first is safe to treat as "no gates" — see harnessGates().
+      if(Bridge.on()){try{harnesses=await RPC('harness','list');harnessesLoaded=Array.isArray(harnesses);const a=harnesses.find(h=>h.activeForTerminal);hDefault=a?{id:a.id,name:a.name}:null;const cur=active();if(cur&&!cur.harness&&hDefault){cur.harness=hDefault;saveSt()}}catch(_){harnessesLoaded=false}}
       syncPickers();
     }
     function syncPickers(){
       const cur=active();
+      // A session keeps its choice as "providerId::model". When that model goes away —
+      // a MATRIX weight deleted, a provider removed — the label silently fell back to
+      // "machine" while the request still went to the dead id and came back as
+      // "bridge http 404". Drop the selection instead of showing one thing and sending
+      // another; models[0] is always the local bridge, so there is a real fallback.
+      // Only when the registry actually answered — a failed probe must not wipe a choice.
+      if(provsLoaded&&cur&&cur.model&&cur.model.includes('::')&&!models.some(m=>m.v===cur.model)){cur.model='';saveSt()}
       const mv=cur?cur.model||'':'';
       const mm=models.find(m=>m.v===mv)||models[0]||{label:'machine'};
       let mlbl=mm.label;
@@ -382,6 +406,9 @@
         <div class="dv"></div>
         <button class="cdmmore" id="cdmmore">More models<span>→</span></button>`;
       pop.classList.add('open');
+      // The pop element persists, so every open used to add ANOTHER keydown listener holding
+      // that open's closures (and the session active at the time). Replace, never accumulate.
+      if(pop._keys)pop.removeEventListener('keydown',pop._keys);
       const list=pop.querySelector('#cdmlist');
       function wireRows(){
         list.querySelectorAll('.cdmrow').forEach(r=>r.addEventListener('click',e=>{
@@ -400,12 +427,13 @@
       pop.querySelector('#cdmmore').addEventListener('click',()=>{closePops();openPanel('settings');setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="addmodels"]');if(b)b.click()},80)});
       // The search box takes focus as this opens, so a bare digit typed there is TEXT — it used
       // to both insert the character and click that row. ⌘1…4 stays available as the shortcut.
-      pop.addEventListener('keydown',e=>{
+      pop._keys=e=>{
         const mq=pop.querySelector('#cdmq'),pick=(e.metaKey||e.ctrlKey)&&!e.altKey;
         if(!pick&&(document.activeElement===mq||e.altKey))return;
         const n=+((e.code||'').indexOf('Digit')===0?e.code.slice(5):e.key); // layout-proof
         if(n>=1&&n<=4){e.preventDefault();const r=list.querySelectorAll('.cdmrow')[n-1];if(r)r.click()}
-      });
+      };
+      pop.addEventListener('keydown',pop._keys);
       pop.querySelector('#cdmq').focus();
     }
     function popInft(){
@@ -711,7 +739,13 @@
     function stopRec(){try{rec&&rec.stop()}catch(_){}recOn=false;$('#cdmic').classList.remove('rec')}
 
     /* ----- chat (natural language → the model YOU picked; harness rides along) ----- */
-    let streaming=false,sCtl=null;
+    // A turn belongs to a CONVERSATION, not to the panel. One shared `streaming` flag meant the
+    // ■/↑ button showed the panel's state instead of the visible conversation's, and Enter was
+    // silently dead in every OTHER session while one was streaming — even though the bridge
+    // runs one independent agent per session and could have answered them all.
+    const runs=new Map();   // sessionId → AbortController
+    const runHere=()=>{const c=active();return !!(c&&runs.has(c.id))};
+    function syncSend(){const b=$('#cdsend');if(b){b.textContent=runHere()?'■':'↑';b.title=runHere()?'Stop this turn':'Send'}}
     function autosize(){const i=$('#cdin');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,120)+'px'}
     let renamingId=null,showArchived=false,ovfEl=null;
     function closeOverflow(){if(ovfEl){ovfEl.remove();ovfEl=null}}
@@ -721,13 +755,18 @@
       c.id='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
       c.ts=Date.now();c.archived=false;
       c.title=sess.title.replace(/\s*\(copy\)$/,'')+' (copy)';
+      // A pending gate cannot be duplicated: the copy's buttons carried the ORIGINAL gid, so
+      // clicking them resolved the other conversation's gate and ran its tool there.
+      (c.msgs||[]).forEach(m=>{if(m&&m.role==='gate'&&!m.resolved)m.resolved='expired'});
+      c.draft='';c.draftFiles=[];c.draftImgs=[];delete c._lastEngine;
       const idx=st.sessions.indexOf(sess);st.sessions.splice(idx<0?0:idx,0,c);
-      st.active=c.id;saveSt();renderSessions();renderChat();Toast.show('Session duplicated');
+      stashDraft();st.active=c.id;saveSt();renderSessions();renderChat();loadDraft();syncSend();Toast.show('Session duplicated');
     }
     function exportSession(sess){
       const lines=['# '+sess.title,'',`_${new Date(sess.ts||Date.now()).toISOString()} · model: ${sess.model||'machine'}_`,''];
       (sess.msgs||[]).forEach(m=>{
-        if(m.role==='sys'){lines.push('> '+String(m.content||'').replace(/\n/g,'\n> '));lines.push('')}
+        if(m.role==='gate'){lines.push('> **HARNESS GATE** — `'+String(m.tool||'')+' '+String(m.gargs||'')+'` → '+(m.resolved||'pending'));lines.push('')}
+        else if(m.role==='sys'){lines.push('> '+String(m.content||'').replace(/\n/g,'\n> '));lines.push('')}
         else{lines.push(m.role==='user'?'### You':'### Assistant');lines.push('');lines.push(String(m.content||''));lines.push('')}
       });
       const blob=new Blob([lines.join('\n')],{type:'text/markdown'});
@@ -743,12 +782,14 @@
     const endAgent=id=>{if(id&&Bridge.on())RPC('pi','end',{id}).catch(()=>{})};
     function closeSession(id){
       const wasActive=st.active===id;
-      if(wasActive&&streaming&&sCtl)try{sCtl.abort()}catch(_){} // stop the turn before its agent goes
+      const ctl=runs.get(id);if(ctl){runs.delete(id);try{ctl.abort()}catch(_){}} // stop its turn before its agent goes
       endAgent(id);
       st.sessions=st.sessions.filter(x=>x.id!==id);
-      if(wasActive){st.active=st.sessions[0]?st.sessions[0].id:null;draftFiles=[];draftImgs=[]}
+      if(wasActive){st.active=st.sessions[0]?st.sessions[0].id:null;draftFiles=[];draftImgs=[];const i=$('#cdin');if(i)i.value=''}
       if(!st.sessions.length)newSession();
-      saveSt();renderSessions();renderChat();if(wasActive)renderChips();
+      saveSt();renderSessions();renderChat();
+      // the conversation that takes over gets ITS OWN composer back, not the closed one's
+      if(wasActive){loadDraft();syncSend()}
     }
     const deleteSession=closeSession;
     function openSessOverflow(sess,anchor){
@@ -775,7 +816,7 @@
         else if(a==='fork')forkSession(sess);
         else if(a==='files'){if(pane!=='diff')openPane('diff')}
         else if(a==='export')exportSession(sess);
-        else if(a==='archive'){endAgent(sess.id);sess.archived=true;if(st.active===sess.id){const n=st.sessions.find(x=>!x.archived);st.active=n?n.id:null;if(!st.active){newSession()}}saveSt();renderSessions();renderChat()}
+        else if(a==='archive'){const g=runs.get(sess.id);if(g){runs.delete(sess.id);try{g.abort()}catch(_){}}endAgent(sess.id);sess.archived=true;if(st.active===sess.id){const n=st.sessions.find(x=>!x.archived);st.active=n?n.id:null;if(!st.active){newSession()}saveSt();renderSessions();renderChat();loadDraft();syncSend();return}saveSt();renderSessions();renderChat()}
         else if(a==='unarchive'){sess.archived=false;saveSt();renderSessions()}
         else if(a==='del')deleteSession(sess.id);
       }));
@@ -804,9 +845,32 @@
       box.querySelectorAll('.dots').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const x=st.sessions.find(v=>v.id===b.dataset.ov);if(x)openSessOverflow(x,b)}));
       box.querySelectorAll('.x[data-cl]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();closeSession(b.dataset.cl)}));
       box.querySelectorAll('.cdsrow').forEach(r=>{
-        r.addEventListener('click',e=>{if(e.target.closest('.dots')||e.target.closest('.x')||e.target.closest('.cdren'))return;st.active=r.dataset.id;saveSt();renderSessions();renderChat()});
+        r.addEventListener('click',e=>{if(e.target.closest('.dots')||e.target.closest('.x')||e.target.closest('.cdren'))return;switchTo(r.dataset.id)});
         r.addEventListener('dblclick',e=>{if(e.target.closest('.cdren'))return;beginRename(r.dataset.id)});
       });
+    }
+    // ── the composer belongs to the conversation ──────────────────────────────
+    // #cdin is ONE textarea and draftFiles/draftImgs were panel-globals, so a half-typed
+    // sentence — and any attached file or image — followed the owner into whatever session
+    // they opened next, and the next send delivered it there.
+    function stashDraft(){
+      const c=active();if(!c)return;
+      const inp=$('#cdin');
+      c.draft=inp?inp.value:'';
+      c.draftFiles=draftFiles;c.draftImgs=draftImgs;
+    }
+    function loadDraft(){
+      const c=active();
+      const inp=$('#cdin');
+      draftFiles=(c&&c.draftFiles)||[];draftImgs=(c&&c.draftImgs)||[];
+      if(inp){inp.value=(c&&c.draft)||'';autosize()}
+      renderChips();slashList=[];renderSlash();
+    }
+    function switchTo(id){
+      if(st.active===id)return;
+      stashDraft();
+      st.active=id;saveSt();
+      renderSessions();renderChat();loadDraft();syncSend();
     }
     function renderChat(){
       const cur=active();
@@ -833,9 +897,25 @@
       if(_pin)forceBottom(tr);
       else if(tr)tr.scrollTop=Math.max(0,tr.scrollHeight-tr.clientHeight-_dist);
       _pinBottom=false;
-      syncPickers();
+      syncPickers();syncSend();
     }
     let _lastRenderSess=null,_pinBottom=false;
+    // ── a turn paints only into its OWN conversation ──────────────────────────
+    // Both stream loops used to grab "the last .cdmsg.ai in the transcript" and write into it.
+    // The transcript on screen is always the ACTIVE session, so switching sessions mid-answer
+    // painted session A's reply into session B's last bubble — the reply landed in the wrong
+    // conversation and was saved there. Address the bubble by its message index instead, and
+    // only when its session is the one being displayed.
+    function paintBubble(sess,msg){
+      const cur=active();
+      if(!cur||cur.id!==sess.id)return;                 // reader is elsewhere: the store still gets it
+      const i=sess.msgs.indexOf(msg);if(i<0)return;
+      const tr=$('#cdtrans');if(!tr)return;
+      const el=tr.children[i];
+      if(!el||!el.classList.contains('cdmsg'))return;   // transcript out of step — next renderChat fixes it
+      el.innerHTML=MDLite.render(msg.content||'…');
+      stickBottom(tr,160);
+    }
     /* ---- AGENT MODE in CODE: the model drives the app + machine through tools (permission-gated) ---- */
     let cmode=localStorage.getItem('cfhub.code.mode')||'chat';
     const trunc=(x,n)=>{x=String(x);return x.length>n?x.slice(0,n)+'…':x};
@@ -929,10 +1009,21 @@ ANSWER DISCIPLINE:
 - For external facts, current events, prices, docs, or anything you are not sure of: call web_search / browse FIRST and answer from what you find — do NOT guess or invent. If you cannot verify, say so plainly.
 - To open a HUB tab, call open_panel with the KEY (e.g. {"name":"open_panel","args":{"panel":"notes"}}). The panel names above map keys to titles — a title like "My Agents" opens with key "agents".`;
     }
-    async function execTool(c,perms){
+    // Every tool that reaches the machine takes the turn's abort signal AND an interrupt id.
+    // Without them ■ stopped only the model's typing: the shell command it had already asked
+    // for ran to completion, and its result was still fed back into the conversation.
+    let toolSeq=0;
+    async function execTool(c,perms,signal){
       const a=c.args||{};
       const full=perms.machineControl||perms.fullAccess; // master switch OR full app access
       const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote: neutralizes $ ` \ $() etc. so paths/urls can't inject shell
+      // A stoppable shell call: the bridge gets an id it can kill, and the fetch gets the signal.
+      const sh=async(cmd,onTok)=>{
+        const id='t'+(++toolSeq)+Math.random().toString(36).slice(2,6);
+        try{return await Bridge.shell(cmd,onTok||(()=>{}),signal,id)}
+        catch(e){if(signal&&signal.aborted)Bridge.interrupt(id);throw e}
+      };
+      if(signal&&signal.aborted)return 'STOPPED — the owner pressed stop before this ran.';
       try{
         if(c.name==='open_panel'){ // opening an in-app tab is harmless — never gated
           const raw=String(a.panel||'').trim();if(!raw)return 'no panel name given';
@@ -943,11 +1034,11 @@ ANSWER DISCIPLINE:
         }
         if(c.name==='open_terminal'){const cwd=String(a.cwd||'').trim();const wasOpen=instancesOf('shell').length>0;if(cwd)pendingShellCwd=cwd;openPanel('shell',{newInstance:!!a.newWindow});if(cwd&&wasOpen&&!a.newWindow)Bus.emit('shell:addcwd',cwd);return 'opened iT — live terminal '+(a.newWindow?'window':'')+(cwd?' at '+cwd:'')}
         if(c.name==='open_settings'){const sec=String(a.section||'').trim().toLowerCase();openPanel('settings');const map={agent:'agenttools',agenttools:'agenttools',permissions:'agenttools',it:'itterm',itterm:'itterm','it terminal':'itterm',tools:'tools',models:'addmodels',addmodels:'addmodels','add models':'addmodels',added:'added',aidefaults:'aidefaults',pi:'piagent',piagent:'piagent','pi agent':'piagent',appearance:'appearance',theme:'appearance',account:'account',folders:'folders',servers:'servers','online server':'servers',system:'system',email:'email',reminders:'reminders',search:'search'};const key=map[sec]||sec||'agenttools';setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="'+key+'"]');if(b)b.click()},80);return 'opened Settings → '+key}
-        if(c.name==='open_app'){if(!full)return 'REFUSED — enable "Full machine control" in Settings → Agent Tools';const app=String(a.app||'').trim();if(!app)return 'no app name';let out='';const m=await Bridge.shell('open -a '+shq(app),tk=>{out+=tk});return (m&&m.exit===0)?('opened app: '+app):('could not open "'+app+'" '+trunc(out,120))}
-        if(c.name==='open_path'){if(!full)return 'REFUSED — enable "Full machine control"';const pth=String(a.path||'').trim();if(!pth)return 'no path';let out='';const m=await Bridge.shell('open '+shq(pth),tk=>{out+=tk});return (m&&m.exit===0)?('opened in Finder: '+pth):('could not open "'+pth+'" '+trunc(out,120))}
-        if(c.name==='open_url'){if(!full)return 'REFUSED — enable "Full machine control"';const u=String(a.url||'');if(!/^https?:\/\//i.test(u))return 'url must start with http(s)://';await Bridge.shell('open '+shq(u),()=>{});return 'opened: '+u}
-        if(c.name==='applescript'){if(!full)return 'REFUSED — enable "Full machine control"';const scr=String(a.script||'');if(!scr)return 'no script';let out='';const m=await Bridge.shell('osascript '+scr.split('\n').map(l=>'-e '+shq(l)).join(' '),tk=>{out+=tk});return trunc((out||'(done)')+(m&&m.exit!=null&&m.exit!==0?' [exit '+m.exit+']':''),1200)}
-        if(c.name==='run_shell'){if(!full)return 'REFUSED — enable "Full machine control"';let out='';const m=await Bridge.shell(String(a.cmd||''),tk=>{out+=tk});return trunc((out||'(no output — the command printed nothing; do NOT infer any system state from this)')+(m&&m.exit!=null?' [exit '+m.exit+']':''),1500)}
+        if(c.name==='open_app'){if(!full)return 'REFUSED — enable "Full machine control" in Settings → Agent Tools';const app=String(a.app||'').trim();if(!app)return 'no app name';let out='';const m=await sh('open -a '+shq(app),tk=>{out+=tk});return (m&&m.exit===0)?('opened app: '+app):('could not open "'+app+'" '+trunc(out,120))}
+        if(c.name==='open_path'){if(!full)return 'REFUSED — enable "Full machine control"';const pth=String(a.path||'').trim();if(!pth)return 'no path';let out='';const m=await sh('open '+shq(pth),tk=>{out+=tk});return (m&&m.exit===0)?('opened in Finder: '+pth):('could not open "'+pth+'" '+trunc(out,120))}
+        if(c.name==='open_url'){if(!full)return 'REFUSED — enable "Full machine control"';const u=String(a.url||'');if(!/^https?:\/\//i.test(u))return 'url must start with http(s)://';await sh('open '+shq(u));return 'opened: '+u}
+        if(c.name==='applescript'){if(!full)return 'REFUSED — enable "Full machine control"';const scr=String(a.script||'');if(!scr)return 'no script';let out='';const m=await sh('osascript '+scr.split('\n').map(l=>'-e '+shq(l)).join(' '),tk=>{out+=tk});return trunc((out||'(done)')+(m&&m.exit!=null&&m.exit!==0?' [exit '+m.exit+']':''),1200)}
+        if(c.name==='run_shell'){if(!full)return 'REFUSED — enable "Full machine control"';let out='';const m=await sh(String(a.cmd||''),tk=>{out+=tk});return trunc((out||'(no output — the command printed nothing; do NOT infer any system state from this)')+(m&&m.exit!=null?' [exit '+m.exit+']':''),1500)}
         if(c.name==='web_search'){if(!perms.webAccess&&!full)return 'REFUSED — enable "Browse the web"';const r=await RPC('web','search',String(a.q||''),{limit:5});return r&&r.ok?r.results.map(x=>x.title+' — '+x.url).join('\n'):('no results '+((r&&r.error)||''))}
         if(c.name==='browse'){if(!perms.webAccess&&!full)return 'REFUSED — enable "Browse the web" (or Full machine control)';let u=String(a.url||'').trim();if(!u)return 'no url';if(!/^https?:\/\//i.test(u)){if(/^[\w-]+(\.[\w-]+)+/.test(u))u='https://'+u;else return 'bad url — give an http(s) address'}webOpen(u,{newTab:!!a.newTab,newWindow:!!a.newWindow});let r=null;try{r=await RPC('web','fetchUrl',u)}catch(e){}return 'Opened a live browser '+(a.newWindow?'WINDOW':'tab')+' rendering '+u+' (in the in-app Browser).'+(r&&r.ok?(' Readable text:\n'+String(r.text||'').slice(0,2500)):' (rendered for the owner; text extraction unavailable)')}
         if(c.name==='read_file'){if(!perms.fileWrite&&!full)return 'REFUSED — enable "Write files" or "Full machine control" to let me read files on your machine';const r=await RPC('files','read',String(a.path||''));return r.ok?trunc(r.text,1800):('failed: '+r.error)}
@@ -1028,7 +1119,15 @@ ANSWER DISCIPLINE:
     // ── Harness gates — real governance, not a prompt suggestion ─────────────
     // With a gated harness active on the session, irreversible tools PAUSE for an
     // inline OWNER approval card in the chat (audit BUG-L9-003: harness was a no-op).
-    const GATED_TOOLS=new Set(['run_shell','applescript','write_file','send_email','server_run','server_automation','server_deploy','server_provision']);
+    // The last three are not actions on the machine — they are actions on the RULES. With a crew
+    // active, `use_harness` let the model move itself to a crew with different gates and
+    // `update_harness` let it rewrite the one currently constraining it, neither needing
+    // approval. c164d22 stopped a crew from having NO gates; this stops the model from choosing
+    // which gates apply to it. Widening your own permissions is the most irreversible thing an
+    // agent can do, and the OWNER gate exists for exactly that.
+    //   With no crew selected there is nothing to widen, and gates===[] means these run freely —
+    //   which is correct: an unconstrained conversation is already unconstrained.
+    const GATED_TOOLS=new Set(['run_shell','applescript','write_file','send_email','server_run','server_automation','server_deploy','server_provision','create_harness','update_harness','use_harness']);
     const pendingGates=new Map();
     let gatesWired=false;
     function wireGates(){
@@ -1041,34 +1140,57 @@ ANSWER DISCIPLINE:
         if(done){pendingGates.delete(gid);done(!!ok)}
       });
     }
+    // [] means "this conversation has no gates". null means "it names a crew and I cannot tell
+    // what its gates are". Those were the same value, and the call site read both as "nothing to
+    // approve", so a gated tool ran unapproved in two situations that are not rare:
+    //
+    //   · loadHarnesses() failed — its catch(_){} leaves `harnesses` empty
+    //   · the crew was DELETED while a conversation still pointed at it
+    //
+    // In both, the session still displayed the crew's name, so the owner had every reason to
+    // believe the approval gates were live. A safety gate that cannot be evaluated must fail
+    // CLOSED; there is no reading of "I don't know" that justifies running the command.
     function harnessGates(cur){
-      if(!cur||!cur.harness||!cur.harness.id)return [];
+      if(!cur||!cur.harness||!cur.harness.id)return [];        // no crew chosen: nothing to apply
+      if(!harnessesLoaded)return null;                          // never loaded — cannot tell
       const hd=harnesses.find(x=>x.id===cur.harness.id);
-      return hd&&hd.roles?hd.roles.filter(r=>r.gate).map(r=>r.name):[];
+      if(!hd)return null;                                       // named a crew that is gone
+      // `gates[]` is the authoritative list — it is what the daemon floors to ['SAFETY','OWNER']
+      // when a crew ends up with no gate roles. Reading roles[].gate instead meant that floor
+      // was invisible here: a duplicated crew with every gate role deleted presented as
+      // "no gates" and its gated tools ran unapproved. One idea, one representation.
+      if(Array.isArray(hd.gates)&&hd.gates.length)return hd.gates.slice();
+      return hd.roles?hd.roles.filter(r=>r.gate).map(r=>r.name):[];   // older records
     }
-    function gateApprove(cur,c,gates){
+    function gateApprove(cur,c,gates,signal){
       wireGates();
+      // A gate opened on an ALREADY-aborted turn used to hang forever: an abort listener added
+      // after the abort never fires, so send() never resolved and the composer stayed dead.
+      if(signal&&signal.aborted)return Promise.resolve(false);
       return new Promise(resolve=>{
         const gid='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
         const msg={role:'gate',gid,tool:c.name,gargs:trunc(JSON.stringify(c.args||{}),220),gates,resolved:null};
         cur.msgs.push(msg);saveSt();renderChat();
-        const done=ok=>{msg.resolved=ok?'approved':'rejected';saveSt();renderChat();resolve(ok)};
-        pendingGates.set(gid,done);
-        if(sCtl&&sCtl.signal)sCtl.signal.addEventListener('abort',()=>{if(pendingGates.has(gid)){pendingGates.delete(gid);done(false)}},{once:true});
+        // 'cancelled' is not 'rejected'. Stamping a stopped turn's gate as rejected wrote a
+        // governance record the owner never made.
+        const done=(ok,how)=>{msg.resolved=how||(ok?'approved':'rejected');saveSt();renderChat();resolve(ok)};
+        pendingGates.set(gid,ok=>done(ok));
+        if(signal)signal.addEventListener('abort',()=>{if(pendingGates.has(gid)){pendingGates.delete(gid);done(false,'cancelled')}},{once:true});
       });
     }
-    async function agentRun(cur){
+    const MAX_STEPS=6;
+    async function agentRun(cur,sig){
       let perms={};try{perms=await RPC('permissions','get')}catch(_){}
       let convo=cur.msgs.filter(m=>(m.role==='user'||m.role==='ai')&&String(m.raw||m.content||'').trim()).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.raw||m.content})); // drop empties (aborted turns) → no Anthropic 400
-      let steps=0;
-      while(steps++<6&&!sCtl.signal.aborted){
+      let steps=0,ranOut=false;
+      while(steps++<MAX_STEPS&&!sig.aborted){
+        ranOut=false;
         // rebuilt EVERY step: after each tool the screen changed — the model must see it
         const sys0=await buildAgentSystem(perms,cur,cmode);
         const bot={role:'ai',content:''};cur.msgs.push(bot);saveSt();
         await renderChat();
-        const tr=$('#cdtrans'),els=tr?tr.querySelectorAll('.cdmsg.ai'):[],botEl=els.length?els[els.length-1]:null;
         let acc='';
-        try{const rr=await codeStream(cur,convo,tk=>{acc+=tk;bot.content=acc.replace(/```tool[\s\S]*?```/g,'').replace(/```tool[\s\S]*$/,'').trim();if(botEl)botEl.innerHTML=MDLite.render(bot.content||'…');if(tr)stickBottom(tr,160)},sCtl.signal,{system:sys0,max_tokens:4096});if(rr&&rr.err)acc+=(acc?'\n':'')+'⚠ '+friendlyErr(rr.err)}
+        try{const rr=await codeStream(cur,convo,tk=>{acc+=tk;bot.content=acc.replace(/```tool[\s\S]*?```/g,'').replace(/```tool[\s\S]*$/,'').trim();paintBubble(cur,bot)},sig,{system:sys0,max_tokens:4096});if(rr&&rr.err)acc+=(acc?'\n':'')+'⚠ '+friendlyErr(rr.err)}
         catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))acc+='\n⚠ '+friendlyErr(e.message)}
         const calls=parseToolCalls(acc);
         bot.content=acc.replace(/```tool[\s\S]*?```/g,'').replace(/```tool[\s\S]*$/,'').trim()||(calls.length?'*(using tools…)*':acc);
@@ -1078,60 +1200,122 @@ ANSWER DISCIPLINE:
         const results=[];
         const gates=harnessGates(cur);
         for(const c of calls){
+          // ■ stops here too. The loop used to run every parsed call to completion after the
+          // abort — the owner pressed stop and the shell commands still happened.
+          if(sig.aborted){cur.msgs.push({role:'sys',content:'⚙ stopped before '+c.name});break}
           let r;
-          if(gates.length&&GATED_TOOLS.has(c.name)){
-            const ok=await gateApprove(cur,c,gates);
-            r=ok?await execTool(c,perms):'BLOCKED — the OWNER gate rejected this action. Do not retry it; explain what you wanted and propose an alternative.';
-          }else r=await execTool(c,perms);
+          if(GATED_TOOLS.has(c.name)&&gates===null){
+            // A crew is named but its gates cannot be evaluated — it never loaded, or it was
+            // deleted while this conversation still pointed at it. The session still SHOWS the
+            // crew's name, so the owner believes the gates are live. Fail closed and say which
+            // of the two it is; running the tool here is the one outcome nobody chose.
+            const nm=(cur.harness&&cur.harness.name)||'the selected crew';
+            r='BLOCKED — this conversation is set to the crew "'+nm+'", and its approval gates could not be applied (the crew is unavailable or was deleted). Nothing was run. Pick a crew again in the HARNESS picker, or clear it, then retry.';
+            cur.msgs.push({role:'sys',content:'⚠ '+c.name+' blocked — crew "'+nm+'" unavailable, so its gates could not be applied'});
+          }else if(gates&&gates.length&&GATED_TOOLS.has(c.name)){
+            const ok=await gateApprove(cur,c,gates,sig);
+            r=ok?await execTool(c,perms,sig):'BLOCKED — the OWNER gate rejected this action. Do not retry it; explain what you wanted and propose an alternative.';
+          }else r=await execTool(c,perms,sig);
           results.push(c.name+' → '+trunc(String(r),900));
           cur.msgs.push({role:'sys',content:'⚙ '+c.name+' '+trunc(JSON.stringify(c.args),70)+' → '+trunc(String(r),140)});
         }
         bot.raw=acc+'\n\n<tool_results>\n'+results.join('\n')+'\n</tool_results>'; // persist results in raw → a follow-up turn sees them and won't re-run the tools
         saveSt();await renderChat();
+        if(sig.aborted)break;
         convo.push({role:'user',content:'TOOL RESULTS:\n'+results.join('\n\n')+'\n\nContinue (more tools) or give the final answer without tool blocks.'});
+        ranOut=true;   // this step ended holding tools, so another step is needed
       }
+      // The cap used to end the turn mid-work in silence: the last tools ran, their results were
+      // appended, and nothing ever answered. Say what happened and how to continue.
+      if(ranOut&&!sig.aborted)cur.msgs.push({role:'sys',content:'⚙ reached the '+MAX_STEPS+'-step limit for one turn — the work above is done, but the agent had more planned. Send “continue” to carry on.'});
     }
     // ── pi mode — the raw Pi coding agent answers. Pi runs its OWN agentic loop, tools and
     // memory (the bridge keeps one `pi --mode rpc` process per CODE session and the
     // clone-frame extension is its hands on the app), so the app's ```tool protocol and
     // agentRun are bypassed entirely: we send only the new message and render pi's NDJSON
     // stream — prose into the bubble, ⚙ tool activity as sys lines above it.
-    async function piRun(cur,text,imgs){
-      const bot={role:'ai',content:''};cur.msgs.push(bot);saveSt();await renderChat();
-      const tr=$('#cdtrans');
-      let botEl=null;const rebind=()=>{const els=tr?tr.querySelectorAll('.cdmsg.ai'):[];botEl=els.length?els[els.length-1]:null};
-      rebind();
-      const paint=()=>{if(botEl)botEl.innerHTML=MDLite.render(bot.content||'…');if(tr)stickBottom(tr,160)};
-      const pendingTools=[]; // ⚙ sys msgs awaiting their result, oldest first
+    // What the agent is handed when its process is new (see bridge/pi.mjs → historyPreamble).
+    // Only user/assistant prose: the ⚙ tool lines are this panel's own log, and gate cards are
+    // governance records, not conversation.
+    function piHistory(cur,upTo){
+      const out=[];
+      for(const m of cur.msgs){
+        if(m===upTo)break;
+        if(m.role!=='user'&&m.role!=='ai')continue;
+        const body=String(m.raw||m.content||'').trim();
+        if(!body||m.err)continue;
+        out.push({role:m.role==='ai'?'assistant':'user',content:body});
+      }
+      return out;
+    }
+    // /goals promised "the agent keeps them in mind" and the bound iNFT promised a persona —
+    // but on the pi path (the default whenever pi is installed) piRun sent the raw message and
+    // neither ever reached the agent. pi has its own system prompt from AGENTS.md, so these
+    // ride the message as a short standing block instead.
+    function standingContext(cur){
+      const bits=[];
+      const a=cur&&cur.inft;
+      if(a&&a.name)bits.push('You are speaking AS the owner\'s agent iNFT "'+a.name+'"'+(a.collection?' ('+a.collection+')':'')+(a.tokenId?' — token #'+a.tokenId:'')+'. Embody it. Hard limit: never move value without asking the owner first.');
+      if(cur&&Array.isArray(cur.goals)&&cur.goals.length)bits.push('Standing goals for this conversation, set by the owner — keep them in mind and work toward them:\n'+cur.goals.map((g,i)=>(i+1)+'. '+g).join('\n'));
+      if(!bits.length)return '';
+      return '<standing_context>\n'+bits.join('\n\n')+'\n</standing_context>\n\n';
+    }
+    async function piRun(cur,text,imgs,sig){
+      const bot={role:'ai',content:''};
+      const history=piHistory(cur,bot);
+      // The last user turn IS this message — it arrives as the prompt, so it must not also
+      // close the replayed history.
+      if(history.length&&history[history.length-1].role==='user')history.pop();
+      cur.msgs.push(bot);saveSt();await renderChat();
+      const paint=()=>paintBubble(cur,bot);
+      const pendingTools=[]; // ⚙ sys msgs awaiting their result
       try{
         await Bridge.piChat(cur.id,text,cur.model,ev=>{
+          // The engine that actually answered. The picker was the only claim about the model,
+          // and nothing could contradict it — now the stream says so, and a fresh agent
+          // (process died between turns) is announced instead of appearing as amnesia.
+          if(ev.t==='meta'){
+            const lbl=ev.model?(ev.provider?ev.model+' · '+ev.provider:ev.model):(ev.own?'pi’s own model':'');
+            if(ev.fresh&&history.length)cur.msgs.splice(cur.msgs.indexOf(bot),0,{role:'sys',content:'⚙ new agent process'+(lbl?' on '+lbl:'')+' — the conversation so far was handed back to it'});
+            else if(lbl&&lbl!==cur._lastEngine)cur.msgs.splice(cur.msgs.indexOf(bot),0,{role:'sys',content:'⚙ answering on '+lbl});
+            cur._lastEngine=lbl;saveSt();renderChat();paint();return;
+          }
           if(ev.t==='text'&&ev.d){bot.content+=ev.d;paint();return}
           if(ev.t==='tool'){
             if(ev.phase==='start'){
               const m={role:'sys',content:'⚙ '+ev.name+' '+trunc(JSON.stringify(ev.args||{}),70)+' …'};
-              pendingTools.push({name:ev.name,m});
+              pendingTools.push({id:ev.id||'',name:ev.name,m});
               cur.msgs.splice(cur.msgs.indexOf(bot),0,m); // tool lines sit ABOVE the streaming bubble
-              saveSt();renderChat();rebind();paint();
+              saveSt();renderChat();paint();
             }else{
-              let i=pendingTools.findIndex(x=>x.name===ev.name);if(i<0)i=0;
+              // Pair by pi's OWN call id. Pairing by name swapped the results of two concurrent
+              // tools with the same name, and a stray end corrupted whatever line sat at slot 0.
+              let i=ev.id?pendingTools.findIndex(x=>x.id===ev.id):-1;
+              if(i<0)i=pendingTools.findIndex(x=>x.name===ev.name);
+              if(i<0){saveSt();return}                    // no owner: never overwrite a stranger
               const hit=pendingTools.splice(i,1)[0];
-              if(hit)hit.m.content='⚙ '+ev.name+' → '+(ev.ok===false?'failed: ':'')+trunc(String(ev.result||'(done)'),140);
-              saveSt();renderChat();rebind();paint();
+              hit.m.content='⚙ '+ev.name+' → '+(ev.ok===false?'failed: ':'')+trunc(String(ev.result||'(done)'),140);
+              saveSt();renderChat();paint();
             }
             return;
           }
-          if(ev.t==='error'&&ev.d){bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(ev.d);paint()}
-        },sCtl.signal,imgs||[]);
+          if(ev.t==='error'&&ev.d){bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(ev.d);bot.err=true;paint()}
+        },sig,imgs||[],history);
       }catch(e){
-        if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(e.message);
+        if(e.name!=='AbortError'&&!/abort/i.test(e.message||'')){bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(e.message);bot.err=true}
       }
       for(const t of pendingTools)t.m.content+=' (interrupted)';
-      bot.content=bot.content.trim()||'(no reply)';
+      // "(no reply)" is a claim. An aborted turn produced no reply because the OWNER stopped it,
+      // and an empty one with no error is worth saying plainly rather than dressing up.
+      if(!bot.content.trim()){bot.content=sig.aborted?'_(stopped)_':'_(the agent returned nothing — check the model and its key)_';bot.err=true}
+      else bot.content=bot.content.trim();
       saveSt();await renderChat();
     }
     async function send(){
       const inp=$('#cdin');let text=(inp.value||'').trim();
-      if((!text&&!draftFiles.length&&!draftImgs.length)||streaming)return;
+      if(!text&&!draftFiles.length&&!draftImgs.length)return;
+      // Only THIS conversation blocks on its own turn — and it says so instead of doing nothing.
+      if(runHere()){Toast.show('This conversation is still answering — press ■ to stop it, or open another session');return}
       slashList=[];renderSlash(); // any pending slash menu is resolved by sending
       let cur=active();if(!cur){cur=newSession();renderSessions()}
       if(text.charAt(0)==='/'){
@@ -1141,7 +1325,14 @@ ANSWER DISCIPLINE:
         if(cmd==='/model'){inp.value='';popModels();return}
         if(cmd==='/harness'){inp.value='';popHarness();return}
         if(cmd==='/context'){note('**What I can see right now:**\n```\n'+appContextText(cur)+'\n```');return}
-        if(cmd==='/panel'){const k=arg.toLowerCase().replace(/\s+/g,'');if(!k){note('Usage: `/panel <name>` — e.g. `/panel notes`');return}Panels.openPanel(k);note('Opened **'+k+'**.');return}
+        if(cmd==='/panel'){
+          if(!arg){note('Usage: `/panel <name>` — e.g. `/panel notes`');return}
+          // Use the SAME resolver the agent's open_panel uses: crude space-stripping made
+          // '/panel my agents' → 'myagents', which matches nothing, and it claimed success anyway.
+          const k=resolvePanelKey(arg);
+          if(!k){note('No panel called **'+escHtml(arg)+'**. Try one of: `'+Object.keys(DEFS).join('` · `')+'`');return}
+          note(openPanel(k)?('Opened **'+k+'**.'):('**'+k+'** could not be opened — it may be under construction.'));return;
+        }
         if(cmd==='/run'){
           if(!arg){note('Usage: `/run <command>` — e.g. `/run ls ~/Desktop`');return}
           inp.value='';autosize();
@@ -1154,9 +1345,9 @@ ANSWER DISCIPLINE:
         }
         if(cmd==='/goals'){
           cur.goals=Array.isArray(cur.goals)?cur.goals:[];
+          if(arg==='clear'){cur.goals=[];saveSt();note('Goals cleared.');return}
           if(arg){cur.goals.push(arg);saveSt();note('🎯 Goal added. This session now has '+cur.goals.length+' goal(s); the agent keeps them in mind.\n\n'+cur.goals.map((g,i)=>(i+1)+'. '+g).join('\n'));}
           else note(cur.goals.length?('🎯 **Session goals:**\n'+cur.goals.map((g,i)=>(i+1)+'. '+g).join('\n')+'\n\n_Add one with_ `/goals <text>` _· clear with_ `/goals clear`'):'No goals set yet. Add one with `/goals <text>` — the agent will keep it in mind every turn.');
-          if(arg==='clear'){cur.goals=[];saveSt();note('Goals cleared.');}
           return;
         }
         if(cmd==='/help'){
@@ -1187,20 +1378,35 @@ ANSWER DISCIPLINE:
       // Agent modes. Chat acts when you ask it to; Agent is proactive. (Fixes "I'm just a
       // text assistant, I can't open apps".) Plain chat only when there's no bridge/body.
       if(Bridge.on()){
-        inp.value='';autosize();saveSt();
-        streaming=true;sCtl=new AbortController();$('#cdsend').textContent='■';
+        inp.value='';autosize();cur.draft='';saveSt();
+        const ctl=new AbortController(),sig=ctl.signal;
+        runs.set(cur.id,ctl);syncSend();
         // pi is the agent when installed: 'pi' = its own default model, a provider model = pi
-        // running on that model underneath (routed via CFHUB_PI_*). Old agentRun is the fallback
-        // when pi is absent, and for the bare machine brain ('').
-        try{const usePi=piOk&&(((cur.model||'')==='pi')||String(cur.model||'').includes('::'));if(usePi)await piRun(cur,text,imgs);else await agentRun(cur)}catch(_){}
-        streaming=false;sCtl=null;const sb=$('#cdsend');if(sb)sb.textContent='↑';saveSt();await renderChat();
+        // running on that model underneath (routed via the local relay). agentRun is the
+        // fallback when pi is absent, and for the bare machine brain ('').
+        try{
+          const wants=((cur.model||'')==='pi')||String(cur.model||'').includes('::');
+          // A session pinned to pi used to fall through to the MACHINE BRAIN whenever the
+          // status probe had failed or not answered yet — a different LLM answered under the
+          // label "pi". Re-ask instead of guessing, and if pi really is gone, say so.
+          if(wants&&!piOk)await refreshPiOk();
+          if(wants&&!piOk&&(cur.model||'')==='pi'){
+            cur.msgs.push({role:'ai',content:'⚠ **pi is not available on this machine right now**, so nothing was sent. Install it with `npm i -g @earendil-works/pi-coding-agent`, or pick another model below.',err:true});
+          }else if(wants&&piOk)await piRun(cur,standingContext(cur)+text,imgs,sig);
+          else await agentRun(cur,sig);
+        }catch(e){
+          // This was `catch(_){}`: a DOM or storage failure anywhere in the turn killed it with
+          // no bubble, no toast and no line in the transcript — the app just stopped answering.
+          if(!sig.aborted&&e&&e.name!=='AbortError')cur.msgs.push({role:'ai',content:'⚠ '+friendlyErr(e.message||String(e)),err:true});
+        }
+        if(runs.get(cur.id)===ctl)runs.delete(cur.id);
+        syncSend();saveSt();if(active()&&active().id===cur.id)await renderChat();else renderSessions();
         return;
       }
       const bot={role:'ai',content:''};cur.msgs.push(bot);saveSt();
-      inp.value='';autosize();renderChat();
-      const tr=$('#cdtrans'),botEl=tr.lastChild;
-      streaming=true;sCtl=new AbortController();$('#cdsend').textContent='■';
-      const onTok=t=>{bot.content+=t;if(botEl)botEl.innerHTML=MDLite.render(bot.content);stickBottom(tr,160)};
+      inp.value='';autosize();cur.draft='';renderChat();
+      const ctl=new AbortController();runs.set(cur.id,ctl);syncSend();
+      const onTok=t=>{bot.content+=t;paintBubble(cur,bot)};
       let sys='You are inside CLONE FRAME CODE — the owner\'s workspace. Answer helpfully and directly, in the user\'s language. Do not make things up.'+inftContext();
       if(cur.harness&&cur.harness.name){
         const hd=harnesses.find(h=>h.id===cur.harness.id);
@@ -1212,19 +1418,23 @@ ANSWER DISCIPLINE:
       const histM=cur.msgs.filter(m=>m!==bot&&(m.role==='user'||m.role==='ai')&&String(m.content||'').trim()).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content})); // only user/ai, non-empty → excludes ⚙ tool-log sys msgs (role-alternation 400)
       try{
         const mv=cur.model||'';let rr=null;
-        if(mv.includes('::')){const k=mv.indexOf('::');rr=await Bridge.providerChat(mv.slice(0,k),mv.slice(k+2),histM,onTok,sCtl.signal,{system:sys})}
-        else if(Bridge.brainReady()){rr=await Bridge.chat(histM,onTok,sCtl.signal,{system:sys})}
+        if(mv.includes('::')){const k=mv.indexOf('::');rr=await Bridge.providerChat(mv.slice(0,k),mv.slice(k+2),histM,onTok,ctl.signal,{system:sys})}
+        else if(Bridge.brainReady()){rr=await Bridge.chat(histM,onTok,ctl.signal,{system:sys})}
         else bot.content='Connect the HUB Bridge (MY MACHINE) and pick a model below.';
-        if(rr&&rr.err)bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(rr.err); // surface stream errors (bad key / model) instead of a stuck "…"
-      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||''))bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(e.message)}
-      streaming=false;sCtl=null;$('#cdsend').textContent='↑';saveSt();
-      if(botEl)botEl.innerHTML=MDLite.render(bot.content||'(empty)');
+        if(rr&&rr.err){bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(rr.err);bot.err=true} // surface stream errors (bad key / model) instead of a stuck "…"
+      }catch(e){if(e.name!=='AbortError'&&!/abort/i.test(e.message||'')){bot.content+=(bot.content?'\n':'')+'⚠ '+friendlyErr(e.message);bot.err=true}}
+      if(runs.get(cur.id)===ctl)runs.delete(cur.id);
+      syncSend();
+      if(!bot.content.trim()){bot.content=ctl.signal.aborted?'_(stopped)_':'_(empty reply)_';bot.err=true}
+      saveSt();paintBubble(cur,bot);
     }
 
     /* ----- wiring ----- */
     if(!st.sessions.length)newSession();
     if(!st.active||!active())st.active=st.sessions[0].id;
-    $('#cdnew').addEventListener('click',()=>{newSession();renderSessions();renderChat()});
+    // loadDraft: newSession() stashes the OUTGOING draft, but the new conversation must then
+    // get its own (empty) composer — otherwise the half-typed sentence is still sitting there.
+    $('#cdnew').addEventListener('click',()=>{newSession();renderSessions();renderChat();loadDraft();syncSend()});
     $('#cdtermbtn').addEventListener('click',()=>openPane('term'));
     $('#cddiffbtn').addEventListener('click',()=>openPane('diff'));
     $('#cdwebbtn').addEventListener('click',()=>openPanel('research')); // the browser is the standalone BROWSER window
@@ -1337,7 +1547,13 @@ ANSWER DISCIPLINE:
       if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='u'){e.preventDefault();pickFiles(false);return}
       if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}
     });
-    $('#cdsend').addEventListener('click',()=>streaming?(sCtl&&sCtl.abort()):send());
+    // ■ stops the turn of the conversation you are LOOKING AT. It used to stop whatever the
+    // panel happened to be streaming, which in a second session was somebody else's turn.
+    $('#cdsend').addEventListener('click',()=>{
+      const c=active(),ctl=c&&runs.get(c.id);
+      if(ctl){runs.delete(c.id);try{ctl.abort()}catch(_){}syncSend();Toast.show('Stopped');return}
+      send();
+    });
     p.addEventListener('pointerdown',e=>{if(!e.target.closest('.cdpop')&&!e.target.closest('.cdovf')&&!e.target.closest('.dots')&&!e.target.closest('#cdmodel')&&!e.target.closest('#cdinft')&&!e.target.closest('#cdharness')&&!e.target.closest('#cdplus')&&!e.target.closest('#cdmic')&&!e.target.closest('#cdmiccfg'))closePops()});
     const zs=zselW();zs.value=theme;
     zs.addEventListener('change',()=>{theme=zs.value;localStorage.setItem('cfhub.zsh',theme);if(pane==='term')renderShell()});
@@ -1355,7 +1571,14 @@ ANSWER DISCIPLINE:
     // whole lifecycle). Guarded on being the LAST CODE window: a second ⧉ window still
     // on screen may have a turn in flight, and its agents are the same processes.
     p._dispose=()=>{
+      stashDraft();saveSt();
+      // Docking is not closing. CODE is not a MULTI type, so docking into a frame square
+      // destroys the window — and that used to end every conversation's agent and erase all
+      // their context, for a gesture the owner meant as "put this aside for a second".
+      if(p.dataset.docking)return;
       if(document.querySelectorAll('.panel[data-type="terminal"]').length>1)return;
+      for(const [,c] of runs){try{c.abort()}catch(_){}}
+      runs.clear();
       st.sessions.forEach(x=>endAgent(x.id));
     };
     renderSessions();renderChat();loadModels();loadHarnesses();loadPiCommands();

@@ -152,7 +152,7 @@
   registerPanel('reminders',{def:DEFS.reminders,mount:wireReminders});
   registerPanel('brain',{def:DEFS.brain,mount:wireBrain});
   registerPanel('search',{def:DEFS.search,mount:wireSearch});
-  return{openPanel,registerPanel,has:(t)=>REG.has(t)||!!DEFS[t],catalog:()=>Object.keys(DEFS).map(k=>({key:k,title:DEFS[k].title||k,sub:DEFS[k].sub||''})),layer,top:()=>topPanel};
+  return{openPanel,registerPanel,has:(t)=>REG.has(t)||!!DEFS[t],catalog:()=>Object.keys(DEFS).map(k=>({key:k,title:DEFS[k].title||k,sub:DEFS[k].sub||'',icon:DEFS[k].icon||'#i-frame'})),layer,top:()=>topPanel};
 })();
 
 /* ---------- Snap ---------- */
@@ -426,19 +426,27 @@ const Guide=(()=>{
 /* ---------- Palette ⌘K (keyboard-first — agentsview pattern, MIT) ---------- */
 const Palette=(()=>{
   const pal=document.getElementById('pal'),input=document.getElementById('palinput'),list=document.getElementById('pallist');
-  let openF=false,sel=0,filtered=[];
-  // Panel entries are GENERATED from the real panel registry (DEFS), so the palette
-  // always covers every panel — BUG-L0-003: it listed 7, "notes" found nothing. A few
-  // extra search keywords per key sharpen matching. All copy is English (owner, 2026-07-11).
+  let openF=false,sel=0,filtered=[],A=[];
+  // Panel rows come from Panels.catalog() — the SAME list the agent's list_panels returns —
+  // so the two can never drift and a new panel needs no edit here (BUG-L0-003: the palette
+  // once listed 7 and "notes" found nothing).
+  //
+  // It used to read DEFS directly. DEFS is out of scope at this point: this module continues
+  // AFTER the Panels IIFE closes, so `typeof DEFS!=='undefined'` was always false and every
+  // row silently came from the hand-kept fallback — labelled by internal key. The owner read
+  // "Open RESEARCH" for the window titled BROWSER, "Open SHELL" for iT, "Open AGENTVIEW" for
+  // AGENT, while the agent saw the real names. PANEL_KW is now only what it should always
+  // have been: extra search words, and the order the rows appear in. Panels missing from it
+  // still list, at the end. All copy is English (owner, 2026-07-11).
   const PANEL_KW={terminal:'code chat agent diff shell run',shell:'it terminal multiplexer sessions ssh split',harness:'crew gates orchestrator roles',lab:'chat agents inft deck soul',matrix:'cluster local models exo distributed download',machine:'bridge brain byok connect endpoint',agents:'wallet iclone vegeta onchain erc8004',agentview:'inft identity card traits',folders:'files file manager tree',email:'mail inbox compose send write',approval:'approve drafts review',reminders:'reminder alert time',tasks:'cron scheduled autonomous jobs',automations:'autonomy approvals actions queue',notes:'note todo memo',research:'browser web navigate url search',search:'find global',brain:'memory skills',theme:'themes appearance colors',settings:'settings preferences config'};
-  const PANEL_ICON={terminal:'#i-term',shell:'#i-term2',harness:'#i-harness',lab:'#i-lab',matrix:'#i-cosmos',machine:'#i-chip',agents:'#i-agent',email:'#i-mail',automations:'#i-bolt',settings:'#i-gear'};
-  const panelEntries=(()=>{
-    const defs=(typeof DEFS!=='undefined'&&DEFS)?DEFS:null;
-    const keys=defs?Object.keys(defs):Object.keys(PANEL_KW);
-    return keys.map(k=>({l:'Open '+((defs&&defs[k]&&defs[k].title)||k.toUpperCase()),h:'panel',k:(k+' '+(PANEL_KW[k]||'')).toLowerCase(),i:PANEL_ICON[k]||'#i-frame',run:()=>Panels.openPanel(k)}));
-  })();
-  const A=[
-    ...panelEntries,
+  const PANEL_ORDER=Object.keys(PANEL_KW);
+  const rank=k=>{const i=PANEL_ORDER.indexOf(k);return i<0?PANEL_ORDER.length:i};
+  // Built on every open, not once at boot: a panel that registers late still shows up.
+  const panelEntries=()=>Panels.catalog().sort((a,b)=>rank(a.key)-rank(b.key)).map(p=>({
+    l:'Open '+(p.title||p.key.toUpperCase()),h:'panel',
+    k:(p.key+' '+(p.title||'')+' '+(p.sub||'')+' '+(PANEL_KW[p.key]||'')).toLowerCase(),
+    i:p.icon||'#i-frame',run:()=>Panels.openPanel(p.key)}));
+  const EXTRAS=[
     {l:'Sign in with wallet',h:'access',k:'wallet login siwe sign in connect',i:'#i-wallet',run:()=>WalletAuth.addr()?Toast.show('Already signed in: '+WalletAuth.short(WalletAuth.addr())):PrivyLogin.open()},
     {l:'Keyboard shortcuts',h:'help',k:'keyboard shortcuts keys help ?',i:'#i-frame',run:()=>Shortcuts.toggle(true)},
     {l:'Lock / unlock zoom',h:'universe',k:'zoom navigate lock pan',i:'#i-cosmos',run:()=>Camera.setNav(!Camera.isNav())},
@@ -453,7 +461,7 @@ const Palette=(()=>{
     sel=Math.min(sel,Math.max(0,filtered.length-1));
     list.innerHTML=filtered.map((a,i)=>`<div class="palitem ${i===sel?'sel':''}" data-i="${i}"><svg><use href="${a.i}"/></svg>${a.l}<span class="h">${a.h}</span></div>`).join('')||'<div class="palitem" style="opacity:.5">no results</div>';
   }
-  function openP(){openF=true;pal.style.display='block';input.value='';sel=0;renderL();input.focus();Bus.emit('help','palette')}
+  function openP(){openF=true;pal.style.display='block';input.value='';sel=0;A=panelEntries().concat(EXTRAS);renderL();input.focus();Bus.emit('help','palette')}
   function closeP(){openF=false;pal.style.display='none';Bus.emit('help',null)}
   // ⌘K on Apple hardware, ⌃K elsewhere. NOT both: on macOS ⌃K is "delete to end of line" in
   // every text field, so accepting it opened this palette mid-sentence — and the Enter that

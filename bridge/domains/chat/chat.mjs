@@ -103,14 +103,29 @@ async function matrixEnsureInstance(v1Base, model, signal) {
   const eng = String(v1Base || '').replace(/\/v\d+$/, ''); // http://127.0.0.1:52415
   const getJson = async (p) => { try { const r = await fetch(eng + p, { signal }); return r.ok ? await r.json() : null; } catch { return null; } };
   const state = await getJson('/state');
-  const coming = state && state.instances && Object.values(state.instances).some((i) => {
-    const inner = (i && (i.MlxRingInstance || i)) || {}; const sa = inner.shardAssignments;
-    return sa && sa.modelId === model;
-  });
-  if (!coming) {
+  const runners = (state && state.runners) || {};
+  // exo's instance union is TAGGED: MlxRingInstance today, MlxJacclInstance on an RDMA
+  // cluster, more later. Reading one hardcoded key made a Jaccl instance invisible (a
+  // duplicate placed on every message) and a FAILED ring instance count as "coming up"
+  // (never replaced, so the model could never load again).
+  const forModel = [];
+  for (const iid in (state && state.instances) || {}) {
+    const inner = state.instances[iid][Object.keys(state.instances[iid])[0]] || {};
+    const sa = inner.shardAssignments || {};
+    if (sa.modelId !== model) continue;
+    const rids = Object.keys(sa.runnerToShard || {});
+    const failed = rids.some((r) => /Failed/i.test(runners[r] ? Object.keys(runners[r])[0] || '' : ''));
+    forModel.push({ iid, failed });
+  }
+  const usable = forModel.filter((i) => !i.failed);
+  if (!usable.length) {
     const dl = await getJson('/models?status=downloaded');
     const ids = dl ? (dl.data || dl || []).map((m) => m && m.id) : [];
     if (!ids.includes(model)) return false; // not on disk — do not trigger a (huge) download
+    // A dead instance keeps the model's slot; clear it or the replacement never places.
+    for (const dead of forModel) {
+      try { await fetch(eng + '/instance/' + encodeURIComponent(dead.iid), { method: 'DELETE', signal }); } catch { /* best effort */ }
+    }
     try {
       const r = await fetch(eng + '/place_instance', {
         method: 'POST', signal,
@@ -161,19 +176,40 @@ export async function handleProviderChat(req, res, body, { streamHead }) {
       const headers = { 'content-type': 'application/json' };
       if (cfg.kind === 'api' && key) headers.Authorization = 'Bearer ' + key;
       const send = () => fetch(url, { method: 'POST', signal: ctl.signal, headers, body: j({ model, messages: msgs, stream: true, max_tokens: maxTok }) });
-      let r = await send();
+      let r;
+      try { r = await send(); }
+      catch (e) {
+        // A MATRIX model stays in the pickers while its weights are on disk, so a
+        // stopped engine is an expected state — not a reason to show the owner undici's
+        // "fetch failed". Name what is wrong and what to press.
+        if (cfg.provider !== 'matrix' || (e && e.name === 'AbortError')) throw e;
+        let hint = '';
+        try {
+          const { Matrix } = await import('../../matrix.mjs');
+          const s = await Matrix.status();
+          hint = s.engineFound ? '' : ' (no engine binary at ' + s.enginePath + ')';
+        } catch { /* the message below is still the useful part */ }
+        res.end('\x00ERR\x00MATRIX did not answer on ' + base.replace(/\/v\d+$/, '') + ' — open MATRIX and press START ENGINE' + hint);
+        clearTimeout(to); return;
+      }
       // MATRIX cluster: on-disk model with no instance → 404. Launch it once, wait, retry.
       if (!r.ok && r.status === 404 && cfg.provider === 'matrix') {
         const t = await r.text().catch(() => '');
         if (/no instance/i.test(t) && await matrixEnsureInstance(base, model, ctl.signal)) {
           for (let i = 0; i < 40 && !ctl.signal.aborted; i++) {
             await new Promise((s) => setTimeout(s, 1500));
+            try { await r.body?.cancel(); } catch { /* an unread body pins a socket for the whole retry loop */ }
             r = await send();
             if (r.ok || r.status !== 404) break;
           }
           if (r.ok) { clearTimeout(to); to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT); } // fresh window for generation
         }
-        if (!r.ok) { res.end('\x00ERR\x00' + r.status + ' ' + (t || '').slice(0, 300)); clearTimeout(to); return; }
+        // Frame the FINAL response, not the first 404: pairing the newest status with
+        // the oldest body hid every real reason a launch failed.
+        if (!r.ok) {
+          const t2 = await r.text().catch(() => '');
+          res.end('\x00ERR\x00' + r.status + ' ' + (t2 || t || '').slice(0, 300)); clearTimeout(to); return;
+        }
       }
       if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); res.end('\x00ERR\x00' + r.status + ' ' + t.slice(0, 300)); clearTimeout(to); return; }
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';

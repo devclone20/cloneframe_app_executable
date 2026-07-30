@@ -118,7 +118,13 @@ export function nextRun(cron, from = new Date()) {
   const d = new Date(from.getTime());
   d.setSeconds(0, 0);
   d.setMinutes(d.getMinutes() + 1); // strictly after `from`
-  const CAP = 366 * 24 * 60 + 1; // ~1 year of minutes
+  // Four years, not one. `0 0 29 2 *` — 29 February, a perfectly legitimate schedule — has
+  // its next occurrence up to ~4 years out, so a one-year window returned null for it and the
+  // task was filed as unschedulable alongside genuinely impossible ones like 30 February.
+  // Measured from 2026-07-30: a valid leap-day cron now resolves in ~52 ms; the full negative
+  // scan for a truly impossible date costs ~240 ms. Both are paid at add/update/setState time
+  // only — tick() reads the stored nextRunAt and never walks this loop.
+  const CAP = 1462 * 24 * 60 + 1; // ~4 years of minutes — one full leap cycle
   for (let i = 0; i < CAP; i++) {
     if (
       c.minute.has(d.getMinutes()) &&
@@ -248,7 +254,11 @@ function builtinSeeds() {
     prompt: null,
     sessionId: t.id,
     lastRunAt: null,
-    nextRunAt: nextRunISO(t.cron),
+    // paused ⇒ nextRunAt null. setState() has always enforced that invariant
+    // (`state === 'running' ? nextRunISO(t.cron) : null`) and the two places that CREATE a task
+    // did not, so every built-in the owner has never enabled advertised "· next 12:00:00 PM" —
+    // a time nothing would honour, which then sat there going stale forever.
+    nextRunAt: null,
   }));
 }
 
@@ -269,9 +279,15 @@ export function init() {
   } else {
     store = { version: STORE_VERSION, pausedAll: false, tasks: builtinSeeds() };
   }
-  // Recompute nextRunAt defensively for running tasks with none set.
+  // Normalise nextRunAt to the invariant, in BOTH directions — running ⇒ has one, paused ⇒ none.
+  // Only the first half existed, so records written before that invariant was enforced at
+  // creation still carry a phantom time: on this machine the two built-in email tasks the owner
+  // had never enabled were advertising 2026-07-09, three weeks in the past and getting staler
+  // every day. Clearing it destroys nothing — by the module's own rule the value was meaningless
+  // — and a paused task that starts gets a fresh one from setState().
   for (const t of store.tasks) {
     if (t.state === 'running' && !t.nextRunAt) t.nextRunAt = nextRunISO(t.cron);
+    else if (t.state !== 'running' && t.nextRunAt) t.nextRunAt = null;
   }
   persistStore();
   loaded = true;
@@ -350,7 +366,16 @@ async function runTask(task, scheduled) {
   if (live) {
     live.lastRunAt = finishedAt;
     if (scheduled || live.state === 'running') live.nextRunAt = nextRunISO(live.cron, new Date());
-    try { persistStore(); } catch {}
+    // This write is the schedule advancing. Swallowing its failure meant a task that HAD run
+    // kept its old nextRunAt and ran again at the same time — repeatedly, on a full or
+    // read-only disk — with lastRunAt never recorded either, so the run log said it never
+    // happened. Nothing on screen, nothing in the log, and the one visible symptom was the
+    // work being done twice. The daemon cannot toast from inside tick(); a console line is
+    // what it has, and it goes to the bridge log the owner already reads for staleness.
+    try { persistStore(); } catch (e) {
+      console.error('tasks: could not save the schedule after running "' + (live.name || live.id) +
+        '" — it may run again at the same time. ' + ((e && e.message) || e));
+    }
   }
   return { ok: true, run };
 }
@@ -600,6 +625,12 @@ export function add({ name, category, cron, prompt, action, config } = {}) {
   } catch (e) {
     return { ok: false, error: `invalid cron: ${e.message}` };
   }
+  // parseCron only checks the SHAPE. `0 0 30 2 *` parses fine and describes a date that does
+  // not exist, so the task stored nextRunAt:null, rendered as ACTIVE, and never ran — no
+  // error, no run-log entry, nothing to notice. A schedule with no run date is not a schedule.
+  if (!nextRun(cron)) {
+    return { ok: false, error: 'that schedule never comes round (e.g. 30 February) — pick a date that exists' };
+  }
   const act = action || 'custom';
   if (act === 'custom' && (!prompt || !String(prompt).trim())) {
     return { ok: false, error: 'custom tasks require a prompt' };
@@ -617,7 +648,7 @@ export function add({ name, category, cron, prompt, action, config } = {}) {
     state: 'paused',
     sessionId: id,
     lastRunAt: null,
-    nextRunAt: nextRunISO(cron),
+    nextRunAt: null,          // paused ⇒ no next run; setState() fills it in when it starts
     description: '',
   };
   store.tasks.push(task);
@@ -637,13 +668,19 @@ export function update(id, patch = {}) {
     } catch (e) {
       return { ok: false, error: `invalid cron: ${e.message}` };
     }
+    // Same guard as add(): a shape that parses can still name a date that never arrives.
+    // Editing a working task's cron to one of those must not silently retire it.
+    if (!nextRun(patch.cron)) {
+      return { ok: false, error: 'that schedule never comes round (e.g. 30 February) — pick a date that exists' };
+    }
   }
   for (const [k, v] of Object.entries(patch)) {
     if (!EDITABLE.has(k)) continue;
     if (t.isBuiltin && (k === 'prompt' || k === 'category')) continue; // built-ins keep their action/category
     t[k] = v;
   }
-  if (patch.cron !== undefined) t.nextRunAt = nextRunISO(t.cron);
+  // Recomputing on a PAUSED task re-created the phantom next run this fix removes.
+  if (patch.cron !== undefined) t.nextRunAt = t.state === 'running' ? nextRunISO(t.cron) : null;
   persistStore();
   return { ok: true };
 }

@@ -13,6 +13,7 @@
 // bash) lives in the `clone-frame` extension, not here. Zero npm deps — Node built-ins only.
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn, spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -37,8 +38,17 @@ function piBin() {
   _piBin = p || 'pi';
   return _piBin;
 }
+// `pi --version` is a process spawn (~350ms) that blocks the WHOLE daemon — every panel,
+// every stream, every other session. handlePiChat called it twice per message. It answers the
+// same thing until pi is upgraded, so cache it; a short TTL still notices an upgrade.
+let _ver = { at: 0, v: null };
+const VER_TTL = 60_000;
 function piVersion() {
-  try { const r = spawnSync(piBin(), ['--version'], { encoding: 'utf8', timeout: 5000 }); return (r.stdout || '').trim() || null; } catch { return null; }
+  if (_ver.at && Date.now() - _ver.at < VER_TTL) return _ver.v;
+  let v = null;
+  try { const r = spawnSync(piBin(), ['--version'], { encoding: 'utf8', timeout: 5000 }); v = (r.stdout || '').trim() || null; } catch { v = null; }
+  _ver = { at: Date.now(), v };
+  return v;
 }
 
 // ── install / keep the agent workspace in step with the bundle ────────────────
@@ -56,17 +66,49 @@ function newestMtime(dir) {
   }
   return max;
 }
-function ensureWorkspace() {
+// Documents the OWNER may edit through the app (Pi.saveDoc) — an app update must never
+// silently overwrite their words. We remember the hash of what WE last wrote; if the file on
+// disk no longer matches it, the owner (or pi) changed it and it is theirs. `force:true`
+// cpSync had no such notion: refreshTree() writes STRUCTURE.md into the bundle, which makes
+// the whole tree "newer", which overwrote an edited AGENTS.md on the very next chat message.
+const OWNED = ['AGENTS.md', path.join('.pi', 'APPEND_SYSTEM.md')];
+const SYNC_STATE = path.join(CONFIG_DIR, 'agent-sync.json');
+const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+function readSyncState() { try { return JSON.parse(fs.readFileSync(SYNC_STATE, 'utf8')) || {}; } catch { return {}; } }
+function writeSyncState(s) { try { fs.writeFileSync(SYNC_STATE, JSON.stringify(s, null, 2), { mode: 0o600 }); } catch { /* best effort */ } }
+function ownerEdited(rel, state) {
+  const dest = path.join(WORKSPACE, rel);
+  let cur; try { cur = fs.readFileSync(dest); } catch { return false; }   // absent → nothing to protect
+  const last = state[rel];
+  return !last || sha(cur) !== last;                                      // no record OR diverged → theirs
+}
+
+// The mtime walk is ~2200 statSync calls. It ran on EVERY chat message (install() →
+// ensureWorkspace) and blocked the daemon's single thread each time. The bundle only changes
+// when the app is rebuilt, so a short TTL is honest; refreshTree() passes force.
+let _wsCheck = 0;
+const WS_TTL = 30_000;
+function ensureWorkspace({ force = false } = {}) {
   try {
     if (!fs.existsSync(WORKSPACE_SRC)) return { ok: false, error: 'bundle agent/ missing' };
-    // cpSync stamps dest files with the copy time, so the workspace AGENTS.md mtime is a
-    // reliable "last sync" marker; if any bundle file is newer, re-sync the whole tree. cpSync
-    // overwrites matching files but never deletes dest-only files, so a user's pi-written
-    // .pi/APPEND_SYSTEM.md (their soul) survives.
+    if (!force && _wsCheck && Date.now() - _wsCheck < WS_TTL) return { ok: true, workspace: WORKSPACE, extension: EXT, cached: true };
+    _wsCheck = Date.now();
     let stale = true;
     try { stale = newestMtime(WORKSPACE_SRC) > fs.statSync(path.join(WORKSPACE, 'AGENTS.md')).mtimeMs; } catch { stale = true; }
-    if (stale) { fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 }); fs.cpSync(WORKSPACE_SRC, WORKSPACE, { recursive: true, force: true }); }
-    return { ok: true, workspace: WORKSPACE, extension: EXT };
+    if (!stale) return { ok: true, workspace: WORKSPACE, extension: EXT };
+    const state = readSyncState();
+    const kept = OWNED.filter((rel) => ownerEdited(rel, state));
+    const skip = new Set(kept.map((rel) => path.join(WORKSPACE, rel)));
+    fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    // cpSync overwrites matching files but never deletes dest-only files, so anything pi wrote
+    // into the workspace survives; the filter additionally spares the owner's own documents.
+    fs.cpSync(WORKSPACE_SRC, WORKSPACE, { recursive: true, force: true, filter: (_src, dest) => !skip.has(dest) });
+    for (const rel of OWNED) {
+      if (skip.has(path.join(WORKSPACE, rel))) continue;
+      try { state[rel] = sha(fs.readFileSync(path.join(WORKSPACE, rel))); } catch { delete state[rel]; }
+    }
+    writeSyncState(state);
+    return { ok: true, workspace: WORKSPACE, extension: EXT, kept };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
 
@@ -82,7 +124,9 @@ function installLauncher() {
       + `export PATH="${BIN_DIR}:$PATH"\n`
       + `cd "${WORKSPACE}" || exit 1\n`
       + `exec "${piBin()}" -a -e "${EXT}" "$@"\n`;
-    fs.writeFileSync(LAUNCHER, sh, { mode: 0o755 });
+    // Only write when the content actually changes — this ran on every chat message.
+    let cur = ''; try { cur = fs.readFileSync(LAUNCHER, 'utf8'); } catch {}
+    if (cur !== sh) fs.writeFileSync(LAUNCHER, sh, { mode: 0o755 });
     return { ok: true, path: LAUNCHER };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
@@ -109,16 +153,24 @@ async function resolveModel(picked) {
   const i = p.indexOf('::');
   if (!p || p === 'pi' || i < 0) return { key: '__pi__', spec: null, model: null, provider: null };
   const providerId = p.slice(0, i), modelId = p.slice(i + 2);
-  let cfg = null;
-  try { const M = await import('./models.mjs'); const Models = M.Models || M.default || M; cfg = Models._streamConfig && Models._streamConfig(providerId); } catch {}
-  if (!cfg || !modelId) return { key: '__pi__', spec: null, model: null, provider: null };
+  let cfg = null, why = '';
+  try { const M = await import('./models.mjs'); const Models = M.Models || M.default || M; cfg = Models._streamConfig && Models._streamConfig(providerId); }
+  catch (e) { why = 'the model registry could not be read (' + ((e && e.message) || e) + ')'; }
+  // An unresolvable pick used to fall through to pi's OWN default model: the picker said one
+  // engine and a different one answered, with nothing anywhere to notice it. A model the owner
+  // chose either runs or says why — it never gets silently swapped.
+  if (!cfg) return { error: why || 'the provider "' + providerId + '" is no longer connected — pick a model again in the CODE picker' };
+  if (!modelId) return { error: 'no model id in "' + p + '" — pick a model again in the CODE picker' };
   const anthropic = !!cfg.anthropic;
   let base = String(cfg.baseUrl || (anthropic ? 'https://api.anthropic.com' : '')).replace(/\/+$/, '');
   if (anthropic) base = base.replace(/\/v\d+$/, '');                 // pi's anthropic-messages appends /v1/messages
-  else if (base && !/\/v\d+$/.test(base)) base += '/v1';            // openai-completions wants the /vN base
+  // openai-completions wants the /vN base. Match a version segment ANYWHERE at the tail, not
+  // only a bare trailing /vN: Google's base is `…/v1beta/openai`, and blindly appending made
+  // every Gemini request 404 on `…/v1beta/openai/v1`.
+  else if (base && !/\/v\d+[a-z]*(\/[^/]*)?$/i.test(base)) base += '/v1';
   return {
     key: p, model: modelId, provider: cfg.provider || providerId,
-    spec: { baseUrl: base || (anthropic ? 'https://api.anthropic.com' : ''), api: anthropic ? 'anthropic-messages' : 'openai-completions', model: modelId, apiKey: cfg.apiKey || 'none' },
+    spec: { baseUrl: base || (anthropic ? 'https://api.anthropic.com' : ''), api: anthropic ? 'anthropic-messages' : 'openai-completions', model: modelId, apiKey: cfg.apiKey || 'none', providerId },
   };
 }
 
@@ -127,26 +179,87 @@ async function resolveModel(picked) {
 // NEVER mutated. models.json defines the picked provider (key resolved from $CFHUB_PI_APIKEY at
 // request time — never on disk); shared resources (pi-web-access packages, logins, model cache)
 // are symlinked in from the real dir so they still work.
-function buildRuntimeDir(modelKey, spec) {
+// ── the LLM relay: pi never holds the owner's provider key ────────────────────
+// pi runs bash with no sandbox (the owner's YOLO choice), and every child it spawns inherits
+// its environment — so putting the real provider key in CFHUB_PI_APIKEY meant one injected
+// `echo $CFHUB_PI_APIKEY` in any page pi reads could walk off with it. Instead pi gets a
+// random LOOPBACK-ONLY capability: it talks to this bridge, and the bridge — which already
+// holds the key — attaches it on the way out. Leaking the capability costs the owner nothing
+// beyond this machine, and it dies with the session.
+const RELAY = new Map();   // token → { baseUrl, apiKey, anthropic, providerId, sessionId }
+const BRIDGE_ORIGIN = () => process.env.CFHUB_BRIDGE || ('http://127.0.0.1:' + (process.env.HUB_BRIDGE_PORT || 8765));
+function mintRelay(sessionId, spec) {
+  for (const [t, v] of RELAY) if (v.sessionId === sessionId) RELAY.delete(t);   // one live token per session
+  const token = crypto.randomBytes(32).toString('hex');
+  RELAY.set(token, { baseUrl: spec.baseUrl, apiKey: spec.apiKey, anthropic: spec.api === 'anthropic-messages', providerId: spec.providerId || '', sessionId });
+  return token;
+}
+function dropRelay(sessionId) { for (const [t, v] of RELAY) if (v.sessionId === sessionId) RELAY.delete(t); }
+// Forward one upstream call, swapping the capability for the real credential. Streams the
+// response body straight through so token-by-token output keeps flowing.
+async function handleRelay(req, res, rest) {
+  const slash = rest.indexOf('/');
+  const token = slash < 0 ? rest : rest.slice(0, slash);
+  const tail = slash < 0 ? '' : rest.slice(slash);
+  const cfg = RELAY.get(token);
+  // Also accept the capability in the Authorization header (pi sends it there too) — but the
+  // path token is what is matched, so an unknown token never reaches a provider.
+  if (!cfg) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end('{"error":"unknown relay token"}'); return; }
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const body = chunks.length ? Buffer.concat(chunks) : undefined;
+  const headers = { 'Content-Type': req.headers['content-type'] || 'application/json' };
+  if (cfg.anthropic) { headers['x-api-key'] = cfg.apiKey; headers['anthropic-version'] = req.headers['anthropic-version'] || '2023-06-01'; }
+  else headers.Authorization = 'Bearer ' + cfg.apiKey;
+  if (req.headers.accept) headers.Accept = req.headers.accept;
+  let up;
+  try { up = await fetch(cfg.baseUrl + tail, { method: req.method, headers, body, duplex: 'half' }); }
+  catch (e) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'the model provider could not be reached: ' + ((e && e.message) || e) })); return; }
+  const out = { 'Content-Type': up.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-cache, no-transform' };
+  res.writeHead(up.status, out);
+  if (!up.body) { res.end(); return; }
+  try { for await (const c of up.body) res.write(Buffer.from(c)); } catch { /* client left */ }
+  res.end();
+}
+
+// What pi is told about the model. contextWindow/maxTokens used to be hardcoded 200k/8192 for
+// EVERY provider model — long answers were cut at 8k output tokens and small-context models
+// silently overran their real window. The registry knows better when it knows anything.
+function modelLimits(spec) {
+  const id = String(spec.model || '').toLowerCase();
+  const ctx = /gpt-4o|o[1-4]|claude|gemini|llama-?3\.[123]|qwen|deepseek/.test(id) ? 200000 : 128000;
+  const max = /claude|gpt-4o|gemini|o[1-4]/.test(id) ? 32000 : 8192;
+  return { contextWindow: ctx, maxTokens: max };
+}
+function buildRuntimeDir(modelKey, spec, relayToken) {
   const safe = String(modelKey).replace(/[^\w.-]/g, '_').slice(0, 80) || 'model';
   const rt = path.join(CONFIG_DIR, 'pi-runtime', safe);
   fs.mkdirSync(rt, { recursive: true, mode: 0o700 });
+  const lim = modelLimits(spec);
+  // baseUrl points at THIS bridge; the real provider URL and key stay in the daemon.
+  const base = relayToken ? (BRIDGE_ORIGIN() + '/llm/' + relayToken) : spec.baseUrl;
   fs.writeFileSync(path.join(rt, 'models.json'), JSON.stringify({ providers: { cfhub: {
-    baseUrl: spec.baseUrl, api: spec.api, apiKey: '$CFHUB_PI_APIKEY', authHeader: true,
-    models: [{ id: spec.model, name: spec.model, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 8192 }],
+    baseUrl: base, api: spec.api, apiKey: '$CFHUB_PI_APIKEY', authHeader: true,
+    models: [{ id: spec.model, name: spec.model, reasoning: false, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: lim.contextWindow, maxTokens: lim.maxTokens }],
   } } }, null, 2));
   let ubase = {};
   try { ubase = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.pi', 'agent', 'settings.json'), 'utf8')); } catch {}
   fs.writeFileSync(path.join(rt, 'settings.json'), JSON.stringify({ theme: ubase.theme, enableSkillCommands: ubase.enableSkillCommands !== false, packages: ubase.packages || ['npm:pi-web-access'], defaultProvider: 'cfhub', defaultModel: spec.model, defaultThinkingLevel: 'off' }, null, 2));
-  for (const l of ['npm', 'auth.json', 'models-store.json']) {
+  // Shared resources only. auth.json is deliberately NOT linked: it used to be symlinked
+  // read-write, so pi persisting a model wrote THROUGH the link into the owner's global
+  // credentials, and a provider-picked session could authenticate as any other login it found
+  // there. This session's only credential is the relay token — it needs nothing from that file.
+  for (const l of ['npm', 'models-store.json']) {
     const s = path.join(os.homedir(), '.pi', 'agent', l), d = path.join(rt, l);
     try { if (fs.existsSync(s) && !fs.existsSync(d)) fs.symlinkSync(s, d); } catch {}
   }
+  try { fs.rmSync(path.join(rt, 'auth.json'), { force: true }); } catch {}   // retire the old link
   return rt;
 }
 function status() {
   const version = piVersion();
   const m = piModel();
+  const state = readSyncState();
   return {
     ok: true,
     installed: !!version, version,
@@ -158,15 +271,20 @@ function status() {
     webAccess: webAccessInstalled(),
     model: m.model, provider: m.provider,
     sessions: SESSIONS.size,
+    // Which shipped documents the owner has taken over — an app update leaves these alone,
+    // so the panel can say "yours is kept" instead of the update silently losing or winning.
+    ownEdited: OWNED.filter((rel) => ownerEdited(rel, state)),
   };
 }
 
 // Install everything the app needs for pi (idempotent) — called from Settings and at boot.
-function install() {
+// `light` is the per-message path: it must not walk 2000 files, rewrite the launcher or sweep
+// scratch on every single thing the owner types (that cost the whole daemon ~0.7s a message).
+function install({ light = false } = {}) {
   const w = ensureWorkspace();
   const l = installLauncher();
-  purgeOrphanScratch();
-  return { ok: w.ok && l.ok, workspace: w, launcher: l, status: status() };
+  if (!light) purgeOrphanScratch();
+  return { ok: w.ok && l.ok, workspace: w, launcher: l, status: light ? null : status() };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -177,6 +295,42 @@ const IDLE_MS = 30 * 60 * 1000;   // reap a session process after 30 min idle
 const MAX_SESSIONS = 8;
 
 function jsonl(obj) { return JSON.stringify(obj) + '\n'; }
+
+// ── handing a fresh process the conversation it is joining ────────────────────
+// A pi process holds a CODE conversation entirely in memory (--no-session, nothing on disk).
+// Any of: first message, model switch, the 30-minute idle reaper, an LRU eviction, a bridge
+// restart, or reopening a closed CODE window — starts a NEW process with no memory, while the
+// panel keeps showing every turn. The agent then answered as if the conversation had never
+// happened. The client sends the transcript; this frames it so pi treats it as its own past
+// without re-running tools it already ran.
+const HIST_CHARS = 24_000;      // newest-first budget; a long conversation keeps its tail
+function historyPreamble(history) {
+  if (!Array.isArray(history) || !history.length) return '';
+  const rows = [];
+  let used = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (!m || typeof m !== 'object') continue;
+    const who = m.role === 'assistant' || m.role === 'ai' ? 'YOU' : m.role === 'user' ? 'OWNER' : '';
+    if (!who) continue;
+    let body = String(m.content == null ? '' : m.content).trim();
+    if (!body) continue;
+    if (body.length > 4000) body = body.slice(0, 4000) + '\n…[truncated]';
+    const row = who + ': ' + body;
+    if (used + row.length > HIST_CHARS) break;
+    used += row.length;
+    rows.unshift(row);
+  }
+  if (!rows.length) return '';
+  const dropped = history.length - rows.length;
+  return '<conversation_so_far>\n'
+    + 'You are continuing an existing conversation with the owner. The exchange below is YOUR OWN'
+    + ' memory of it — a previous process of yours held it and that process is gone, so it is'
+    + ' replayed here. Treat it as what you already know and already did: do NOT redo tool calls'
+    + ' whose results appear below, and do not greet the owner as if this were the first message.\n'
+    + (dropped > 0 ? '(' + dropped + ' earlier turn' + (dropped === 1 ? '' : 's') + ' omitted for length.)\n' : '')
+    + '\n' + rows.join('\n\n') + '\n</conversation_so_far>\n\nThe owner now says:\n\n';
+}
 
 class PiSession {
   constructor(id) {
@@ -191,26 +345,46 @@ class PiSession {
     this.model = null; this.provider = null; this.spec = null;
     this.waiting = new Map(); // id → pending request() round-trip
     this.quietT = null;       // extension-command completion timer (see _armQuietEnd)
+    // A turn is a numbered thing. Without this, the late `agent_settled` of an ABORTED turn
+    // closed the NEXT turn's stream: the button flipped back to ↑ and the bubble ended
+    // "(no reply)" while pi went on working, invisibly, on the message the owner had just sent.
+    this.turn = 0;
+    this.resTurn = 0;
+    this.busy = false;      // pi's agent loop is running (its own view, not the HTTP stream's)
+    this.primed = false;    // has THIS process been given the conversation so far?
+    this.stderr = '';       // last diagnostics, for when pi dies at spawn
   }
   spawn() {
     // BYOK. Default: pi runs on the owner's own model in their real ~/.pi. When the owner picked
     // a model in CODE (spec set), run in an ISOLATED agent dir (models.json defines it) so pi's
-    // model persistence never touches their global config; the key goes via env, resolved on use.
+    // model persistence never touches their global config. The credential pi gets is a
+    // loopback relay token, never the owner's provider key — see mintRelay/handleRelay.
     let extraArgs = [], relEnv = {};
     if (this.spec) {
-      relEnv = { PI_CODING_AGENT_DIR: buildRuntimeDir(this.modelKey, this.spec), CFHUB_PI_APIKEY: this.spec.apiKey };
+      const token = mintRelay(this.id, this.spec);
+      relEnv = { PI_CODING_AGENT_DIR: buildRuntimeDir(this.modelKey, this.spec, token), CFHUB_PI_APIKEY: token };
       extraArgs = ['--provider', 'cfhub', '--model', this.spec.model];
-    }
+    } else dropRelay(this.id);
     const env = { ...process.env, PATH: BIN_DIR + ':' + (process.env.PATH || ''), PI_SKIP_VERSION_CHECK: '1', ...relEnv };
     const p = spawn(piBin(), ['--mode', 'rpc', '--no-session', '-a', ...extraArgs, '-e', EXT], { cwd: WORKSPACE, env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc = p;
+    this.primed = false;   // a NEW process remembers nothing — it must be told the conversation
+    this.busy = false;
     p.stdout.setEncoding('utf8');
     p.stdout.on('data', (d) => this._onStdout(d));
-    p.stderr.on('data', () => {}); // pi diagnostics; ignore (never surfaces keys)
+    // pi's stderr was discarded, so a death at spawn (bad auth, an extension that will not
+    // compile, a model that does not exist) reached the owner as a bare "the pi agent exited".
+    p.stderr.setEncoding('utf8');
+    p.stderr.on('data', (d) => { this.stderr = (this.stderr + d).slice(-2000); });
     // Guard on `this.proc === p`: a deliberate respawn (model change) nulls this.proc first, so the
     // old process's exit must NOT tear down the (new) session.
-    p.on('exit', () => { if (this.proc === p) { this._fail('the pi agent exited'); this.proc = null; SESSIONS.delete(this.id); } });
-    p.on('error', (e) => { if (this.proc === p) { this._fail('could not start pi: ' + (e && e.message)); this.proc = null; SESSIONS.delete(this.id); } });
+    p.on('exit', (code) => {
+      if (this.proc !== p) return;
+      const why = (this.stderr || '').trim().split('\n').filter(Boolean).pop() || '';
+      this._fail('the pi agent exited' + (code ? ' (code ' + code + ')' : '') + (why ? ' — ' + why.slice(0, 300) : ''));
+      this.proc = null; this.busy = false; dropRelay(this.id); SESSIONS.delete(this.id);
+    });
+    p.on('error', (e) => { if (this.proc === p) { this._fail('could not start pi: ' + (e && e.message)); this.proc = null; dropRelay(this.id); SESSIONS.delete(this.id); } });
   }
   _onStdout(chunk) {
     this.buf += chunk;
@@ -226,19 +400,37 @@ class PiSession {
   _write(frame) { if (this.res && !this.res.writableEnded) { try { this.res.write(jsonl(frame)); } catch {} } }
   _endTurn() { if (this.res && !this.res.writableEnded) { try { this.res.end(); } catch {} } this.res = null; }
   _fail(msg) { if (this.res) { this._write({ t: 'error', d: msg }); this._endTurn(); } }
+  // Close the stream ONLY if it still belongs to the turn that is finishing. A settle that
+  // arrives for turn N must never end the stream of turn N+1.
+  _endIfOwned(turn) { if (this.res && turn === this.resTurn) { this._write({ t: 'done' }); this._endTurn(); } }
   _onEvent(ev) {
     const type = ev && ev.type;
     if (type === 'message_update') {
       const a = ev.assistantMessageEvent;
+      this._live();   // text flowing IS agent activity — this could never be reached before
       if (a && a.type === 'text_delta' && a.delta) this._write({ t: 'text', d: a.delta });
       return;
     }
-    if (type === 'tool_execution_start') { this._write({ t: 'tool', phase: 'start', name: ev.toolName || 'tool', args: ev.args || {} }); return; }
+    // A failed LLM call is reported as an assistant message that STOPPED with an error, not as
+    // an `error` event — so a bad key, a 401/429/5xx or a dead network produced a silent empty
+    // reply. Say it out loud.
+    if (type === 'message_end') {
+      this._live();
+      const m = ev.message || ev.assistantMessage || {};
+      const stop = String(m.stopReason || ev.stopReason || '');
+      if (stop === 'error') this._write({ t: 'error', d: String(m.errorMessage || ev.error || 'the model provider refused the request — check the model and its API key') });
+      else if (stop === 'max_tokens') this._write({ t: 'error', d: 'the reply hit the model’s output limit and was cut short' });
+      return;
+    }
+    if (type === 'tool_execution_start') { this._live(); this._write({ t: 'tool', phase: 'start', id: ev.toolCallId || ev.id || '', name: ev.toolName || 'tool', args: ev.args || {} }); return; }
     if (type === 'tool_execution_end') {
+      this._live();
       let out = '';
       const c = ev.result && ev.result.content;
       if (Array.isArray(c)) out = c.filter((x) => x && x.type === 'text').map((x) => x.text).join('\n');
-      this._write({ t: 'tool', phase: 'end', name: ev.toolName || 'tool', ok: !ev.isError, result: String(out).slice(0, 600) });
+      // Carry pi's own call id: the panel used to pair start/end by NAME, so two concurrent
+      // tools with the same name swapped results and a stray end corrupted an unrelated line.
+      this._write({ t: 'tool', phase: 'end', id: ev.toolCallId || ev.id || '', name: ev.toolName || 'tool', ok: !ev.isError, result: String(out).slice(0, 600) });
       return;
     }
     if (type === 'extension_ui_request') {
@@ -259,29 +451,49 @@ class PiSession {
     if (type === 'response') {
       const p = this.waiting.get(ev.id);
       if (p) { this.waiting.delete(ev.id); clearTimeout(p.timer); p.resolve(ev); return; }
+      if (ev.command === 'abort') { this.busy = false; return; }
       // A prompt that pi handled as an EXTENSION COMMAND runs no agent turn at all, so
       // agent_settled never comes. Without this the stream hung forever (/subgoal: 34s of
       // silence). Arm a short quiet-timer here; any agent activity cancels it.
       if (ev.command === 'prompt') {
-        if (ev.success === false) { this._write({ t: 'error', d: String(ev.error || 'pi refused the prompt') }); this._endTurn(); return; }
+        if (ev.success === false) {
+          this.busy = false;
+          this._write({ t: 'error', d: String(ev.error || 'pi refused the prompt') }); this._endTurn(); return;
+        }
         this._armQuietEnd();
       }
       return;
     }
-    if (type === 'error') { this._write({ t: 'error', d: String((ev.error && ev.error.message) || ev.message || 'error') }); return; }
-    if (type === 'agent_settled') { this._live(); this._write({ t: 'done' }); this._endTurn(); return; }
-    if (type === 'agent_start' || type === 'agent_end' || type === 'message_update') this._live();
+    // An error event wrote its frame and then left the stream (and the panel's ■ button) open
+    // forever when no settle followed. An error that is not followed by activity ends the turn.
+    if (type === 'error') {
+      this._write({ t: 'error', d: String((ev.error && ev.error.message) || ev.message || 'error') });
+      this._armQuietEnd(1500);
+      return;
+    }
+    if (type === 'extension_error') { this._write({ t: 'error', d: 'an agent extension failed: ' + String(ev.error || '').slice(0, 300) }); return; }
+    if (type === 'agent_settled') { this._clearQuiet(); this.busy = false; this._endIfOwned(this.turn); return; }
+    if (type === 'agent_start') { this.busy = true; this._live(); return; }
+    if (type === 'agent_end' || type === 'turn_start' || type === 'turn_end' || type === 'message_start') this._live();
   }
 
   // ── turn-completion safety net ───────────────────────────────────────────────
   // A turn ends on agent_settled. Extension commands never emit it, so we close the
   // stream once the command has had time to speak (its notify text is already through).
+  // Bound to the turn that armed it: a stale timer must not close a newer stream.
   _armQuietEnd(ms = 2500) {
     this._clearQuiet();
-    this.quietT = setTimeout(() => { this.quietT = null; if (this.res) { this._write({ t: 'done' }); this._endTurn(); } }, ms);
+    const mine = this.turn;
+    this.quietT = setTimeout(() => { this.quietT = null; this._endIfOwned(mine); }, ms);
   }
   _clearQuiet() { if (this.quietT) { clearTimeout(this.quietT); this.quietT = null; } }
   _live() { this._clearQuiet(); } // real agent activity → this is a normal turn after all
+  // Nothing may outlive the process that owned it: a dead pi left get_state/get_commands
+  // round-trips hanging until each individual timeout fired.
+  _rejectWaiting(why) {
+    for (const [, p] of this.waiting) { clearTimeout(p.timer); try { p.reject(new Error(why)); } catch {} }
+    this.waiting.clear();
+  }
 
   // One request/response round-trip on the same RPC channel (get_commands, get_state…).
   async request(type, extra = {}, timeoutMs = 4000) {
@@ -312,23 +524,70 @@ class PiSession {
     catch { /* old pi / slow boot: continue anyway */ }
     this.booting = false;
   }
-  async prompt(res, message, resolved, images) {
+  // After ■ we tell pi to abort, but pi needs a moment to unwind its own turn. The next
+  // message used to be fired straight at it and REFUSED ("Agent is already processing"),
+  // so the owner's message vanished. Wait for the settle instead — briefly, then force it.
+  async _settle(ms = 4000) {
+    if (!this.busy) return true;
+    const t0 = Date.now();
+    while (this.busy && Date.now() - t0 < ms) await new Promise((r) => setTimeout(r, 40));
+    return !this.busy;
+  }
+  async prompt(res, message, resolved, images, history) {
     this.lastUsed = Date.now();
     if (this.res) { try { res.write(jsonl({ t: 'error', d: 'the agent is still finishing the previous turn' })); res.end(); } catch {} return; }
     resolved = resolved || { key: '__pi__', env: {}, model: null, provider: null };
-    // Model switch → respawn this session's pi on the new engine. Fresh context (the browser
-    // keeps the visible history). Null this.proc BEFORE killing so the exit guard skips it.
-    if (this.proc && this.modelKey !== resolved.key) { const old = this.proc; this.proc = null; try { old.kill('SIGTERM'); } catch {} this.buf = ''; purgeSid(this.piSid); this.piSid = null; }
+    const turn = ++this.turn;
+    // Model switch → respawn this session's pi on the new engine. Null this.proc BEFORE
+    // killing so the exit guard skips it; the new process is un-primed, so the conversation
+    // below is replayed into it and the owner keeps their context across the switch.
+    if (this.proc && this.modelKey !== resolved.key) {
+      const old = this.proc; this.proc = null; this._rejectWaiting('the agent restarted on a new model');
+      try { old.kill('SIGTERM'); } catch {} this.buf = ''; this.busy = false;
+      purgeSid(this.piSid); this.piSid = null;
+    }
     this.modelKey = resolved.key; this.model = resolved.model; this.provider = resolved.provider; this.spec = resolved.spec || null;
-    this.res = res;
-    res.on('close', () => { if (this.res === res) { this.res = null; if (this.proc && this.proc.stdin.writable) { try { this.proc.stdin.write(jsonl({ type: 'abort' })); } catch {} } } });
+    this.res = res; this.resTurn = turn;
+    let gone = false;
+    res.on('close', () => {
+      gone = true;
+      if (this.res === res) { this.res = null; this._clearQuiet(); }
+      // Tell pi to stop even if the stream it was writing to is already gone.
+      if (this.proc && this.proc.stdin.writable) { try { this.proc.stdin.write(jsonl({ type: 'abort' })); } catch {} }
+    });
     try { await this.ensureUp(); } catch (e) { this._fail('could not start pi: ' + ((e && e.message) || e)); return; }
+    // The handshake can take seconds. If the owner left in that window, do NOT submit the
+    // prompt: it used to run a whole invisible turn that nobody could see or stop.
+    if (gone || this.res !== res) { this.res = null; return; }
     if (!this.proc || !this.proc.stdin.writable) { this._fail('pi is not running'); return; }
-    const cmd = { id: 'p' + (++this.seq), type: 'prompt', message: String(message || '') };
+    if (this.busy) {
+      await this._settle();
+      if (gone || this.res !== res) { this.res = null; return; }
+      if (this.busy) { this._fail('the agent is still stopping the previous turn — send again in a moment'); return; }
+    }
+    // Say which engine actually answers. The picker used to be the only claim about the
+    // model, and nothing in the stream could contradict it.
+    this._write({ t: 'meta', model: this.model || null, provider: this.provider || null, own: !this.spec, fresh: !this.primed });
+    // ── the conversation. pi runs with --no-session: everything it knows lives in THIS
+    // process's memory. When the process is new — first message, a model switch, the idle
+    // reaper, an eviction, a bridge restart — it knows nothing, while the panel still shows
+    // the whole transcript. That gap IS the "the agent has no context" complaint. Replay it.
+    let text = String(message || '');
+    if (!this.primed) {
+      const pre = historyPreamble(history);
+      if (pre) text = pre + text;
+    }
+    this.primed = true;
+    this.busy = true;
+    const cmd = { id: 'p' + (++this.seq), type: 'prompt', message: text };
     if (Array.isArray(images) && images.length) cmd.images = images; // pi RPC: prompt.images?: ImageContent[]
-    try { this.proc.stdin.write(jsonl(cmd)); } catch (e) { this._fail('write failed: ' + ((e && e.message) || e)); }
+    try { this.proc.stdin.write(jsonl(cmd)); } catch (e) { this.busy = false; this._fail('write failed: ' + ((e && e.message) || e)); }
   }
-  stop() { this._clearQuiet(); try { if (this.proc) this.proc.kill('SIGTERM'); } catch {} this.proc = null; this._endTurn(); }
+  stop() {
+    this._clearQuiet(); this._rejectWaiting('the agent was stopped');
+    try { if (this.proc) this.proc.kill('SIGTERM'); } catch {}
+    this.proc = null; this.busy = false; dropRelay(this.id); this._endTurn();
+  }
 }
 
 // ── conversation residue ─────────────────────────────────────────────────────
@@ -352,6 +611,11 @@ function purgeSid(sid) {
 // got to close (crash, kill -9, a bridge restart mid-turn). Called on install().
 function purgeOrphanScratch() {
   const live = new Set([...SESSIONS.values()].map((s) => s.piSid).filter(Boolean));
+  // A live session whose get_state handshake timed out has piSid === null, so it could not
+  // claim its own file and the sweep deleted it mid-goal. If ANY live session is unidentified,
+  // the sweep cannot prove a file is an orphan — so it sweeps nothing.
+  const unknown = [...SESSIONS.values()].some((s) => s.proc && !s.piSid);
+  if (unknown) return 0;
   let n = 0;
   try {
     for (const f of fs.readdirSync(path.join(WORKSPACE, '.pi'))) {
@@ -363,17 +627,24 @@ function purgeOrphanScratch() {
   return n;
 }
 
-// idle sweeper
+// idle sweeper. Reaping frees the machine's RAM, and the conversation survives it now: the
+// next message replays the transcript into a fresh process (see historyPreamble).
 setInterval(() => {
   const now = Date.now();
-  for (const [id, s] of SESSIONS) if (!s.res && now - s.lastUsed > IDLE_MS) { s.stop(); SESSIONS.delete(id); }
+  for (const [id, s] of SESSIONS) if (!s.res && !s.busy && now - s.lastUsed > IDLE_MS) { s.stop(); SESSIONS.delete(id); }
 }, 5 * 60 * 1000).unref();
 
+// The internal session used to LIST slash commands is not a conversation and must never
+// compete with one for a slot.
+const CMD_SESSION = '__commands__';
 function sessionFor(id) {
   let s = SESSIONS.get(id);
   if (!s) {
-    if (SESSIONS.size >= MAX_SESSIONS) { // evict the oldest idle one
-      let oldest = null; for (const [, v] of SESSIONS) if (!v.res && (!oldest || v.lastUsed < oldest.lastUsed)) oldest = v;
+    if (SESSIONS.size >= MAX_SESSIONS) {
+      // Evict the internal command session first, then the oldest idle REAL one. Listing
+      // commands used to be able to kill a live conversation's agent to make room for itself.
+      let oldest = SESSIONS.get(CMD_SESSION) && !SESSIONS.get(CMD_SESSION).res ? SESSIONS.get(CMD_SESSION) : null;
+      if (!oldest) for (const [, v] of SESSIONS) if (!v.res && !v.busy && (!oldest || v.lastUsed < oldest.lastUsed)) oldest = v;
       if (oldest) { oldest.stop(); SESSIONS.delete(oldest.id); }
     }
     s = new PiSession(id); SESSIONS.set(id, s);
@@ -381,17 +652,25 @@ function sessionFor(id) {
   return s;
 }
 
-// POST /pi-chat  { session, message }  → NDJSON stream of {t:'text'|'tool'|'error'|'done', …}
+// POST /pi-chat  { session, message, model, images, history }
+//   → NDJSON stream of {t:'meta'|'text'|'tool'|'error'|'done', …}
 async function handlePiChat(req, res, body, { streamHead }) {
-  const st = install(); // idempotent: workspace + launcher present before we spawn
+  const st = install({ light: true }); // cheap per-message check: never a 2000-file walk
   if (!piVersion()) { res.writeHead(501, { 'Content-Type': 'text/plain' }); res.end('pi is not installed — `npm i -g @earendil-works/pi-coding-agent`'); return; }
   if (!st.workspace || !st.workspace.ok) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('could not install the CLONE FRAME agent workspace'); return; }
   const id = String((body && body.session) || 'default').slice(0, 64);
   const message = (body && body.message) || '';
   if (!String(message).trim()) { res.writeHead(400, { 'Content-Type': 'text/plain' }); res.end('empty message'); return; }
-  streamHead(res);
   const resolved = await resolveModel(body && body.model);
-  sessionFor(id).prompt(res, message, resolved, _cleanImages(body && body.images));
+  // A model the owner picked that cannot be resolved is an ERROR, not an invitation to run
+  // something else. The stream says so and stops; nothing is sent to any LLM.
+  if (resolved.error) {
+    streamHead(res);
+    try { res.write(jsonl({ t: 'error', d: resolved.error })); res.end(); } catch {}
+    return;
+  }
+  streamHead(res);
+  sessionFor(id).prompt(res, message, resolved, _cleanImages(body && body.images), body && body.history);
 }
 
 // Owner-pasted images ride the prompt as pi RPC ImageContent[] — max 5, image/* only,
@@ -422,6 +701,7 @@ function end({ id } = {}) {
   const s = SESSIONS.get(key);
   const sid = s && s.piSid;
   if (s) { s.stop(); SESSIONS.delete(key); }
+  dropRelay(key);
   return { ok: true, ended: !!s, purged: purgeSid(sid) };
 }
 
@@ -451,9 +731,15 @@ async function buildFleetRuntime(opts) {
     const cls = (opts && opts.class) || readAgentClass(opts && opts.agent);
     const picked = (opts && opts.model) || await resolveFleetClass(cls);
     const resolved = await resolveModel(picked);
+    // An unresolvable class falls back to the owner's own pi login (BYOK) rather than to a
+    // wrong model — same rule as a CODE session, reported so the caller can say why.
+    if (resolved.error) return { ok: true, dir: null, env: {}, provider: null, model: null, class: cls, note: resolved.error };
     if (!resolved.spec) return { ok: true, dir: null, env: {}, provider: null, model: null, class: cls };
-    const rt = buildRuntimeDir('fleet-' + resolved.key, resolved.spec);
-    return { ok: true, dir: rt, env: { CFHUB_PI_APIKEY: resolved.spec.apiKey }, provider: 'cfhub', model: resolved.spec.model, class: cls };
+    // A child agent gets the same loopback capability, never the owner's provider key: the
+    // fleet runs bash too, and its environment is inherited by everything it spawns.
+    const token = mintRelay('fleet:' + resolved.key + ':' + crypto.randomBytes(6).toString('hex'), resolved.spec);
+    const rt = buildRuntimeDir('fleet-' + resolved.key, resolved.spec, token);
+    return { ok: true, dir: rt, env: { CFHUB_PI_APIKEY: token }, provider: 'cfhub', model: resolved.spec.model, class: cls };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
 
@@ -464,8 +750,10 @@ async function buildFleetRuntime(opts) {
 let CMD_CACHE = { at: 0, list: [] };
 async function commands({ fresh = false } = {}) {
   if (!fresh && CMD_CACHE.list.length && Date.now() - CMD_CACHE.at < 60_000) return { ok: true, commands: CMD_CACHE.list, cached: true };
-  const live = [...SESSIONS.values()].find((x) => x.proc && !x.res);
-  const s = live || sessionFor('__commands__');
+  // Borrow a live conversation's process when one is idle; only cold-spawn the internal
+  // session as a last resort (and it is the first thing evicted — see sessionFor).
+  const live = [...SESSIONS.values()].find((x) => x.proc && !x.res && !x.busy);
+  const s = live || sessionFor(CMD_SESSION);
   try {
     const r = await s.request('get_commands');
     const list = ((r && r.data && r.data.commands) || []).filter((c) => c && c.name);
@@ -649,18 +937,22 @@ function doc(name) {
 function refreshTree() {
   const script = path.join(BUNDLE, 'tools', 'gen-structure-tree.mjs');
   if (!fs.existsSync(script)) return { ok: false, error: 'the generator is not in this install' };
+  const file = path.join(WORKSPACE, 'STRUCTURE.md');
+  const stampOf = (p) => {
+    try { return (fs.readFileSync(p, 'utf8').slice(0, 600).match(/^Generated by .*$/m) || [''])[0]; } catch { return ''; }
+  };
+  // The generator only rewrites when the body actually differs, so the stamp is a real
+  // before/after signal now — worth capturing, because "regenerated" and "changed" are
+  // different facts and the owner is owed the second one, not the first.
+  const before = stampOf(file);
   const r = spawnSync(process.execPath, [script], { cwd: BUNDLE, encoding: 'utf8', timeout: 60_000 });
   if (r.error) return { ok: false, error: r.error.message };
   if (r.status !== 0) return { ok: false, error: (r.stderr || '').trim().slice(0, 400) || 'the generator failed' };
   try { ensureWorkspace(); } catch (e) { return { ok: false, error: 'generated, but the workspace copy failed: ' + ((e && e.message) || e) }; }
-  const file = path.join(WORKSPACE, 'STRUCTURE.md');
-  let bytes = 0, stamp = '';
-  try {
-    bytes = fs.statSync(file).size;
-    const head = fs.readFileSync(file, 'utf8').slice(0, 600);
-    stamp = (head.match(/^Generated by .*$/m) || [''])[0];
-  } catch {}
-  return { ok: true, bytes, stamp, file: file.replace(os.homedir(), '~') };
+  let bytes = 0;
+  try { bytes = fs.statSync(file).size; } catch {}
+  const stamp = stampOf(file);
+  return { ok: true, bytes, stamp, changed: !!stamp && stamp !== before, file: file.replace(os.homedir(), '~') };
 }
 
 /** Where each of these documents actually lives, so the owner can go and open it. */
@@ -676,8 +968,24 @@ function saveDoc(name, text) {
   if (!d) return { ok: false, error: 'unknown document' };
   if (!d.editable) return { ok: false, error: 'this one is generated from the real sources on every build — edit the sources, not the map' };
   if (typeof text !== 'string') return { ok: false, error: 'text is required' };
-  if (text.length > MAX_DOC) return { ok: false, error: 'too large' };
+  // BYTES, like doc() — not text.length. doc() measures st.size while this measured UTF-16
+  // units, so multi-byte text could pass here and land on disk ABOVE the limit, after which
+  // doc() would no longer hand it out and the document became uneditable by the very panel
+  // that had just written it.
+  if (Buffer.byteLength(text) > MAX_DOC) return { ok: false, error: 'too large' };
   const file = d.file();
+  // NEVER write back a document we did not hand out. Past MAX_DOC, doc() returns text:'' with
+  // editable:true, so the Body tab opened an EMPTY textarea over a real 600 KB curriculum and
+  // one click on Save replaced it with zero bytes. Worse, saveDoc does not re-record the sha,
+  // so ownerEdited() then treated the empty file as the owner's own work and ensureWorkspace()
+  // protected it from being restored from the bundle. The fleet ran that end to end under an
+  // isolated HOME: 614417 bytes → 0. Keying on the file's size on disk (not on the text being
+  // empty) is what makes this safe: a deliberate clear of a SMALL document still works.
+  try {
+    if (fs.statSync(file).size > MAX_DOC) {
+      return { ok: false, error: 'this document is too large to edit here — open it in FOLDERS' };
+    }
+  } catch { /* not there yet: a first write is fine */ }
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     fs.writeFileSync(file, text, { mode: 0o600 });
@@ -685,5 +993,5 @@ function saveDoc(name, text) {
   return { ok: true, bytes: Buffer.byteLength(text) };
 }
 
-export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, doc, docPaths, refreshTree, saveDoc, handlePiChat, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
+export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, doc, docPaths, refreshTree, saveDoc, handlePiChat, handleRelay, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
 export default Pi;

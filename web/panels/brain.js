@@ -45,7 +45,11 @@
 
   function wireBrain(p){
     const body=p.querySelector('#brnbody'),tabs=[...p.querySelectorAll('#brntabs .thp-tab')];
-    const BK=BRAIN_KEY,TYPES=['contact','fact','identity','preference','project'];
+    // The daemon's vocabulary is the only one there is (bridge/brain.mjs TOPICS), and topicOf()
+    // silently coerces anything outside it to 'fact'. This list used to carry a fifth value,
+    // 'contact', which therefore filed itself as 'fact' without saying so. Derived from
+    // TOPIC_NOTE — the same source the memory editor already uses — so the two cannot drift.
+    const BK=BRAIN_KEY;
     const dbCell=persisted(BK,null); let db=dbCell.get(); // kernel persisted (T-046)
     if(!db)db={memories:[],skills:[],memEnabled:true,skillsEnabled:true};
     // One-time: drop the four seeded "fabric patterns" that were never real skills.
@@ -78,17 +82,25 @@
         else mem.err=new Error((r&&r.error)||'could not read your memories');
       }catch(e){mem.err=e;mem.stale=STALE.test(String(e&&e.message||''))}
     }
-    // The browser store, handed over once. add() on the bridge refuses a repeat of the same
-    // text, so running this twice cannot duplicate anything.
+    // The browser store, handed over. add() on the bridge refuses a repeat of the same text
+    // (importMemories → add → duplicate:true, not written), so running this twice cannot
+    // duplicate anything — which is why the old `if(mem.total>0)return` guard was not
+    // protecting against duplication at all. What it did do was strand every legacy memory
+    // belonging to anyone whose machine store was already non-empty: the rows sat in
+    // localStorage, unread by this panel and invisible to the model, with nothing that would
+    // ever move them. Migrating unconditionally and CLEARING the handed-over copy afterwards
+    // makes it run once by construction instead of once by guard, and leaves no twin behind.
     async function migrateOnce(){
-      if(mem.total>0)return;
       let old=null;try{old=JSON.parse(localStorage.getItem(BRAIN_KEY)||'null')}catch(_){}
       const rows=(old&&Array.isArray(old.memories))?old.memories.filter(m=>m&&m.text):[];
       if(!rows.length)return;
       try{const r=await RPC('brain','importMemories',rows);
-        if(r&&r.ok&&r.added){Toast.show('Moved '+r.added+' memory(ies) onto your machine — pi can read them now');
-          const r2=await RPC('brain','list',{});if(r2&&r2.ok){mem.rows=r2.memories;mem.counts=r2.counts;mem.total=r2.total}
-          Bus.emit('brain:changed')}}catch(_){}
+        if(!r||r.ok===false)return;                       // keep the copy — nothing was handed over
+        old.memories=[];try{localStorage.setItem(BRAIN_KEY,JSON.stringify(old))}catch(_){}
+        db.memories=[];
+        if(r.added)Toast.show('Moved '+r.added+' memory(ies) onto your machine — pi can read them now');
+        const r2=await RPC('brain','list',{});if(r2&&r2.ok){mem.rows=r2.memories;mem.counts=r2.counts;mem.total=r2.total}
+        Bus.emit('brain:changed')}catch(_){}
     }
     function memRow(m){
       if(editId===m.id)return`<div class="brn-card sel"><textarea class="brn-ta" id="bmet">${escHtml(m.text)}</textarea><div class="brn-meta"><select id="bmety" class="brn-sel">${(mem.topics||Object.keys(TOPIC_NOTE)).map(t=>`<option${m.topic===t?' selected':''}>${t}</option>`).join('')}</select><button class="btn mini" id="bmesave">save</button><button class="btn mini" id="bmedel">delete</button><button class="btn mini" id="bmecancel">cancel</button></div></div>`;
@@ -266,7 +278,7 @@
     /* — add — */
     function renderAdd(){
       body.innerHTML=`<div class="brn-head"><b>Add Memory</b><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" id="bimp">Import</button><button class="btn mini" id="bexp">Export</button></span></div>
-        <div style="display:flex;gap:6px;margin-bottom:16px"><input class="brn-search" id="bamt" style="margin-bottom:0" placeholder="Add a memory — e.g. 'I prefer concise replies'"><select id="bamty" class="brn-sel">${TYPES.map(t=>`<option${t==='fact'?' selected':''}>${t}</option>`).join('')}</select><button class="btn mini" id="bamadd">＋ Add</button></div>
+        <div style="display:flex;gap:6px;margin-bottom:16px"><input class="brn-search" id="bamt" style="margin-bottom:0" placeholder="Add a memory — e.g. 'I prefer concise replies'"><select id="bamty" class="brn-sel">${(mem.topics||Object.keys(TOPIC_NOTE)).map(t=>`<option${t==='fact'?' selected':''}>${t}</option>`).join('')}</select><button class="btn mini" id="bamadd">＋ Add</button></div>
         <div class="brn-head"><b>Add Skill</b></div>
         <div style="display:flex;gap:6px;margin-bottom:10px"><input class="brn-search" id="basu" style="margin-bottom:0" placeholder="Import URL — e.g. GitHub tree link to a skill folder"><button class="btn mini" id="basimp">Import</button></div>
         <div class="acctform" style="padding:0;overflow:visible">
@@ -276,16 +288,57 @@
           <div class="af-row"><label>Tags</label><input id="basg" placeholder="comma, separated"></div>
           <div class="compose-actions" style="justify-content:flex-end"><button class="btn" id="basadd">ADD SKILL</button></div>
         </div>`;
-      const addMem=()=>{const t=body.querySelector('#bamt').value.trim();if(!t){Toast.show('Write the memory');return}db.memories.unshift({id:'m'+Date.now().toString(36),text:t,type:body.querySelector('#bamty').value,source:'manual',uses:0,ts:Date.now()});save();body.querySelector('#bamt').value='';Toast.show('Memory added')};
+      // The owner's memories live on his machine — every other control here (list, update,
+      // remove, tidy, setEnabled, the migration) goes through RPC('brain',…). This one wrote
+      // to a localStorage twin that the Memories tab never reads, so "Memory added" was false:
+      // the row never appeared, was never counted, and never reached the model. It could not
+      // even be rescued later, because migrateOnce() only runs while the machine store is
+      // EMPTY, and the owner already had memories in it.
+      const addMem=async()=>{
+        const el=body.querySelector('#bamt'),t=el.value.trim();
+        if(!t){Toast.show('Write the memory');return}
+        let r;try{r=await RPC('brain','add',{text:t,topic:body.querySelector('#bamty').value,source:'owner'})}
+        catch(e){Toast.show('Could not save it: '+friendlyErr((e&&e.message)||e));return}
+        if(!r||r.ok===false){Toast.show(friendlyErr((r&&r.error)||'could not save the memory'));return}
+        el.value='';
+        Toast.show(r.duplicate?'Already remembered':'Memory added');
+        Bus.emit('brain:changed');
+        await memLoad();
+      };
       body.querySelector('#bamadd').addEventListener('click',addMem);
       body.querySelector('#bamt').addEventListener('keydown',e=>{if(e.key==='Enter')addMem()});
-      body.querySelector('#bexp').addEventListener('click',()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({memories:db.memories,skills:db.skills},null,2)],{type:'application/json'}));a.download='brain-export.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);Toast.show('Exported brain-export.json')});
+      // Skills genuinely live in this browser (the daemon has no skills store); memories do
+      // not. Reading both from db meant the export said "Exported brain-export.json" over a
+      // file containing NONE of the owner's real memories — the worst kind of quiet failure,
+      // because he would only find out when he tried to restore from it.
+      body.querySelector('#bexp').addEventListener('click',async()=>{
+        let mems=[];
+        try{const r=await RPC('brain','list',{});if(!r||r.ok===false)throw new Error((r&&r.error)||'could not read your memories');mems=r.memories||[]}
+        catch(e){Toast.show('Nothing exported — '+friendlyErr((e&&e.message)||e));return}
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(new Blob([JSON.stringify({memories:mems,skills:db.skills},null,2)],{type:'application/json'}));
+        a.download='brain-export.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        Toast.show('Exported '+mems.length+' memory(ies) and '+db.skills.length+' skill(s)');
+      });
       body.querySelector('#bimp').addEventListener('click',()=>{const f=document.createElement('input');f.type='file';f.accept='.json,application/json';
         f.addEventListener('change',()=>{const file=f.files[0];if(!file)return;const rd=new FileReader();
-          rd.onload=()=>{try{const d=JSON.parse(rd.result);const mIn=Array.isArray(d.memories)?d.memories:[],sIn=Array.isArray(d.skills)?d.skills:[];const hm=new Set(db.memories.map(m=>m.id)),hs=new Set(db.skills.map(s=>s.id));let n=0;
-            mIn.forEach(m=>{if(m&&m.id&&m.text&&!hm.has(m.id)){db.memories.push(m);n++}});
-            sIn.forEach(s=>{if(s&&s.id&&s.name&&!hs.has(s.id)){db.skills.push(s);n++}});
-            save();Toast.show('Imported '+n+' item(s)')}catch(e){Toast.show('Invalid JSON file')}};
+          // Memories go to the machine through the SAME door migrateOnce() already uses, so an
+          // import lands where the Memories tab and the model actually read from. Skills stay
+          // local, because that is genuinely where skills live.
+          rd.onload=async()=>{let d;try{d=JSON.parse(rd.result)}catch(e){Toast.show('Invalid JSON file');return}
+            const mIn=Array.isArray(d.memories)?d.memories.filter(m=>m&&m.text):[],sIn=Array.isArray(d.skills)?d.skills:[];
+            const hs=new Set(db.skills.map(s=>s.id));let sk=0;
+            sIn.forEach(s=>{if(s&&s.id&&s.name&&!hs.has(s.id)){db.skills.push(s);sk++}});
+            if(sk)save();
+            let mAdded=0;
+            if(mIn.length){
+              try{const r=await RPC('brain','importMemories',mIn);
+                if(!r||r.ok===false){Toast.show('Skills imported; memories failed — '+friendlyErr((r&&r.error)||'unknown'));renderSkills&&renderSkills();return}
+                mAdded=r.added||0}
+              catch(e){Toast.show('Skills imported; memories failed — '+friendlyErr((e&&e.message)||e));return}
+              Bus.emit('brain:changed');await memLoad();
+            }
+            Toast.show('Imported '+mAdded+' memory(ies) and '+sk+' skill(s)')};
           rd.readAsText(file)});
         f.click()});
       body.querySelector('#basimp').addEventListener('click',()=>Toast.show('Skill import from URL — coming soon'));
@@ -413,7 +466,11 @@
       const arch=name==='tree'&&d.present&&d.text&&!d.tooBig?archHTML(d.text):null;
       const acts=editing
         ?`<button class="btn mini" data-dsave="${escAttr(name)}">Save</button><button class="btn mini" data-dcancel="1">Cancel</button>`
-        :(d.editable?`<button class="btn mini" data-dedit="${escAttr(name)}">Edit</button>`
+        // `editable` alone offered Edit on a document the bridge had refused to hand over —
+        // past 512 KB doc() returns text:'' with editable:true, so the box opened EMPTY over a
+        // real 600 KB curriculum and Save wrote zero bytes. The daemon now refuses that write,
+        // but the button should never have been there to press.
+        :(d.editable&&!d.tooBig?`<button class="btn mini" data-dedit="${escAttr(name)}">Edit</button>`
           :(arch?`<span class="brn-seg"><button data-tview="map" class="${treeView==='map'?'on':''}">Diagram</button><button data-tview="files" class="${treeView==='files'?'on':''}">Files</button></span>`
               +`<button class="btn mini" id="dregen" title="Read the sources again and redraw">Regenerate</button>`
             :'<span class="dim">generated</span>'));
@@ -425,7 +482,10 @@
         +escHtml(docPath[name])+(stamp?' · '+escHtml(stamp):'')+`</div>`:'';
       const inner=editing
         ?`<textarea data-dta="${escAttr(name)}" spellcheck="false">${escHtml(d.text||'')}</textarea>`
-        :(d.present&&d.text
+        // `d.present&&d.text` made the tooBig arm below DEAD CODE: past the limit doc() ships
+        // text:'', so a real 600 KB file fell through to "Not on this machine yet." — the app
+        // reporting a document it could see the size of as absent.
+        :(d.present&&(d.text||d.tooBig)
           ? (d.tooBig?'<div class="brn-doc-body">Too large to show here — open it in FOLDERS.</div>'
              :(name==='tree'?(arch&&treeView==='map'?arch:`<div class="brn-doc-body">${escHtml(d.text)}</div>`)
                :`<div class="brn-doc-body md">${MDLite.render(d.text)}</div>`))
@@ -451,7 +511,10 @@
         rg.disabled=true;rg.textContent='reading…';
         let r;try{r=await RPC('pi','refreshTree')}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
         if(!r||r.ok===false){rg.disabled=false;rg.textContent='Regenerate';Toast.show('Could not redraw it: '+friendlyErr((r&&r.error)||'failed'));return}
-        delete docs.tree;Toast.show('Body re-read from the sources');renderBodyTab();
+        // "Re-read" and "changed" are different facts, and only the second one is worth
+        // acting on. The generator leaves the file alone when the body is identical, so
+        // r.changed is measured, not assumed.
+        delete docs.tree;Toast.show(r.changed?'Body re-read — the tree changed':'Body re-read — already current');renderBodyTab();
       });
       body.querySelectorAll('[data-dedit]').forEach(b=>b.addEventListener('click',()=>{docEdit=b.dataset.dedit;renderBodyTab()}));
       body.querySelectorAll('[data-dcancel]').forEach(b=>b.addEventListener('click',()=>{docEdit=null;renderBodyTab()}));

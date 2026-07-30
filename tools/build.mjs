@@ -82,6 +82,20 @@ if (directives.length) {
 //
 // vm.Script COMPILES without executing — no browser globals are touched. Any inline block
 // that is not classic JS (JSON-LD, importmap, module) is skipped rather than mis-parsed.
+// ONE version number. It lived in six places — package.json, bridge/package.json, a hard-coded
+// string in hub-bridge.mjs, and three literals in the UI — and they disagreed: 0.2.0 against
+// "v0.4 EXTRACTION" against "v0.28 · WEB". A bug report quoting one cannot be matched against a
+// tag named after another. The sources now carry @@CF_VERSION@@ and the build fills it from
+// package.json, so the number has a single origin. The codenames (EXTRACTION, WEB) are left
+// where they are: naming a release is the owner's, the number is mechanical.
+{
+  const v = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  if (!v) { console.error('\n  build REFUSED — package.json has no version.\n'); process.exit(1); }
+  const before = (html.match(/@@CF_VERSION@@/g) || []).length;
+  html = html.replaceAll('@@CF_VERSION@@', v);
+  if (!before) { console.error('\n  build REFUSED — no @@CF_VERSION@@ token in the sources; the version would ship stale.\n'); process.exit(1); }
+}
+
 {
   const { Script } = await import('node:vm');
   const blocks = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];

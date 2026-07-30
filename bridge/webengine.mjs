@@ -875,6 +875,16 @@ export const Webengine = {
     try { proc.kill('SIGTERM'); } catch { /* already gone */ }
     const exited = await _waitExit(proc, 2500);
     if (!exited) { try { proc.kill('SIGKILL'); } catch { /* already gone */ } await _waitExit(proc, 1500); }
+    // Wipe on STOP as well as on start. The profile was only erased when the engine LAUNCHED,
+    // so everything it had written sat on disk from the moment it exited until the next launch —
+    // which can be days. Measured: with no engine running, ~/.clone-frame-hub/web-engine held
+    // 7 cookies for a link-redirect domain, written 15 minutes earlier by an engine that had
+    // since exited. This module's own header says the on-disk profile "should hold nothing";
+    // that was true while it ran and false the rest of the time.
+    // Best-effort and non-blocking, exactly like the start-side wipe: a file the dying process
+    // still holds survives until the next boot erases it. Never let cleanup fail a stop.
+    try { fs.rmSync(path.join(hubRoot(), 'web-engine'), { recursive: true, force: true }); } catch { /* next start */ }
+    try { fs.rmSync(uploadDir(), { recursive: true, force: true }); } catch { /* next start */ }
     return { ok: true };
   },
 
@@ -997,8 +1007,13 @@ export const Webengine = {
   async forward({ id } = {}) { return _historyStep(id, +1); },
 
   async reload({ id, ignoreCache = false } = {}) {
-    const tab = _tab(id);
-    if (!tab) return { ok: false, error: 'no such tab' };
+    // Same resolution as navigate() and _historyStep(): id omitted → the on-screen tab.
+    // The agent's web_navigate offers back/forward/reload as one control, and back and
+    // forward already defaulted; reload alone demanded an id and answered "no such tab"
+    // to a caller that had named none — which reads as "your tab is gone", not "I need
+    // an id". The panel always passes {id}, so its behaviour is unchanged.
+    const tab = (id != null ? _tab(id) : _primaryTab());
+    if (!tab) return { ok: false, error: id != null ? 'no such tab' : 'no tab open' };
     try { await _send('Page.reload', { ignoreCache: !!ignoreCache }, tab.sessionId); return { ok: true }; }
     catch (e) { return { ok: false, error: e.message }; }
   },

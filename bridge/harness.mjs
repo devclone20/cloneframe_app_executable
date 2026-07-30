@@ -67,6 +67,12 @@ export const Harness = {
     const p = { ...patch };
     // keep the gate list derived from the crew unless the caller set it explicitly
     if (Array.isArray(p.roles) && !Array.isArray(p.gates)) p.gates = p.roles.filter(x => x && x.gate).map(x => x.name);
+    // The SAME floor add() applies. Without it, editing a crew down to zero gate roles wiped
+    // `gates` as well, so the floor only ever protected creation and the edit path walked
+    // straight past it. The UI calls these "non-collapsible" and the agent's system prompt
+    // says "nothing irreversible passes without" them — that has to be true on every path
+    // that can write a crew, including the agent's own update_harness.
+    if (Array.isArray(p.gates) && !p.gates.length) p.gates = ['SAFETY', 'OWNER'];
     Object.assign(h, p); save(s); return { ok: true };
   },
   // clone any harness (incl. the built-in ENGINE) into an editable custom crew

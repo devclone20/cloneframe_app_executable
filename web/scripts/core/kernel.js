@@ -83,12 +83,42 @@ export const fetchWithTimeout = (url, opts = {}, ms = 0) => {
 };
 
 // ── persistence (T-046) ──────────────────────────────────────────────────────
+// UNPARSEABLE IS NOT ABSENT.
+//
+// A key that is missing means "this is a new install, use the defaults". A key that is present
+// but will not parse means "the owner has data here and something damaged it" — and those two
+// must never be treated the same, because the panel's very next save writes the defaults over
+// the damaged bytes and the data is gone for good.
+//
+// Measured: a truncated cfhub.code.v1 was replaced by a single empty session DURING PAGE LOAD,
+// before anything reached the screen. Every conversation gone, no error, nothing to notice.
+// The same shape guards cfhub.v3 — the owner's canvas, theme, wallet and agents.
+//
+// So: park the damaged bytes under `<key>.corrupt` before falling back. Nothing is deleted,
+// recovery stays possible, and appBootNotices() tells the owner once. Callers need no change.
+export function parkCorrupt(key, raw) {
+  try {
+    if (localStorage.getItem(key + '.corrupt') == null) localStorage.setItem(key + '.corrupt', raw);
+  } catch (_) { /* quota may be the very thing that broke it — nothing more we can do */ }
+  // Announce it as it happens, not just at the next launch. Panels mount well after boot, so a
+  // boot-time scan alone told the owner about a reset one launch too late — he would see his
+  // CODE conversations gone now and read the explanation tomorrow. The kernel has no Toast of
+  // its own, so it raises an event and the shell decides how to say it.
+  try { dispatchEvent(new CustomEvent('cf:corrupt', { detail: { key } })); } catch (_) {}
+}
+
 // persisted(key, def) → a tiny typed localStorage cell: { get, set, clear }. JSON-encoded,
 // fully try/catch-guarded (private-mode / quota / disabled storage all degrade to the default),
 // replacing the per-panel `let st; try{st=JSON.parse(getItem(k))}…; const save=()=>setItem(k,…)`
-// silos. get() returns `def` when the key is absent or unparseable; never throws.
+// silos. get() returns `def` when the key is absent, and `def` AFTER parking the bytes when the
+// value is present but unparseable; never throws.
 export const persisted = (key, def) => ({
-  get() { try { const v = localStorage.getItem(key); return v == null ? def : JSON.parse(v); } catch (_) { return def; } },
+  get() {
+    let v;
+    try { v = localStorage.getItem(key); } catch (_) { return def; }
+    if (v == null) return def;
+    try { return JSON.parse(v); } catch (_) { parkCorrupt(key, v); return def; }
+  },
   set(v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (_) {} },
   clear() { try { localStorage.removeItem(key); } catch (_) {} },
 });
@@ -210,5 +240,5 @@ export const dragGesture = (el, opts = {}) => {
 // In the built single-file document this module is an IIFE; publish the primitives as bare
 // globals for the classic inline app script. (No-op under node import — exports are used there.)
 if (typeof window !== 'undefined') {
-  Object.assign(window, { escHtml, escAttr, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
+  Object.assign(window, { escHtml, escAttr, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, parkCorrupt, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
 }

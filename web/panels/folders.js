@@ -8,7 +8,18 @@
     const qp=s=>'"'+String(s).replace(/"/g,'')+'"';
     let homeAbs='~',cfRoot='',cwd='',viewing=null,treeHidden=false,creating=null;
     const tree={open:new Set()};
-    async function ls(dir){const r=await RPC('files','list',dir).catch(()=>null);if(!r||!r.ok)return{ok:false,err:(r&&r.error)||'cannot read',entries:[]};const e=(r.entries||[]).filter(x=>!x.name.startsWith('.'));e.sort((a,b)=>((a.type==='dir')===(b.type==='dir'))?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));return{ok:true,entries:e}}
+    // `.catch(()=>null)` used to throw away WHY, and the caller then guessed: every failure —
+    // including "there is no daemon" — was reported as "This folder may be protected or
+    // unreadable." A permissions story about a folder the app never even asked for. Keep the
+    // exception so the caller can tell a transport failure from a real filesystem one.
+    async function ls(dir){
+      let r;
+      try{r=await RPC('files','list',dir)}catch(e){return{ok:false,transport:e,err:(e&&e.message)||'cannot read',entries:[]}}
+      if(!r||!r.ok)return{ok:false,err:(r&&r.error)||'cannot read',entries:[]};
+      const e=(r.entries||[]).filter(x=>!x.name.startsWith('.'));
+      e.sort((a,b)=>((a.type==='dir')===(b.type==='dir'))?a.name.localeCompare(b.name):(a.type==='dir'?-1:1));
+      return{ok:true,entries:e};
+    }
 
     // ---------- breadcrumb + toolbar ----------
     function renderBar(){
@@ -39,6 +50,11 @@
       viewing=null;renderBar();
       areaEl.innerHTML='<div class="fm-empty">Loading…</div>';
       const r=await ls(cwd);
+      // A transport failure is not a folder problem. showErr() already knows how to say
+      // "not connected to this machine" and how to route the owner to MY MACHINE; the
+      // permissions sentence belongs only to a folder the daemon actually looked at and
+      // refused. Guessing the second when it was the first is the app inventing a reason.
+      if(!r.ok&&r.transport){showErr(areaEl,r.transport);return}
       if(!r.ok){areaEl.innerHTML=`<div class="fm-empty">${escHtml(r.err)}<br><span class="dim">This folder may be protected or unreadable.</span></div>`;return}
       const rows=r.entries.map(e=>{
         const full=join(cwd,e.name),isDir=e.type==='dir';
@@ -74,7 +90,10 @@
     function createRowHTML(){return `<div class="fm-row ${creating==='dir'?'dir':'file'}"><svg class="ic"><use href="${creating==='dir'?'#i-folder':'#i-file'}"/></svg><span class="nm"><input id="fmnewinp" placeholder="${creating==='dir'?'new-folder':'new-file.txt'}" spellcheck="false"></span></div>`}
     function wireCreateRow(){const inp=areaEl.querySelector('#fmnewinp');if(!inp)return;setTimeout(()=>inp.focus(),20);
       const done=async(commit)=>{const nm=inp.value.trim();const kind=creating;creating=null;if(!commit||!nm){renderList();return}
-        const dest=join(cwd,nm);const r=kind==='dir'?await RPC('files','mkdir',dest):await RPC('files','write',dest,'');
+        // noClobber: this row means "make a new file". Without it, typing the name of a file
+        // that already exists wrote '' over it — 0 bytes, no confirmation, no undo — under
+        // the toast "File created". And the name commits on BLUR, so clicking away was enough.
+        const dest=join(cwd,nm);const r=kind==='dir'?await RPC('files','mkdir',dest):await RPC('files','write',dest,'',{noClobber:true});
         if(r&&r.ok){Toast.show((kind==='dir'?'Folder':'File')+' created');renderTree()}else Toast.show('Failed: '+((r&&r.error)||''));renderList()};
       inp.addEventListener('keydown',e=>{if(e.key==='Enter')done(true);else if(e.key==='Escape')done(false)});
       inp.addEventListener('blur',()=>done(true));

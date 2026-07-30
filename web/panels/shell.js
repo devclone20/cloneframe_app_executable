@@ -23,7 +23,14 @@
     const base=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
     const parent=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
     const join=(a,b)=>a.replace(/\/+$/,'')+'/'+b;
-    const qpath=pth=>'"'+String(pth).replace(/"/g,'')+'"';
+    // Quote a path for `zsh -lc`. SINGLE quotes: inside double quotes zsh still expands
+    // $(...), `...` and $VAR, so a directory merely NAMED  proj$(curl x|sh)  executed when
+    // the app built a command around it — at workspace mount, which runs with no click at
+    // all. Single quotes suppress every expansion; the only character that can escape them
+    // is ' itself, closed and re-opened the standard way. Paths reaching here are always
+    // absolute (contract() produces the ~ form for DISPLAY only, and every call site guards
+    // the bare '~'), so nothing here relies on tilde expansion.
+    const qpath=pth=>"'"+String(pth).replace(/'/g,"'\\''")+"'";
     // The iT model: workspace (sidebar row) ▸ pane (split) ▸ surface (a tab inside a pane).
     // Two kinds of surface share a pane:
     //   tty   — a REAL interactive terminal (xterm ↔ WS /stream ↔ node-pty): vim, htop,
@@ -161,7 +168,10 @@
       }catch(_){_itAtt=''}
       return _itAtt;
     }
-    const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+    // shq lived here as a second, safe copy of qpath while qpath itself was unsafe — one idea,
+    // two implementations, four lines apart in the same scope, and the wrong one had 11 call
+    // sites. Now there is one.
+    const shq=qpath;
     async function itSaveFile(f){
       const dir=await itAttachDir();if(!dir){Toast.show('Bridge offline — could not save '+(f.name||'file'));return null}
       const safe=String(f.name||'pasted.png').replace(/\.\.+/g,'.').replace(/[^\w./-]+/g,'_');
@@ -1182,7 +1192,7 @@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.4 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v@@CF_VERSION@@ EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -1423,6 +1433,12 @@
         if(t.cwd&&t.cwd!=='~')await Bridge.shell('cd '+qpath(t.cwd),()=>{},null,t.id,{sid:t.id}); // seed this tab's own bridge cwd session
         marks=(await Bridge.shell(c,txt=>{appendOut(t,escHtml(strip(txt)))},t.ctl.signal,t.id,{sid:t.id}))||{};
       }catch(err){appendOut(t,'<span class="err">'+escHtml((err&&err.message)||'aborted')+'</span>\n')}
+      // The bridge reports refusals out of band: the catastrophic-command guard, root/sudo
+      // off, the 2-minute timeout, the 512 KiB output cap, a spawn failure. Without this
+      // line every one of them was silent, so a blocked `rm -rf /` looked exactly like a
+      // command that ran and printed nothing. CODE has always shown it; iT had not.
+      // Escaped, because it carries the child process's own message.
+      if(marks.err)appendOut(t,'<span class="err">'+escHtml(String(marks.err).trim())+'</span>\n');
       if(marks.needSudo)appendOut(t,'<span class="dim">this needs sudo — run it from CODE, or enable Root mode in Settings → Agent Tools</span>\n');
       if(marks.cwd)t.cwd=marks.cwd;
       if(t.out&&!t.out.endsWith('\n'))t.out+='\n';
@@ -1514,7 +1530,7 @@
       // "in directory" = the ACTIVE TAB's folder, not the tree root —
       // the tree may sit at ~ while the shell works deep inside a repo
       const root=tree.groot=curCwd();
-      const q1="'"+String(q).replace(/'/g,"'\\''")+"'";
+      const q1=qpath(q);   // same operation, same helper — this was a third inline copy
       // absolute search dir, no `cd` prefix — the bridge treats a leading `cd ` as its
       // session-cwd command and would swallow the rest of the line
       const cmd='{ command -v rg >/dev/null 2>&1 && rg -n --no-heading -S -m 3 --max-columns 200 -g \'!.git\' -g \'!node_modules\' -e '+q1+' '+qpath(root)+' 2>/dev/null || grep -RIn --exclude-dir=.git --exclude-dir=node_modules -m 3 -e '+q1+' '+qpath(root)+' 2>/dev/null ; } | head -300';

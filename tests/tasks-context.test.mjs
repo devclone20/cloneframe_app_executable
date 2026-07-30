@@ -54,7 +54,13 @@ test('add → get → update → setState → remove round-trip on a custom task
   assert.equal(T.update(res.id, { cron: '30 4 * * *', name: 'Renamed' }).ok, true);
   assert.equal(T.get(res.id).cron, '30 4 * * *');
   assert.equal(T.get(res.id).name, 'Renamed');
-  assert.ok(T.get(res.id).nextRunAt); // recomputed on cron change
+  // This used to assert `nextRunAt` was TRUTHY here — on a task that is still paused. That
+  // contradicted the invariant setState() has always enforced (paused ⇒ nextRunAt null), and it
+  // pinned the phantom "· next 12:00:00 PM" a never-enabled task advertised: a time nothing
+  // would honour, going stale forever. The intent of the line was "the cron change took
+  // effect", and that is what it checks now — the schedule is only computed when the task is
+  // actually going to run, which the setState assertions below prove.
+  assert.equal(T.get(res.id).nextRunAt, null); // still paused → nothing scheduled
 
   assert.equal(T.update(res.id, { cron: 'not a cron' }).ok, false); // invalid cron rejected
 

@@ -147,6 +147,11 @@ export const Files = {
     // 64MB — must at least match what the file viewer can OPEN, or a big file becomes
     // read-only by accident (open at 64MB, fail to save at 8MB).
     if (s.length > 64 * 1024 * 1024) return { ok: false, error: 'content too large (>64MB)' };
+    // CREATING a file and SAVING one are different intentions, and only the second may
+    // destroy what is there. Callers that mean "make a new one" pass noClobber; the editor's
+    // save and the agent's write do not, so nothing else changes. Opt-in deliberately:
+    // defaulting to refuse would silently break every save path in the app.
+    if (opts.noClobber && fs.existsSync(f)) return { ok: false, error: path.basename(f) + ' is already here — pick another name' };
     try {
       fs.mkdirSync(path.dirname(f), { recursive: true });
       if (opts.append) fs.appendFileSync(f, s); else fs.writeFileSync(f, s);

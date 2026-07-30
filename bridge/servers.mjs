@@ -457,6 +457,14 @@ async function provision(cfg = {}) {
 }
 
 async function dropletStatus(id) {
+  // Every sibling that leaves this machine carries this gate — test, run, runAutomation,
+  // deployAgent, provision, powerAction. This one did not, and it is not a read: it calls
+  // api.digitalocean.com with the owner's DO token AND writes the answer back into his
+  // server record (s.host = ip; save(st)). So with `ssh` off, a caller could still reach
+  // his cloud account and mutate his saved host. The module's own header says the gate
+  // exists precisely because a nearby module "doing strictly less" already had it.
+  const denied = _mayTouchServers();
+  if (denied) return denied;
   try {
     const s0 = _find(load(), id);
     if (!s0) return { ok: false, error: 'not found' };

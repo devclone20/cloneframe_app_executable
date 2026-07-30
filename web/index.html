@@ -39,7 +39,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 /* ── UI primitive: ui-btn — one reset for every unstyled button (T-044) ── */
-.ui-btn,.seg button,#gear,#themesbtn,.walletbtn,#wacct .waico,#wacct .warow .cp,.tzsel select,.treeref,.treeback,.btn,.mrail .compose,.hnr-g,.hnr-x,.mrow .rm,.cdrailtog,.cdnew,.cdsrow .x,.cdtb,.cdicon,.cdpick,.cdgo,.cdmenu button,.cdsrow .dots,.cdarch,.cdmmore,.cmodeseg button,.csend,.amode,.ause,.actbtn,.densseg button,.thp-tab,.tktab,.tksegb,.tkstbadge,.nts-mode,.nts-img,.cal2tab,.cal2ico,.cal2sw,.libtab,.libview,.wbr-new,.wbr-ib,.cmpv2chip,.cmpv2mx,.cmpv2add,.cmpv2start,.gltab,.glchip,.glfav,.brn-kebab,.cktabs button,.ckchev,.ckseg button,.ckst,.emficon,.emtabadd,.emtbb,.ememoji,.emsend,.emsendcv,.cdmode button,.labtab,.labsubt,.sh-newtab,.sh-treetog,.it-wsbtns button,.it-fmode,.it-ctools button,.itk-row button,.fm-act,.fm-mini,.fv-back,.fv-seg button,.fv-save,.os-auto,.labfam button,.labmprow .dl,.labseg button,.labagd-bk,.tbo-new,.tbo-acts button,.tbo-delall,.tbo-del,.ag-copybtn,.mx-burger,.mx-nav button,.mx-newchat,.mx-convdel,.mx-convren,.mx-engbtn,.mx-provbtn,.mx-modelbtn,.mx-attach,.mx-fchip .rm,.mx-dlattach,.mx-send,.mx-instdel,.mx-mtrig,.mx-launch,.mx-dlact,.mx-pclose,.mx-fam button,.mx-ttabs button,.mx-copy{all:unset;cursor:pointer}
+.ui-btn,.seg button,#gear,#themesbtn,.walletbtn,#wacct .waico,#wacct .warow .cp,.tzsel select,.treeref,.treeback,.btn,.mrail .compose,.hnr-g,.hnr-x,.mrow .rm,.cdrailtog,.cdnew,.cdsrow .x,.cdtb,.cdicon,.cdpick,.cdgo,.cdmenu button,.cdsrow .dots,.cdarch,.cdmmore,.cmodeseg button,.csend,.amode,.ause,.actbtn,.densseg button,.thp-tab,.tktab,.tksegb,.tkstbadge,.nts-mode,.nts-img,.cal2tab,.cal2ico,.cal2sw,.libtab,.libview,.wbr-new,.wbr-ib,.cmpv2chip,.cmpv2mx,.cmpv2add,.cmpv2start,.gltab,.glchip,.glfav,.brn-kebab,.cktabs button,.ckchev,.ckseg button,.ckst,.emficon,.emtabadd,.emtbb,.ememoji,.emsend,.emsendcv,.cdmode button,.labtab,.labsubt,.sh-newtab,.sh-treetog,.it-wsbtns button,.it-fmode,.it-ctools button,.itk-row button,.fm-act,.fm-mini,.fv-back,.fv-seg button,.fv-save,.os-auto,.labfam button,.labmprow .dl,.labseg button,.labagd-bk,.tbo-new,.tbo-acts button,.tbo-delall,.tbo-del,.ag-copybtn,.mx-burger,.mx-nav button,.mx-newchat,.mx-convdel,.mx-convren,.mx-engbtn,.mx-provbtn,.mx-modelbtn,.mx-attach,.mx-fchip .rm,.mx-dlattach,.mx-send,.mx-instdel,.mx-mtrig,.mx-lmb,.mx-launch,.mx-dlact,.mx-pclose,.mx-fam button,.mx-ttabs button,.mx-copy{all:unset;cursor:pointer}
 /* ── UI primitive: icon-14 — the shared 14px accent glyph, folded from 5 identical copies (T-044) ── */
 #ghost svg,.panel>header svg,.mcard .mchead svg,.actbtn svg,.nts-title svg{width:14px;height:14px;color:var(--accent)}
 /* ── UI primitive: art-media — NFT/image media fills its square frame; identical fit across wallet/LAB/agent art (T-044) ── */
@@ -2372,6 +2372,24 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
 .mx-badge.wait{background:color-mix(in srgb,var(--mx-warn) 18%,transparent);color:var(--mx-warn)}
 .mx-inst .foot{font-size:10.5px;color:var(--mx-ok)}
 .mx-inst.bad .foot{color:var(--mx-err)}
+/* on this machine — the models you own: load, use or delete without leaving the rail */
+.mx-lm{border:1px solid var(--line);border-radius:8px;padding:9px 10px;display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:border-color .15s,background .15s}
+.mx-lm:hover{border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.mx-lm.on{border-color:color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.mx-lm.live{border-color:color-mix(in srgb,var(--mx-ok) 40%,var(--line))}
+.mx-lm .t{display:flex;align-items:baseline;gap:6px}
+.mx-lm .t b{color:var(--fg);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-lm .t .gb{margin-left:auto;color:var(--ink-dim);font-size:10.5px;font-weight:700}
+.mx-lm .r{display:flex;align-items:center;gap:6px}
+.mx-lm .s{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--ink-faint)}
+.mx-lm .s.live{color:var(--mx-ok)}
+.mx-lm .s.wait{color:var(--mx-warn)}
+.mx-lmb{font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:4px;padding:2px 7px;transition:background .15s}
+.mx-lmb:first-of-type{margin-left:auto}
+.mx-lmb:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.mx-lmb.rm{color:var(--mx-err);border-color:color-mix(in srgb,var(--mx-err) 45%,transparent)}
+.mx-lmb.rm:hover{background:color-mix(in srgb,var(--mx-err) 12%,transparent)}
+.mx-lmnone{font-size:10.5px;line-height:1.5;color:var(--ink-faint)}
 .mx-mtrig{display:flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:6px;padding:8px 11px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--fg);transition:background .15s}
 .mx-mtrig:hover{background:color-mix(in srgb,var(--accent) 9%,transparent)}
 .mx-mtrig em{font-style:normal;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-dim)}
@@ -2401,7 +2419,12 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
 .mx-prevnone{font-size:10.5px;color:var(--mx-warn);letter-spacing:.04em}
 .mx-launch{text-align:center;padding:8px 0;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--fg);transition:all .15s}
 .mx-launch:hover{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
-.mx-launch.dim{opacity:.45}
+.mx-launch.dim{opacity:.45;pointer-events:none} /* a control that refuses must also be unclickable */
+.mx-lanwarn{border:1px solid color-mix(in srgb,var(--mx-warn) 45%,transparent);background:color-mix(in srgb,var(--mx-warn) 8%,transparent);border-radius:8px;padding:10px 12px;margin:10px 0;display:flex;flex-direction:column;gap:5px}
+.mx-lanwarn b{font-size:10.5px;letter-spacing:.12em;color:var(--mx-warn)}
+.mx-lanwarn span{font-size:10.5px;line-height:1.6;color:var(--ink-dim)}
+.mx-lanwarn span b{letter-spacing:0;color:var(--fg)}
+.mx-pmem .dim{color:var(--ink-faint);font-size:10.5px;letter-spacing:.06em}
 .mx-dlact{margin-left:6px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--ink-faint);border:1px solid transparent;border-radius:4px;padding:2px 6px;transition:all .15s}
 .mx-dlact:hover{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 .mx-minitopo{border:1px solid var(--line);border-radius:8px;height:150px;position:relative;overflow:hidden}
@@ -2441,6 +2464,8 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
 .mx-pvar{display:flex;align-items:center;gap:9px;padding:6px 9px 6px 26px;border-radius:6px;cursor:pointer;font-size:10px;color:var(--ink-dim)}
 .mx-pvar:hover{background:color-mix(in srgb,var(--accent) 7%,transparent);color:var(--fg)}
 .mx-pvar .q{font-size:10px;font-weight:700;letter-spacing:.08em;border:1px solid var(--line);border-radius:3px;padding:2px 6px;background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.mx-pvar.have{padding-left:9px;color:var(--fg)}
+.mx-pvar.have .q{color:var(--mx-ok);border-color:color-mix(in srgb,var(--mx-ok) 40%,transparent)}
 .mx-pvar .sz{margin-left:auto}
 .mx-pvar .dl{color:var(--mx-ok);font-size:10.5px}
 .mx-pempty{padding:28px;text-align:center;font-size:10.5px;color:var(--ink-faint);letter-spacing:.04em}
@@ -2671,7 +2696,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.28 · WEB</span>
+    <span class="gver">v@@CF_VERSION@@ · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -2756,7 +2781,15 @@ const Store=(()=>{
          email:{connected:false,mode:'mailto',address:'',sent:[],drafts:[]}};
   try{
     const raw=localStorage.getItem(KEY);
-    if(raw)s=Object.assign(s,JSON.parse(raw));
+    // UNPARSEABLE IS NOT ABSENT — and here it is the owner's CANVAS. A parse failure used to
+    // fall into the outer catch{}, leave `s` at the defaults (cells:{}, theme:'void'), and the
+    // first Store.save() wrote that over his tiles, theme, wallet, agents and email drafts.
+    // Park the bytes first so nothing is destroyed and a later session can recover them.
+    if(raw){
+      try{s=Object.assign(s,JSON.parse(raw))}
+      catch(e){parkCorrupt(KEY,raw);throw e}     // rethrow: the legacy fallbacks below are for a
+                                                 // FRESH install, not for damaged current data
+    }
     else{
       const v2=localStorage.getItem('cfhub.v2');
       if(v2)s=Object.assign(s,JSON.parse(v2));
@@ -2817,6 +2850,31 @@ const Store=(()=>{
     try{ if(/orion/i.test(localStorage.getItem('cfhub.lab.chatmodel')||'')) localStorage.removeItem('cfhub.lab.chatmodel'); }catch(_){}
   }catch(_){}
   try{ localStorage.setItem(FLAG,'1'); }catch(_){}
+})();
+
+/* ---------- Damaged saved data: say it out loud, once ----------
+   parkCorrupt() moves a value that would not parse to `<key>.corrupt` instead of letting the
+   defaults overwrite it. That is the safe half. This is the honest half: the owner opened the
+   app and his canvas or his conversations looked reset, and he is owed the reason and the fact
+   that nothing was deleted. One toast, named keys, no new control. */
+(()=>{
+  const NAMES={'cfhub.v3':'your canvas and settings','cfhub.code.v1':'your CODE conversations',
+               'cfhub.lab.chat':'your LAB conversation','cfhub.it.v1':'your iT workspaces'};
+  const said=new Set();
+  const say=key=>{
+    if(said.has(key))return; said.add(key);
+    const what=NAMES[key]||'some saved data';
+    setTimeout(()=>{try{Toast.show(
+      'Could not read '+what+' — it was set aside, not deleted. This started from defaults.'
+    )}catch(_){}},900);
+  };
+  // Two triggers, because damage is discovered at two different times. The Store loader runs
+  // before this listener exists, so its park is only visible as a leftover key at boot; panels
+  // mount long after, so theirs arrives as an event. Neither alone covers both.
+  addEventListener('cf:corrupt',e=>{const k=e&&e.detail&&e.detail.key;if(k)say(k)});
+  let hit=[];
+  try{ hit=Object.keys(localStorage).filter(k=>k.endsWith('.corrupt')); }catch(_){ return }
+  hit.forEach(k=>say(k.slice(0,-'.corrupt'.length)));
 })();
 
 /* ---------- Keys: BYOK material only in sessionStorage (never persisted) ---------- */
@@ -3630,7 +3688,27 @@ const Grid=(()=>{
     el.classList.remove('occ','armed');delete el.dataset.type;delete el.dataset.cwd;delete el.dataset.url;delete el.dataset.panelKey;el.removeAttribute('tabindex');
     el.querySelector('.tile')?.remove();el.querySelector('.rm')?.remove();
   }
-  function occupy(el,type,meta){occupyEl(el,type,meta);const c={type};if(meta&&meta.label)c.label=meta.label;if(meta&&meta.cwd)c.cwd=meta.cwd;if(meta&&meta.url)c.url=meta.url;if(meta&&meta.panelKey)c.panelKey=meta.panelKey;Store.get().cells[key(el.dataset.c,el.dataset.r)]=c;Store.save();Bus.emit('dock:refresh')}
+  // THE OWNER'S CANVAS. This had no occupancy test, so his tiles were protected only by every
+  // call site happening to be careful — and two were not: a drag-drop onto an already-occupied
+  // square, and HARNESS taking the centre cell unconditionally. Convention is not a guard.
+  // The one caller that legitimately re-takes a square (a MULTI window refreshing its own HOME)
+  // calls release() first, which clears the class, so it still passes.
+  // Returns false when it refused, so a caller can pick somewhere else.
+  function occupy(el,type,meta){
+    if(!el||el.classList.contains('occ'))return false;
+    occupyEl(el,type,meta);
+    const c={type};
+    if(meta&&meta.label)c.label=meta.label;
+    if(meta&&meta.cwd)c.cwd=meta.cwd;
+    // A URL is NOT persisted. The browser's whole promise is that closing the window leaves
+    // nothing behind, and writing the address of a page he visited into localStorage — where it
+    // survives quitting the app — contradicts it. occupyEl still holds it for THIS session, so
+    // dock/undock keeps working; only the on-disk record forgets.
+    if(meta&&meta.panelKey)c.panelKey=meta.panelKey;
+    Store.get().cells[key(el.dataset.c,el.dataset.r)]=c;
+    Store.save();Bus.emit('dock:refresh');
+    return true;
+  }
   // MAGIC FRAMES placement — where a docked tab/app's square lands (Settings → Magic
   // Frames → Frames). 'organized' (default): squares fill a fixed every-other-square
   // lattice in reading order, on-screen first — one empty square between neighbours
@@ -3673,11 +3751,15 @@ const Grid=(()=>{
     const a=s[ks],b=s[kd];if(!a)return;
     if(b)s[ks]=b;else delete s[ks];
     s[kd]=a;Store.save();
-    // panelKey (live-window handle) lives only on the element — carry it across the move
+    // panelKey (live-window handle) lives only on the element — carry it across the move.
+    // So does `url` now, for the same reason: it is deliberately NOT in the persisted record
+    // (a page the owner visited has no business surviving a quit), but a browser square dragged
+    // WITHIN a session must still remember where its window is.
     const pkA=src.dataset.panelKey||'',pkB=dst.dataset.panelKey||'';
+    const uA=src.dataset.url||'',uB=dst.dataset.url||'';
     clearEl(src);clearEl(dst);
-    occupyEl(dst,a.type,a);if(pkA)dst.dataset.panelKey=pkA;
-    if(b){occupyEl(src,b.type,b);if(pkB)src.dataset.panelKey=pkB}
+    occupyEl(dst,a.type,a);if(pkA)dst.dataset.panelKey=pkA;if(uA)dst.dataset.url=uA;
+    if(b){occupyEl(src,b.type,b);if(pkB)src.dataset.panelKey=pkB;if(uB)src.dataset.url=uB}
     Bus.emit('dock:refresh');
   }
   function reset(){Store.get().cells={};Store.save();build();Bus.emit('dock:refresh')}
@@ -3995,7 +4077,10 @@ Grid.el.addEventListener('click',e=>{
     if(!cell||cell.classList.contains('occ'))return;
     const type=e.dataTransfer.getData('cf/type');
     if(['agent','harness','terminal','lab','machine','agents','automations','settings'].includes(type)){
-      Grid.occupy(cell,type);Bus.emit('open-panel',{type,cell});
+      // Dropping onto a square that already holds one of his tiles used to replace it. occupy()
+      // now refuses; open the panel anyway, just without stealing the square.
+      if(!Grid.occupy(cell,type)){Toast.show('That square is taken — dropped as a window instead');Bus.emit('open-panel',{type});}
+      else Bus.emit('open-panel',{type,cell});
     }else{ // you dragged something generic (file/text) → opens the menu in that frame
       cell.classList.add('armed');Menu.openAt(cell);
     }
@@ -4191,8 +4276,14 @@ const BridgeClient=(()=>{
 })();
 
 const Bridge=(()=>{
-  let info=null; // {version,cwd,brain,model} when connected
+  let info=null;        // {version,cwd,brain,model} — set ONLY when the pairing token works
+  let reachable=false;  // a daemon answered /health (which needs no token)
+  // on() is the app's single answer to "can this window act on the machine". It must mean
+  // PAIRED, not merely reachable — ~40 call sites gate real work on it.
   const on=()=>!!info;
+  // A daemon is listening but this window is not paired with it. The distinction matters to
+  // the owner: "start the app" and "paste the link" are different instructions.
+  const unpaired=()=>reachable&&!info;
   const brainReady=()=>!!(info&&info.brain&&info.brain!=='none'); // any configured provider (registry/env/anthropic), never Claude-only
   function parse(pasted){
     // accepts  http://127.0.0.1:8765#token=XXX  |  http://127.0.0.1:8765?token=XXX  |  just the url (token separate)
@@ -4211,29 +4302,57 @@ const Bridge=(()=>{
     if(tok)BridgeClient.setToken(tok);
     const h=await health(ep);
     if(!h||!h.ok){info=null;Bus.emit('bridge:changed');return{on:false,msg:'bridge did not respond at '+ep+' — run the HUB Bridge and paste the startup link'}}
-    const pr=await pairInfo(ep);if(pr&&pr.ok)Object.assign(h,pr);
+    // A wrong or missing token answers /health fine and fails here — say so instead of
+     // reporting a successful connection that cannot make a single call.
+    const pr=await pairInfo(ep);
+    reachable=true;
+    if(!pr||!pr.ok){info=null;Bus.emit('bridge:changed');return{on:false,msg:'the bridge at '+ep+' refused this token — copy the link again from the HUB Bridge startup banner'}}
+    Object.assign(h,pr);
     Store.get().bridge.endpoint=ep;Store.save();
     info=h;Bus.emit('bridge:changed');
     return{on:true,msg:h.name+' v'+h.version+' · '+((h.brain&&h.brain!=='none')?((h.model||'model')+(h.provider?' · '+h.provider:'')):'no brain (add a provider or set an API key)')+(h.cwd?' · '+h.cwd:'')};
   }
   async function refresh(){
     let h=await health();
-    if(h&&h.ok){const pr=await pairInfo();if(pr&&pr.ok)Object.assign(h,pr)}
-    info=(h&&h.ok)?h:null;Bus.emit('bridge:changed');
+    // /health needs no token — it only proves a daemon is listening. Treating that as
+    // "connected" made Bridge.on() true in a window holding no valid token: every panel's
+    // `if(!Bridge.on())needBridge()` guard passed, so instead of the card that tells the owner
+    // to pair, each panel ran an RPC that could only 401. POST /pair is behind the token, so
+    // it is the only honest proof that this window may actually talk to the machine.
+    let pr=null;
+    if(h&&h.ok)pr=await pairInfo();
+    reachable=!!(h&&h.ok);
+    info=(h&&h.ok&&pr&&pr.ok)?Object.assign(h,pr):null;
+    Bus.emit('bridge:changed');
     if(h&&h.ok&&h.stale)setTimeout(()=>Toast.show('The HUB Bridge is running an OLDER build than the code on disk — quit and relaunch the app to load it.'),600);
+    if(h&&h.ok&&h.appStale)setTimeout(()=>Toast.show('This window is an OLD build of the app — web/ was edited without a rebuild. Run: npm run build'),1400);
     return info;
   }
-  function disconnect(){info=null;BridgeClient.setToken('');Bus.emit('bridge:changed')}
+  // Dropping the token is a local act. Whether a daemon is still listening is NOT something
+  // this function can know, so it no longer claims it — refresh() measures it. Asserting
+  // reachable=false here made unpaired() false while the daemon was still up, which is the
+  // same conflation wave W removed from on(): MY MACHINE then said "disconnected · run the
+  // command above" about a daemon that was running. It also made the unpaired sweep in
+  // 03_HARMONY_PROTOCOL.md test the wrong state — "no daemon" instead of "not paired".
+  function disconnect(){info=null;BridgeClient.setToken('');Bus.emit('bridge:changed');refresh()}
   const streamRaw=(path,bodyObj,onText,signal)=>BridgeClient.stream(path,bodyObj,onText,signal);
   const shell=(cmd,onText,signal,id,extra)=>streamRaw('/shell',Object.assign({cmd,id:id||''},extra||{}),onText,signal);
+  // The bridge's own view of whether the running window is the built one. `appStale` means
+  // web/ was edited without `npm run build`: ⌘R cannot fix that, so it must be said out loud.
+  const appStale=()=>!!(info&&info.appStale);
   const chat=(messages,onTok,signal,opts)=>streamRaw('/chat',Object.assign({messages},opts||{}),onTok,signal);
   const providerChat=(providerId,model,messages,onTok,signal,opts)=>streamRaw('/provider-chat',Object.assign({providerId,model,messages},opts||{}),onTok,signal);
   // CODE chat → the raw Pi agent. NDJSON protocol (one JSON object per line: {t:'text'|'tool'|
   // 'error'|'done',…}), not the \x00 shell framing — pi interleaves prose with tool activity.
-  async function piChat(session,message,model,onEvent,signal,images){
+  async function piChat(session,message,model,onEvent,signal,images,history){
     const e=BridgeClient.endpoint();if(!e)throw new Error('no endpoint');
     const body={session,message,model};
     if(Array.isArray(images)&&images.length)body.images=images.slice(0,5); // pi RPC ImageContent[] — max 5 per message
+    // The conversation so far. pi holds a conversation only in its process's memory, and that
+    // process can die between turns (idle reap, eviction, model switch, bridge restart) — the
+    // bridge replays this into a fresh one so the agent is never handed a transcript it has
+    // no memory of. Only used when the process is actually new; see bridge/pi.mjs.
+    if(Array.isArray(history)&&history.length)body.history=history;
     const r=await fetch(e+'/pi-chat',{method:'POST',headers:BridgeClient.headers(),signal,body:JSON.stringify(body)});
     if(r.status===401||r.status===403)throw new Error(BridgeClient.NOT_PAIRED);
     if(!r.ok||!r.body)throw new Error((await r.text().catch(()=>''))||('bridge http '+r.status));
@@ -4253,7 +4372,7 @@ const Bridge=(()=>{
     // otherwise: auto-connects if there's already a saved endpoint (session token) — preview/paste mode
     setTimeout(()=>{if(BridgeClient.endpoint()&&BridgeClient.token())refresh()},400);
   })();
-  return{connect,refresh,disconnect,health,shell,chat,providerChat,piChat,interrupt,on,brainReady,info:()=>info,endpoint:BridgeClient.endpoint,parse};
+  return{connect,refresh,disconnect,health,shell,chat,providerChat,piChat,interrupt,on,unpaired,brainReady,appStale,info:()=>info,endpoint:BridgeClient.endpoint,parse};
 })();
 
 /* ---------- Brain: brain router (bridge → BYOK → mock; never dead) ---------- */
@@ -4455,7 +4574,15 @@ const RPC=(()=>{
   return async function(mod,fn,...args){
     try{return await BridgeClient.post('/mod/'+mod,{fn,args})}
     catch(e){
-      if(e&&e.status!=null)throw new Error(mod+'.'+fn+' '+e.status+(e.serverError?' · '+e.serverError:''));
+      // The layer below already turned a 401/403 into a sentence a person can act on
+      // ("paste the bridge link in MY MACHINE"). Rewriting it to "notes.list 401 · unpaired"
+      // threw that away and put the wire detail on screen instead — which is what NOTES,
+      // TASKS, REMINDERS and APPROVAL showed the owner whenever the bridge was not paired.
+      if(e&&e.notPaired)throw e;
+      if(e&&e.status!=null){
+        const er=new Error(mod+'.'+fn+' '+e.status+(e.serverError?' · '+e.serverError:''));
+        er.status=e.status;er.serverError=e.serverError;er.mod=mod;er.fn=fn;throw er;
+      }
       throw e; // network error / 'no HUB Bridge' — surface as-is
     }
   };
@@ -4733,7 +4860,7 @@ const Panels=(()=>{
       <div class="ds4-visor"><h4>BRAIN — who answers in the CONSOLE</h4>
         <div id="mbrains"></div>
         <div class="keyadd"><input id="mkey" type="password" placeholder="paste an API key (detects the provider)" autocomplete="off"><button class="btn" id="mkeybtn" style="padding:7px 12px;font-size:10px">CONNECT</button></div>
-        <div class="secnote">keys live only in this browser session (sessionStorage) — never persisted.</div>
+        <div class="secnote">the key stays in this browser session (sessionStorage). While the HUB Bridge is connected it is also saved to your macOS Keychain, so pi and scheduled tasks can use it — <b>remove</b> clears both.</div>
       </div>
 `},
     agents:{icon:'#i-agents',title:'MY AGENTS',sub:'your wallet · every economy',w:540,h:560,body:()=>`
@@ -5167,7 +5294,13 @@ const Panels=(()=>{
   // The re-mount is registered HERE, not in each panel: every current caller inherits the
   // recovery, and so does every panel written after this one.
   function needBridge(el){
-    el.innerHTML='<div class="qempty" data-needbridge style="padding:24px;line-height:1.7">Needs the <b>HUB Bridge</b> — it runs on your machine.<br><br><button class="btn" id="nbm">OPEN MY MACHINE</button></div>';
+    // Two different situations, two different instructions. A daemon that is running but has
+    // not paired with this window is not the same as no daemon at all, and telling the owner
+    // to "run the HUB Bridge" when it is already running sends them the wrong way.
+    const why=(typeof Bridge!=='undefined'&&Bridge.unpaired&&Bridge.unpaired())
+      ? 'The <b>HUB Bridge</b> is running on your machine, but this window is not paired with it yet.'
+      : 'Needs the <b>HUB Bridge</b> — it runs on your machine.';
+    el.innerHTML='<div class="qempty" data-needbridge style="padding:24px;line-height:1.7">'+why+'<br><br><button class="btn" id="nbm">OPEN MY MACHINE</button></div>';
     el.querySelector('#nbm').addEventListener('click',()=>openPanel('machine'));
     const p=el.closest&&el.closest('.panel');
     if(!p||p._nbWatch)return;
@@ -5184,7 +5317,53 @@ const Panels=(()=>{
       try{spec.mount(p)}catch(e){showErr(el,e)}
     });
   }
-  function showErr(el,e){el.innerHTML='<div class="qempty" style="color:var(--accent);padding:20px">'+escHtml(String((e&&e.message)||e))+'</div>'}
+  // The one place nine panels (NOTES · TASKS · REMINDERS · APPROVAL · BRAIN · SEARCH ·
+  // HARNESS) render a failure. It used to print the raw exception in accent red, so a
+  // bridge that was simply not connected read as a broken panel. A panel that cannot reach
+  // the daemon is not broken — it is waiting, and it should say what to do about it.
+  function showErr(el,e){
+    const msg=String((e&&e.message)||e||'something went wrong');
+    const offline=!!(e&&(e.notPaired||e.status===401||e.status===403))||/not paired|no HUB Bridge|unpaired|Failed to fetch|NetworkError/i.test(msg);
+    if(offline){
+      el.innerHTML='<div class="qempty" style="padding:22px;line-height:1.6">'
+        +'<b style="display:block;font-size:12px;letter-spacing:.06em;margin-bottom:6px">NOT CONNECTED TO THIS MACHINE</b>'
+        +'This panel lives on the HUB Bridge — the daemon that runs on your machine. It is not paired with this window yet, so there is nothing to show.'
+        +'<div style="margin-top:12px"><button class="btn mini" data-openmachine="1">Open MY MACHINE</button></div>'
+        +'<div style="margin-top:10px;font-size:10.5px;color:var(--ink-faint)">'+escHtml(msg)+'</div>'
+        +'</div>';
+      const b=el.querySelector('[data-openmachine]');
+      if(b)b.addEventListener('click',()=>{try{openPanel('machine')}catch(_){Bus.emit('open-panel',{type:'machine'})}});
+      return;
+    }
+    el.innerHTML='<div class="qempty" style="padding:22px;line-height:1.6">'
+      +'<b style="display:block;font-size:12px;letter-spacing:.06em;margin-bottom:6px;color:var(--accent)">THIS DID NOT WORK</b>'
+      +escHtml(friendlyErr(msg))
+      +'</div>';
+  }
+
+  // RPC for the calls that CHANGE something.
+  //
+  // The daemon reports a refusal as {ok:false,error} and does NOT throw — notes.remove on a
+  // missing id, notes.update, reminders.create with no note, reminders.markDone,
+  // tasks.setState, tasks.remove, tasks.runNow, all measured returning that shape. So
+  //
+  //     await RPC('notes','remove',id); Toast.show('Deleted');
+  //
+  // announced a deletion that had not happened, in the owner's own words, with nothing on
+  // screen to contradict it. try/catch around those calls never fired, because nothing threw.
+  //
+  // One helper rather than a check at each of the fifteen call sites: per-site checking is
+  // what let the search box be the one place NOTES forgot, and the next call site added would
+  // forget again. Returns the result on success, or null AFTER saying what went wrong — so
+  // `if(!await act(…))return` is the whole of the handling most callers need.
+  // Read-only calls keep using RPC directly; their failures belong to showErr, not a toast.
+  async function act(mod,fn,...args){
+    let r;
+    try{r=await RPC(mod,fn,...args)}
+    catch(e){Toast.show(friendlyErr((e&&e.message)||e));return null}
+    if(r&&r.ok===false){Toast.show(friendlyErr(r.error||(mod+'.'+fn+' was refused')));return null}
+    return r===undefined?{ok:true}:r;
+  }
 
   /* ---------- TASKS (cron via bridge/tasks.mjs) ---------- */
   //@cfbuild-include panels/tasks.js

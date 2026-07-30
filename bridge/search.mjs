@@ -30,6 +30,20 @@ function matchesAny(needle, ...fields) {
 function cap(rows, limit) {
   return Array.isArray(rows) ? rows.slice(0, Math.max(0, limit)) : [];
 }
+
+// Notes does its own matching (title + body + tags, case-insensitive) behind the
+// `search` argument, so the needle is handed to the module rather than re-filtered
+// here — one definition of "does this note match", on the daemon side.
+async function searchNotes(needle, limit) {
+  const { Notes } = await import('./notes.mjs');
+  const rows = Notes.list({ search: needle });
+  return cap(rows, limit).map((n) => ({
+    id: n.id,
+    title: n.title,
+    snippet: n.snippet || '',
+  }));
+}
+
 async function searchTasks(needle, limit) {
   const { Tasks } = await import('./tasks.mjs');
   const rows = Tasks.list().filter((t) => matchesAny(needle, t.name, t.category));

@@ -12,6 +12,14 @@
       const pool=items.filter(n=>hasTag(n,ARCH)===archView);
       const defN=pool.filter(n=>!hasTag(n,REM)).length,remN=pool.length-defN;
       view=chip==='default'?pool.filter(n=>!hasTag(n,REM)):chip==='rem'?pool.filter(n=>hasTag(n,REM)):pool;
+      // INVARIANT: the selection may never hold a note the owner cannot see. Bulk delete
+      // iterates `sel`, not `view`, so anything left selected behind a filter is deleted
+      // unseen and unconfirmed. Measured: Select all (6) then type a word matching one note
+      // → one row on screen, bar still reading "6 Selected", Delete removes all six.
+      // Pruning HERE covers the search box, the chips, and the archive toggle at once —
+      // and any filter added later — instead of one clear() per handler, which is how the
+      // search box came to be the one that was missed.
+      if(sel.size){const vis=new Set(view.map(n=>n.id));[...sel].forEach(id=>{if(!vis.has(id))sel.delete(id)})}
       chips.innerHTML=`<span class="nts-chip ${chip==='all'?'on':''}" data-c="all">All</span><span class="nts-chip ${chip==='default'?'on':''}" data-c="default">Default<b>${defN}</b></span><span class="nts-chip ${chip==='rem'?'on':''}" data-c="rem"><svg><use href="#i-shield"/></svg>Reminders<b>${remN}</b></span>`;
       chips.querySelectorAll('.nts-chip').forEach(el=>el.addEventListener('click',()=>{chip=el.dataset.c;load()}));
       paintBar();
@@ -26,7 +34,7 @@
         if(selMode){sel.has(id)?sel.delete(id):sel.add(id);el.querySelector('.nts-ck').classList.toggle('on',sel.has(id));paintBar();return}
         openNote(id);
       }));
-      body.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();await RPC('notes','remove',b.dataset.rm);load()}));
+      body.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',async e=>{e.stopPropagation();if(!await act('notes','remove',b.dataset.rm))return;load()}));
       body.querySelectorAll('.nts-todo').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();if(selMode)return;toggleTodo(el.closest('.nts-card').dataset.id,+el.dataset.td)}));
     }
     function paintBar(){
@@ -40,15 +48,21 @@
       selbar.querySelector('#ntall').addEventListener('click',()=>{if(all)view.forEach(v=>sel.delete(v.id));else view.forEach(v=>sel.add(v.id));load()});
       selbar.querySelector('#ntbarch').addEventListener('click',async()=>{
         if(!sel.size)return;
+        let done=0;const want=sel.size;
         for(const id of [...sel]){let n;try{n=await RPC('notes','get',id)}catch(e){continue}if(!n)continue;
           const tags=archView?(n.tags||[]).filter(t=>String(t).toLowerCase()!==ARCH):[...(n.tags||[]),ARCH];
-          await RPC('notes','update',id,{tags});}
-        Toast.show(archView?'Unarchived':'Archived');sel.clear();load();
+          if(await act('notes','update',id,{tags}))done++;}
+        const word=archView?'Unarchived':'Archived';
+        Toast.show(done===want?word:(word+' '+done+' of '+want));sel.clear();load();
       });
       selbar.querySelector('#ntbdel').addEventListener('click',async()=>{
         if(!sel.size)return;
-        for(const id of [...sel])await RPC('notes','remove',id);
-        Toast.show('Deleted');sel.clear();load();
+        // A bulk action can partly fail, and "Deleted" over four of six is its own lie.
+        // act() has already said WHY on the first refusal; this only has to get the count right.
+        let gone=0;const want=sel.size;
+        for(const id of [...sel])if(await act('notes','remove',id))gone++;
+        Toast.show(gone===want?'Deleted':('Deleted '+gone+' of '+want));
+        sel.clear();load();
       });
     }
     async function toggleTodo(id,idx){

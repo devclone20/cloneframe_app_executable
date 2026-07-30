@@ -28,7 +28,13 @@ try { const _ws = await import('ws'); WebSocketServer = _ws.WebSocketServer || (
 
 const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HUB_ROOT = path.dirname(BRIDGE_DIR); // the clone-frame-hub dir (serves the app)
-const VERSION = '0.2.0';
+// Read, not repeated. This was a hard-coded '0.2.0' that had to be remembered on every release
+// and was one of six disagreeing version strings. package.json is the single origin; the built
+// document gets the same value through the @@CF_VERSION@@ token in tools/build.mjs.
+const VERSION = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(HUB_ROOT, 'package.json'), 'utf8')).version || '0.0.0'; }
+  catch { return '0.0.0'; }
+})();
 // Any bridge/*.mjs newer on disk than this process = the daemon is serving old code
 // (it only reloads on relaunch, unlike the HTML's ⌘R). Reported by /health as `stale`.
 const STARTED_AT = Date.now();
@@ -40,6 +46,23 @@ function bridgeStale() {
       if (fs.statSync(path.join(BRIDGE_DIR, name)).mtimeMs > STARTED_AT) return true;
     }
   } catch { /* best effort — never break health */ }
+  return false;
+}
+// The DOCUMENT can be stale too, and in a way a reload does not fix: web/ is the source and
+// dist/index.html is what is served, so editing a panel without `npm run build` leaves the
+// owner running old code with nothing on screen to say so. This only compares the two files
+// the build turns into each other — no walk, no cost.
+function appStale() {
+  try {
+    const src = path.join(HUB_ROOT, 'web', 'index.html');
+    const out = path.join(HUB_ROOT, 'dist', 'index.html');
+    if (!fs.existsSync(src) || !fs.existsSync(out)) return false;
+    const built = fs.statSync(out).mtimeMs;
+    if (fs.statSync(src).mtimeMs > built) return true;
+    for (const f of fs.readdirSync(path.join(HUB_ROOT, 'web', 'panels'))) {
+      if (f.endsWith('.js') && fs.statSync(path.join(HUB_ROOT, 'web', 'panels', f)).mtimeMs > built) return true;
+    }
+  } catch { /* not a source checkout — nothing to compare */ }
   return false;
 }
 const HOST = process.env.HUB_BRIDGE_HOST || '127.0.0.1'; // bind addr; loopback only by default
@@ -150,11 +173,27 @@ function authed(req) {
   const bearer = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
   return Session._verify(bearer);   // constant-time compare + the owner's lifetime policy
 }
-function readBody(req) {
+// 4MB used to be the hard cap AND the failure mode was req.destroy() with no response — so a
+// pasted screenshot over ~3MB killed the request silently and CODE waited forever for a stream
+// that would never start. The chat routes carry base64 images (5 × ~8MB is allowed upstream),
+// so they get room; anything over the limit is answered with a 413 the client can render.
+const BODY_MAX = 64e6;
+function readBody(req, res) {
   return new Promise((resolve) => {
-    let b = ''; req.on('data', (c) => { b += c; if (b.length > 4e6) req.destroy(); });
-    req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } });
-    req.on('error', () => resolve({}));
+    let b = '', over = false;
+    req.on('data', (c) => {
+      if (over) return;
+      b += c;
+      if (b.length > BODY_MAX) {
+        over = true; b = '';
+        if (res && !res.headersSent) { try { res.writeHead(413, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'that message is too large — attach fewer or smaller images' })); } catch {} }
+        req.destroy();
+      }
+    });
+    // null means "already answered with 413" — only possible when a res was handed in, so
+    // the callers that do not pass one keep their old never-throws contract.
+    req.on('end', () => { if (over) return resolve(res ? null : {}); try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } });
+    req.on('error', () => resolve(over && res ? null : {}));
   });
 }
 function streamHead(res) {
@@ -265,13 +304,29 @@ const server = http.createServer(async (req, res) => {
   // reloads with ⌘R but the daemon only reloads on relaunch).
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(j({ ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale() }));
+    // `root: HUB_ROOT` was here and it contradicted the comment two lines up: HUB_ROOT is
+    // /Users/<name>/… , so an UNAUTHENTICATED probe learned the macOS username, the desktop
+    // layout and where the repo lives. It was added in 3d18a2d of this session's own work,
+    // for diagnostics that appStale already answers as a boolean, and nothing ever read it —
+    // every `.root` in the client comes from RPC('folders','root'), which is behind the token.
+    res.end(j({ ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale(), appStale: appStale() }));
     return;
   }
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
   // HEAD is served like GET (headers only) so probes never fall through to the 401/404
   // gate and log a console error (audit BUG-L0-001: HEAD not served → COOP/401 on boot).
   if ((req.method === 'GET' || req.method === 'HEAD') && serveStatic(req, res, url.pathname, { root: HUB_ROOT, host: HOST, port: PORT, token: Session._token() })) return;
+  // The LLM relay: pi's model calls come back here so the owner's provider key never enters
+  // pi's environment (where every bash command it runs would inherit it). The capability IS
+  // the random token in the path — minted per session, held only by that pi process, dead when
+  // the session ends. It is deliberately ahead of the pairing gate because pi authenticates
+  // with the relay token, not with the app's pairing token; an unknown token gets a 401 and
+  // never reaches a provider. See bridge/pi.mjs → mintRelay / handleRelay.
+  if (url.pathname.startsWith('/llm/')) {
+    let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
+    await P.handleRelay(req, res, url.pathname.slice(5) + (url.search || ''));
+    return;
+  }
   // everything else requires the pairing token
   if (!authed(req)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'unpaired' })); return; }
 
@@ -294,7 +349,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/provider-chat') { await Chat.handleProviderChat(req, res, await readBody(req), { streamHead }); return; }
   // CODE chat → the raw Pi agent: streams Pi's answer + tool activity as NDJSON. Pi drives the
   // app through the clone-frame extension (op=app + /mod/*); BYOK, one hard limit (anti-wipe).
-  if (req.method === 'POST' && url.pathname === '/pi-chat') { let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; } await P.handlePiChat(req, res, await readBody(req), { streamHead }); return; }
+  if (req.method === 'POST' && url.pathname === '/pi-chat') {
+    let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
+    const b = await readBody(req, res); if (b === null) return;   // 413 already answered
+    await P.handlePiChat(req, res, b, { streamHead }); return;
+  }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
   res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'not found' }));
 });
@@ -467,3 +526,23 @@ server.listen(PORT, HOST, async () => {
   bootTasks();
 });
 server.on('error', (e) => { console.error('bridge error:', e.message); process.exit(1); });
+
+// Take the browser engine down with us, so its disposable profile is erased rather than left
+// on disk until some future launch. webengine.stop() wipes it; nothing was calling stop() when
+// the daemon exited, so a Ctrl-C left the engine's cookies and cache sitting there — measured:
+// 7 cookies for a link-redirect domain, still on disk with no engine running.
+// Best-effort and time-boxed: quitting must never hang on cleanup.
+{
+  let leaving = false;
+  const bye = (sig) => {
+    if (leaving) return; leaving = true;
+    const done = () => process.exit(sig === 'SIGINT' ? 130 : 143);
+    const timer = setTimeout(done, 3000);          // never hang the quit
+    (async () => {
+      try { const m = await import('./webengine.mjs'); await m.Webengine.stop(); } catch { /* not running */ }
+      clearTimeout(timer); done();
+    })();
+  };
+  process.on('SIGINT', () => bye('SIGINT'));
+  process.on('SIGTERM', () => bye('SIGTERM'));
+}
