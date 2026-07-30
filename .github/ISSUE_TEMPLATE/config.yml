@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/devclone20/cloneframe_app_executable/blob/main/SECURITY.md
+    about: Do not open a public issue with a working exploit. SECURITY.md has the path and what to expect.
+  - name: Known issues
+    url: https://github.com/devclone20/cloneframe_app_executable/blob/main/KNOWN-ISSUES.md
+    about: What we already know is imperfect, and which behaviours are deliberate. Worth two minutes before you write.
+  - name: Contributing
+    url: https://github.com/devclone20/cloneframe_app_executable/blob/main/CONTRIBUTING.md
+    about: How to build it, how to run the gates, and the two rules that are not style.

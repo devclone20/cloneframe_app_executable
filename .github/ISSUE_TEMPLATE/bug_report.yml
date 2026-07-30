@@ -1,0 +1,113 @@
+name: Bug report
+description: Something does not work the way the app says it does
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The single most useful thing you can give us is
+        **what the app actually printed** — its own words, pasted, not summarised.
+
+        Please check [`KNOWN-ISSUES.md`](../../blob/main/KNOWN-ISSUES.md) first. Several
+        things that look like bugs are decisions we made on purpose, and it says which.
+
+        **Do not paste your pairing token or any API key.** If a log line contains one,
+        replace it with `<redacted>` — everything else in the line is still useful to us.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what the app did instead of what you expected.
+      placeholder: |
+        I dragged a folder onto the CODE chat. I expected a chip with the folder path.
+        Nothing appeared and the composer stayed empty.
+    validations:
+      required: true
+
+  - type: textarea
+    id: app-said
+    attributes:
+      label: What the app printed
+      description: >
+        Paste it verbatim — the toast, the error text, the terminal output, the console.
+        This field is the reason most issues get fixed on the first pass. "It failed" is
+        the reason some never do.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Settings → About, or `curl -s http://127.0.0.1:8765/health`"
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running it
+      options:
+        - The built .app (double-click)
+        - From a clone, launched locally
+        - Docker (docker compose up)
+        - Other — described below
+    validations:
+      required: true
+
+  - type: dropdown
+    id: bridge-state
+    attributes:
+      label: Bridge state when it happened
+      description: The dot in the top bar, or whether MY MACHINE said it was connected.
+      options:
+        - Paired — the app was talking to the daemon
+        - Unpaired — the daemon was running but not connected
+        - No daemon running
+        - I do not know
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS and hardware
+      placeholder: "macOS 26.5 · M2 · 16 GB"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Numbered, from a freshly opened app. If it only happens sometimes, say roughly
+        how often — an intermittent bug that is honestly described is far easier to
+        catch than one reported as reliable.
+      placeholder: |
+        1. Open CODE
+        2. Drag a folder from Finder onto the message area
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, a recording, what you tried, what made it stop.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before you send
+      options:
+        - label: I checked KNOWN-ISSUES.md
+          required: true
+        - label: There is no pairing token, API key or password anywhere in this issue
+          required: true
