@@ -432,9 +432,9 @@ Two safety nets are always on, regardless of the switches:
 
 - **Catastrophic commands are blocked** — things like `rm -rf /`, `mkfs`, or
   `dd` to a disk are refused **even in root mode**.
-- **The in-app browser is sandboxed** behind an SSRF-guarded proxy, in an
-  opaque-origin frame, so a page's JavaScript can never reach your token or the
-  Bridge.
+- **The in-app browser runs outside the app** — the page lives in a separate Chrome
+  process and only its picture is streamed back, so a page's JavaScript can never
+  reach your token or the Bridge.
 
 > Golden rule: enable a permission, do the one task, then switch it back off.
 > Never leave shell or web enabled on an agent you are not actively supervising.

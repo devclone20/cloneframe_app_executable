@@ -91,25 +91,27 @@
       }else focus(p);
       return;
     }
+    // ONE rule for every type: opening from a square LINKS the window to that square and
+    // leaves the square standing. It used to be two rules — MULTI kept its square, and a
+    // singleton released it ("the launcher tile has served its purpose", BUG-L2-004 Part 2).
+    // That is why a chip vanished from the DOCK the moment you clicked it, for some panels
+    // and not others. A square is the window's home; only its ✕ takes it away.
+    let p=null;
     if(MULTI.has(type)){
-      // Launcher square (post-reload, popped tab, + menu): open its OWN new window and
-      // link it to the square so later clicks focus/restore THIS window.
-      let p=null;
       if(type==='shell'){if(cwd)pendingShellCwd=cwd;p=openPanel('shell',{newInstance:true})}
       else{p=openPanel(type,{newInstance:true});if(type==='research'&&url&&p)Bus.emit('web:open',{url,target:p.dataset.key||''})}
-      // Persist the link, don't just stamp the element: a rebuild wipes the element and the
-      // window would be orphaned exactly as before. Grid.linkPanel writes both.
-      if(p&&d.cell)Grid.linkPanel(d.cell,p.dataset.key);
-      return;
-    }
-    // BUG-L2-004 Part 2: a singleton reopened from its frame tile brings the window back,
-    // so the launcher tile has served its purpose — release the source cell (no orphan tile).
-    if(d.cell&&typeof Grid!=='undefined'&&Grid.release)Grid.release(d.cell);
-    openPanel(type);
+    }else p=openPanel(type);
+    // Persist the link, don't just stamp the element: a rebuild wipes the element and the
+    // window would be orphaned exactly as before. Grid.linkPanel writes both.
+    if(p&&d.cell&&typeof Grid!=='undefined'&&Grid.linkPanel)Grid.linkPanel(d.cell,p.dataset.key);
+    Bus.emit('panels:changed');
   });
   // Removing a square that holds a hidden docked window closes that window for real
   // (dispose hook reaps its pty sessions) — a tile ✕ must never leak an invisible panel.
-  Bus.on('cell:removed',pk=>{const p=open[pk];if(p&&p.dataset.docked)close(p)});
+  // A square's ✕ closes its window, whether that window is hidden in the square or open on
+  // screen. It used to close only a DOCKED one, which was right while a square existed only
+  // for a minimized window; now a square outlives the restore, so ✕ is the single way out.
+  Bus.on('cell:removed',pk=>{const p=open[pk];if(p)close(p);Bus.emit('panels:changed')});
   // Safety net. A docked window is invisible and holds real resources — pty sessions, Chrome
   // tabs — and its ONLY handle is the square that carries its key. Persisting that key across
   // a grid rebuild is the fix; this is the guarantee. After any dock change, a hidden window

@@ -1101,8 +1101,14 @@ export const Webengine = {
   },
 
   async input({ id, events } = {}) {
-    const tab = _tab(id);
-    if (!tab) return { ok: false, error: 'no such tab' };
+    // Same rule as navigate/back/forward/reload: id omitted → the on-screen tab, because
+    // that is what the agent is looking at. It matters here more than anywhere, since click()
+    // and type() pass their id straight through and the agent's web_click{x,y} / web_type{text}
+    // name no tab at all — so both used to answer "no such tab" on a page pi had just opened.
+    // (frame/castStart/castStop/setViewport stay strict: they are per-tab panel plumbing, and
+    // a default there would paint or resize a DIFFERENT tab.)
+    const tab = (id != null ? _tab(id) : _primaryTab());
+    if (!tab) return { ok: false, error: id != null ? 'no such tab' : 'no tab open' };
     const list = Array.isArray(events) ? events.slice(0, 128) : [];
     for (const ev of list) {
       // Sequential on purpose: input order is semantics (down before up).

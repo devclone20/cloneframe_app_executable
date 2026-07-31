@@ -94,7 +94,7 @@ The interface is a single `index.html`, but it is not a blob — it is a small k
 a **panel registry**, and a fleet of self-contained panels. Every panel is registered
 in one data-driven table and mounted on demand; adding a new one is a single line.
 
-![Inside the window — Bus, Kernel, panel registry, BridgeClient, 27 panels](docs/assets/inside-window.svg)
+![Inside the window — Bus, Kernel, panel registry, BridgeClient, 20 panels](docs/assets/inside-window.svg)
 
 Every panel reaches the outside world through **one** client (`BridgeClient`), so
 there is a single place where the pairing token, headers, and timeouts live. Panels
@@ -129,12 +129,12 @@ your `zsh`, your prompt, `vim` and `tmux` all work.
 
 ---
 
-## 🧱 The frame grid — 27 panels
+## 🧱 The frame grid — 20 panels
 
 Open the launcher and any of these mount instantly, each in its own draggable,
 dockable frame. Dock one into a grid square and its live session keeps running.
 
-![The frame grid — 27 panels in six families](docs/assets/frame-grid.svg)
+![The frame grid — 20 panels in six families](docs/assets/frame-grid.svg)
 
 The four families you reach from the **top bar** are **CODE · HARNESS · LAB · MATRIX**;
 the rest open from the launcher, the command palette, or Settings.
@@ -142,7 +142,7 @@ the rest open from the launcher, the command palette, or Settings.
 | Top-bar tab | What it gives you |
 |-------------|-------------------|
 | **CODE** | Chat with your model, a real multi-tab terminal (xterm, file tree, diff + editor, `zsh` themes, tab-autocomplete), a project diff view, and an in-app browser. |
-| **HARNESS** | Crews of agents that plan and act behind **non-collapsible safety gates** — the agent proposes, the gate holds, you decide. |
+| **HARNESS** | Crews of agents that plan and act behind **non-collapsible safety gates** — the agent proposes, the gate holds, you decide. (Today the gates apply to the model paths you connect yourself. If you install and select the `pi` coding agent, its own tool loop runs outside them — see [KNOWN-ISSUES.md](KNOWN-ISSUES.md).) |
 | **LAB** | Chat with any model, and **your agents** — the LAB detects every iNFT your connected wallet holds and lets you work with each one. |
 | **MATRIX** | Your **local AI cluster** — turn your own devices into nodes, load models, and chat with a fully local brain (details below). |
 
@@ -186,9 +186,10 @@ negative regression test in the suite.
   the subprotocol (`cfhub.bearer.<token>`), never in the URL.
 - **Powerful things default OFF.** Shell, file-write, web, and email autonomy are
   opt-in switches in Settings. Catastrophic commands are blocked even in root mode.
-- **Sandboxed browser.** In-app pages render in an opaque-origin sandbox behind an
-  SSRF-guarded proxy that re-validates on every redirect, so page JavaScript can never
-  reach the token or the bridge.
+- **The web never runs inside the app.** The in-app browser is a *separate* Chrome
+  process on its own profile, driven over a debugging **pipe** — no port, no socket.
+  The panel paints its video frames onto a canvas, so a page has no parent window to
+  reach and no frame to escape. Only a picture comes back.
 - **Your secrets stay yours.** Keys live in your session or `.env` and are never
   written into the app, the logs, or this repository.
 - **The wallet holds the keys, not the app.** CLONE FRAME only ever builds **unsigned**
@@ -208,9 +209,25 @@ accident.
 
 ![The single-file build — many source files, one reproducible index.html, a golden sha256](docs/assets/single-file-build.svg)
 
-A fresh clone runs `dist/index.html` with **no build tools** — the panels are spliced
-back into the same scope at build time, so the single-file app and the modular source
-are always exactly the same program.
+A fresh clone runs with **no build tools**: the `index.html` committed at the
+repository root *is* that built artifact, byte-for-byte what `npm run build` writes to
+`dist/index.html`. The panels are spliced back into the same scope at build time, so the
+single-file app and the modular source are always exactly the same program — and
+`tools/golden/index.sha256` is the frozen checksum that proves it.
+
+### Verify it yourself
+
+You do not have to take our word for what is in the app you downloaded. Build it from
+the source in this repository and compare the bytes:
+
+```bash
+npm install && npm run build          # web/ -> dist/index.html
+shasum -a 256 dist/index.html         # must equal the line in tools/golden/index.sha256
+cmp dist/index.html index.html        # and the committed app must be that same file
+```
+
+Three commands, no output, exit 0 — that is the whole proof. If any of them disagrees,
+the shipped app is not what this source says it is, and we want the issue.
 
 ---
 
@@ -271,10 +288,17 @@ macOS is the primary platform for a direct install.
 
 ```bash
 git clone https://github.com/devclone20/cloneframe_app_executable.git
-cd cloneframe_app_executable/bridge && npm install   # only 3 optional email deps; rest is Node built-ins
+cd cloneframe_app_executable/bridge && npm install   # 5 small add-ons — see below
 ./launch.sh                                            # starts the bridge on 127.0.0.1 and opens the app
 # or build the double-click app:  cd bridge && ./make-app.sh   -> "CLONE FRAME HUB.app"
 ```
+
+The daemon is otherwise pure Node built-ins. Those five add-ons are `ws` and `node-pty`
+(the live terminal) plus `imapflow`, `mailparser` and `nodemailer` (email). **Every one
+is imported behind a guard** — the bridge boots without any of them, you simply lose
+that feature. `node-pty` is a native module: if `npm install` complains, it is almost
+always that one wanting a prebuilt binary or the Xcode command line tools. See
+[docs/INSTALL.md](docs/INSTALL.md).
 
 You do **not** need to build anything to run it: the committed `index.html` at the
 repository root *is* the app, and it is byte-for-byte what `npm run build` produces
@@ -282,10 +306,16 @@ from `web/`. If you want to change the app, or run the tests, install the one ro
 dev dependency too:
 
 ```bash
-cd cloneframe_app_executable && npm install   # esbuild, for the single-file build
+cd cloneframe_app_executable && npm install    # esbuild, for the single-file build
+cd bridge && npm install && cd ..              # the suite exercises the real daemon modules
 npm run build                                  # web/ -> dist/index.html
-npm test                                       # builds first, then runs the suite
+npm test                                       # builds first, then runs the whole suite
 ```
+
+Both installs are needed for `npm test`: a good part of the suite runs against the real
+bridge modules — a real `zsh`, real files, the real cron engine, a real HTTP daemon on a
+scratch port — rather than against mocks. With only the root install, eleven tests fail on
+a missing `imapflow`/`nodemailer`, which is a missing dependency and not a broken app.
 
 **Requirements:** Node ≥ 18 and a Chromium browser (Chrome, Brave, Edge, or Chrome
 for Testing) for the app window.
@@ -309,6 +339,9 @@ so it will run, but the launch and packaging scripts are macOS-first. See
 | [docs/INSTALL.md](docs/INSTALL.md) | Install and run on macOS, Linux, and Windows. |
 | [docs/CONNECT.md](docs/CONNECT.md) | Connect a cloud API key or a local MATRIX model. |
 | [SECURITY.md](SECURITY.md) | The full security model and how to report issues. |
+| [KNOWN-ISSUES.md](KNOWN-ISSUES.md) | What is thin, what is deliberate, and the residual risks — written before anyone else finds them. |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release, and what it cost you before it changed. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | The build is a splice and `dist/` is generated. Read this before your first change. |
 
 ## License
 

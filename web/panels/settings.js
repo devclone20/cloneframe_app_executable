@@ -3,7 +3,6 @@
     // quotes, and zsh still expands $(...), `...` and $VAR inside those — so a folder whose
     // NAME contained a command substitution would have executed when the owner clicked
     // "Open in Finder". Same defect class as the iT one, a different panel.
-    const shq=v=>"'"+String(v).replace(/'/g,"'\\''")+"'";
     // ----- sidebar-nav settings (left column of sections, content pane on the right) -----
     const nav=p.querySelector('#setnav'),pane=p.querySelector('#setpane');
     const loading=()=>{pane.innerHTML='<div class="qempty" style="padding:16px">loading…</div>'};
@@ -275,7 +274,9 @@
         if(!q){res.innerHTML='Type to search…';return}
         const hits=SECS.filter(x=>x[1].toLowerCase().includes(q)).map(x=>`<div class="setline" data-go="${x[0]}" style="cursor:pointer"><span style="flex:1">${x[1]}</span><span class="dim">settings</span></div>`).join('');
         let deep='';
-        if(Bridge.on()){try{const r=await RPC('search','query',q);(r&&r.groups||[]).forEach(g=>{(g.items||[]).slice(0,4).forEach(it=>{deep+=`<div class="setline"><span style="flex:1">${escHtml(it.title||it.name||'')}</span><span class="dim">${escHtml(g.module||g.label||'')}</span></div>`})})}catch(_){}}
+        // `g.items` is not a key search.mjs returns — it returns `results`, as web/panels/
+        // search.js reads it. Every cross-module hit was silently dropped by (undefined||[]).
+        if(Bridge.on()){try{const r=await RPC('search','query',q);(r&&r.groups||[]).forEach(g=>{(g.results||[]).slice(0,4).forEach(it=>{deep+=`<div class="setline"><span style="flex:1">${escHtml(it.title||it.name||'')}</span><span class="dim">${escHtml(g.module||g.label||'')}</span></div>`})})}catch(_){}}
         res.innerHTML=(hits+deep)||'<div class="qempty">Nothing found.</div>';
         res.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.go)));
       },250)});

@@ -28,6 +28,7 @@
 // Zero deps: node built-ins + global fetch. Binds nothing; the bridge owns the port.
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn } from 'node:child_process';
+import { isDestructive } from './platform/shell-guard.mjs';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -349,6 +350,11 @@ async function run(id, cmd) {
     const s = _find(load(), id);
     if (!s) return { ok: false, error: 'server not found' };
     if (!s.host) return { ok: false, error: 'server has no host yet' };
+    // The same guard ssh.mjs:239 already applies to ITS scripted remote path. Two
+    // implementations of "run a command on one of the owner's machines", and only one refused
+    // `rm -rf /`. This is the one the agent reaches through app_rpc{module:'servers'}, and a
+    // blocklist that covers the local shell and one of two remote paths is not a blocklist.
+    if (isDestructive(String(cmd || ''))) return { ok: false, error: 'refused: catastrophic pattern blocked' };
     const r = await _ssh(s, String(cmd || ''));
     if (r.spawnError) return { ok: false, error: r.output };
     return { ok: true, output: r.output, exit: r.exit, truncated: !!r.truncated, timedOut: !!r.timedOut };

@@ -33,14 +33,13 @@ flowchart TB
     subgraph WIN["Your window — Chromium app"]
         UI["index.html · frame grid and panels"]
         XT["xterm.js · live terminal"]
-        IB["in-app browser · sandboxed iframe"]
+        IB["in-app browser · canvas, painted from video frames"]
     end
 
     subgraph BR["HUB Bridge · Node daemon on 127.0.0.1:8765"]
         GATE["Guards · loopback + Host + token"]
         CTRL["CONTROL · POST /mod/name"]
         DATA["DATA · WS /stream"]
-        PXY["SSRF proxy · GET /proxy"]
         MODS["Backend modules · getMod"]
     end
 
@@ -48,6 +47,7 @@ flowchart TB
         SH["zsh shell"]
         PTY["node-pty · real TTY"]
         FS["~/CloneFrame folders"]
+        ENG["Web engine · separate Chrome, CDP over a pipe"]
         INT["Integrations · EXO · Manaflow · TMUX"]
         WAL["Your wallet · sole key holder"]
     end
@@ -56,16 +56,16 @@ flowchart TB
 
     UI -->|"CONTROL"| GATE
     XT -->|"DATA"| GATE
-    IB -->|"page fetch"| GATE
+    IB -->|"CONTROL · navigate, click, type"| GATE
     GATE --> CTRL
     GATE --> DATA
-    GATE --> PXY
     CTRL --> MODS
     DATA --> PTY
     MODS --> SH
     MODS --> FS
     MODS --> INT
-    PXY -->|"rendered page"| IB
+    MODS --> ENG
+    ENG -->|"JPEG frames only"| IB
     MODS -->|"relay only"| MODEL
     UI -.->|"unsigned tx"| WAL
 ```
@@ -180,23 +180,25 @@ flowchart TB
 
 ### The browser has its own lane
 
-The in-app browser is the one place untrusted web content enters, so it gets a separate, stricter path. The proxy route `/proxy` is deliberately **token-less** — because the token must never sit in an iframe URL where the proxied page's own JavaScript could read `location.search`. It stays safe through a different stack of locks:
+The in-app browser is the one place untrusted web content enters, so it gets a separate, stricter path — and the strictness is structural rather than defensive: **the page never runs inside the app document at all.** `bridge/webengine.mjs` owns a dedicated Chrome instance on its own profile, reached over `--remote-debugging-pipe` (CDP on file descriptors 3 and 4, NUL-delimited JSON — no debugging port, no debugging socket, nothing else on the machine can attach). The panel paints that engine's JPEG screencast frames onto a `<canvas>` and sends pointer and keyboard events back. What crosses toward the window is a picture:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
 flowchart TB
-    PAGE["Page load in the in-app browser"] --> G1{"Loopback socket?"}
+    PAGE["Navigate, in the in-app browser"] --> G1{"Loopback socket + Host + token?"}
     G1 -->|no| X1["403"]
-    G1 -->|yes| G2{"Sec-Fetch-Dest is iframe?"}
-    G2 -->|"empty — a cross-site fetch"| X2["403 — not an open proxy"]
-    G2 -->|yes| G3["web.mjs SSRF guard — re-checked every redirect hop"]
-    G3 -->|"private or internal host"| X3["blocked"]
-    G3 -->|"public http or https only"| G4["Fetch server-side, cap size and time"]
-    G4 --> G5["Render in sandbox WITHOUT allow-same-origin"]
-    G5 --> DONE["Opaque origin — page JS cannot reach token or bridge"]
+    G1 -->|yes| G2{"Function starts with an underscore?"}
+    G2 -->|yes| X2["400 — every internal in webengine.mjs is underscored"]
+    G2 -->|no| G3{"Scheme is http, https or about:blank?"}
+    G3 -->|"file:// or chrome://"| X3["refused — the engine holds your filesystem"]
+    G3 -->|yes| G4["Chrome navigates, in its own process and profile"]
+    G4 --> G5["Page.startScreencast — JPEG frames"]
+    G5 --> DONE["Painted to a canvas — no frame, no parent, no token to read"]
 ```
 
-Because the sandbox omits `allow-same-origin`, the proxied page runs at an **opaque origin**: its JavaScript cannot read the parent window, the token, or authenticate to any bridge route. And because the SSRF guard re-validates on every redirect hop, a page cannot bounce the fetch toward `169.254.169.254` (cloud metadata), `localhost`, or any private range.
+Two limits keep that lane narrow. **No raw CDP crosses the boundary**: no caller-supplied method name and no caller-supplied JavaScript ever reaches Chrome — input maps through a fixed whitelist and `read()` evaluates one fixed expression. And **the scheme is fenced** to `http`/`https`/`about:blank`, because the engine runs with your filesystem and a `file://` navigation driven over RPC would be an exfiltration path. Because CDP rides the pipe rather than a port, Chrome exits when the bridge dies — no orphaned engines, no pidfile.
+
+> **Superseded design.** Until 2026-07-25 this lane was a sandboxed iframe fed by a token-less `GET /proxy` reader with a server-side SSRF guard. That route was removed with the panel rewrite and no HTML-rewriting proxy remains. `web.mjs`'s SSRF guard is still very much alive — it now guards the agent's and the panels' *own* outbound fetches, not page rendering.
 
 Secrets, throughout, live only in your session and your `~/.env` — never written into the app, the logs, or the repository. The connected wallet is the sole key holder; the app builds unsigned transactions only.
 

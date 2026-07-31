@@ -93,7 +93,12 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 // Returns true if it handled the request (served bytes or a 404); false if the
 // caller should fall through to other routes.
 export function serveStatic(req, res, pathname, { root, host, port, token }) {
-  let rel = decodeURIComponent(pathname);
+  // This route runs BEFORE the pairing gate (the HTML is not secret), so its very first
+  // statement is the most exposed line in the daemon. `decodeURIComponent('/%')` THROWS —
+  // and an async throw here used to take the whole process down, unpaired, from one curl.
+  // A path that is not valid percent-encoding is not a file we serve: fall through.
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch { return false; }
   if (rel === '/' || rel === '') rel = '/index.html';
   if (rel.includes('\0') || rel.includes('..')) return false;
   // Serve the built single-file document (dist/index.html) when it exists; fall back to the

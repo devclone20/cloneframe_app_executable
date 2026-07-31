@@ -127,6 +127,22 @@ export async function approve(id) {
       return { ok: false, error: `email module unavailable: ${e.message || e}` };
     }
 
+    // CLAIM IT FIRST, and write the claim to disk before the socket opens.
+    //
+    // This used to be one read-modify-write wrapped around `await Email.send()` — a fresh
+    // nodemailer transport, so connect + TLS + AUTH + DATA, routinely 1-3 seconds. Two things
+    // went wrong in that window, both silently:
+    //   · two approvals of the same item (a second click, a second window, the scheduler)
+    //     both read status 'pending' and BOTH SENT. The recipient got it twice.
+    //   · every other write to this store — a reject, an agent's approvals.add, a prune —
+    //     was overwritten when the stale snapshot was finally saved.
+    // 'approved' already existed in STATUSES and was unused. It is the right word: the owner
+    // said yes and it is on its way. The panel shows it as a badge with no buttons, and
+    // count() ignores it, so the APPROVAL badge clears the moment you click.
+    item.status = 'approved';
+    item.decidedAt = Date.now();
+    saveStore(store);
+
     const result = await Email.send(item.accountId, {
       to: item.to,
       cc: item.cc,
@@ -136,18 +152,26 @@ export async function approve(id) {
       inReplyTo: item.inReplyTo || undefined,
     });
 
+    // RE-READ. `store` is now seconds stale; anything written during the send would be lost
+    // by saving it. Apply the outcome to a fresh snapshot instead.
+    const fresh = loadStore();
+    const row = fresh.items.find((it) => it.id === id) || item;
+
     if (!result || result.ok !== true) {
-      item.error = (result && result.error) || 'send failed';
-      saveStore(store);
-      return { ok: false, error: item.error };
+      // Back to pending so the owner can try again — a failed send must not consume the draft.
+      row.status = 'pending';
+      row.decidedAt = null;
+      row.error = (result && result.error) || 'send failed';
+      saveStore(fresh);
+      return { ok: false, error: row.error };
     }
 
-    item.status = 'sent';
-    item.decidedAt = Date.now();
-    item.sentMessageId = result.messageId || null;
-    item.error = null;
-    saveStore(store);
-    return { ok: true, messageId: item.sentMessageId };
+    row.status = 'sent';
+    row.decidedAt = Date.now();
+    row.sentMessageId = result.messageId || null;
+    row.error = null;
+    saveStore(fresh);
+    return { ok: true, messageId: row.sentMessageId };
   } catch (e) {
     return { ok: false, error: e.message || String(e) };
   }

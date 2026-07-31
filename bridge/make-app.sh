@@ -25,8 +25,12 @@ PLIST="$APP/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'CLONE FRAME HUB'" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string 'io.cloneframe.hub'" "$PLIST" 2>/dev/null || \
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier 'io.cloneframe.hub'" "$PLIST" 2>/dev/null || true
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '0.2.0'" "$PLIST" 2>/dev/null || \
-  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '0.2.0'" "$PLIST" 2>/dev/null || true
+# ONE version number. This line carried 0.2.0 while package.json said 0.3.0, so the .app the
+# owner double-clicked reported a version two releases old in Finder's Get Info. Read it from
+# the manifest, like every other surface does through the @@CF_VERSION@@ build token.
+APP_VERSION="$(node -p "require('$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/package.json').version" 2>/dev/null || echo 0.0.0)"
+/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '$APP_VERSION'" "$PLIST" 2>/dev/null || \
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '$APP_VERSION'" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool false" "$PLIST" 2>/dev/null || true
 
 # optional custom icon (replaces the applet icon) if hub.icns is present

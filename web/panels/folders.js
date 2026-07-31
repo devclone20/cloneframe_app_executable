@@ -5,7 +5,8 @@
     const base=s=>{s=String(s||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
     const parent=s=>{s=String(s||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
     const join=(a,b)=>String(a).replace(/\/+$/,'')+'/'+b;
-    const qp=s=>'"'+String(s).replace(/"/g,'')+'"';
+    // Was '"'+s.replace(/"/g,'')+'"' — which stops nothing: a file named $(…) ran on Reveal.
+    const qp=shq;
     let homeAbs='~',cfRoot='',cwd='',viewing=null,treeHidden=false,creating=null;
     const tree={open:new Set()};
     // `.catch(()=>null)` used to throw away WHY, and the caller then guessed: every failure —

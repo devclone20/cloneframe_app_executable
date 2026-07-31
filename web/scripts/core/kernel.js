@@ -236,9 +236,22 @@ export const dragGesture = (el, opts = {}) => {
   return () => el.removeEventListener('pointerdown', down);
 };
 
+// ── shell quoting ────────────────────────────────────────────────────────────
+// The ONE way a path or any other untrusted string may enter a shell command string.
+//
+// Single quotes are the only shell quoting with no escapes inside them: $ ` \ " ( ) ; & |
+// * ~ and newline all lose their meaning. A single quote itself cannot be escaped inside
+// single quotes, so it is closed, escaped and reopened — the classic '\'' dance.
+//
+// This exists because it existed four times. Two of the four wrapped in DOUBLE quotes and
+// merely deleted the inner `"`, which stops nothing: `$(…)`, backticks and `$VAR` all still
+// expand inside double quotes, so a file named  $(…)  ran when you revealed or opened it.
+// One idea gets one implementation, or the wrong copy eventually gets the reach.
+export const shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+
 // ── browser exposure ─────────────────────────────────────────────────────────
 // In the built single-file document this module is an IIFE; publish the primitives as bare
 // globals for the classic inline app script. (No-op under node import — exports are used there.)
 if (typeof window !== 'undefined') {
-  Object.assign(window, { escHtml, escAttr, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, parkCorrupt, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
+  Object.assign(window, { escHtml, escAttr, shq, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, parkCorrupt, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
 }

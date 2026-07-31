@@ -27,6 +27,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { shq } from '../web/scripts/core/kernel.js';
 import { execFileSync } from 'node:child_process';
 
 const APP = path.resolve(import.meta.dirname, '..');
@@ -61,17 +62,20 @@ test('no shell path in the panels is built with double quotes', () => {
 });
 
 test('settings.js uses the same single-quoting shape as iT', () => {
+  // It used to have its OWN copy of the expression, and this test pinned that copy verbatim.
+  // The copy is gone: kernel.js holds the one definition and every panel reads the same `shq`
+  // off the window exposure block. What still matters is that the reveal paths go through it.
   const s = read('web/panels/settings.js');
-  assert.match(s, /const shq=v=>"'"\+String\(v\)\.replace\(\/'\/g,"'\\\\''"\)\+"'";/,
-    'one helper, the same escaping as qpath');
+  assert.equal((s.match(/replace\(\/'\/g/g) || []).length, 0,
+    'settings.js must not re-derive the quoter — it is in the kernel now');
   assert.match(s, /Bridge\.shell\('open '\+shq\(rr\.abs\),\(\)=>\{\}\)/);
   assert.match(s, /Bridge\.shell\('open '\+shq\(s\.root\),\(\)=>\{\}\)/);
 });
 
 test('a hostile folder name does not execute through the Finder-reveal path', () => {
   // Exercise the shipped expression against a real zsh, the same way the iT test does.
-  const s = read('web/panels/settings.js');
-  const shq = eval('(' + s.match(/const shq=([^;]+);/)[1] + ')'); // eslint-disable-line no-eval
+  // Imported rather than eval'd out of the panel: the definition moved to the kernel, and
+  // importing it is now the honest way to exercise exactly what settings.js calls.
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-set-'));
   const hostile = path.join(base, 'proj$(touch EXECUTED)x');
   try {
@@ -79,6 +83,22 @@ test('a hostile folder name does not execute through the Finder-reveal path', ()
     execFileSync('zsh', ['-lc', 'cd ' + shq(hostile) + ' >/dev/null 2>&1; true'], { cwd: base, stdio: 'ignore' });
     assert.equal(fs.existsSync(path.join(base, 'EXECUTED')), false, 'the folder name executed');
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('both remote-command paths refuse a catastrophic command, not just one', () => {
+  // ssh.mjs:239 refused `rm -rf /` on its scripted remote path from the day it was written.
+  // servers.mjs run() — its own comment calls it "the power primitive the Code agent tool
+  // calls", and it is what the agent reaches through app_rpc{module:'servers'} — did not.
+  // Two implementations of "run a command on one of the owner's machines"; the guard was on
+  // the one with fewer callers. A blocklist that covers the local shell and one of two remote
+  // paths is not a blocklist.
+  for (const f of ['bridge/ssh.mjs', 'bridge/servers.mjs']) {
+    const src = read(f);
+    assert.match(src, /import \{ isDestructive \} from '\.\/platform\/shell-guard\.mjs'/,
+      f + ' must use the one shared guard, not its own idea of catastrophic');
+    assert.match(src, /if \(isDestructive\([\s\S]{0,40}\)\) return \{ ok: false, error: 'refused: catastrophic pattern blocked'/,
+      f + ' must refuse a catastrophic remote command');
+  }
 });
 
 test('the scheduler no longer swallows the write that advances the schedule', () => {

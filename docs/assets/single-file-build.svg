@@ -27,7 +27,7 @@
   <text x="76" y="160" fill="#566070" font-size="11">shell + styles</text>
   <rect x="60" y="184" width="290" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
   <text x="76" y="206" fill="#c9d1d9" font-size="13">web/panels/*.js</text>
-  <text x="76" y="226" fill="#566070" font-size="11">27 panels, one file each</text>
+  <text x="76" y="226" fill="#566070" font-size="11">20 panels, one file each</text>
   <rect x="60" y="250" width="290" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
   <text x="76" y="272" fill="#c9d1d9" font-size="13">web/scripts/core/kernel.js</text>
   <text x="76" y="292" fill="#566070" font-size="11">esbuild-bundled</text>

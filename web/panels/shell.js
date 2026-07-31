@@ -30,7 +30,7 @@
     // is ' itself, closed and re-opened the standard way. Paths reaching here are always
     // absolute (contract() produces the ~ form for DISPLAY only, and every call site guards
     // the bare '~'), so nothing here relies on tilde expansion.
-    const qpath=pth=>"'"+String(pth).replace(/'/g,"'\\''")+"'";
+    const qpath=shq;   // the kernel's one quoter, under this file's historical name
     // The iT model: workspace (sidebar row) ▸ pane (split) ▸ surface (a tab inside a pane).
     // Two kinds of surface share a pane:
     //   tty   — a REAL interactive terminal (xterm ↔ WS /stream ↔ node-pty): vim, htop,
@@ -170,8 +170,7 @@
     }
     // shq lived here as a second, safe copy of qpath while qpath itself was unsafe — one idea,
     // two implementations, four lines apart in the same scope, and the wrong one had 11 call
-    // sites. Now there is one.
-    const shq=qpath;
+    // sites. The one that survived now lives in the kernel, and this alias is gone with it.
     async function itSaveFile(f){
       const dir=await itAttachDir();if(!dir){Toast.show('Bridge offline — could not save '+(f.name||'file'));return null}
       const safe=String(f.name||'pasted.png').replace(/\.\.+/g,'.').replace(/[^\w./-]+/g,'_');

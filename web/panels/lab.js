@@ -688,11 +688,13 @@
     const r=await RPC('files','read',filePath,{maxKB:65536}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
     if(!r||!r.ok){host.querySelector('.fv').innerHTML=head('')+`<div class="fv-note">${fesc((r&&r.error)||'could not open this file')}${/large|too/i.test((r&&r.error)||'')?'':' — it may be a binary file. Reveal it in Finder or open it in the terminal instead.'}</div>`;bindHead();return}
     text=orig=r.text;
-    if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" status --porcelain -- "'+String(filePath).replace(/"/g,'')+'" 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}
+    // This viewer is shared by FOLDERS, iT and SETTINGS, so every file any of them opens
+    // reached the shell here. Double quotes let $(…), backticks and $VAR through; shq does not.
+    if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C '+shq(opts.cwd)+' status --porcelain -- '+shq(filePath)+' 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}
     function seg(){return `<div class="fv-seg"><button data-m="view" class="${mode==='view'?'on':''}">View</button>${changed?`<button data-m="diff" class="${mode==='diff'?'on':''}">Diff</button>`:''}<button data-m="edit" class="${mode==='edit'?'on':''}">Edit</button></div>${mode==='edit'?`<span class="fv-dirty" id="fvd" style="${text!==orig?'':'visibility:hidden'}">● unsaved</span><button class="fv-save" id="fvsave" ${text===orig?'disabled':''}>Save</button>`:''}`}
     async function bodyHTML(){
       if(mode==='edit')return `<textarea class="fv-edit" id="fvta" spellcheck="false"></textarea>`;
-      if(mode==='diff'){let patch='';try{await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" diff -- "'+String(filePath).replace(/"/g,'')+'"',t=>{patch+=t})}catch(_){}
+      if(mode==='diff'){let patch='';try{await Bridge.shell('git -C '+shq(opts.cwd)+' diff -- '+shq(filePath),t=>{patch+=t})}catch(_){}
         if(!patch.trim())return `<div class="fv-note">No tracked changes for this file.</div>`;
         return '<div class="fv-code">'+patch.split('\n').map(l=>{const c=(l[0]==='+'&&!l.startsWith('+++'))?'add':((l[0]==='-'&&!l.startsWith('---'))?'del':(l.startsWith('@@')?'hunk':''));return `<div class="cl ${c}"><span class="ln"></span><span class="cd">${fesc(l)}</span></div>`}).join('')+'</div>';}
       const heavy=text.length>HEAVY_BYTES;

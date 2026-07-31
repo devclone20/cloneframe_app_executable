@@ -254,6 +254,18 @@ async function handleMod(req, res, name, body) {
       const verdict = RpcAllow.check(name, fn);
       if (!verdict.allowed) return fail(403, verdict.reason);
     } catch { /* policy unreadable → fail OPEN, matching the shipped default */ }
+    // …and the few calls that send mail on the owner's behalf need the owner's toggle. See
+    // Permissions.agentGateFor for why these three and no others. Unlike the allowlist above
+    // this fails CLOSED: it guards an irreversible, outward-facing act, and the app promises
+    // in SETTINGS that it cannot happen with the switch off. Note the error names the way out —
+    // an agent told "refused" queues to APPROVAL; one told "error" tends to drop the draft.
+    try {
+      const { Permissions } = await import('./permissions.mjs');
+      const need = Permissions.agentGateFor(name, fn);
+      if (need && !Permissions.can(need)) {
+        return fail(403, 'refused: the "' + need + '" permission is off — queue it with approvals.add and the owner will send it');
+      }
+    } catch (e) { return fail(503, 'permission gate unavailable: ' + ((e && e.message) || e)); }
   }
   let obj;
   try { obj = await getMod(name); } catch (e) { return fail(503, name + ' unavailable: ' + ((e && e.message) || e)); }
@@ -290,7 +302,22 @@ async function bootTasks() {
 }
 
 // ── router ───────────────────────────────────────────────────────────────────
+// The router is one async function, so an unexpected throw anywhere inside it used to become
+// an unhandled rejection — and Node ends the process on those. One malformed URL cost the
+// owner every live terminal session, the task scheduler and the agent. The lesson is not the
+// one decode that did it (fixed at its source in transport/static.mjs): it is that a throw in
+// routing must cost ONE REQUEST. Everything below is wrapped, and the wrapper never leaks
+// internals — the caller gets the same shape every other failure uses.
 const server = http.createServer(async (req, res) => {
+  try { await route(req, res); }
+  catch (e) {
+    console.error('router:', (e && e.stack) || e);
+    if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'request failed' })); }
+    else { try { res.end(); } catch {} }
+  }
+});
+
+async function route(req, res) {
   cors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   try { req.socket.setNoDelay(true); } catch {}
@@ -356,7 +383,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
   res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'not found' }));
-});
+}
 
 // ── live PTY terminal — ONE token-gated WS at GET /stream (boundary DATA plane) ───
 // wsGuard repeats EVERY http guard: correct path + localOnly (loopback socket + our

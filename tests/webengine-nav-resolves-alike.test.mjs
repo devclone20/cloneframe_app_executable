@@ -64,3 +64,40 @@ test('the panel is unaffected — it always names its tab', () => {
   assert.ok(calls.length >= 3, 'the Reload button, the shortcut and the menu all reload');
   for (const c of calls) assert.match(c, /id:\s*t\.eid/, 'every panel reload passes an explicit id');
 });
+
+// ── the same defect, one function over, found the next sweep ─────────────────────────────
+//
+// `input` was the other strict resolver, and `click` and `type` both pass their id straight
+// through to it. The agent's tools name no tab:
+//
+//     web_click{x,y}  → web('click', {x, y})   → input({id: undefined, …})
+//     web_type{text}  → web('type',  {text})   → input({id: undefined, …})
+//
+// `_tab(undefined)` is `S.tabs.get('')`, which is null, so BOTH answered "no such tab" every
+// single time, on a browser the agent had just opened and could read. `web_click{ref}` worked
+// (clickRef resolves like navigate), which is what made it look intermittent rather than broken.
+
+test('typing and clicking resolve the tab like navigating does', () => {
+  const input = eng.match(/async input\(\{[\s\S]*?\n {2}\},/)[0];
+  assert.match(input, RESOLVE,
+    'input must fall back to the on-screen tab — web_click{x,y} and web_type{text} name none');
+  assert.match(input, /id != null \? 'no such tab' : 'no tab open'/,
+    'and it must not tell a caller that named no tab that its tab is missing');
+});
+
+test('the agent tools that drive input still name no tab, which is why input must default', () => {
+  assert.match(ext, /await web\("click", \{ x: params\.x, y: params\.y \}\)/);
+  assert.match(ext, /await web\("type", \{ text: params\.text \}\)/);
+});
+
+test('per-tab plumbing stays strict on purpose — this is not a blanket rule', () => {
+  // frame/castStart/castStop/setViewport are the panel's own per-tab machinery and it always
+  // passes an id. Defaulting them would hand back ANOTHER tab's pixels or resize the wrong
+  // page, which is worse than an error. Pinned so nobody "finishes the job" later.
+  for (const fn of ['castStart', 'castStop', 'setViewport']) {
+    const src = eng.match(new RegExp('async ' + fn + '\\(\\{[\\s\\S]*?\\n {2}\\},'))[0];
+    assert.match(src, /const tab = _tab\(id\);/, fn + ' is per-tab plumbing and must stay strict');
+  }
+  assert.match(eng.match(/frame\(\{ id, since = 0 \} = \{\}\) \{[\s\S]*?\n {2}\},/)[0],
+    /const tab = _tab\(id\);/, 'frame must stay strict — a default would return another tab’s pixels');
+});

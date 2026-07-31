@@ -673,7 +673,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           return `<div class="mx-msg q"><div class="mx-mhead">${escHtml(t)} QUERY <i></i></div><div class="mx-bub">${escHtml(m.content)}${fl}</div></div>`;
         }
         const stats=m.stats?`<span class="mx-mstats">TTFT ${m.stats.ttft}ms · ${m.stats.tps} tok/s</span>`:'';
-        const body=m.done?(window.MDLite?MDLite.render(m.content):escHtml(m.content)):escHtml(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
+        // `window.MDLite` was undefined forever — MDLite is a top-level const in the classic
+        // script, not a window property — so every finished answer rendered as escaped text.
+        // LAB, CODE and BRAIN all call the bare name; MATRIX now does too.
+        const body=m.done?MDLite.render(m.content):escHtml(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
         const pre=(!m.content&&st.streaming&&i===c.msgs.length-1)?(m.prefill!=null?`<div class="mx-prefill"><i style="width:${m.prefill}%"></i></div>`:'<span class="mx-cursor"></span>'):'';
         return `<div class="mx-msg a"><div class="mx-mhead"><i></i><b>MATRIX</b> ${escHtml(t)} ${stats}</div><div class="mx-bub">${pre||body}</div></div>`;
       }).join('');

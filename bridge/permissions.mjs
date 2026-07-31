@@ -58,5 +58,44 @@ export const Permissions = {
     return !!perms[flag];
   },
   reset() { perms = { ...DEFAULTS }; save(perms); return { ok: true }; },
+
+  // ── the calls an AGENT may not make on a toggle it does not have ────────────────────
+  //
+  // SETTINGS is honest about the general rule and says so on screen: these switches "shape
+  // what your agent reaches for in normal operation — they are not a sandbox", and only ssh,
+  // MATRIX and Root mode are enforced in the daemon. That is a sound position and it stands.
+  //
+  // Email was the one place where the app said something STRONGER and unqualified:
+  //
+  //   "An agent can only send from your account when Send email without asking is on in
+  //    Machine. With it off, everything it writes waits for you in APPROVAL."
+  //
+  // and the agent's own curriculum told it "with autoEmail off, email.send refuses". Neither
+  // was true: Permissions.can('email') had no call site anywhere in the bridge. The only check
+  // lived in the browser's tool loop, which pi does not go through — it calls POST /mod/email
+  // itself. So a well-behaved agent, believing it would be refused, sent instead of queueing.
+  //
+  // The general argument for not enforcing here ("whoever holds the pairing token already has
+  // a shell") is about an ATTACKER. It does not cover the owner's own agent, which is exactly
+  // who this toggle exists to constrain — and mail is irreversible and reaches other people.
+  // So these three, and only these three, are enforced for calls the agent marks as its own.
+  // The owner's interface never sends the agent header and is never constrained by this.
+  //
+  //   email.send          the direct path
+  //   scheduled.schedule  the same send, on a timer — a gate the clock walks around is no gate
+  //   approvals.approve   the agent must not approve the draft it wrote for the owner to read
+  //
+  // Returns the permission key this (module, fn) needs from an agent caller, or null.
+  agentGateFor(mod, fn) {
+    const key = String(mod || '') + '.' + String(fn || '');
+    return AGENT_GATED[key] || null;
+  },
 };
+
+const AGENT_GATED = {
+  'email.send': 'email',
+  'scheduled.schedule': 'email',
+  'approvals.approve': 'email',
+};
+
 export default Permissions;

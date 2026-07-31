@@ -224,7 +224,8 @@
         <div class="apto">to ${escHtml(Array.isArray(a.to)?a.to.join(', '):(a.to||''))}${a.generatedBy?' · '+escHtml(a.generatedBy):''}</div>
         <textarea class="apbodytext" data-b="${a.id}" ${a.status==='pending'?'':'readonly'}>${escHtml(a.body||'')}</textarea>
         ${a.status==='pending'?`<div class="compose-actions"><button class="btn mini" data-ap="${a.id}">✓ approve and send</button><button class="btn mini" data-ed="${a.id}">save edit</button><button class="btn mini" data-rj="${a.id}">reject</button></div>`:''}</div>`).join('')+'</div>';
-      listEl.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='sending…';const r=await RPC('approvals','approve',b.dataset.ap);Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));renderApprovals()}));
+      // Same lock as APPROVAL's own button — this is the identical control in a second place.
+      listEl.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;b.textContent='sending…';let r;try{r=await RPC('approvals','approve',b.dataset.ap)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}finally{b.disabled=false}Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));renderApprovals()}));
       listEl.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{await RPC('approvals','reject',b.dataset.rj);Toast.show('Rejected');renderApprovals()}));
       listEl.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=listEl.querySelector('[data-b="'+b.dataset.ed+'"]');await RPC('approvals','edit',b.dataset.ed,{body:ta.value});Toast.show('Edit saved')}));
     }
@@ -384,14 +385,21 @@
         }finally{ta.placeholder='Write your message…'}
       });
       // send / via approval / schedule
+      // Two entry points reach this — the SEND button and the ⌄ menu's "Send now" — and
+      // neither disabled anything, while the compose pane stayed on screen for the whole SMTP
+      // round trip. One flag covers both, because a lock on one button is not a lock.
+      let sending=false;
       async function doSend(){
         const d=active;
+        if(sending)return;
         if(!d.to.trim()){cmsg('Missing recipient',1);return}
+        sending=true;const btn=g('csend');if(btn)btn.disabled=true;
         cmsg('sending…');
         try{const r=await Mail.send(acct.id,{to:d.to,cc:d.cc||undefined,subject:d.subject,text:d.body,inReplyTo:d.inReplyTo||undefined});
           if(r.ok){Toast.show('Email sent ✉');closeDraft(d);const sent=folders.find(f=>f.specialUse==='\\Sent');openFolder(sent||folder)}
           else cmsg('✗ '+(r.error||'failed'),1)}
         catch(e){cmsg('✗ '+e.message,1)}
+        finally{sending=false;const b2=g('csend');if(b2)b2.disabled=false}
       }
       // Into the REAL queue — the one bridge/approvals.mjs owns and the APPROVAL panel
       // reads. This used to call a browser-only Approvals.propose(), so a message sent

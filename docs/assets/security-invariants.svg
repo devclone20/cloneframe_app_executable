@@ -31,7 +31,7 @@
 
     <rect x="40" y="190" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
     <text x="58" y="212"><tspan fill="#ff6b61" font-weight="bold">3</tspan><tspan fill="#c9d1d9"> SSRF re-checked on EVERY redirect hop</tspan></text>
-    <text x="58" y="231" fill="#566070" font-size="11">a page can never steer the proxy inward</text>
+    <text x="58" y="231" fill="#566070" font-size="11">no outbound fetch can be steered inward</text>
 
     <rect x="40" y="252" width="508" height="52" rx="8" fill="#161b22" stroke="#ff3b30" stroke-width="1.5"/>
     <text x="58" y="274"><tspan fill="#ff6b61" font-weight="bold">4</tspan><tspan fill="#c9d1d9"> soul / origin allowlist</tspan></text>

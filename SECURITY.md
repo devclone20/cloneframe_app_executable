@@ -18,7 +18,7 @@ security model therefore concentrates on *who can reach the bridge*:
 | The token can be given a lifetime, and can be replaced | `bridge/session.mjs` — permanent by default; *Settings → Session* offers an owner-chosen expiry and a rotate button. An expired token is refused **and retired**, so the failed secret never works again |
 | Anti DNS-rebinding | `Host` header allowlist + loopback `remoteAddress` check, before any route |
 | CORS names our own origin and nobody else's | only `http://127.0.0.1:<port>` / `localhost` / `[::1]` are echoed back. A request with no `Origin` at all (curl, the `it` CLI, the agent) used to be answered with `*`; now it gets no such header |
-| Token reaches only a real browser navigation | the **full** `Sec-Fetch-*` fingerprint of a top-level, user-initiated navigation — `dest:document` + `mode:navigate` + `site:none` + `user:?1` + an HTML `Accept` — fired **once** per bridge start inside a short launch window; `/proxy` accepts only `Sec-Fetch-Dest: iframe` and strips reflected CORS |
+| Token reaches only a real browser navigation | the **full** `Sec-Fetch-*` fingerprint of a top-level, user-initiated navigation — `dest:document` + `mode:navigate` + `site:none` + `user:?1` + an HTML `Accept` — fired **once** per bridge start inside a short launch window. Automation cannot forge `Sec-Fetch-User: ?1`, so a CDP-driven window cannot pair — verified three ways |
 | Remote servers need their own explicit yes | `bridge/servers.mjs` gates `run` / `test` / `runAutomation` / `deployAgent` / `provision` / `powerAction` on `Permissions.can('ssh')`, which the `machineControl` master switch deliberately does **not** imply |
 | The native shell loads web pages only | `electron/url-guard.js` — `cfhub:web:navigate` accepts `http`/`https` (and `about:blank`) and refuses `file:`, `javascript:`, `data:`, `blob:`, `chrome:` and every custom scheme. The OAuth-popup gate parses the URL instead of substring-matching it |
 | Security headers on every response | `nosniff`, `no-referrer`, `X-Frame-Options: SAMEORIGIN`, and a CSP carrying `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'` |
@@ -130,14 +130,37 @@ The agent's file tools cannot read secret stores: `~/.clone-frame-hub`,
 
 ## In-app browser
 
-Web pages render inside an `<iframe sandbox="allow-scripts allow-forms">`
-**without** `allow-same-origin` — an opaque origin. Page JavaScript can never
-read the parent window, the pairing token, or call the bridge. Pages are
-fetched server-side through an SSRF guard that blocks private and loopback
-ranges (IPv4, IPv6, v4-mapped, NAT64, CGNAT, link-local/cloud-metadata) and
-re-validates **every redirect hop**. Navigation is parent-authoritative: the
-address bar always matches the content actually fetched, so a page cannot
-spoof its own URL.
+**The page never runs in this document.** The BROWSER panel does not embed the web
+at all — no iframe, no HTML-rewriting proxy. `bridge/webengine.mjs` runs a dedicated
+Chrome instance on its own profile (`~/.clone-frame-hub/web-engine`) and the panel
+paints its `Page.startScreencast` JPEG frames onto a `<canvas>`, forwarding pointer
+and keyboard events back. A page's JavaScript therefore has no parent window to reach
+and no frame to escape: the only thing that crosses back is a picture.
+
+The engine is reached over `--remote-debugging-pipe` — CDP rides file descriptors 3
+and 4 as NUL-delimited JSON. **There is no debugging port and no debugging WebSocket**,
+so nothing else on the machine can attach to it, and Chrome exits when the bridge dies
+because its end of the pipe closes. The panel and the agent both drive it only through
+the token-gated `POST /mod/webengine`, whose router refuses every `_`-prefixed
+function — and every internal in that module is `_`-prefixed.
+
+Two limits on what may cross that boundary:
+
+- **Scheme.** RPC navigation accepts `http`, `https` and `about:blank` only. `file://`
+  and `chrome://` are refused, because the engine runs with the user's filesystem and
+  either would be an exfiltration path.
+- **No raw CDP.** No caller-supplied method name and no caller-supplied JavaScript
+  reaches Chrome. Input maps through a fixed whitelist; `read()` evaluates one fixed
+  expression.
+
+The profile is wiped when the engine starts **and** when it stops, and a docked browser
+square never writes the page address to disk. That is the ephemeral-browser promise,
+enforced in two places rather than trusted in one.
+
+> Until 2026-07-25 this panel was a sandboxed iframe fed by a token-less `GET /proxy`
+> reader with a server-side SSRF guard. **That route no longer exists** — it was removed
+> with the panel rewrite. If you are auditing against an older copy of this document,
+> that is the surface you will not find.
 
 The iT panel's split preview is a different frame: it renders **loopback dev
 servers** directly (`allow-scripts allow-same-origin`, which a real dev server

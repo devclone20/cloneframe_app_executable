@@ -10,8 +10,13 @@ You do not need to build anything to run the app. A fresh clone ships the built
 artifact.
 
 ```bash
-cd bridge && npm install     # 3 optional email deps; everything else is Node built-ins
+cd bridge && npm install     # 5 small add-ons; everything else is Node built-ins
 ```
+
+Those five are `ws` and `node-pty` (the live terminal) and `imapflow`, `mailparser`,
+`nodemailer` (email). Every one is behind a guarded import — the daemon boots without
+any of them and simply reports the feature as unavailable, which is why a machine that
+cannot build `node-pty` still gets a working app.
 
 Then launch the app the way the README describes. That is the whole setup for
 running.

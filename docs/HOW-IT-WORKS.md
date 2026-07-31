@@ -103,9 +103,11 @@ in-app browser.
   - A **diff / editor** view to read and change files
   - **zsh themes** and **tab-autocomplete**, so it feels like your own shell
 - **Project diff** — see exactly what changed across your files before you commit to anything.
-- **In-app browser** — open docs, dashboards, or your own running site *inside* the app.
-  Pages load in a sealed sandbox behind a safety-checked proxy, so a web page can never
-  reach your token or the Bridge.
+- **In-app browser** — open docs, dashboards, or your own running site *inside* the app,
+  with real JavaScript, video and WebGL. The page actually runs in a **separate Chrome
+  process** that the Bridge drives over a debugging pipe; what you see in the panel is
+  its picture, painted onto a canvas. Nothing of the page runs inside CLONE FRAME, so a
+  web page has no way to reach your token or the Bridge.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%

@@ -104,7 +104,7 @@
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.5
+  OS      CLONE FRAME OS · v@@CF_VERSION@@
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -181,7 +181,7 @@
       const IC_FOLDER='<svg class="ic" viewBox="0 0 16 16" fill="none"><path d="M1.6 4.3a1 1 0 0 1 1-1H6l1.3 1.3H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.1"/></svg>';
       const IC_OPEN='<svg class="ic" viewBox="0 0 16 16" fill="none"><path d="M1.6 5.4h11.1l-1.2 6.1a1 1 0 0 1-1 .8H2.6a1 1 0 0 1-1-1zm0 0V4a1 1 0 0 1 1-1H6l1.3 1.3H13a1 1 0 0 1 1 1v.7" stroke="currentColor" stroke-width="1.1"/></svg>';
       const IC_FILE='<svg class="ic fic" viewBox="0 0 16 16" fill="none"><path d="M4 1.6h5l3 3V14a.5.5 0 0 1-.5.5H4.5A.5.5 0 0 1 4 14zM9 1.6V4a.5.5 0 0 0 .5.5H12" stroke="currentColor" stroke-width="1.1"/></svg>';
-      const q=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote for git args (paths w/ spaces safe)
+      const q=shq;   // the kernel's one quoter (git args: paths with spaces or $ are safe)
       // {sid:termSid} — without it every git command ran in the bridge's AMBIENT cwd session,
       // so the PROJECT pane could root itself on a different directory than the terminal.
       const shell=cmd=>new Promise(res=>{let o='';Bridge.shell(cmd,t=>{o+=t},null,null,{sid:termSid}).then(()=>res(o)).catch(()=>res(o))});
@@ -348,7 +348,15 @@
     }
     async function loadModels(){
       const inf=Bridge.info&&Bridge.info();
-      models=[{v:'',label:'machine'+(inf&&inf.model?' · '+inf.model:''),prov:'HUB Bridge',on:true}];
+      // Built into a LOCAL list and published at the end, on purpose. `models` used to be
+      // emptied here and refilled after two awaits, so for the length of those round trips the
+      // panel's answer to "which models exist?" was "only the machine" — while provsLoaded,
+      // which means "has the registry EVER answered", stayed true from the previous load. Any
+      // syncPickers() landing in that window (loadHarnesses finishes first, or a bridge:changed
+      // arrives) therefore found the session's model missing from a list that was merely
+      // half-built, dropped the choice, and PERSISTED the drop. The owner's picked model
+      // silently became "machine" and stayed there. `models` is never transiently empty now.
+      const next=[{v:'',label:'machine'+(inf&&inf.model?' · '+inf.model:''),prov:'HUB Bridge',on:true}];
       if(Bridge.on()){
         // the raw Pi coding agent — its own agentic loop + tools (the app is its body); BYOK
         // through pi's own login, so it only appears when actually installed on this machine.
@@ -356,10 +364,11 @@
         // pi then silently streamed from the machine brain under the label "pi".
         try{const ps=await RPC('pi','status');piOk=!!(ps&&ps.installed);piProbed=true;
           // show the LLM pi runs on (its BYOK model) right in the picker
-          if(piOk)models.push({v:'pi',label:'pi',prov:(ps&&ps.model)?ps.model:'coding agent',on:true,piModel:ps&&ps.model});
-        }catch(_){ if(piOk)models.push({v:'pi',label:'pi',prov:'coding agent',on:true}); }
-        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>models.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))});provsLoaded=true}catch(_){}
+          if(piOk)next.push({v:'pi',label:'pi',prov:(ps&&ps.model)?ps.model:'coding agent',on:true,piModel:ps&&ps.model});
+        }catch(_){ if(piOk)next.push({v:'pi',label:'pi',prov:'coding agent',on:true}); }
+        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>next.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))});provsLoaded=true}catch(_){}
       }
+      models=next;   // published in one step — no window where the list is half-built
       syncPickers();
     }
     async function loadHarnesses(){
@@ -1016,7 +1025,6 @@ ANSWER DISCIPLINE:
     async function execTool(c,perms,signal){
       const a=c.args||{};
       const full=perms.machineControl||perms.fullAccess; // master switch OR full app access
-      const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote: neutralizes $ ` \ $() etc. so paths/urls can't inject shell
       // A stoppable shell call: the bridge gets an id it can kill, and the fetch gets the signal.
       const sh=async(cmd,onTok)=>{
         const id='t'+(++toolSeq)+Math.random().toString(36).slice(2,6);

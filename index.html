@@ -8,7 +8,8 @@
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PHJlY3Qgd2lkdGg9JzQwJyBoZWlnaHQ9JzQwJyByeD0nOScgZmlsbD0nIzAwMDAwMCcvPjxnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2ZmM2IzMCcgc3Ryb2tlLWxpbmVqb2luPSdyb3VuZCc+PHBhdGggZD0nTTIwIDYgMzQgMzMgNiAzMyBaJyBzdHJva2Utd2lkdGg9JzIuMScvPjxwYXRoIGQ9J00yMCA2IDM0IDMzIDYgMzMgWicgc3Ryb2tlLXdpZHRoPScxLjcnIHRyYW5zZm9ybT0ndHJhbnNsYXRlKDIwIDIwKSBzY2FsZSgwLjcpIHRyYW5zbGF0ZSgtMjAgLTIwKScvPjwvZz48L3N2Zz4=">
 <style>
 /* ============================================================
-   CLONE FRAME HUB — Frame Live Square · v0.2 "UNIVERSE"
+   CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
+   the app only through the 0.3.1 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -573,19 +574,118 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
    control). Vertical by default; the .horiz modifier (set when snapped to a top/bottom
    edge) lays chips in a row. Magnification (macOS-dock feel) scales each chip by its own
    --mag (set per-pointer in JS); transform/opacity only, zero reflow. */
-#wdock{--wdk-unit:34px;position:fixed;left:10px;top:50%;z-index:500;display:none;flex-direction:column;gap:6px;padding:6px;border-radius:14px;background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:var(--shadow-1);max-height:82vh;overflow:visible;align-items:center}
+/* GLASS. One translucent slab, blurred and over-saturated so whatever is behind it bleeds
+   through as colour — the macOS dock trick. Three layers do the "gelatine": the tinted base,
+   a top inner highlight (light catching the lip), and a bottom inner shade. Never a flat fill.
+   The chips do NOT live directly in here — they ride .wdk-track inside .wdk-rail, which is
+   what lets the dock hold any number of them (see the rail below). */
+#wdock{--wdk-unit:34px;--wdk-pad:7px;position:fixed;left:10px;top:50%;z-index:500;display:none;
+  flex-direction:column;gap:6px;padding:var(--wdk-pad);border-radius:20px;align-items:center;
+  background:
+    linear-gradient(to bottom,color-mix(in srgb,var(--fg) 9%,transparent) 0 1px,transparent 1px),
+    linear-gradient(to top,color-mix(in srgb,#000 14%,transparent) 0 1px,transparent 1px),
+    color-mix(in srgb,var(--panel) 52%,transparent);
+  border:1px solid color-mix(in srgb,var(--fg) 12%,transparent);
+  backdrop-filter:blur(28px) saturate(185%);-webkit-backdrop-filter:blur(28px) saturate(185%);
+  box-shadow:0 12px 40px -8px rgba(0,0,0,.55),0 2px 10px -2px rgba(0,0,0,.35),
+             inset 0 1px 0 color-mix(in srgb,var(--fg) 10%,transparent);
+  overflow:visible}
 #wdock.on{display:flex}
-#wdock.horiz{flex-direction:row;max-height:none;max-width:88vw}
-#wdock.dragging{opacity:.9;cursor:grabbing;transition:none}
-#wdock .wdk-hd{font-size:9.5px;letter-spacing:.14em;color:var(--ink-faint);text-align:center;text-transform:uppercase;padding:1px 2px 3px;user-select:none;cursor:grab;width:100%}
-#wdock.horiz .wdk-hd{width:auto;padding:2px 4px;writing-mode:vertical-rl;transform:rotate(180deg)}
-.wdk-chip{position:relative;all:unset;cursor:pointer;box-sizing:border-box;width:var(--wdk-unit);height:var(--wdk-unit);display:flex;align-items:center;justify-content:center;border-radius:10px;color:var(--ink-dim);background:color-mix(in srgb,var(--fg) 5%,transparent);transform:scale(var(--mag,1));transform-origin:var(--mag-origin,center);transition:transform .12s cubic-bezier(.2,1.4,.4,1),background .14s,color .14s}
-.wdk-chip:hover{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+#wdock.horiz{flex-direction:row}
+#wdock.dragging{opacity:.92;cursor:grabbing;transition:none}
+/* the rail clips, the track slides. Chips beyond the edge are hidden, not dropped — the
+   fade mask is what makes them read as "more, over there" instead of a hard cut. */
+/* The rail must clip ALONG the scroll axis and not across it — a magnified icon has to rise
+   out of the dock, the way it does on macOS. CSS gives no per-axis overflow (one hidden axis
+   forces the other), so the room is made INSIDE the clip box: pad the growth side by what the
+   magnifier can add, and pull that padding back with an equal negative margin so the layout
+   is untouched. --wdk-lift is that room; the peak magnification is 1.55, so 0.62 of a chip
+   is headroom with a margin. Without this the rail cropped the top off every hovered icon. */
+.wdk-rail{--wdk-lift:calc(var(--wdk-unit) * 0.62);
+  /* content-box on purpose: the app sets border-box globally, which would make the lift
+     padding EAT the chip row instead of adding room above it — the bar came out shorter
+     than one chip. Here the declared size is the chip row and the lift is extra. */
+  box-sizing:content-box;
+  position:relative;overflow:hidden;display:flex;flex:0 1 auto;touch-action:none;
+  /* The bar keeps its thickness while an icon rises out of it — so the cross axis is pinned
+     to one chip and the growth spills into the padding, which is inside the clip box. */
+  width:var(--wdk-unit);align-items:flex-start;justify-content:flex-start;max-height:70vh;
+  padding-right:var(--wdk-lift);margin-right:calc(var(--wdk-lift) * -1)}
+#wdock.edge-right .wdk-rail{justify-content:flex-end;padding-right:0;margin-right:0;
+  padding-left:var(--wdk-lift);margin-left:calc(var(--wdk-lift) * -1)}
+#wdock.horiz .wdk-rail{width:auto;height:var(--wdk-unit);max-height:none;max-width:78vw;
+  align-items:flex-end;justify-content:flex-start;
+  padding-right:0;margin-right:0;padding-left:0;margin-left:0;
+  padding-top:var(--wdk-lift);margin-top:calc(var(--wdk-lift) * -1)}
+/* a chip that is growing paints over its neighbours, never under them */
+.wdk-chip:hover,.wdk-chip[data-open="1"]{z-index:3}
+.wdk-rail.pans{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);
+               mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);cursor:grab}
+#wdock.horiz .wdk-rail.pans{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);
+                            mask-image:linear-gradient(to right,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}
+.wdk-rail.panning{cursor:grabbing}
+/* Growth goes AWAY from the edge the dock is anchored to — the icon rises out of the bar
+   instead of pushing through it. That is what align-items decides now that the box is real. */
+.wdk-track{display:flex;flex-direction:column;align-items:flex-start;gap:6px;will-change:transform}
+#wdock.edge-right .wdk-track{align-items:flex-end}
+#wdock.horiz .wdk-track{flex-direction:row;align-items:flex-end}
+/* The chip takes REAL space when it magnifies, exactly like the macOS dock: the box grows,
+   the neighbours move over, the track gets longer. It used to grow by transform:scale, which
+   costs no layout but paints outside its own box — and the rail, which has to clip along the
+   scroll axis so hidden chips stay hidden, sliced the sides off every enlarged icon. Growth
+   you can see has to be growth the layout knows about. --mag is applied to the box; the icon
+   inside rides it, so nothing is ever cut. */
+/* `all:unset` MUST come first. It was written after `position:relative` and reset it to
+   static, so no chip was ever a positioning context and every ✕ — absolutely positioned —
+   landed against the dock instead of its own chip. One ✕ at the dock's corner, for every
+   chip, which is exactly what the owner saw and reported. */
+.wdk-chip{all:unset;position:relative;cursor:pointer;box-sizing:border-box;
+  width:calc(var(--wdk-unit) * var(--mag,1));height:calc(var(--wdk-unit) * var(--mag,1));
+  flex:none;display:flex;align-items:center;justify-content:center;
+  border-radius:calc(11px * var(--mag,1));color:var(--ink-dim);background:color-mix(in srgb,var(--fg) 6%,transparent);
+  transition:width .12s cubic-bezier(.2,1.4,.4,1),height .12s cubic-bezier(.2,1.4,.4,1),border-radius .12s,background .16s,color .16s,box-shadow .16s}
+/* Hover wears the chip's OWN hue, not the theme accent: now that every window has a colour,
+   an app must not change identity just because the pointer is over it. Open is still told
+   apart by the stronger fill, the ring and the dot below. */
+.wdk-chip:hover{--h:var(--chip-hue,265);color:hsl(var(--h) 80% 70%);background:hsl(var(--h) 65% 55% / .16)}
+/* RUNNING. Same language as the macOS dock — an open app lights up — but each panel carries
+   its OWN hue (--chip-hue, set per type in JS), so a full dock reads as a row of distinct
+   apps instead of one accent repeated. Closed chips stay on the resting ink: colour means
+   running, and nothing else. Saturation/lightness are fixed here so twenty hues stay one
+   family however the theme moves. */
+.wdk-chip[data-open="1"]{--h:var(--chip-hue,265);
+  color:hsl(var(--h) 85% 72%);
+  background:hsl(var(--h) 70% 55% / .20);
+  box-shadow:inset 0 0 0 1px hsl(var(--h) 80% 62% / .42),
+             0 0 16px -4px hsl(var(--h) 90% 62% / .75)}
+.wdk-chip[data-open="1"]:hover{background:hsl(var(--h) 75% 58% / .30);color:hsl(var(--h) 90% 78%)}
+/* the running dot, on the side the dock is anchored to */
+.wdk-chip[data-open="1"]::after{content:"";position:absolute;width:3px;height:3px;border-radius:50%;
+  background:hsl(var(--h) 90% 68%);left:-4px;top:50%;transform:translateY(-50%)}
+#wdock.edge-right .wdk-chip[data-open="1"]::after{left:auto;right:-4px}
+#wdock.horiz .wdk-chip[data-open="1"]::after{left:50%;right:auto;top:auto;bottom:-4px;transform:translateX(-50%)}
 .wdk-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.wdk-chip svg{width:calc(var(--wdk-unit) * .47);height:calc(var(--wdk-unit) * .47)}
-.wdk-x{position:absolute;top:-5px;right:-5px;width:16px;height:16px;display:none;align-items:center;justify-content:center;font-size:10px;line-height:1;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);z-index:2}
+.wdk-chip svg{width:calc(var(--wdk-unit) * var(--mag,1) * .47);height:calc(var(--wdk-unit) * var(--mag,1) * .47);
+  transition:width .12s cubic-bezier(.2,1.4,.4,1),height .12s cubic-bezier(.2,1.4,.4,1)}
+/* The ✕ lives INSIDE its own chip. It used to sit at top:-5 right:-5 — outside the box that
+   reveals it — so reaching for it left the chip, the hover ended and the target vanished under
+   the cursor. Worse since the chips magnify: the geometry moved as you approached. Inside the
+   box, the pointer never leaves the chip on its way there, and the rail can never clip it.
+   It scales with the chip, so on a magnified icon it is a comfortable target. */
+.wdk-x{position:absolute;top:calc(3px * var(--mag,1));right:calc(3px * var(--mag,1));
+  width:calc(15px * var(--mag,1));height:calc(15px * var(--mag,1));
+  display:none;align-items:center;justify-content:center;
+  font-size:calc(9px * var(--mag,1));line-height:1;border-radius:50%;
+  background:color-mix(in srgb,var(--panel) 88%,transparent);
+  border:1px solid color-mix(in srgb,var(--fg) 22%,transparent);color:var(--ink-dim);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:4}
 .wdk-chip:hover .wdk-x{display:flex}
-.wdk-x:hover{color:var(--accent);border-color:var(--accent)}
+.wdk-x:hover{color:#fff;background:hsl(0 72% 52%);border-color:hsl(0 72% 52%)}
+/* the grab bar replaces the word DOCK: same job (drag the dock, drop it on ▲), no label */
+.wdk-grab{flex:none;width:20px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--fg) 16%,transparent);cursor:grab;opacity:.55;transition:opacity .15s,background .15s}
+#wdock:hover .wdk-grab{opacity:.9}
+.wdk-grab:active{cursor:grabbing}
+#wdock.horiz .wdk-grab{width:4px;height:20px}
 /* size grip: a tiny handle at the dock tail to drag chip size */
 .wdk-grip{width:22px;height:8px;flex:none;border-radius:4px;background:color-mix(in srgb,var(--fg) 10%,transparent);cursor:ns-resize;opacity:0;transition:opacity .15s}
 #wdock:hover .wdk-grip{opacity:.6}
@@ -2696,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.0 · WEB</span>
+    <span class="gver">v0.3.1 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -2939,8 +3039,9 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
     el.addEventListener("pointerdown", down);
     return () => el.removeEventListener("pointerdown", down);
   };
+  var shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
   if (typeof window !== "undefined") {
-    Object.assign(window, { escHtml, escAttr, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, parkCorrupt, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
+    Object.assign(window, { escHtml, escAttr, shq, stickBottom, forceBottom, friendlyErr, relTime, fetchWithTimeout, persisted, parkCorrupt, makePanelBus, dragGesture, safeMediaUrl, safeImageUrl });
   }
 })();
 </script>
@@ -4011,25 +4112,36 @@ const WDock=(()=>{
     const st=dockState();
     el.style.setProperty('--wdk-unit',st.unit+'px');
     el.classList.toggle('horiz',st.edge==='top'||st.edge==='bottom');
+    // which side the icons grow OUT of — the rail keeps its headroom on that side
+    el.classList.toggle('edge-right',st.edge==='right');
     const w=el.offsetWidth||60,h=el.offsetHeight||60;
     let x=Math.max(4,Math.min(innerWidth-w-4,st.x)),y=Math.max(56,Math.min(innerHeight-h-4,st.y));
     el.style.left=x+'px';el.style.top=y+'px';el.style.transform='';
   }
   addEventListener('resize',()=>{if(el.classList.contains('on'))place()});
   // ── macOS-dock magnification: scale each chip by proximity to the pointer ──
-  function magnify(e){
+  // --mag now drives the chip's real width/height, so this costs layout. One pass per frame,
+  // reading the pointer position captured last — a pointermove burst can no longer thrash it.
+  // (transform-origin is gone with the transform: a box that grows in the flow needs no origin,
+  // the track's align-items decides which way it grows.)
+  let magPt=null,magQueued=false;
+  function magnify(){
+    magQueued=false;
+    if(!magPt)return;
     const horiz=el.classList.contains('horiz');
     el.querySelectorAll('.wdk-chip').forEach(chip=>{
       const b=chip.getBoundingClientRect();
       const cx=b.left+b.width/2,cy=b.top+b.height/2;
-      const d=horiz?Math.abs(e.clientX-cx):Math.abs(e.clientY-cy);
-      const mag=1+0.55*Math.exp(-(d/58)*(d/58));
-      chip.style.setProperty('--mag',mag.toFixed(3));
-      chip.style.setProperty('--mag-origin',horiz?'center bottom':(dockState().edge==='right'?'right center':'left center'));
+      const d=horiz?Math.abs(magPt.x-cx):Math.abs(magPt.y-cy);
+      chip.style.setProperty('--mag',(1+0.55*Math.exp(-(d/58)*(d/58))).toFixed(3));
     });
   }
-  const demag=()=>el.querySelectorAll('.wdk-chip').forEach(c=>c.style.setProperty('--mag',1));
-  el.addEventListener('pointermove',e=>{if(!el.classList.contains('dragging'))magnify(e)});
+  const demag=()=>{magPt=null;el.querySelectorAll('.wdk-chip').forEach(c=>c.style.setProperty('--mag',1))};
+  el.addEventListener('pointermove',e=>{
+    if(el.classList.contains('dragging'))return;
+    magPt={x:e.clientX,y:e.clientY};
+    if(!magQueued){magQueued=true;requestAnimationFrame(magnify)}
+  });
   el.addEventListener('pointerleave',demag);
   // ── stash the WHOLE dock inside the ▲ menu (owner drags the dock onto the launcher).
   // While stashed it never auto-returns — minimized windows keep their cells; the dock
@@ -4055,27 +4167,153 @@ const WDock=(()=>{
     s.wdock=st;Store.save();refresh();Bus.emit('wdock:changed');
     Toast.show(occCells().length?'Dock restored':'Dock restored — it appears when a window is minimized');
   }
+  // Each panel's own hue, so an open dock reads as a row of distinct apps. Hand-picked and
+  // spaced rather than hashed: a hash puts neighbours on top of each other and there is no
+  // way to fix one without moving the rest. Every type in DEFS is here; a type that is not
+  // gets the CSS default (265) rather than an undefined custom property.
+  // `agent` is not in DEFS — it is the auto-seeded square, and openPanel routes it to CODE.
+  // It gets CODE's hue: the same destination must not wear two colours.
+  const CHIP_HUE={agent:265,terminal:265,shell:285,harness:18,lab:190,matrix:145,machine:212,agents:330,
+    agentview:350,folders:42,email:200,approval:162,reminders:52,tasks:8,automations:248,
+    notes:95,research:222,search:236,brain:305,theme:175,settings:228};
+  // A type gives the FIRST window of that type its colour; every further window of the same
+  // type steps on by the golden angle. 137.508° never lands twice and keeps each new colour as
+  // far as it can from the ones already on screen — so twenty iT tabs are twenty colours, and
+  // there is no ceiling. A type nobody named gets a stable hue from its own letters, not a
+  // default everything-else shares.
+  const GOLDEN=137.508;
+  const hueOfName=s=>{let h=0;for(let k=0;k<s.length;k++)h=(h*31+s.charCodeAt(k))>>>0;return h%360};
+  const chipHue=(type,nth)=>{
+    const base=CHIP_HUE[type];
+    // round LAST, then wrap again: 359.6 rounds to 360, which is 0 wearing a different number
+    return Math.round(((base==null?hueOfName(type||'?'):base)+GOLDEN*nth)%360+360)%360;
+  };
+  // ONE WINDOW LIGHTS EXACTLY ONE CHIP.
+  //
+  // This used to be decided per chip: match the square's panelKey, and failing that light any
+  // square whose TYPE had a window open. Two squares that lead to the same window then both
+  // lit from one window — opening the auto-seeded AGENT square lit AGENT *and* CODE, because
+  // AGENT routes to CODE and the CODE square had no key of its own. The owner saw icons
+  // change colour for apps that were not open.
+  //
+  // So the decision is made for the whole dock at once, by CLAIM: a square that can name its
+  // window takes it; then a keyless square may take one window of its type that nobody else
+  // has claimed. A window can be claimed once, so the lit chips can never outnumber the
+  // windows that are actually open.
+  const OPEN_ALIAS={agent:'terminal',browser:'research'}; // mirrors openPanel's two redirects
+  function litCells(cells){
+    const live=[...document.querySelectorAll('.panel')].filter(p=>!p.dataset.docked);
+    const byKey=new Map(live.map(p=>[p.dataset.key||'',p]));
+    const claimed=new Set(),lit=new Set();
+    cells.forEach(cell=>{                                    // pass 1 — squares that know their window
+      const pk=cell.dataset.panelKey||'';
+      const p=pk?byKey.get(pk):null;
+      if(p&&!claimed.has(p)){claimed.add(p);lit.add(cell)}
+    });
+    // Pass 2 — one unclaimed window each. A square is eligible whenever pass 1 did NOT light
+    // it, INCLUDING one that carries a key: a key that matched nothing is a dead handle, not a
+    // claim. Skipping those was the bug the owner photographed — three iT squares holding keys
+    // from windows long closed, two fresh windows opened from inside iT, and only the one whose
+    // key happened to be reused lit up. Measured: 2 windows, 1 chip.
+    cells.forEach(cell=>{
+      if(lit.has(cell))return;
+      const want=OPEN_ALIAS[cell.dataset.type||'']||cell.dataset.type||'';
+      const p=live.find(x=>x.dataset.type===want&&!claimed.has(x));
+      if(p){claimed.add(p);lit.add(cell)}
+    });
+    return lit;
+  }
+  // Repaint the running state only — no rebuild, so nothing flickers and no listener is lost.
+  function markOpen(){
+    const cells=occCells(),lit=litCells(cells);
+    el.querySelectorAll('.wdk-chip').forEach(btn=>{
+      const cell=cells[+btn.dataset.i];if(!cell)return;
+      const on=lit.has(cell);
+      if(on)btn.dataset.open='1';else delete btn.dataset.open;
+      const name=btn.dataset.name||'Window';
+      btn.title=name+(on?' — open':'');
+      btn.setAttribute('aria-label',(on?'Focus ':'Open ')+name);
+    });
+  }
+  // ── the rail pans when the chips outgrow the screen: no cap, ever ──
+  let panOff=0;
+  function railMetrics(){
+    const rail=el.querySelector('.wdk-rail'),track=el.querySelector('.wdk-track');
+    if(!rail||!track)return null;
+    const horiz=el.classList.contains('horiz');
+    const view=horiz?rail.clientWidth:rail.clientHeight;
+    const full=horiz?track.scrollWidth:track.scrollHeight;
+    return{rail,track,horiz,view,full,over:Math.max(0,full-view)};
+  }
+  function applyPan(){
+    const m=railMetrics();if(!m)return;
+    panOff=Math.max(-m.over,Math.min(0,panOff));
+    m.track.style.transform=m.horiz?`translateX(${panOff}px)`:`translateY(${panOff}px)`;
+    m.rail.classList.toggle('pans',m.over>0);
+    if(!m.over)panOff=0;
+  }
+  function wirePan(){
+    const rail=el.querySelector('.wdk-rail');if(!rail)return;
+    rail.addEventListener('wheel',e=>{
+      const m=railMetrics();if(!m||!m.over)return;      // nothing hidden → let the page have it
+      e.preventDefault();
+      panOff-=(Math.abs(e.deltaY)>Math.abs(e.deltaX)?e.deltaY:e.deltaX);
+      applyPan();
+    },{passive:false});
+    // drag the rail itself to pan (trackpad press-drag, touch, mouse). A chip click still
+    // wins until the pointer actually travels — below the threshold this never engages.
+    rail.addEventListener('pointerdown',e=>{
+      const m=railMetrics();if(!m||!m.over)return;
+      const sx=e.clientX,sy=e.clientY,start=panOff;let engaged=false;
+      const mm=ev=>{
+        const d=m.horiz?ev.clientX-sx:ev.clientY-sy;
+        if(!engaged&&Math.abs(d)<5)return;
+        if(!engaged){engaged=true;rail.classList.add('panning');rail.setPointerCapture&&rail.setPointerCapture(e.pointerId)}
+        panOff=start+d;applyPan();
+      };
+      // ONE controller for both listeners. The pointerup is a CAPTURE listener (a pan must
+      // beat the chip's click) and it used to be removed without the flag — which matches
+      // nothing, silently, so every pan left a permanent capturing pointerup on window that
+      // went on calling stopPropagation forever. After one pan, no click anywhere in the app
+      // worked again until reload. A signal cannot disagree with itself.
+      const ac=new AbortController(),sig=ac.signal;
+      const mu=ev=>{
+        ac.abort();
+        rail.classList.remove('panning');
+        if(engaged){ev.preventDefault();ev.stopPropagation()} // a pan is not a click
+      };
+      addEventListener('pointermove',mm,{signal:sig});addEventListener('pointerup',mu,{capture:true,signal:sig});
+    });
+  }
   function refresh(){
     const cells=occCells();
     if(!cells.length||dockState().stashed){el.classList.remove('on');el.innerHTML='';return}
     place();
-    el.innerHTML='<div class="wdk-hd" title="Drag to move the dock · drop it on ▲ to stash it in the menu">DOCK</div>'+cells.map((c,i)=>{
+    // No label. The word DOCK used to be here because it doubled as the drag handle; the
+    // grab bar does that job now and says it with a shape instead of a noun.
+    el.innerHTML='<div class="wdk-grab" title="Drag to move the dock · drop it on ▲ to stash it"></div>'+
+      '<div class="wdk-rail"><div class="wdk-track">'+(()=>{const nth={};return cells.map((c,i)=>{
       const type=c.dataset.type||'';
       const tip=(c.querySelector('.tile')&&c.querySelector('.tile').getAttribute('title'))||(type.toUpperCase());
-      return `<button class="wdk-chip" data-i="${i}" title="${escAttr(tip)}" aria-label="Reopen ${escAttr(tip)}"><svg><use href="${Grid.iconFor(type)}"/></svg><span class="wdk-x" title="Close ${escAttr(tip)}">✕</span></button>`;
-    }).join('')+'<div class="wdk-grip" title="Drag to resize the dock"></div>';
+      const n=(nth[type]=(nth[type]||0)+1)-1;    // 0 for the first window of this type
+      const hue=chipHue(type,n);
+      return `<button class="wdk-chip" data-i="${i}" data-name="${escAttr(tip)}" style="--chip-hue:${hue}" title="${escAttr(tip)}" aria-label="Open ${escAttr(tip)}"><svg><use href="${Grid.iconFor(type)}"/></svg><span class="wdk-x" title="Close ${escAttr(tip)}">✕</span></button>`;
+    }).join('')})()+'</div></div><div class="wdk-grip" title="Drag to resize the dock"></div>';
     el.classList.add('on');
-    wireHeaderDrag();wireGrip();
+    wireGrabDrag();wireGrip();wirePan();
     el.querySelectorAll('.wdk-chip').forEach(btn=>{
       const cell=cells[+btn.dataset.i];if(!cell)return;
       btn.addEventListener('click',e=>{
-        if(e.target.closest('.wdk-x')){ // close for real — same path as the tile ✕
+        if(e.target.closest('.wdk-x')){ // the ONLY way a chip leaves the dock
           const pk=cell.dataset.panelKey||'';Grid.release(cell);if(pk)Bus.emit('cell:removed',pk);
-          Toast.show((btn.title||'Window')+' closed');return
+          Toast.show((btn.dataset.name||'Window')+' closed');return
         }
+        // Open it, or focus it if it is already up. Either way the chip stays — a dock that
+        // empties itself as you use it is a list of what you are NOT doing.
         Bus.emit('open-panel',{type:cell.dataset.type,cwd:cell.dataset.cwd||'',url:cell.dataset.url||'',key:cell.dataset.panelKey||'',cell});
       });
     });
+    applyPan();markOpen();
   }
   // ── drag the dock by its header; drop on ▲ stashes it, else snap to the nearest edge ──
   const overTri=ev=>{
@@ -4083,8 +4321,8 @@ const WDock=(()=>{
     const tb=tri.getBoundingClientRect();
     return ev.clientX>tb.left-24&&ev.clientX<tb.right+24&&ev.clientY>tb.top-24&&ev.clientY<tb.bottom+24;
   };
-  function wireHeaderDrag(){
-    const hd=el.querySelector('.wdk-hd');if(!hd)return;
+  function wireGrabDrag(){
+    const hd=el.querySelector('.wdk-grab');if(!hd)return;
     hd.addEventListener('pointerdown',e=>{
       e.preventDefault();e.stopPropagation();
       const st=dockState(),sx=e.clientX,sy=e.clientY,ox=st.x,oy=st.y;let moved=false;
@@ -4131,9 +4369,11 @@ const WDock=(()=>{
     });
   }
   Bus.on('dock:refresh',refresh);
+  Bus.on('panels:changed',markOpen); // a window opened, closed or docked → repaint, don't rebuild
   Bus.on('wdock:unstash',d=>unstash(d&&d.x,d&&d.y)); // the ▲ menu's DOCK entry brings it back
+  addEventListener('resize',()=>{if(el.classList.contains('on'))applyPan()});
   refresh(); // pick up any squares restored from Store at boot
-  return{refresh,stash,unstash};
+  return{refresh,stash,unstash,markOpen};
 })();
 
 /* ---------- Proximity (world coords — zoom-invariant) ---------- */
@@ -5212,7 +5452,7 @@ const Panels=(()=>{
     // footer strip opens it in its own window; the in-LAB Agents detail also remains.
     if(['machine','agents','automations','email','tasks','approval'].includes(type)&&!Caps.on(type))Caps.set(type,1); // using = activating
     const existing=topInstanceOf(type);
-    if(existing&&!(MULTI.has(type)&&opts.newInstance)){focus(existing);Bus.emit('help','panel-'+type);return existing}
+    if(existing&&!(MULTI.has(type)&&opts.newInstance)){focus(existing);Bus.emit('help','panel-'+type);Bus.emit('panels:changed');return existing}
     const reg=REG.get(type);                         // registry first (T-050), else the legacy DEFS map
     const d=(reg&&reg.def)||DEFS[type];if(!d){Toast.show('Coming soon — under construction');return null}
     const key=open[type]?type+'#'+(++iseq):type;
@@ -5234,6 +5474,7 @@ const Panels=(()=>{
     wire(p);
     if(reg&&reg.mount)reg.mount(p);        // every panel mounts via the registry (T-050 → T-060: if-ladder retired)
     Bus.emit('help','panel-'+type);
+    Bus.emit('panels:changed');            // the DOCK lights the chips of windows that are open
     return p;
   }
   function focus(p){p.style.zIndex=++z;topPanel=p}
@@ -5241,7 +5482,7 @@ const Panels=(()=>{
     // Panels that hold live resources (shell → pty WebSockets) register _dispose so
     // closing actually reaps their sessions instead of orphaning them on the bridge.
     if(typeof p._dispose==='function')try{p._dispose()}catch(_){}
-    delete open[p.dataset.key||p.dataset.type];if(topPanel===p)topPanel=null;p.remove();count=Math.max(0,count-1);Bus.emit('help',null)
+    delete open[p.dataset.key||p.dataset.type];if(topPanel===p)topPanel=null;p.remove();count=Math.max(0,count-1);Bus.emit('help',null);Bus.emit('panels:changed')
   }
   // Minimize = tuck the panel into a frame square. Clicking that square reopens it
   // (an occupied cell emits 'open-panel'). Reuses the cell the panel already owns, else
@@ -5289,6 +5530,7 @@ const Panels=(()=>{
       p.dataset.docking='1';
       close(p);
     }
+    Bus.emit('panels:changed'); // the singleton path went through close(), the MULTI one did not
     Toast.show('Docked into a frame — click the square to reopen');
   }
   // Collapse = header-only fold, in place (does NOT consume a frame cell). Toggles.
@@ -5473,7 +5715,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.5
+  OS      CLONE FRAME OS · v0.3.1
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -5550,7 +5792,7 @@ const Panels=(()=>{
       const IC_FOLDER='<svg class="ic" viewBox="0 0 16 16" fill="none"><path d="M1.6 4.3a1 1 0 0 1 1-1H6l1.3 1.3H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.1"/></svg>';
       const IC_OPEN='<svg class="ic" viewBox="0 0 16 16" fill="none"><path d="M1.6 5.4h11.1l-1.2 6.1a1 1 0 0 1-1 .8H2.6a1 1 0 0 1-1-1zm0 0V4a1 1 0 0 1 1-1H6l1.3 1.3H13a1 1 0 0 1 1 1v.7" stroke="currentColor" stroke-width="1.1"/></svg>';
       const IC_FILE='<svg class="ic fic" viewBox="0 0 16 16" fill="none"><path d="M4 1.6h5l3 3V14a.5.5 0 0 1-.5.5H4.5A.5.5 0 0 1 4 14zM9 1.6V4a.5.5 0 0 0 .5.5H12" stroke="currentColor" stroke-width="1.1"/></svg>';
-      const q=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote for git args (paths w/ spaces safe)
+      const q=shq;   // the kernel's one quoter (git args: paths with spaces or $ are safe)
       // {sid:termSid} — without it every git command ran in the bridge's AMBIENT cwd session,
       // so the PROJECT pane could root itself on a different directory than the terminal.
       const shell=cmd=>new Promise(res=>{let o='';Bridge.shell(cmd,t=>{o+=t},null,null,{sid:termSid}).then(()=>res(o)).catch(()=>res(o))});
@@ -5717,7 +5959,15 @@ const Panels=(()=>{
     }
     async function loadModels(){
       const inf=Bridge.info&&Bridge.info();
-      models=[{v:'',label:'machine'+(inf&&inf.model?' · '+inf.model:''),prov:'HUB Bridge',on:true}];
+      // Built into a LOCAL list and published at the end, on purpose. `models` used to be
+      // emptied here and refilled after two awaits, so for the length of those round trips the
+      // panel's answer to "which models exist?" was "only the machine" — while provsLoaded,
+      // which means "has the registry EVER answered", stayed true from the previous load. Any
+      // syncPickers() landing in that window (loadHarnesses finishes first, or a bridge:changed
+      // arrives) therefore found the session's model missing from a list that was merely
+      // half-built, dropped the choice, and PERSISTED the drop. The owner's picked model
+      // silently became "machine" and stayed there. `models` is never transiently empty now.
+      const next=[{v:'',label:'machine'+(inf&&inf.model?' · '+inf.model:''),prov:'HUB Bridge',on:true}];
       if(Bridge.on()){
         // the raw Pi coding agent — its own agentic loop + tools (the app is its body); BYOK
         // through pi's own login, so it only appears when actually installed on this machine.
@@ -5725,10 +5975,11 @@ const Panels=(()=>{
         // pi then silently streamed from the machine brain under the label "pi".
         try{const ps=await RPC('pi','status');piOk=!!(ps&&ps.installed);piProbed=true;
           // show the LLM pi runs on (its BYOK model) right in the picker
-          if(piOk)models.push({v:'pi',label:'pi',prov:(ps&&ps.model)?ps.model:'coding agent',on:true,piModel:ps&&ps.model});
-        }catch(_){ if(piOk)models.push({v:'pi',label:'pi',prov:'coding agent',on:true}); }
-        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>models.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))});provsLoaded=true}catch(_){}
+          if(piOk)next.push({v:'pi',label:'pi',prov:(ps&&ps.model)?ps.model:'coding agent',on:true,piModel:ps&&ps.model});
+        }catch(_){ if(piOk)next.push({v:'pi',label:'pi',prov:'coding agent',on:true}); }
+        try{const provs=await RPC('models','listProviders');provs.forEach(pr=>{if(pr.enabled===false)return;(pr.models||[]).forEach(m=>next.push({v:pr.id+'::'+m,label:m,prov:pr.label||pr.provider,pid:pr.id,on:!(pr.disabledModels||[]).includes(m)}))});provsLoaded=true}catch(_){}
       }
+      models=next;   // published in one step — no window where the list is half-built
       syncPickers();
     }
     async function loadHarnesses(){
@@ -6385,7 +6636,6 @@ ANSWER DISCIPLINE:
     async function execTool(c,perms,signal){
       const a=c.args||{};
       const full=perms.machineControl||perms.fullAccess; // master switch OR full app access
-      const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'"; // POSIX single-quote: neutralizes $ ` \ $() etc. so paths/urls can't inject shell
       // A stoppable shell call: the bridge gets an id it can kill, and the fetch gets the signal.
       const sh=async(cmd,onTok)=>{
         const id='t'+(++toolSeq)+Math.random().toString(36).slice(2,6);
@@ -7716,11 +7966,13 @@ ANSWER DISCIPLINE:
     const r=await RPC('files','read',filePath,{maxKB:65536}).catch(e=>({ok:false,error:String(e&&e.message||e)}));
     if(!r||!r.ok){host.querySelector('.fv').innerHTML=head('')+`<div class="fv-note">${fesc((r&&r.error)||'could not open this file')}${/large|too/i.test((r&&r.error)||'')?'':' — it may be a binary file. Reveal it in Finder or open it in the terminal instead.'}</div>`;bindHead();return}
     text=orig=r.text;
-    if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" status --porcelain -- "'+String(filePath).replace(/"/g,'')+'" 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}
+    // This viewer is shared by FOLDERS, iT and SETTINGS, so every file any of them opens
+    // reached the shell here. Double quotes let $(…), backticks and $VAR through; shq does not.
+    if(opts.cwd&&Bridge.on()){try{let o='';await Bridge.shell('git -C '+shq(opts.cwd)+' status --porcelain -- '+shq(filePath)+' 2>/dev/null',t=>{o+=t});changed=!!o.trim()}catch(_){}}
     function seg(){return `<div class="fv-seg"><button data-m="view" class="${mode==='view'?'on':''}">View</button>${changed?`<button data-m="diff" class="${mode==='diff'?'on':''}">Diff</button>`:''}<button data-m="edit" class="${mode==='edit'?'on':''}">Edit</button></div>${mode==='edit'?`<span class="fv-dirty" id="fvd" style="${text!==orig?'':'visibility:hidden'}">● unsaved</span><button class="fv-save" id="fvsave" ${text===orig?'disabled':''}>Save</button>`:''}`}
     async function bodyHTML(){
       if(mode==='edit')return `<textarea class="fv-edit" id="fvta" spellcheck="false"></textarea>`;
-      if(mode==='diff'){let patch='';try{await Bridge.shell('git -C "'+String(opts.cwd).replace(/"/g,'')+'" diff -- "'+String(filePath).replace(/"/g,'')+'"',t=>{patch+=t})}catch(_){}
+      if(mode==='diff'){let patch='';try{await Bridge.shell('git -C '+shq(opts.cwd)+' diff -- '+shq(filePath),t=>{patch+=t})}catch(_){}
         if(!patch.trim())return `<div class="fv-note">No tracked changes for this file.</div>`;
         return '<div class="fv-code">'+patch.split('\n').map(l=>{const c=(l[0]==='+'&&!l.startsWith('+++'))?'add':((l[0]==='-'&&!l.startsWith('---'))?'del':(l.startsWith('@@')?'hunk':''));return `<div class="cl ${c}"><span class="ln"></span><span class="cd">${fesc(l)}</span></div>`}).join('')+'</div>';}
       const heavy=text.length>HEAVY_BYTES;
@@ -7749,7 +8001,8 @@ ANSWER DISCIPLINE:
     const base=s=>{s=String(s||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
     const parent=s=>{s=String(s||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
     const join=(a,b)=>String(a).replace(/\/+$/,'')+'/'+b;
-    const qp=s=>'"'+String(s).replace(/"/g,'')+'"';
+    // Was '"'+s.replace(/"/g,'')+'"' — which stops nothing: a file named $(…) ran on Reveal.
+    const qp=shq;
     let homeAbs='~',cfRoot='',cwd='',viewing=null,treeHidden=false,creating=null;
     const tree={open:new Set()};
     // `.catch(()=>null)` used to throw away WHY, and the caller then guessed: every failure —
@@ -8678,7 +8931,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           return `<div class="mx-msg q"><div class="mx-mhead">${escHtml(t)} QUERY <i></i></div><div class="mx-bub">${escHtml(m.content)}${fl}</div></div>`;
         }
         const stats=m.stats?`<span class="mx-mstats">TTFT ${m.stats.ttft}ms · ${m.stats.tps} tok/s</span>`:'';
-        const body=m.done?(window.MDLite?MDLite.render(m.content):escHtml(m.content)):escHtml(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
+        // `window.MDLite` was undefined forever — MDLite is a top-level const in the classic
+        // script, not a window property — so every finished answer rendered as escaped text.
+        // LAB, CODE and BRAIN all call the bare name; MATRIX now does too.
+        const body=m.done?MDLite.render(m.content):escHtml(m.content)+(st.streaming&&i===c.msgs.length-1?'<span class="mx-cursor"></span>':'');
         const pre=(!m.content&&st.streaming&&i===c.msgs.length-1)?(m.prefill!=null?`<div class="mx-prefill"><i style="width:${m.prefill}%"></i></div>`:'<span class="mx-cursor"></span>'):'';
         return `<div class="mx-msg a"><div class="mx-mhead"><i></i><b>MATRIX</b> ${escHtml(t)} ${stats}</div><div class="mx-bub">${pre||body}</div></div>`;
       }).join('');
@@ -9187,7 +9443,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // is ' itself, closed and re-opened the standard way. Paths reaching here are always
     // absolute (contract() produces the ~ form for DISPLAY only, and every call site guards
     // the bare '~'), so nothing here relies on tilde expansion.
-    const qpath=pth=>"'"+String(pth).replace(/'/g,"'\\''")+"'";
+    const qpath=shq;   // the kernel's one quoter, under this file's historical name
     // The iT model: workspace (sidebar row) ▸ pane (split) ▸ surface (a tab inside a pane).
     // Two kinds of surface share a pane:
     //   tty   — a REAL interactive terminal (xterm ↔ WS /stream ↔ node-pty): vim, htop,
@@ -9327,8 +9583,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     // shq lived here as a second, safe copy of qpath while qpath itself was unsafe — one idea,
     // two implementations, four lines apart in the same scope, and the wrong one had 11 call
-    // sites. Now there is one.
-    const shq=qpath;
+    // sites. The one that survived now lives in the kernel, and this alias is gone with it.
     async function itSaveFile(f){
       const dir=await itAttachDir();if(!dir){Toast.show('Bridge offline — could not save '+(f.name||'file'));return null}
       const safe=String(f.name||'pasted.png').replace(/\.\.+/g,'.').replace(/[^\w./-]+/g,'_');
@@ -10349,7 +10604,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.0 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.1 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -10967,7 +11222,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // quotes, and zsh still expands $(...), `...` and $VAR inside those — so a folder whose
     // NAME contained a command substitution would have executed when the owner clicked
     // "Open in Finder". Same defect class as the iT one, a different panel.
-    const shq=v=>"'"+String(v).replace(/'/g,"'\\''")+"'";
     // ----- sidebar-nav settings (left column of sections, content pane on the right) -----
     const nav=p.querySelector('#setnav'),pane=p.querySelector('#setpane');
     const loading=()=>{pane.innerHTML='<div class="qempty" style="padding:16px">loading…</div>'};
@@ -11239,7 +11493,9 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         if(!q){res.innerHTML='Type to search…';return}
         const hits=SECS.filter(x=>x[1].toLowerCase().includes(q)).map(x=>`<div class="setline" data-go="${x[0]}" style="cursor:pointer"><span style="flex:1">${x[1]}</span><span class="dim">settings</span></div>`).join('');
         let deep='';
-        if(Bridge.on()){try{const r=await RPC('search','query',q);(r&&r.groups||[]).forEach(g=>{(g.items||[]).slice(0,4).forEach(it=>{deep+=`<div class="setline"><span style="flex:1">${escHtml(it.title||it.name||'')}</span><span class="dim">${escHtml(g.module||g.label||'')}</span></div>`})})}catch(_){}}
+        // `g.items` is not a key search.mjs returns — it returns `results`, as web/panels/
+        // search.js reads it. Every cross-module hit was silently dropped by (undefined||[]).
+        if(Bridge.on()){try{const r=await RPC('search','query',q);(r&&r.groups||[]).forEach(g=>{(g.results||[]).slice(0,4).forEach(it=>{deep+=`<div class="setline"><span style="flex:1">${escHtml(it.title||it.name||'')}</span><span class="dim">${escHtml(g.module||g.label||'')}</span></div>`})})}catch(_){}}
         res.innerHTML=(hits+deep)||'<div class="qempty">Nothing found.</div>';
         res.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.go)));
       },250)});
@@ -11520,7 +11776,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.0 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.1 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -12372,7 +12628,8 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         <div class="apto">to ${escHtml(Array.isArray(a.to)?a.to.join(', '):(a.to||''))}${a.generatedBy?' · '+escHtml(a.generatedBy):''}</div>
         <textarea class="apbodytext" data-b="${a.id}" ${a.status==='pending'?'':'readonly'}>${escHtml(a.body||'')}</textarea>
         ${a.status==='pending'?`<div class="compose-actions"><button class="btn mini" data-ap="${a.id}">✓ approve and send</button><button class="btn mini" data-ed="${a.id}">save edit</button><button class="btn mini" data-rj="${a.id}">reject</button></div>`:''}</div>`).join('')+'</div>';
-      listEl.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='sending…';const r=await RPC('approvals','approve',b.dataset.ap);Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));renderApprovals()}));
+      // Same lock as APPROVAL's own button — this is the identical control in a second place.
+      listEl.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;b.textContent='sending…';let r;try{r=await RPC('approvals','approve',b.dataset.ap)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}finally{b.disabled=false}Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));renderApprovals()}));
       listEl.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{await RPC('approvals','reject',b.dataset.rj);Toast.show('Rejected');renderApprovals()}));
       listEl.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=listEl.querySelector('[data-b="'+b.dataset.ed+'"]');await RPC('approvals','edit',b.dataset.ed,{body:ta.value});Toast.show('Edit saved')}));
     }
@@ -12532,14 +12789,21 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         }finally{ta.placeholder='Write your message…'}
       });
       // send / via approval / schedule
+      // Two entry points reach this — the SEND button and the ⌄ menu's "Send now" — and
+      // neither disabled anything, while the compose pane stayed on screen for the whole SMTP
+      // round trip. One flag covers both, because a lock on one button is not a lock.
+      let sending=false;
       async function doSend(){
         const d=active;
+        if(sending)return;
         if(!d.to.trim()){cmsg('Missing recipient',1);return}
+        sending=true;const btn=g('csend');if(btn)btn.disabled=true;
         cmsg('sending…');
         try{const r=await Mail.send(acct.id,{to:d.to,cc:d.cc||undefined,subject:d.subject,text:d.body,inReplyTo:d.inReplyTo||undefined});
           if(r.ok){Toast.show('Email sent ✉');closeDraft(d);const sent=folders.find(f=>f.specialUse==='\\Sent');openFolder(sent||folder)}
           else cmsg('✗ '+(r.error||'failed'),1)}
         catch(e){cmsg('✗ '+e.message,1)}
+        finally{sending=false;const b2=g('csend');if(b2)b2.disabled=false}
       }
       // Into the REAL queue — the one bridge/approvals.mjs owns and the APPROVAL panel
       // reads. This used to call a browser-only Approvals.propose(), so a message sent
@@ -12834,7 +13098,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         <div class="apto">para ${escHtml(Array.isArray(a.to)?a.to.join(', '):(a.to||''))}${a.generatedBy?' · '+escHtml(a.generatedBy):''}</div>
         <textarea class="apbodytext" data-b="${a.id}" ${a.status==='pending'?'':'readonly'}>${escHtml(a.body||'')}</textarea>
         ${a.status==='pending'?`<div class="compose-actions"><button class="btn mini" data-ap="${a.id}">✓ approve and send</button><button class="btn mini" data-ed="${a.id}">save edit</button><button class="btn mini" data-rj="${a.id}">reject</button></div>`:''}</div>`).join('');
-      body.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{b.textContent='sending…';const r=await RPC('approvals','approve',b.dataset.ap);Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));load()}));
+      // b.textContent='sending…' is a LABEL, not a lock. The button stayed live for the whole
+      // SMTP round trip (1-3s) and was only replaced when load() re-rendered afterwards, so a
+      // second click sent the same mail again. disabled is the lock; the label is the news.
+      body.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;b.textContent='sending…';let r;try{r=await RPC('approvals','approve',b.dataset.ap)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}finally{b.disabled=false}Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));load()}));
       body.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{await RPC('approvals','reject',b.dataset.rj);Toast.show('Rejeitado');load()}));
       body.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=body.querySelector('[data-b="'+b.dataset.ed+'"]');await RPC('approvals','edit',b.dataset.ed,{body:ta.value});Toast.show('Edit saved')}));
     }
@@ -14443,25 +14710,27 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       }else focus(p);
       return;
     }
+    // ONE rule for every type: opening from a square LINKS the window to that square and
+    // leaves the square standing. It used to be two rules — MULTI kept its square, and a
+    // singleton released it ("the launcher tile has served its purpose", BUG-L2-004 Part 2).
+    // That is why a chip vanished from the DOCK the moment you clicked it, for some panels
+    // and not others. A square is the window's home; only its ✕ takes it away.
+    let p=null;
     if(MULTI.has(type)){
-      // Launcher square (post-reload, popped tab, + menu): open its OWN new window and
-      // link it to the square so later clicks focus/restore THIS window.
-      let p=null;
       if(type==='shell'){if(cwd)pendingShellCwd=cwd;p=openPanel('shell',{newInstance:true})}
       else{p=openPanel(type,{newInstance:true});if(type==='research'&&url&&p)Bus.emit('web:open',{url,target:p.dataset.key||''})}
-      // Persist the link, don't just stamp the element: a rebuild wipes the element and the
-      // window would be orphaned exactly as before. Grid.linkPanel writes both.
-      if(p&&d.cell)Grid.linkPanel(d.cell,p.dataset.key);
-      return;
-    }
-    // BUG-L2-004 Part 2: a singleton reopened from its frame tile brings the window back,
-    // so the launcher tile has served its purpose — release the source cell (no orphan tile).
-    if(d.cell&&typeof Grid!=='undefined'&&Grid.release)Grid.release(d.cell);
-    openPanel(type);
+    }else p=openPanel(type);
+    // Persist the link, don't just stamp the element: a rebuild wipes the element and the
+    // window would be orphaned exactly as before. Grid.linkPanel writes both.
+    if(p&&d.cell&&typeof Grid!=='undefined'&&Grid.linkPanel)Grid.linkPanel(d.cell,p.dataset.key);
+    Bus.emit('panels:changed');
   });
   // Removing a square that holds a hidden docked window closes that window for real
   // (dispose hook reaps its pty sessions) — a tile ✕ must never leak an invisible panel.
-  Bus.on('cell:removed',pk=>{const p=open[pk];if(p&&p.dataset.docked)close(p)});
+  // A square's ✕ closes its window, whether that window is hidden in the square or open on
+  // screen. It used to close only a DOCKED one, which was right while a square existed only
+  // for a minimized window; now a square outlives the restore, so ✕ is the single way out.
+  Bus.on('cell:removed',pk=>{const p=open[pk];if(p)close(p);Bus.emit('panels:changed')});
   // Safety net. A docked window is invisible and holds real resources — pty sessions, Chrome
   // tabs — and its ONLY handle is the square that carries its key. Persisting that key across
   // a grid rebuild is the fix; this is the guarantee. After any dock change, a hidden window

@@ -17,91 +17,78 @@
     <path d="M104 32 111 18 118 32 Z" stroke-width="2"/>
     <path d="M108.2 29.5 111 23.9 113.8 29.5 Z" stroke-width="1.4"/>
   </g>
-  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">the frame grid — 27 panels, six families, every one a draggable frame</text>
+  <text x="550" y="31" text-anchor="middle" font-size="13" fill="#8b949e">the frame grid — 20 panels, six families, every one a draggable frame</text>
 
-  <!-- code & shell -->
+  <!-- code &amp; shell -->
   <text x="60" y="78" fill="#6fb7d9" font-size="12" font-weight="bold">CODE &amp; SHELL</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="90" width="228" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
-    <text x="174" y="116" text-anchor="middle" fill="#6fb7d9">CODE</text>
-    <rect x="300" y="90" width="228" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
-    <text x="414" y="116" text-anchor="middle" fill="#6fb7d9">iT terminal</text>
-    <rect x="540" y="90" width="228" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
-    <text x="654" y="116" text-anchor="middle" fill="#6fb7d9">BROWSER</text>
-    <rect x="780" y="90" width="260" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
-    <text x="910" y="116" text-anchor="middle" fill="#6fb7d9">FOLDERS</text>
+    <rect x="60" y="90" width="236" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+    <text x="178" y="116" text-anchor="middle" fill="#6fb7d9">CODE</text>
+    <rect x="308" y="90" width="236" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+    <text x="426" y="116" text-anchor="middle" fill="#6fb7d9">iT terminal</text>
+    <rect x="556" y="90" width="236" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+    <text x="674" y="116" text-anchor="middle" fill="#6fb7d9">BROWSER</text>
+    <rect x="804" y="90" width="236" height="42" rx="8" fill="#161b22" stroke="#6fb7d9" stroke-width="2"/>
+    <text x="922" y="116" text-anchor="middle" fill="#6fb7d9">FOLDERS</text>
   </g>
 
   <!-- agents -->
   <text x="60" y="164" fill="#b18bf5" font-size="12" font-weight="bold">AGENTS &amp; HARNESS</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="176" width="180" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
-    <text x="150" y="202" text-anchor="middle" fill="#b18bf5">LAB</text>
-    <rect x="252" y="176" width="180" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
-    <text x="342" y="202" text-anchor="middle" fill="#b18bf5">AGENT</text>
-    <rect x="444" y="176" width="180" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
-    <text x="534" y="202" text-anchor="middle" fill="#b18bf5">MY AGENTS</text>
-    <rect x="636" y="176" width="180" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
-    <text x="726" y="202" text-anchor="middle" fill="#b18bf5">HARNESS</text>
-    <rect x="828" y="176" width="212" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
-    <text x="934" y="202" text-anchor="middle" fill="#b18bf5">BRAIN</text>
+    <rect x="60" y="176" width="186" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+    <text x="153" y="202" text-anchor="middle" fill="#b18bf5">LAB</text>
+    <rect x="258" y="176" width="186" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+    <text x="351" y="202" text-anchor="middle" fill="#b18bf5">AGENT</text>
+    <rect x="456" y="176" width="186" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+    <text x="549" y="202" text-anchor="middle" fill="#b18bf5">MY AGENTS</text>
+    <rect x="654" y="176" width="186" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+    <text x="747" y="202" text-anchor="middle" fill="#b18bf5">HARNESS</text>
+    <rect x="852" y="176" width="188" height="42" rx="8" fill="#161b22" stroke="#b18bf5" stroke-width="2"/>
+    <text x="946" y="202" text-anchor="middle" fill="#b18bf5">BRAIN</text>
   </g>
 
   <!-- local AI -->
   <text x="60" y="250" fill="#56d0e0" font-size="12" font-weight="bold">LOCAL AI</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="262" width="228" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
-    <text x="174" y="288" text-anchor="middle" fill="#56d0e0">MATRIX</text>
-    <rect x="300" y="262" width="228" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
-    <text x="414" y="288" text-anchor="middle" fill="#56d0e0">MY MACHINE</text>
-    <rect x="540" y="262" width="228" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
-    <text x="654" y="288" text-anchor="middle" fill="#56d0e0">MODEL COMPARISON</text>
-    <rect x="780" y="262" width="260" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
-    <text x="910" y="288" text-anchor="middle" fill="#56d0e0">COOKBOOK</text>
+    <rect x="60" y="262" width="484" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
+    <text x="302" y="288" text-anchor="middle" fill="#56d0e0">MATRIX</text>
+    <rect x="556" y="262" width="484" height="42" rx="8" fill="#161b22" stroke="#56d0e0" stroke-width="2"/>
+    <text x="798" y="288" text-anchor="middle" fill="#56d0e0">MY MACHINE</text>
   </g>
 
   <!-- personal -->
   <text x="60" y="336" fill="#3fd68f" font-size="12" font-weight="bold">PERSONAL</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="348" width="180" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
-    <text x="150" y="374" text-anchor="middle" fill="#3fd68f">NOTES</text>
-    <rect x="252" y="348" width="180" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
-    <text x="342" y="374" text-anchor="middle" fill="#3fd68f">CALENDAR</text>
-    <rect x="444" y="348" width="180" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
-    <text x="534" y="374" text-anchor="middle" fill="#3fd68f">CONTACTS</text>
-    <rect x="636" y="348" width="180" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
-    <text x="726" y="374" text-anchor="middle" fill="#3fd68f">TASKS</text>
-    <rect x="828" y="348" width="212" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
-    <text x="934" y="374" text-anchor="middle" fill="#3fd68f">REMINDERS</text>
+    <rect x="60" y="348" width="318" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+    <text x="219" y="374" text-anchor="middle" fill="#3fd68f">NOTES</text>
+    <rect x="390" y="348" width="318" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+    <text x="549" y="374" text-anchor="middle" fill="#3fd68f">TASKS</text>
+    <rect x="720" y="348" width="320" height="42" rx="8" fill="#161b22" stroke="#3fd68f" stroke-width="2"/>
+    <text x="880" y="374" text-anchor="middle" fill="#3fd68f">REMINDERS</text>
   </g>
 
   <!-- comms -->
   <text x="60" y="422" fill="#e8b86d" font-size="12" font-weight="bold">COMMS &amp; FLOWS</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="434" width="228" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
-    <text x="174" y="460" text-anchor="middle" fill="#e8b86d">EMAIL</text>
-    <rect x="300" y="434" width="228" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
-    <text x="414" y="460" text-anchor="middle" fill="#e8b86d">AUTOMATIONS</text>
-    <rect x="540" y="434" width="228" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
-    <text x="654" y="460" text-anchor="middle" fill="#e8b86d">APPROVAL</text>
-    <rect x="780" y="434" width="260" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
-    <text x="910" y="460" text-anchor="middle" fill="#e8b86d">CONNECTIONS</text>
+    <rect x="60" y="434" width="318" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+    <text x="219" y="460" text-anchor="middle" fill="#e8b86d">EMAIL</text>
+    <rect x="390" y="434" width="318" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+    <text x="549" y="460" text-anchor="middle" fill="#e8b86d">AUTOMATIONS</text>
+    <rect x="720" y="434" width="320" height="42" rx="8" fill="#161b22" stroke="#e8b86d" stroke-width="2"/>
+    <text x="880" y="460" text-anchor="middle" fill="#e8b86d">APPROVAL</text>
   </g>
 
   <!-- system -->
   <text x="60" y="508" fill="#8b949e" font-size="12" font-weight="bold">CONTENT &amp; SYSTEM</text>
   <g font-size="13" font-weight="bold">
-    <rect x="60" y="520" width="180" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
-    <text x="150" y="546" text-anchor="middle" fill="#c9d1d9">GALLERY</text>
-    <rect x="252" y="520" width="180" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
-    <text x="342" y="546" text-anchor="middle" fill="#c9d1d9">LIBRARY</text>
-    <rect x="444" y="520" width="180" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
-    <text x="534" y="546" text-anchor="middle" fill="#c9d1d9">SETTINGS</text>
-    <rect x="636" y="520" width="180" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
-    <text x="726" y="546" text-anchor="middle" fill="#c9d1d9">THEME</text>
-    <rect x="828" y="520" width="212" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
-    <text x="934" y="546" text-anchor="middle" fill="#c9d1d9">SEARCH</text>
+    <rect x="60" y="520" width="318" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+    <text x="219" y="546" text-anchor="middle" fill="#c9d1d9">SETTINGS</text>
+    <rect x="390" y="520" width="318" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+    <text x="549" y="546" text-anchor="middle" fill="#c9d1d9">THEME</text>
+    <rect x="720" y="520" width="320" height="42" rx="8" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+    <text x="880" y="546" text-anchor="middle" fill="#c9d1d9">SEARCH</text>
   </g>
 
-  <text x="550" y="592" text-anchor="middle" fill="#566070" font-size="12">top bar: CODE · HARNESS · LAB · MATRIX — the rest open from the launcher, the palette, or Settings</text>
+  <text x="550" y="584" text-anchor="middle" fill="#566070" font-size="12">top bar: CODE · HARNESS · LAB · MATRIX — the rest open from the launcher, the palette, or Settings</text>
+  <text x="550" y="602" text-anchor="middle" fill="#566070" font-size="11" opacity="0.8">GAME OVER · ACP TRACER · iIRYS FRAME show in the app as labelled in-development placeholders — not panels yet</text>
 </svg>

@@ -22,37 +22,36 @@
 //
 // The safe helper already existed in the same function scope, 138 lines below, under a
 // different name (shq) with one call site. One idea, two implementations, and the unsafe one
-// had all the reach — the exact failure mode 01_THE_VISION.md §2 warns about.
+// had all the reach.
+//
+// UPDATE, one wave later. The same defect was then found in TWO MORE panels — folders.js's
+// Reveal button and lab.js's shared file viewer — still carrying the double-quote form. The
+// lesson had been learnt in this file and carried nowhere else, so the quoter moved OUT of
+// shell.js into web/scripts/core/kernel.js, where every panel sees one definition.
+// tests/one-shell-quoter.test.mjs guards that exactly one definition exists.
+//
+// Three assertions here went with it, and it is worth saying why rather than quietly deleting
+// them: they pinned the IMPLEMENTATION ("qpath must be a one-expression helper", "the escaping
+// expression must appear exactly once in THIS FILE", "const shq=qpath") and turned red the
+// moment the code was routed correctly through a shared helper. CONTRIBUTING names that exact
+// false alarm. What survives below is what was always the point: a hostile directory name does
+// not execute, measured against a real zsh.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { shq as qpath } from '../web/scripts/core/kernel.js';
 
 const APP = path.resolve(import.meta.dirname, '..');
 const src = fs.readFileSync(path.join(APP, 'web/panels/shell.js'), 'utf8');
 
-// The real helper, lifted out of the panel so the test exercises the shipped expression.
-const qpathSrc = (src.match(/const qpath=([^;]+);/) || [])[1];
-const qpath = eval('(' + qpathSrc + ')'); // eslint-disable-line no-eval
-
-test('qpath single-quotes — double quotes do not stop zsh expanding', () => {
-  assert.ok(qpathSrc, 'qpath must still be a one-expression helper');
-  assert.doesNotMatch(qpathSrc, /^'"'/, 'the double-quoted form is what executed folder names');
-  assert.match(qpathSrc, /replace\(\/'\/g,"'\\\\''"\)/,
-    "the only escape single quotes need is ' → '\\'' ");
-});
-
-test('there is ONE shell-quoting helper, not three', () => {
-  // The file held three copies of one idea: qpath (unsafe, 11 call sites), shq (safe, 1 site)
-  // and an inline q1 for the grep query (safe, 1 site). Two of the three were correct, and
-  // the wrong one had all the reach. Two implementations of one idea always drift; here the
-  // drift was a shell injection.
-  assert.match(src, /const shq=qpath;/, 'shq must alias qpath, not re-implement it');
+test('iT quotes through the shared helper, and does not re-derive it', () => {
+  assert.match(src, /const qpath=shq;/, 'qpath must be the kernel quoter under iT’s historical name');
+  assert.equal((src.match(/replace\(\/'\/g/g) || []).length, 0,
+    'a private copy of the escaping expression is how the first one drifted');
   assert.match(src, /const q1=qpath\(q\);/, 'the grep query must use the same helper');
-  assert.equal((src.match(/replace\(\/'\/g,"'\\\\''"\)/g) || []).length, 1,
-    'the escaping expression must appear exactly once in the file');
 });
 
 test('a hostile directory name does NOT execute — measured against a real zsh', () => {
@@ -116,12 +115,10 @@ test('the built document carries the fix', () => {
   const dist = path.join(APP, 'dist/index.html');
   if (!fs.existsSync(dist)) return;
   const d = fs.readFileSync(dist, 'utf8');
-  // Compare against the source form itself rather than a hand-written literal: the escaping
-  // is exactly the sort of string a copy in a test gets wrong, and a wrong literal here would
-  // fail forever for the wrong reason.
-  const built = (d.match(/const qpath=[^;]+;/) || [])[0];
-  assert.ok(built, 'dist has no qpath at all');
-  assert.equal(built, (src.match(/const qpath=[^;]+;/) || [])[0],
-    'dist does not match the source — rebuild');
-  assert.doesNotMatch(built, /^const qpath=pth=>'"'/, 'dist still carries the double-quoted form');
+  // The bundled kernel is what the panels actually call, so that is what must be checked —
+  // not shell.js's alias, which would look right even if the definition behind it were wrong.
+  assert.match(d, /shq\s*=\s*\(?\s*s\s*\)?\s*=>\s*"'"/,
+    'dist does not carry the kernel quoter — rebuild');
+  assert.match(d, /const qpath=shq;/, 'dist does not carry iT’s alias — rebuild');
+  assert.doesNotMatch(d, /const qpath=pth=>'"'/, 'dist still carries the double-quoted form');
 });
