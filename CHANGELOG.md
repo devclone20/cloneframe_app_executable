@@ -5,6 +5,48 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.5 — 2026-08-01
+
+A fix to 0.3.4, found by re-reading yesterday's own change instead of trusting it.
+
+**One of the three reap passes had never run.**
+
+When you close an iT window, 0.3.4 ends its shells three ways. The third covers
+workspaces that were restored from your saved layout but never opened — they have no
+terminal on screen, because iT builds a workspace the first time you visit it, yet their
+shells are real and running from before your last reload. That pass was guarded on a flag
+meaning "this window owns the saved layout".
+
+The flag is cleared by the first statement in the same function. So by the time the third
+pass looked, it was always false. The pass never ran once since it was written.
+
+It reviewed correctly and it tested green, because the test pinned the *line* rather than
+the *order* — and a line cannot see what ran before it. The test now pins the order, and
+was watched failing against the bytes 0.3.4 shipped.
+
+Measured on the fix, against a real daemon: three workspaces saved, page reloaded, iT
+reopened as the layout owner — three restored, one terminal on screen, three live shells.
+Closed the window: **nothing left**, including the two with no terminal at all.
+
+Everything else about closing an iT window worked in 0.3.4 and is unchanged. If you only
+ever use the workspaces you can see, 0.3.4 already reaped them.
+
+**Also corrected**
+
+- The curriculum the agent reads said "27 panels" in two places while its own generated
+  table listed 20. The same wrong number sat in the daemon's app-control header and in the
+  extension. There are **20**; every claim now says so, and the generated docs were
+  rebuilt from the code rather than hand-edited.
+- The agent's `open_panel` description now states the one-window rule, which the extension
+  already carried and the curriculum did not.
+- Two comments in the browser panel still described a second ⧉ window.
+
+---
+
+```
+sha256  fc234feb88219b6e01d5660decc94e37b89567aa9ee1b910aaca25aa2a8df975
+```
+
 ## 0.3.4 — 2026-08-01
 
 Two rules the app had never chosen between, one promise it never kept, and a repository

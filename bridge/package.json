@@ -1,6 +1,6 @@
 {
   "name": "clone-frame-hub-bridge",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "type": "module",
   "description": "Local daemon that gives the CLONE FRAME HUB terminal a real shell + the user's own model (BYOK, any provider). Deps: ws, node-pty, imapflow, nodemailer, mailparser.",

@@ -2,7 +2,7 @@
  * clone-frame — the extension that makes CLONE FRAME the Pi agent's BODY.
  *
  * Pi is the mind; CLONE FRAME is the arm. This extension gives Pi native tools to DRIVE
- * the running app — open any of its 27 panels, read what is on screen right now, and reach
+ * the running app — open any of its 20 panels, read what is on screen right now, and reach
  * every one of the ~36 HUB Bridge modules (files, web, models, harness, notes, tasks,
  * research, servers, matrix, …) as its own tools. It also installs the ONE hard safety
  * limit the owner chose: an anti-wipe guard on bash. Everything else runs freely — Pi has
@@ -98,7 +98,7 @@ export default function cloneFrame(pi: ExtensionAPI) {
 		return undefined;
 	});
 
-	// ── open_panel — open/focus one of the app's 27 panels (drives the real window) ───────
+	// ── open_panel — open/focus one of the app's 20 panels (drives the real window) ───────
 	pi.registerTool({
 		name: "open_panel",
 		label: "Open panel",

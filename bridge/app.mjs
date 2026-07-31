@@ -1,4 +1,4 @@
-// app.mjs — control plane for the MAIN app UI (the 27 panels + the live screen).
+// app.mjs — control plane for the MAIN app UI (the 20 panels + the live screen).
 //
 // The iT terminal has its own control socket (it.mjs, op=it). This is its sibling for
 // the rest of the app: the running index.html parks ONE control WebSocket here
