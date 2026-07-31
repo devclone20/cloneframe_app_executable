@@ -25,7 +25,13 @@
 const CHAT_TIMEOUT = 120_000;
 // Concrete model for a bare env ANTHROPIC_API_KEY (that API rejects "auto"). Every
 // OTHER provider brings its own model. Overridable via HUB_BRIDGE_MODEL.
-const BRAIN_MODEL = process.env.HUB_BRIDGE_MODEL || 'claude-opus-4-8';
+//
+// This used to be its own literal, and it disagreed with llm.mjs's DEFAULT_MODEL — same
+// sentence in both headers, same env override, two different models. Which one answered
+// depended on whether the call came through /chat or through the shared LLM port, which is
+// not a thing anyone should have to know. One definition, imported.
+let BRAIN_MODEL = null;
+async function brainModel(){ if(BRAIN_MODEL==null){ ({ DEFAULT_MODEL: BRAIN_MODEL } = await import('../../llm.mjs')); } return BRAIN_MODEL; }
 const DEFAULT_SYSTEM = 'You are the model the owner connected to CLONE FRAME. Answer helpfully, directly and honestly. You have real access to this machine\'s terminal through the HUB Bridge.';
 const j = (o) => JSON.stringify(o);
 
@@ -55,7 +61,7 @@ export async function brain() {
   try {
     const t = (await port()).resolveTarget({ capability: 'chat' });
     if (!t) return { ready: false, provider: null, model: null };
-    const model = (t.anthropic && (!t.model || t.model === 'auto')) ? BRAIN_MODEL : t.model;
+    const model = (t.anthropic && (!t.model || t.model === 'auto')) ? await brainModel() : t.model;
     return { ready: true, provider: t.provider || 'model', model };
   } catch { return { ready: false, provider: null, model: null }; }
 }
@@ -80,7 +86,7 @@ export async function handleChat(req, res, body, { streamHead }) {
   const system = body.system || DEFAULT_SYSTEM;
   // Anthropic rejects "auto"; a bare env key resolves to "auto" → substitute the brain
   // default there. Every other provider brings (or defaults) its own model.
-  const model = body.model || ((t.anthropic && (!t.model || t.model === 'auto')) ? BRAIN_MODEL : t.model);
+  const model = body.model || ((t.anthropic && (!t.model || t.model === 'auto')) ? await brainModel() : t.model);
   const ctl = new AbortController();
   const to = setTimeout(() => ctl.abort(), CHAT_TIMEOUT);
   req.on('close', () => ctl.abort());

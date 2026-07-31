@@ -5,6 +5,62 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.2 — 2026-07-31
+
+Closes the twenty-five findings 0.3.1 wrote down and did not fix. Nothing from the audit is
+still open; what remains in [KNOWN-ISSUES.md](KNOWN-ISSUES.md) is one boundary and the
+accepted residual risks, both spelled out rather than listed.
+
+**Eight controls that reported success and changed nothing**
+
+MY AGENTS' **USE IN CODE** wrote LAB's selection key while naming CODE. FOLDERS' **Open in
+iT** did nothing when iT was already open — and left the directory set, so it landed in the
+*next* iT you opened. APPROVAL's **reject** and **save edit** reported success on a refusal,
+in Portuguese. `close_panel` did not resolve the aliases its two twins resolve. A docked
+AGENT VIEW painted a blank square. The shortcuts overlay advertised `g a` "go to Agent",
+which opens CODE, and hid `g n` and `g u`, which work. A granular permission under Full
+machine control wrote `false` over `false` and flipped back on the next render. And four
+CAPABILITIES switches sat under a heading that implied a gate they never had.
+
+**Three pieces of state that outlived their window**
+
+iT's cross-window ownership lease was never released, so reopening within nine seconds
+restored no workspaces — a reload read as losing your layout. A closed window's frame square
+kept its handle and adopted the next window of the same type, whose ✕ then closed it. And
+docking CODE mid-answer let the orphaned closure overwrite whatever the reopened window had
+written since; the store now has one owner, the newest mount, and the orphan still finishes
+its write if nobody replaced it.
+
+**Two answers to one question**
+
+`chat.mjs` and `llm.mjs` each declared "the concrete model for a bare env `ANTHROPIC_API_KEY`"
+— same sentence, same env override, different models. The `app_rpc` allowlist exempted the
+`rpcallow` module, so the agent it constrains could widen it; reads pass now, writes do not.
+
+**Gates that were claimed and not enforced**
+
+`files.write`, `writeB64`, `mkdir`, `remove`, `move` and `copy` need the **Write files**
+switch from an agent caller. `bridge/files.mjs`'s own header and the description handed to
+the model both said this was already true. Reads stay open.
+
+**HARNESS and `pi`**
+
+0.3.1 called this "the one that changes a documented promise". It turns out to be a boundary
+rather than an omission: pi's own tools run inside pi's process and never cross the bridge, so
+no crew can stand in front of them. What pi does to the *app* now passes a daemon gate in
+every case. The fix was to stop the interface implying otherwise — with a session on `pi` the
+crew chip reads "· off for pi", and both it and the picker say why.
+
+**Docker, and two bridge docs**
+
+The `cfhub-data` volume was mounted at `/root/CloneFrame` while the image runs as `USER node`,
+so it was real, empty and never written to. `bridge/README.md` listed three deleted routes and
+`bridge/SEARCH.md` published a seven-module contract for an aggregator with four.
+`Web.fetchRaw` — the reader for the removed browser proxy, with no caller anywhere — is off
+the RPC surface.
+
+  911 tests pass.
+
 ## 0.3.1 — 2026-07-31
 
 An eight-lens audit read the whole tree, a second reader tried to refute every finding,

@@ -73,19 +73,27 @@ terminal becomes real and CODE answers with Claude on your machine.
 
 | Method | Route | Auth | What |
 |---|---|---|---|
-| GET  | `/health`    | — | liveness only (name, version, host) |
-| POST | `/pair`      | token | confirms pairing; returns cwd, brain, model |
-| POST | `/shell`     | token | run a command, streamed output (`\x00EXIT/CWD/ERR/CLEAR` markers) |
-| POST | `/interrupt` | token | SIGINT to the running command's group (by `id`) |
-| POST | `/chat`      | token | streaming relay to Claude (SSE → text) |
-| POST | `/email`     | token | 501 when SMTP is not configured (the site falls back to `mailto`) |
+| GET  | `/health`         | — | liveness only (name, version, host) |
+| POST | `/pair`           | token | confirms pairing; returns cwd, brain, model |
+| POST | `/shell`          | token | run a command, streamed output (`\x00CWD/EXIT/ERR/CLEAR/NEEDSUDO` markers) |
+| POST | `/interrupt`      | token | SIGINT to the running command's group (by `id`) |
+| POST | `/chat`           | token | streaming relay to the user's model (SSE → text) |
+| POST | `/provider-chat`  | token | streaming relay to the user's chosen provider (Anthropic / OpenAI-compatible) |
+| POST | `/mod/<name>`     | token | generic module RPC: `{fn,args}` → the module's exported fn (most of the app) |
+| WS   | `/stream`         | token | live PTY terminal data-plane (`op=shell\|attach\|it`) |
+
+> Three routes were removed and this table kept listing them: `GET /proxy` went with the
+> browser rewrite (the panel is a real Chrome over a CDP pipe now — see SECURITY.md), and
+> `GET /email/accounts` + `POST /email/<op>` went in T-033 when email moved onto the generic
+> `/mod` router as `email`. Email is reached as `POST /mod/email {fn,args}` like every other
+> module.
 
 ## Configuration (optional)
 
 | Env | Default | |
 |---|---|---|
 | `HUB_BRIDGE_PORT`  | `8765` | port |
-| `HUB_BRIDGE_MODEL` | `claude-opus-4-8` | default Claude model |
+| `HUB_BRIDGE_MODEL` | `claude-sonnet-5` | the concrete model for a bare env `ANTHROPIC_API_KEY` (that API rejects "auto"). Every configured provider brings its own; defined once, in `llm.mjs` |
 | `ANTHROPIC_API_KEY` | (read from `~/.env.local` when absent from the environment) | your key |
 
 ## Known limitations

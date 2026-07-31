@@ -142,7 +142,7 @@ the rest open from the launcher, the command palette, or Settings.
 | Top-bar tab | What it gives you |
 |-------------|-------------------|
 | **CODE** | Chat with your model, a real multi-tab terminal (xterm, file tree, diff + editor, `zsh` themes, tab-autocomplete), a project diff view, and an in-app browser. |
-| **HARNESS** | Crews of agents that plan and act behind **non-collapsible safety gates** — the agent proposes, the gate holds, you decide. (Today the gates apply to the model paths you connect yourself. If you install and select the `pi` coding agent, its own tool loop runs outside them — see [KNOWN-ISSUES.md](KNOWN-ISSUES.md).) |
+| **HARNESS** | Crews of agents that plan and act behind **non-collapsible safety gates** — the agent proposes, the gate holds, you decide. The gates govern the tool loop of the models **you** connect. The `pi` coding agent runs its own tools in its own process, where nothing in this app can stand in front of them; what pi does to the app still passes your permission switches, and the crew chip says so when a session is on pi. |
 | **LAB** | Chat with any model, and **your agents** — the LAB detects every iNFT your connected wallet holds and lets you work with each one. |
 | **MATRIX** | Your **local AI cluster** — turn your own devices into nodes, load models, and chat with a fully local brain (details below). |
 

@@ -12,12 +12,23 @@
     const itLeaseHeld=()=>{try{const o=JSON.parse(localStorage.getItem(IT_OWNER)||'null');return (o&&Date.now()-o.ts<IT_LEASE)?o:null}catch(_){return null}};
     const itClaim=()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)return false;try{localStorage.setItem(IT_OWNER,JSON.stringify({id:itSelf,ts:Date.now()}))}catch(_){}return true};
     let primary=instancesOf('shell').length<=1&&itClaim();
+    // Released in _dispose. Nothing used to release it: the lease sat in localStorage with a
+    // 9s life and the heartbeat kept RE-WRITING it for up to 3s after the window was gone, so
+    // reopening iT inside that window found a lease it did not own, demoted itself to
+    // live-only, and restored no workspaces. A reload looked like losing your layout.
+    let itHb=null;
+    const itRelease=()=>{
+      if(itHb){clearInterval(itHb);itHb=null}
+      if(!primary)return;
+      try{const o=itLeaseHeld();if(o&&o.id===itSelf)localStorage.removeItem(IT_OWNER)}catch(_){}
+      primary=false;
+    };
     if(primary){
       // Two windows opening in the same tick can both claim; whoever's write landed last
       // owns it, and the other stands down here.
       setTimeout(()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)primary=false},300);
-      const hb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else clearInterval(hb)},3000);
-      if(hb.unref)hb.unref();
+      itHb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else itRelease()},3000);
+      if(itHb.unref)itHb.unref();
     }
     const strip=s=>String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g,'').replace(/\r(?!\n)/g,'');
     const base=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
@@ -1619,7 +1630,7 @@
     // ALL workspaces — else docked-then-removed terminals would leak bridge sessions until the
     // idle reaper, against the 24-session cap.
     p.addEventListener('pointerdown',e=>{if(ctxEl&&!e.target.closest('.it-ctx'))closeCtx()},true); // any click outside dismisses the right-click menu
-    p._dispose=()=>{closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
+    p._dispose=()=>{itRelease();closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
     // Restored from its frame square: re-sync panes (the resize observer refits xterm).
     p._onundock=()=>{renderAll()};
     panelBus(p).on('bridge:changed',()=>{if(Bridge.on()&&homeAbs==='~'){(async()=>{try{let o='';const m=await Bridge.shell('pwd',x=>{o+=x});homeAbs=(m&&m.cwd)||o.trim()||'~';try{canTTY=!!(await RPC('pty','available'))}catch(_){}tree.root=homeAbs;workspaces.forEach(w=>{if(w.cwd==='~')w.cwd=homeAbs;(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.cwd==='~')t.cwd=homeAbs}))});renderAll();renderTree()}catch(_){}})()}});

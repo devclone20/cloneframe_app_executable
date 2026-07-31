@@ -376,14 +376,17 @@
       const CAP=Store.get().caps;
       const capRow=(k,label,sub)=>`<div class="autotoggle"><div><b>${label}</b><div class="sub">${sub}</div></div><div class="sw3 ${CAP[k]?'on':''}" data-cap="${k}"><i></i></div></div>`;
       pane.innerHTML='<div class="sethead">TOOLS</div>'+TOOLS.map(t=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="${t[3]}"/></svg><span style="flex:1;margin-left:4px"><b style="font-size:10.5px;color:var(--fg)">${t[1]}</b> <span class="dim" style="font-size:10px">${t[2]}</span></span><button class="btn mini" data-open="${t[0]}">OPEN</button></div>`).join('')
-        +'<div class="sethead">CAPABILITIES — enable only what you use</div>'
+        +'<div class="sethead">SHORTCUTS — the panels you have used</div>'
         +capRow('machine','My Machine','real shell + BYOK brain')
         +capRow('agents','My Agents','connect the real iCLONE / VEGETA')
         +capRow('email','Email','connect, write and send email')
         +capRow('automations','Automations','the agent proposes actions (with approval)')
-        +'<div style="font-size:10px;color:var(--ink-faint);margin:2px 0 4px">CODE · Harness · LAB are always available. Nothing starts on its own — every action passes Safety + your approval.</div>';
+        +'<div style="font-size:10px;color:var(--ink-faint);margin:2px 0 4px;line-height:1.6">These are a <b>record, not a gate</b>: opening a panel marks it here, and clearing one only forgets it until you open that panel again. Every panel stays reachable from the launcher and ⌘K either way. What an agent may DO is in <b>Machine → permissions</b>, not here.<br>CODE · HARNESS · LAB are always available. Nothing starts on its own — every action passes Safety and your approval.</div>';
       pane.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.open;openPanel(t==='__theme'?'theme':t)}));
-      pane.querySelectorAll('[data-cap]').forEach(sw=>sw.addEventListener('click',()=>{const k=sw.dataset.cap,v=!Caps.on(k);Caps.set(k,v);sw.classList.toggle('on',v);Toast.show((v?'Enabled: ':'Disabled: ')+k)}));
+      // The toast used to say "Enabled:"/"Disabled:", which is what made this look like a gate.
+      // Nothing reads Caps as a permission — openPanel only ever SETS it ("using = activating").
+      // Say what actually happens.
+      pane.querySelectorAll('[data-cap]').forEach(sw=>sw.addEventListener('click',()=>{const k=sw.dataset.cap,v=!Caps.on(k);Caps.set(k,v);sw.classList.toggle('on',v);Toast.show(v?('Marked as used: '+k):('Forgotten: '+k+' — opening it marks it again'))}));
     }
     async function secAgentTools(){
       loading();
@@ -411,7 +414,15 @@
         `<div class="autotoggle"><div><b>Restrict the agent to a list</b><div class="sub">Off = everything is allowed except what you block. On = nothing is allowed except what you allow.</div></div><div class="sw3 ${rpcp.mode==='allowlist'?'on':''}" id="rpcmode"><i></i></div></div>`+
         `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>`+
         '<div class="secnote">This is a guardrail on the agent, not a security boundary — anything already holding the bridge token can call a module directly. For confinement inside the agent itself, install the guardrails from <span class="path">pi.dev</span>.</div>';
-      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
+      // "Is permission X on" was derived twice and the two disagreed. The ROW renders the
+      // EFFECTIVE value — `perms[k]||(mc&&!own)` — so under Full machine control the granular
+      // rows paint as ON while their stored flags are false. The click then derived the new
+      // value from that painted class, so clicking an implied row wrote `false` over a `false`,
+      // reported success, and flipped back on the next render. Derive from the STORED value,
+      // and when the master is what is switching this row on, say so rather than pretend.
+      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,ownGate=(k==='autoEmail'||k==='ssh'||k==='matrix');
+        if(perms.machineControl&&!ownGate&&!perms[k]){Toast.show('Governed by Full machine control — turn that off to set this one individually');return}
+        const on=!perms[k];try{await RPC('permissions','set',{[k]:on});perms[k]=on;Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
       // app_rpc allowlist. The textarea edits whichever list the current mode uses, so the
       // owner never has to reason about two lists at once; flipping the mode re-renders.

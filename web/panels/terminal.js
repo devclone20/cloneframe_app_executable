@@ -1,3 +1,7 @@
+  // Which mount currently owns `cfhub.code.v1`. Lives outside wireTerminal on purpose: the
+  // panels are spliced into one shared scope, so this survives a window closing and reopening,
+  // which is exactly the case it exists for.
+  let codeMountSeq=0;
   function wireTerminal(p){
     /* ---------- CODE — Claude Code-style workspace: sessions rail · NL chat · side panes ---------- */
     const $=sel=>p.querySelector(sel);
@@ -6,7 +10,14 @@
     const KEY='cfhub.code.v1';
     const stCell=persisted(KEY,null); let st=stCell.get(); // kernel persisted (T-046)
     if(!st||!Array.isArray(st.sessions))st={sessions:[],active:null};
-    const saveSt=()=>stCell.set(st);
+    // Docking CODE mid-answer runs close(p), so this whole closure is orphaned while its turn
+    // is still streaming — and `st` is per-mount. The orphan's final saveSt() used to overwrite
+    // whatever the REOPENED window had since written. It is not right to silence the orphan
+    // either: if nothing else mounts, its last write is how the finished answer survives the
+    // dock. So the store has an owner, and it is the most recent mount. The orphan keeps
+    // writing until someone takes over, and then stops.
+    codeMountSeq++; const myMount=codeMountSeq;
+    const saveSt=()=>{ if(myMount!==codeMountSeq)return; stCell.set(st) };
     // A gate that outlived its agent run is not a decision the owner can still make. The run
     // died with the window or the reload, and the tool was never executed — but the card came
     // back with live APPROVE/REJECT buttons wired to an empty pendingGates map. Buttons that
@@ -391,7 +402,18 @@
       let mlbl=mm.label;
       if(mv==='pi')mlbl='pi'+(mm.piModel?' · '+String(mm.piModel).split('/').pop():''); // show pi's underlying LLM
       $('#cdmodel').textContent=mlbl+' ▾';
-      $('#cdharness').textContent=((cur&&cur.harness&&cur.harness.name)||'No harness')+' ▾';
+      // A crew's gates govern THIS panel's tool loop — the one agentRun drives for the models
+      // you connect. pi does not use that loop: its bash and file tools run inside pi's own
+      // process and never cross the bridge, so nothing here can stand in front of them. What
+      // pi does to the APP still passes the daemon's permission gates (email, file writes,
+      // ssh, MATRIX, root). Saying so at the point of choice beats a crew chip that implies a
+      // gate it cannot hold. See KNOWN-ISSUES.md.
+      const hOn=cur&&cur.harness&&cur.harness.name;
+      const hEl=$('#cdharness');
+      hEl.textContent=(hOn||'No harness')+(hOn&&mv==='pi'?' · off for pi':'')+' ▾';
+      hEl.title=hOn&&mv==='pi'
+        ? 'This crew gates the tool loop of the models you connect. pi runs its own tools in its own process, so the crew cannot gate them — what pi does to the app still passes your permission switches.'
+        : (hOn?'This crew\'s gates apply to every gated tool in this session.':'No crew: gated tools run without an approval card.');
       $('#cdinft').textContent=((cur&&cur.inft&&cur.inft.name)||'No agent')+' ▾';
     }
     const closePops=()=>{p.querySelectorAll('.cdpop').forEach(x=>x.classList.remove('open'));closeOverflow();};
@@ -466,6 +488,7 @@
       const pop=$('#cdharnesspop'),cur=active()||newSession();
       const openEditor=(id,edit)=>{openPanel('harness');setTimeout(()=>Bus.emit('harness:open',{id,edit}),90);closePops()};
       pop.innerHTML='<div class="cdmenu">'+
+        ((active()&&active().model==='pi')?'<div class="hd" style="line-height:1.5;white-space:normal;max-width:280px">This session runs <b>pi</b>. A crew gates the tool loop of the models you connect — pi runs its own tools in its own process, so a crew cannot stand in front of them. Your permission switches still do.</div>':'')+
         `<button data-h="">No harness</button>`+
         harnesses.map(h=>`<button data-h="${escAttr(h.id)}" data-n="${escAttr(h.name)}">${escAttr(h.name)}<span class="pv" style="margin-left:auto;font-size:10.5px;color:var(--ink-faint)">${(h.roles||[]).length} agent${(h.roles||[]).length===1?'':'s'}</span><span class="cdhedit" data-edit="${escAttr(h.id)}" title="Edit this harness' crew">✎</span></button>`).join('')+
         `<div class="dv"></div><button data-new="1" style="color:var(--accent)">＋ New harness…</button>`+
@@ -1076,7 +1099,9 @@ ANSWER DISCIPLINE:
           return 'PANEL '+hit.key+' — '+hit.title+(hit.docked?' [docked]':'')+' — visible content:\n'+(txt?trunc(txt,2200):'(no visible text)');
         }
         if(c.name==='close_panel'){
-          const t=String(a.panel||'').trim().toLowerCase();if(!t)return 'no panel key';
+          // open_panel and read_panel both call resolvePanelKey(); this twin did not, so the
+          // agent could open "browser" and then fail to close it. Same resolver, same names.
+          const t=(resolvePanelKey(a.panel)||String(a.panel||'').trim().toLowerCase());if(!t)return 'no panel key';
           const ps=screenPanels();
           const hit=ps.find(x=>x.key.toLowerCase()===t)||ps.find(x=>x.key.toLowerCase().startsWith(t));
           if(!hit)return 'panel "'+t+'" is not open (open now: '+(ps.map(x=>x.key).join(', ')||'none')+')';

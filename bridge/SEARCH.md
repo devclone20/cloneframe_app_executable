@@ -38,23 +38,25 @@ type Group = {
 ### `Search.modules() -> string[]`
 
 Returns the fixed set of module keys this aggregator searches, in query
-order: `['notes', 'library', 'contacts', 'cookbook', 'tasks', 'reminders', 'research']`.
+order: `['notes', 'tasks', 'reminders', 'research']`.
+
+> This listed seven for a long time. `library`, `contacts` and `cookbook` are not modules in
+> this bridge — there are no such files — so three rows of the mapping below described calls
+> that could never be made. Nothing user-facing reads `modules()`; a contributor trusting the
+> "Verified" heading would have.
 
 ## Module → field mapping
 
 | module      | source call                                              | filtered on              | `title`         | `snippet`             |
 |-------------|-----------------------------------------------------------|---------------------------|------------------|------------------------|
 | `notes`     | `Notes.list({ search: q })`                               | module-native search      | `title`          | `snippet`              |
-| `library`   | `Library.search(q)` (falls back to `Library.list({ search: q })` if `search` isn't exported) | module-native search | `name` | `excerpts.join(' … ')` (or `snippet` on fallback) |
-| `contacts`  | `Contacts.list({ search: q })`                             | module-native search      | `displayName`    | `emails.join(', ')`    |
-| `cookbook`  | `Cookbook.list()` then filtered locally                    | `name`, `description`, `category` | `name` | `description`          |
 | `tasks`     | `Tasks.list()` then filtered locally                        | `name`, `category`        | `name`           | `category`             |
 | `reminders` | `Reminders.list()` then filtered locally                    | `note`, `status`          | `note`           | `status`                |
 | `research`  | `Research.list()` then filtered locally                     | `question`                | `question`       | `createdAt`             |
 
-Modules that expose their own `{search}` filter (`notes`, `library`,
-`contacts`) delegate matching to them. Modules that only expose a plain
-`list()` (`cookbook`, `tasks`, `reminders`, `research`) are filtered locally
+Modules that expose their own `{search}` filter (`notes`) delegate matching to
+them. Modules that only expose a plain
+`list()` (`tasks`, `reminders`, `research`) are filtered locally
 with a case-insensitive substring match across the fields listed above.
 
 ## Verified

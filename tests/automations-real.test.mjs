@@ -70,8 +70,12 @@ test('the permission gate has exactly one writer', () => {
   // Reading it in two places is fine. Writing it in two places is how the last one broke.
   assert.ok(!/RPC\('permissions','set'/.test(auto), 'AUTOMATIONS must not be a second writer');
   assert.match(auto, /SETTINGS → MACHINE/, 'it must point at the panel that owns it');
-  assert.match(settings, /RPC\('permissions','set',\{\[k\]:on\}\);Bus\.emit\('permissions:changed'\)/,
-    'the one writer must announce the change');
+  // Pinned as a CONTRACT — the set and the announcement, in that order — not as one exact
+  // concatenation. The literal version went red the moment a line was added between them to
+  // keep the local `perms` snapshot in step, which is a false alarm with a maintenance cost.
+  const writer = settings.match(/RPC\('permissions','set',\{\[k\]:on\}\)[\s\S]{0,120}/)[0];
+  assert.match(writer, /Bus\.emit\('permissions:changed'\)/,
+    'the one writer must announce the change, right after making it');
 });
 
 test('the four autonomy levels that did nothing are gone from SETTINGS', () => {

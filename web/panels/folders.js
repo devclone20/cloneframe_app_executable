@@ -41,7 +41,15 @@
       barEl.querySelector('#fmnewf').addEventListener('click',()=>startCreate('dir'));
       barEl.querySelector('#fmnewfile').addEventListener('click',()=>startCreate('file'));
       barEl.querySelector('#fmup2').addEventListener('click',()=>pickUpload());
-      barEl.querySelector('#fmterm').addEventListener('click',()=>{pendingShellCwd=cwd;openPanel('shell')});
+      // pendingShellCwd is consumed only by wireShell(), which runs when an iT window MOUNTS.
+      // With iT already open, openPanel('shell') early-returns and nothing reads it — so the
+      // button did nothing AND left the directory set, poisoning the next iT that opened.
+      // terminal.js's open_terminal tool already handles this correctly; same shape here.
+      barEl.querySelector('#fmterm').addEventListener('click',()=>{
+        const wasOpen=instancesOf('shell').length>0;
+        pendingShellCwd=cwd;openPanel('shell');
+        if(wasOpen){Bus.emit('shell:addcwd',cwd);Toast.show('Added '+base(cwd)+' to iT')}
+      });
       barEl.querySelector('#fmrev').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+qp(cwd),()=>{});Toast.show('Opening '+base(cwd)+' in Finder')});
       barEl.querySelector('#fmref').addEventListener('click',()=>{renderList();renderTree()});
     }

@@ -28,7 +28,11 @@ services:
       CLONE_FRAME_HUB_ROOT: "/data"
     volumes:
       - cfhub-state:/data              # app state — agents, harnesses, settings, notes …
-      - cfhub-data:/root/CloneFrame    # the ~/CloneFrame folders — Models, Data, Downloads …
+      # /home/node, not /root: the Dockerfile runs as USER node, so homedir() — which is what
+      # bridge/folders.mjs resolves ~/CloneFrame from — is /home/node. Mounted at /root the
+      # volume was real, empty and never written to, while the tree the app created lived on the
+      # container's writable layer and died with the container. The README promises it persists.
+      - cfhub-data:/home/node/CloneFrame   # the ~/CloneFrame folders — Models, Data, Downloads …
     restart: unless-stopped
 
 volumes:

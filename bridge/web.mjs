@@ -468,5 +468,12 @@ export async function frameable(url) {
 // `frameable` (iframe-embeddability probe) is retired: the in-app browser is now a
 // real CDP engine, not an iframe, so nothing probes framing anymore. fetchUrl/search/
 // fetchRaw stay — they back the agent's web_search / fetch_content.
-export const Web = { fetchUrl, search, research, fetchRaw };
+// fetchRaw is deliberately NOT here. It was the server-side reader for the in-app browser's
+// old /proxy path; the proxy was removed with the browser rewrite and this was not, leaving an
+// RPC-reachable function that fetches an arbitrary URL and returns up to 4 MB of raw bytes,
+// with no caller anywhere in the app, the agent or the tests. It is SSRF-guarded, so it was
+// surface without a purpose rather than a hole — but surface without a purpose is what the
+// next mistake is built on. The function stays exported for any internal use; it is simply
+// no longer reachable from outside.
+export const Web = { fetchUrl, search, research };
 export default Web;

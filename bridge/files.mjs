@@ -1,7 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CLONE FRAME · HUB — files
-// File operations exposed to the agent as tools. Path safety only; the
-// permission gate (permissions.mjs) decides whether the agent may call write.
+// File operations exposed to the agent as tools. Path safety lives HERE (resolve + the secret
+// -store blocklist); WHETHER an agent may write is decided one layer up, by the /mod router
+// consulting Permissions.agentGateFor — write / writeB64 / mkdir / remove / move / copy need
+// the owner's fileWrite switch when the caller marks itself as the agent. Reads are open, so
+// the agent can still see the project it is working on, and the owner's own UI is never gated.
+// (This sentence used to claim the gate without one existing; it does now.)
 // ─────────────────────────────────────────────────────────────────────────────
 import { homedir } from 'node:os';
 import fs from 'node:fs';

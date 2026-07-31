@@ -93,9 +93,21 @@ export const Permissions = {
 };
 
 const AGENT_GATED = {
+  // Mail leaves the machine and cannot be recalled.
   'email.send': 'email',
-  'scheduled.schedule': 'email',
-  'approvals.approve': 'email',
+  'scheduled.schedule': 'email',   // the same send, on a timer
+  'approvals.approve': 'email',    // the agent must not approve the draft it wrote
+  // Writing to the owner's disk. bridge/files.mjs's own header says "the permission gate
+  // (permissions.mjs) decides whether the agent may call write", and the pi extension repeats
+  // it to the model — "write respects the owner's file permission". Neither was true: the only
+  // check lived in the browser's tool loop, which pi does not go through. Reads stay open, so
+  // the agent can still see the project it is working on.
+  'files.write': 'fileWrite',
+  'files.writeB64': 'fileWrite',
+  'files.mkdir': 'fileWrite',
+  'files.remove': 'fileWrite',
+  'files.move': 'fileWrite',
+  'files.copy': 'fileWrite',
 };
 
 export default Permissions;

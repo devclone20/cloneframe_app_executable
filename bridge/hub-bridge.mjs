@@ -248,8 +248,15 @@ async function handleMod(req, res, name, body) {
   // (the pi extension sets x-cfhub-caller: agent) — the app's UI drives the same route and
   // is never constrained by it, so a narrow list can never brick the interface. Ships
   // wide open; see bridge/rpcallow.mjs for exactly what this is and is not.
-  if (String(req.headers['x-cfhub-caller'] || '').toLowerCase() === 'agent' && name !== 'rpcallow') {
-    try {
+  if (String(req.headers['x-cfhub-caller'] || '').toLowerCase() === 'agent') {
+    // The whole `rpcallow` module used to be exempt, so an agent the list constrained could
+    // call rpcallow.set and widen it. Nothing was GAINED — the module's header already notes
+    // that a token-holder can bypass the list by omitting this header — but a policy its own
+    // subject can edit is not a policy. The exemption existed so the agent could READ what it
+    // is allowed to do; that is all it keeps. Reads pass, writes do not.
+    if (name === 'rpcallow') {
+      if (fn === 'set' || fn === 'reset') return fail(403, "refused: the app_rpc policy is the owner's — it is changed in SETTINGS, not by the agent it constrains");
+    } else try {
       const { RpcAllow } = await import('./rpcallow.mjs');
       const verdict = RpcAllow.check(name, fn);
       if (!verdict.allowed) return fail(403, verdict.reason);

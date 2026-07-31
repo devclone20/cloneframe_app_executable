@@ -2817,7 +2817,8 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
     <div class="krow"><kbd>?</kbd><span>this overlay</span></div>
     <div class="krow"><kbd>ESC</kbd><span>close overlay · menu · popover</span></div>
     <h5>PANELS</h5>
-    <div class="krow"><kbd>g</kbd> <kbd>t / h / l / a / m / d</kbd><span>go to Terminal · Harness · LAB · Agent · My Machine · Settings</span></div>
+    <div class="krow"><kbd>g</kbd> <kbd>t / h / l / m / d</kbd><span>go to CODE · HARNESS · LAB · MY MACHINE · SETTINGS</span></div>
+    <div class="krow"><kbd>g</kbd> <kbd>n / u</kbd><span>go to MY AGENTS · AUTOMATIONS</span></div>
     <div class="krow"><kbd>⌘\</kbd><span>maximize / restore the focused panel</span></div>
     <h5>CODE CHAT</h5>
     <div class="krow"><kbd>↵</kbd><span>send &nbsp;·&nbsp; <kbd>⇧↵</kbd> line break</span></div>
@@ -3782,7 +3783,7 @@ const Grid=(()=>{
     const tip=(meta&&meta.label)?String(meta.label):(LABEL[type]||type);
     const safeTip=String(tip).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     el.insertAdjacentHTML('beforeend',
-      `<div class="tile" title="${safeTip}"><svg><use href="${ICON[type]}"/></svg></div><div class="rm" title="Remove">✕</div>`);
+      `<div class="tile" title="${safeTip}"><svg><use href="${Grid.iconFor(type)}"/></svg></div><div class="rm" title="Remove">✕</div>`);
   }
   function clearEl(el){
     el.classList.remove('occ','armed');delete el.dataset.type;delete el.dataset.cwd;delete el.dataset.url;delete el.dataset.panelKey;el.removeAttribute('tabindex');
@@ -5272,6 +5273,15 @@ const Panels=(()=>{
     // Panels that hold live resources (shell → pty WebSockets) register _dispose so
     // closing actually reaps their sessions instead of orphaning them on the bridge.
     if(typeof p._dispose==='function')try{p._dispose()}catch(_){}
+    // A closed window's key goes back into circulation (`open[type]?type+'#'+…:type`), but a
+    // frame square kept its panelKey for ever — so the next window of the same type inherited
+    // a square it never docked into, and that square's ✕ closed it. Docking also routes through
+    // close(), and there the link is the whole point, so release only on a REAL close.
+    // The square keeps its type and still opens a fresh panel; only the dead handle goes.
+    if(!p.dataset.docking&&p.dataset.key&&typeof Grid!=='undefined'&&Grid.linkPanel){
+      const k=p.dataset.key;
+      document.querySelectorAll('.cell[data-panel-key="'+CSS.escape(k)+'"]').forEach(c=>Grid.linkPanel(c,null));
+    }
     delete open[p.dataset.key||p.dataset.type];if(topPanel===p)topPanel=null;p.remove();count=Math.max(0,count-1);Bus.emit('help',null);Bus.emit('panels:changed')
   }
   // Minimize = tuck the panel into a frame square. Clicking that square reopens it

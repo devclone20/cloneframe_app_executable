@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.3.1 build token — never as a number written here.
+   the app only through the 0.3.2 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -2796,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.1 · WEB</span>
+    <span class="gver">v0.3.2 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -2817,7 +2817,8 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
     <div class="krow"><kbd>?</kbd><span>this overlay</span></div>
     <div class="krow"><kbd>ESC</kbd><span>close overlay · menu · popover</span></div>
     <h5>PANELS</h5>
-    <div class="krow"><kbd>g</kbd> <kbd>t / h / l / a / m / d</kbd><span>go to Terminal · Harness · LAB · Agent · My Machine · Settings</span></div>
+    <div class="krow"><kbd>g</kbd> <kbd>t / h / l / m / d</kbd><span>go to CODE · HARNESS · LAB · MY MACHINE · SETTINGS</span></div>
+    <div class="krow"><kbd>g</kbd> <kbd>n / u</kbd><span>go to MY AGENTS · AUTOMATIONS</span></div>
     <div class="krow"><kbd>⌘\</kbd><span>maximize / restore the focused panel</span></div>
     <h5>CODE CHAT</h5>
     <div class="krow"><kbd>↵</kbd><span>send &nbsp;·&nbsp; <kbd>⇧↵</kbd> line break</span></div>
@@ -3992,7 +3993,7 @@ const Grid=(()=>{
     const tip=(meta&&meta.label)?String(meta.label):(LABEL[type]||type);
     const safeTip=String(tip).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     el.insertAdjacentHTML('beforeend',
-      `<div class="tile" title="${safeTip}"><svg><use href="${ICON[type]}"/></svg></div><div class="rm" title="Remove">✕</div>`);
+      `<div class="tile" title="${safeTip}"><svg><use href="${Grid.iconFor(type)}"/></svg></div><div class="rm" title="Remove">✕</div>`);
   }
   function clearEl(el){
     el.classList.remove('occ','armed');delete el.dataset.type;delete el.dataset.cwd;delete el.dataset.url;delete el.dataset.panelKey;el.removeAttribute('tabindex');
@@ -5482,6 +5483,15 @@ const Panels=(()=>{
     // Panels that hold live resources (shell → pty WebSockets) register _dispose so
     // closing actually reaps their sessions instead of orphaning them on the bridge.
     if(typeof p._dispose==='function')try{p._dispose()}catch(_){}
+    // A closed window's key goes back into circulation (`open[type]?type+'#'+…:type`), but a
+    // frame square kept its panelKey for ever — so the next window of the same type inherited
+    // a square it never docked into, and that square's ✕ closed it. Docking also routes through
+    // close(), and there the link is the whole point, so release only on a REAL close.
+    // The square keeps its type and still opens a fresh panel; only the dead handle goes.
+    if(!p.dataset.docking&&p.dataset.key&&typeof Grid!=='undefined'&&Grid.linkPanel){
+      const k=p.dataset.key;
+      document.querySelectorAll('.cell[data-panel-key="'+CSS.escape(k)+'"]').forEach(c=>Grid.linkPanel(c,null));
+    }
     delete open[p.dataset.key||p.dataset.type];if(topPanel===p)topPanel=null;p.remove();count=Math.max(0,count-1);Bus.emit('help',null);Bus.emit('panels:changed')
   }
   // Minimize = tuck the panel into a frame square. Clicking that square reopens it
@@ -5609,6 +5619,10 @@ const Panels=(()=>{
     document.head.appendChild(s);
   }
 
+  // Which mount currently owns `cfhub.code.v1`. Lives outside wireTerminal on purpose: the
+  // panels are spliced into one shared scope, so this survives a window closing and reopening,
+  // which is exactly the case it exists for.
+  let codeMountSeq=0;
   function wireTerminal(p){
     /* ---------- CODE — Claude Code-style workspace: sessions rail · NL chat · side panes ---------- */
     const $=sel=>p.querySelector(sel);
@@ -5617,7 +5631,14 @@ const Panels=(()=>{
     const KEY='cfhub.code.v1';
     const stCell=persisted(KEY,null); let st=stCell.get(); // kernel persisted (T-046)
     if(!st||!Array.isArray(st.sessions))st={sessions:[],active:null};
-    const saveSt=()=>stCell.set(st);
+    // Docking CODE mid-answer runs close(p), so this whole closure is orphaned while its turn
+    // is still streaming — and `st` is per-mount. The orphan's final saveSt() used to overwrite
+    // whatever the REOPENED window had since written. It is not right to silence the orphan
+    // either: if nothing else mounts, its last write is how the finished answer survives the
+    // dock. So the store has an owner, and it is the most recent mount. The orphan keeps
+    // writing until someone takes over, and then stops.
+    codeMountSeq++; const myMount=codeMountSeq;
+    const saveSt=()=>{ if(myMount!==codeMountSeq)return; stCell.set(st) };
     // A gate that outlived its agent run is not a decision the owner can still make. The run
     // died with the window or the reload, and the tool was never executed — but the card came
     // back with live APPROVE/REJECT buttons wired to an empty pendingGates map. Buttons that
@@ -5715,7 +5736,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.3.1
+  OS      CLONE FRAME OS · v0.3.2
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -6002,7 +6023,18 @@ const Panels=(()=>{
       let mlbl=mm.label;
       if(mv==='pi')mlbl='pi'+(mm.piModel?' · '+String(mm.piModel).split('/').pop():''); // show pi's underlying LLM
       $('#cdmodel').textContent=mlbl+' ▾';
-      $('#cdharness').textContent=((cur&&cur.harness&&cur.harness.name)||'No harness')+' ▾';
+      // A crew's gates govern THIS panel's tool loop — the one agentRun drives for the models
+      // you connect. pi does not use that loop: its bash and file tools run inside pi's own
+      // process and never cross the bridge, so nothing here can stand in front of them. What
+      // pi does to the APP still passes the daemon's permission gates (email, file writes,
+      // ssh, MATRIX, root). Saying so at the point of choice beats a crew chip that implies a
+      // gate it cannot hold. See KNOWN-ISSUES.md.
+      const hOn=cur&&cur.harness&&cur.harness.name;
+      const hEl=$('#cdharness');
+      hEl.textContent=(hOn||'No harness')+(hOn&&mv==='pi'?' · off for pi':'')+' ▾';
+      hEl.title=hOn&&mv==='pi'
+        ? 'This crew gates the tool loop of the models you connect. pi runs its own tools in its own process, so the crew cannot gate them — what pi does to the app still passes your permission switches.'
+        : (hOn?'This crew\'s gates apply to every gated tool in this session.':'No crew: gated tools run without an approval card.');
       $('#cdinft').textContent=((cur&&cur.inft&&cur.inft.name)||'No agent')+' ▾';
     }
     const closePops=()=>{p.querySelectorAll('.cdpop').forEach(x=>x.classList.remove('open'));closeOverflow();};
@@ -6077,6 +6109,7 @@ const Panels=(()=>{
       const pop=$('#cdharnesspop'),cur=active()||newSession();
       const openEditor=(id,edit)=>{openPanel('harness');setTimeout(()=>Bus.emit('harness:open',{id,edit}),90);closePops()};
       pop.innerHTML='<div class="cdmenu">'+
+        ((active()&&active().model==='pi')?'<div class="hd" style="line-height:1.5;white-space:normal;max-width:280px">This session runs <b>pi</b>. A crew gates the tool loop of the models you connect — pi runs its own tools in its own process, so a crew cannot stand in front of them. Your permission switches still do.</div>':'')+
         `<button data-h="">No harness</button>`+
         harnesses.map(h=>`<button data-h="${escAttr(h.id)}" data-n="${escAttr(h.name)}">${escAttr(h.name)}<span class="pv" style="margin-left:auto;font-size:10.5px;color:var(--ink-faint)">${(h.roles||[]).length} agent${(h.roles||[]).length===1?'':'s'}</span><span class="cdhedit" data-edit="${escAttr(h.id)}" title="Edit this harness' crew">✎</span></button>`).join('')+
         `<div class="dv"></div><button data-new="1" style="color:var(--accent)">＋ New harness…</button>`+
@@ -6687,7 +6720,9 @@ ANSWER DISCIPLINE:
           return 'PANEL '+hit.key+' — '+hit.title+(hit.docked?' [docked]':'')+' — visible content:\n'+(txt?trunc(txt,2200):'(no visible text)');
         }
         if(c.name==='close_panel'){
-          const t=String(a.panel||'').trim().toLowerCase();if(!t)return 'no panel key';
+          // open_panel and read_panel both call resolvePanelKey(); this twin did not, so the
+          // agent could open "browser" and then fail to close it. Same resolver, same names.
+          const t=(resolvePanelKey(a.panel)||String(a.panel||'').trim().toLowerCase());if(!t)return 'no panel key';
           const ps=screenPanels();
           const hit=ps.find(x=>x.key.toLowerCase()===t)||ps.find(x=>x.key.toLowerCase().startsWith(t));
           if(!hit)return 'panel "'+t+'" is not open (open now: '+(ps.map(x=>x.key).join(', ')||'none')+')';
@@ -8037,7 +8072,15 @@ ANSWER DISCIPLINE:
       barEl.querySelector('#fmnewf').addEventListener('click',()=>startCreate('dir'));
       barEl.querySelector('#fmnewfile').addEventListener('click',()=>startCreate('file'));
       barEl.querySelector('#fmup2').addEventListener('click',()=>pickUpload());
-      barEl.querySelector('#fmterm').addEventListener('click',()=>{pendingShellCwd=cwd;openPanel('shell')});
+      // pendingShellCwd is consumed only by wireShell(), which runs when an iT window MOUNTS.
+      // With iT already open, openPanel('shell') early-returns and nothing reads it — so the
+      // button did nothing AND left the directory set, poisoning the next iT that opened.
+      // terminal.js's open_terminal tool already handles this correctly; same shape here.
+      barEl.querySelector('#fmterm').addEventListener('click',()=>{
+        const wasOpen=instancesOf('shell').length>0;
+        pendingShellCwd=cwd;openPanel('shell');
+        if(wasOpen){Bus.emit('shell:addcwd',cwd);Toast.show('Added '+base(cwd)+' to iT')}
+      });
       barEl.querySelector('#fmrev').addEventListener('click',()=>{if(Bridge.on())Bridge.shell('open '+qp(cwd),()=>{});Toast.show('Opening '+base(cwd)+' in Finder')});
       barEl.querySelector('#fmref').addEventListener('click',()=>{renderList();renderTree()});
     }
@@ -9425,12 +9468,23 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     const itLeaseHeld=()=>{try{const o=JSON.parse(localStorage.getItem(IT_OWNER)||'null');return (o&&Date.now()-o.ts<IT_LEASE)?o:null}catch(_){return null}};
     const itClaim=()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)return false;try{localStorage.setItem(IT_OWNER,JSON.stringify({id:itSelf,ts:Date.now()}))}catch(_){}return true};
     let primary=instancesOf('shell').length<=1&&itClaim();
+    // Released in _dispose. Nothing used to release it: the lease sat in localStorage with a
+    // 9s life and the heartbeat kept RE-WRITING it for up to 3s after the window was gone, so
+    // reopening iT inside that window found a lease it did not own, demoted itself to
+    // live-only, and restored no workspaces. A reload looked like losing your layout.
+    let itHb=null;
+    const itRelease=()=>{
+      if(itHb){clearInterval(itHb);itHb=null}
+      if(!primary)return;
+      try{const o=itLeaseHeld();if(o&&o.id===itSelf)localStorage.removeItem(IT_OWNER)}catch(_){}
+      primary=false;
+    };
     if(primary){
       // Two windows opening in the same tick can both claim; whoever's write landed last
       // owns it, and the other stands down here.
       setTimeout(()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)primary=false},300);
-      const hb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else clearInterval(hb)},3000);
-      if(hb.unref)hb.unref();
+      itHb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else itRelease()},3000);
+      if(itHb.unref)itHb.unref();
     }
     const strip=s=>String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g,'').replace(/\r(?!\n)/g,'');
     const base=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
@@ -10604,7 +10658,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.1 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.2 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -11032,7 +11086,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // ALL workspaces — else docked-then-removed terminals would leak bridge sessions until the
     // idle reaper, against the 24-session cap.
     p.addEventListener('pointerdown',e=>{if(ctxEl&&!e.target.closest('.it-ctx'))closeCtx()},true); // any click outside dismisses the right-click menu
-    p._dispose=()=>{closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
+    p._dispose=()=>{itRelease();closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
     // Restored from its frame square: re-sync panes (the resize observer refits xterm).
     p._onundock=()=>{renderAll()};
     panelBus(p).on('bridge:changed',()=>{if(Bridge.on()&&homeAbs==='~'){(async()=>{try{let o='';const m=await Bridge.shell('pwd',x=>{o+=x});homeAbs=(m&&m.cwd)||o.trim()||'~';try{canTTY=!!(await RPC('pty','available'))}catch(_){}tree.root=homeAbs;workspaces.forEach(w=>{if(w.cwd==='~')w.cwd=homeAbs;(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.cwd==='~')t.cwd=homeAbs}))});renderAll();renderTree()}catch(_){}})()}});
@@ -11595,14 +11649,17 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const CAP=Store.get().caps;
       const capRow=(k,label,sub)=>`<div class="autotoggle"><div><b>${label}</b><div class="sub">${sub}</div></div><div class="sw3 ${CAP[k]?'on':''}" data-cap="${k}"><i></i></div></div>`;
       pane.innerHTML='<div class="sethead">TOOLS</div>'+TOOLS.map(t=>`<div class="setline"><svg style="width:13px;height:13px;color:var(--accent);flex:none"><use href="${t[3]}"/></svg><span style="flex:1;margin-left:4px"><b style="font-size:10.5px;color:var(--fg)">${t[1]}</b> <span class="dim" style="font-size:10px">${t[2]}</span></span><button class="btn mini" data-open="${t[0]}">OPEN</button></div>`).join('')
-        +'<div class="sethead">CAPABILITIES — enable only what you use</div>'
+        +'<div class="sethead">SHORTCUTS — the panels you have used</div>'
         +capRow('machine','My Machine','real shell + BYOK brain')
         +capRow('agents','My Agents','connect the real iCLONE / VEGETA')
         +capRow('email','Email','connect, write and send email')
         +capRow('automations','Automations','the agent proposes actions (with approval)')
-        +'<div style="font-size:10px;color:var(--ink-faint);margin:2px 0 4px">CODE · Harness · LAB are always available. Nothing starts on its own — every action passes Safety + your approval.</div>';
+        +'<div style="font-size:10px;color:var(--ink-faint);margin:2px 0 4px;line-height:1.6">These are a <b>record, not a gate</b>: opening a panel marks it here, and clearing one only forgets it until you open that panel again. Every panel stays reachable from the launcher and ⌘K either way. What an agent may DO is in <b>Machine → permissions</b>, not here.<br>CODE · HARNESS · LAB are always available. Nothing starts on its own — every action passes Safety and your approval.</div>';
       pane.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.open;openPanel(t==='__theme'?'theme':t)}));
-      pane.querySelectorAll('[data-cap]').forEach(sw=>sw.addEventListener('click',()=>{const k=sw.dataset.cap,v=!Caps.on(k);Caps.set(k,v);sw.classList.toggle('on',v);Toast.show((v?'Enabled: ':'Disabled: ')+k)}));
+      // The toast used to say "Enabled:"/"Disabled:", which is what made this look like a gate.
+      // Nothing reads Caps as a permission — openPanel only ever SETS it ("using = activating").
+      // Say what actually happens.
+      pane.querySelectorAll('[data-cap]').forEach(sw=>sw.addEventListener('click',()=>{const k=sw.dataset.cap,v=!Caps.on(k);Caps.set(k,v);sw.classList.toggle('on',v);Toast.show(v?('Marked as used: '+k):('Forgotten: '+k+' — opening it marks it again'))}));
     }
     async function secAgentTools(){
       loading();
@@ -11630,7 +11687,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         `<div class="autotoggle"><div><b>Restrict the agent to a list</b><div class="sub">Off = everything is allowed except what you block. On = nothing is allowed except what you allow.</div></div><div class="sw3 ${rpcp.mode==='allowlist'?'on':''}" id="rpcmode"><i></i></div></div>`+
         `<div class="setline" style="display:block"><div style="font-size:10px;color:var(--ink-dim);margin-bottom:4px">${rpcp.mode==='allowlist'?'ALLOW — the only calls the agent may make':'BLOCK — calls the agent may never make'}</div><textarea id="rpclist" spellcheck="false" style="width:100%;min-height:72px;background:var(--bg-2,#111);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:11px/1.5 ui-monospace,monospace;resize:vertical" placeholder="servers.run&#10;pty&#10;web.fetchUrl">${escHtml((rpcp.mode==='allowlist'?rpcp.allow:rpcp.deny).join('\n'))}</textarea><div style="display:flex;gap:6px;margin-top:6px"><button class="btn acc" id="rpcsave">SAVE</button><button class="btn" id="rpcreset">RESET</button></div></div>`+
         '<div class="secnote">This is a guardrail on the agent, not a security boundary — anything already holding the bridge token can call a module directly. For confinement inside the agent itself, install the guardrails from <span class="path">pi.dev</span>.</div>';
-      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,on=!sw.classList.contains('on');try{await RPC('permissions','set',{[k]:on});Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
+      // "Is permission X on" was derived twice and the two disagreed. The ROW renders the
+      // EFFECTIVE value — `perms[k]||(mc&&!own)` — so under Full machine control the granular
+      // rows paint as ON while their stored flags are false. The click then derived the new
+      // value from that painted class, so clicking an implied row wrote `false` over a `false`,
+      // reported success, and flipped back on the next render. Derive from the STORED value,
+      // and when the master is what is switching this row on, say so rather than pretend.
+      pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,ownGate=(k==='autoEmail'||k==='ssh'||k==='matrix');
+        if(perms.machineControl&&!ownGate&&!perms[k]){Toast.show('Governed by Full machine control — turn that off to set this one individually');return}
+        const on=!perms[k];try{await RPC('permissions','set',{[k]:on});perms[k]=on;Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
       // app_rpc allowlist. The textarea edits whichever list the current mode uses, so the
       // owner never has to reason about two lists at once; flipping the mode re-renders.
@@ -11776,7 +11841,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.1 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.2 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -12236,8 +12301,20 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       }
       list.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{
         const item=b.closest('.agentitem'),tid=+item.dataset.tid,a=res.agents.find(x=>x.key===item.dataset.key);
-        Store.get().activeAgent=tid;Store.save();Bus.emit('agent:active',tid);
-        Toast.show((a&&a.name||'agent')+' active in CODE');paint(res,addr);
+        // The button said "USE IN CODE" and wrote `activeAgent`, which is LAB's selection key.
+        // CODE binds a session to `pinnedAgents` (terminal.js:442, written by LAB's ✓), and
+        // reads `activeAgent` nowhere — so the toast was true of LAB and false of CODE. Write
+        // BOTH, in the shape LAB writes, so the two panels agree and the sentence is honest.
+        const st0=Store.get();
+        if(!Array.isArray(st0.pinnedAgents))st0.pinnedAgents=[];
+        if(a){
+          const same=x=>x.contract===a.contract&&String(x.tokenId)===String(a.tokenId);
+          if(!st0.pinnedAgents.some(same))st0.pinnedAgents.push({contract:a.contract,tokenId:a.tokenId,name:a.name,collection:a.collection,image:a.image,animation:a.animation,mediaType:a.mediaType,description:a.description});
+        }
+        st0.activeAgent=tid;Store.save();
+        if(typeof WalletPins!=='undefined'&&WalletPins.commit)WalletPins.commit(); // the pin belongs to this wallet
+        Bus.emit('agent:active',tid);
+        Toast.show((a&&a.name||'agent')+' pinned — pick it in CODE\'s agent selector');paint(res,addr);
       }));
       list.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
         const a=res.agents.find(x=>x.key===b.closest('.agentitem').dataset.key);
@@ -13102,8 +13179,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       // SMTP round trip (1-3s) and was only replaced when load() re-rendered afterwards, so a
       // second click sent the same mail again. disabled is the lock; the label is the news.
       body.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;b.textContent='sending…';let r;try{r=await RPC('approvals','approve',b.dataset.ap)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}finally{b.disabled=false}Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));load()}));
-      body.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{await RPC('approvals','reject',b.dataset.rj);Toast.show('Rejeitado');load()}));
-      body.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=body.querySelector('[data-b="'+b.dataset.ed+'"]');await RPC('approvals','edit',b.dataset.ed,{body:ta.value});Toast.show('Edit saved')}));
+      // act() exists precisely because the daemon reports a refusal as {ok:false,error} and
+      // does NOT throw — so a bare RPC + unconditional toast reports success for a failure.
+      // (It also said "Rejeitado": the app is English, decided 2026-07-11.)
+      body.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{if(!await act('approvals','reject',b.dataset.rj))return;Toast.show('Rejected');load()}));
+      body.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=body.querySelector('[data-b="'+b.dataset.ed+'"]');if(!await act('approvals','edit',b.dataset.ed,{body:ta.value}))return;Toast.show('Edit saved')}));
     }
     load();
   }

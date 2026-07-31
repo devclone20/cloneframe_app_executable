@@ -184,8 +184,20 @@
       }
       list.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{
         const item=b.closest('.agentitem'),tid=+item.dataset.tid,a=res.agents.find(x=>x.key===item.dataset.key);
-        Store.get().activeAgent=tid;Store.save();Bus.emit('agent:active',tid);
-        Toast.show((a&&a.name||'agent')+' active in CODE');paint(res,addr);
+        // The button said "USE IN CODE" and wrote `activeAgent`, which is LAB's selection key.
+        // CODE binds a session to `pinnedAgents` (terminal.js:442, written by LAB's ✓), and
+        // reads `activeAgent` nowhere — so the toast was true of LAB and false of CODE. Write
+        // BOTH, in the shape LAB writes, so the two panels agree and the sentence is honest.
+        const st0=Store.get();
+        if(!Array.isArray(st0.pinnedAgents))st0.pinnedAgents=[];
+        if(a){
+          const same=x=>x.contract===a.contract&&String(x.tokenId)===String(a.tokenId);
+          if(!st0.pinnedAgents.some(same))st0.pinnedAgents.push({contract:a.contract,tokenId:a.tokenId,name:a.name,collection:a.collection,image:a.image,animation:a.animation,mediaType:a.mediaType,description:a.description});
+        }
+        st0.activeAgent=tid;Store.save();
+        if(typeof WalletPins!=='undefined'&&WalletPins.commit)WalletPins.commit(); // the pin belongs to this wallet
+        Bus.emit('agent:active',tid);
+        Toast.show((a&&a.name||'agent')+' pinned — pick it in CODE\'s agent selector');paint(res,addr);
       }));
       list.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
         const a=res.agents.find(x=>x.key===b.closest('.agentitem').dataset.key);
