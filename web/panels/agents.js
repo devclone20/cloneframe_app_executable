@@ -191,8 +191,17 @@
         const st0=Store.get();
         if(!Array.isArray(st0.pinnedAgents))st0.pinnedAgents=[];
         if(a){
-          const same=x=>x.contract===a.contract&&String(x.tokenId)===String(a.tokenId);
-          if(!st0.pinnedAgents.some(same))st0.pinnedAgents.push({contract:a.contract,tokenId:a.tokenId,name:a.name,collection:a.collection,image:a.image,animation:a.animation,mediaType:a.mediaType,description:a.description});
+          // `a` is a CARD, built by scanAll() — key/name/idText/role/image/source/tokenId/url.
+          // The first version of this copied a.contract/a.collection/a.animation/a.mediaType/
+          // a.description straight off it; none of those exist on a card, so every pin written
+          // here carried contract:undefined. LAB pins the RAW scanWallet record and matches on
+          // (contract, tokenId), so it could never find this one: pressing ✓ there pushed a
+          // SECOND pin instead of toggling, CODE listed the agent twice, and the first entry
+          // could never be removed because LAB's toggle is the only unpin control there is.
+          // The card's `key` is 'nft:<contract>:<tokenId>' — the contract is right there.
+          const contract=(String(a.key||'').startsWith('nft:')?String(a.key).split(':')[1]:'')||'';
+          const same=x=>String(x.contract||'')===contract&&String(x.tokenId)===String(a.tokenId);
+          if(!st0.pinnedAgents.some(same))st0.pinnedAgents.push({contract,tokenId:a.tokenId,name:a.name,collection:a.source||'',image:a.image,animation:'',mediaType:'',description:a.idText||''});
         }
         st0.activeAgent=tid;Store.save();
         if(typeof WalletPins!=='undefined'&&WalletPins.commit)WalletPins.commit(); // the pin belongs to this wallet

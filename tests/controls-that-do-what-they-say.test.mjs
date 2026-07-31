@@ -34,17 +34,30 @@ const decomment = (s) => s.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\
 
 test('USE IN CODE writes the key CODE actually reads', () => {
   const agents = decomment(read('web/panels/agents.js'));
-  assert.match(agents, /st0\.pinnedAgents\.push\(\{contract:a\.contract/,
+  assert.match(agents, /st0\.pinnedAgents\.push\(\{contract,/,
     'CODE binds pinnedAgents (terminal.js:442) — writing only activeAgent binds LAB, not CODE');
   assert.match(agents, /st0\.activeAgent=tid/, 'and activeAgent still selects it in LAB, which does read it');
   assert.doesNotMatch(agents, /Toast\.show\(\(a&&a\.name\|\|'agent'\)\+' active in CODE'\)/,
     'the old sentence promised a binding that did not happen');
-  // Same shape LAB writes, or the two panels drift again.
-  const lab = read('web/panels/lab.js');
-  for (const field of ['contract', 'tokenId', 'name', 'collection', 'image', 'animation', 'mediaType']) {
-    assert.ok(lab.includes(field + ':a.' + field), 'LAB should still write ' + field);
-    assert.ok(agents.includes(field + ':a.' + field), 'MY AGENTS must write ' + field + ' too');
+  // The pin must carry a REAL contract. The first version copied `a.contract` straight off the
+  // card — and a card, built by scanAll(), has no such field, so every pin was written with
+  // contract:undefined. LAB pins the raw scanWallet record and matches on (contract, tokenId),
+  // so it could never find one: pressing ✓ there pushed a SECOND pin instead of toggling, and
+  // since LAB's toggle is the only unpin control, the first entry could never be removed.
+  assert.doesNotMatch(agents, /contract:a\.contract/,
+    'a card has no `contract` — copying it writes undefined into the key LAB matches on');
+  assert.match(agents, /const contract=\(String\(a\.key\|\|''\)\.startsWith\('nft:'\)/,
+    "the card's key IS 'nft:<contract>:<tokenId>' — take it from there");
+  assert.match(agents, /const same=x=>String\(x\.contract\|\|''\)===contract&&String\(x\.tokenId\)===String\(a\.tokenId\)/,
+    'and match the way LAB matches, or the two pin stores drift again');
+  // Every field written must be one a card actually has.
+  const card = agents.match(/inft\.forEach\(a=>add\(\{[\s\S]*?\}\)\);/)[0];
+  for (const f of ['name', 'tokenId', 'image', 'source', 'key']) {
+    assert.ok(card.includes(f + ':'), 'a card must still carry ' + f);
   }
+  const pin = agents.match(/st0\.pinnedAgents\.push\(\{[^}]*\}\)/)[0];
+  assert.doesNotMatch(pin, /a\.(collection|animation|mediaType|description)\b/,
+    'these live on the RAW scanWallet record, never on a card');
 });
 
 test('FOLDERS → Open in iT reaches an iT that is already open', () => {
@@ -66,9 +79,14 @@ test('APPROVAL reports what the daemon said, in English', () => {
 
 test('all three panel tools resolve a name the same way', () => {
   const t = decomment(read('web/panels/terminal.js'));
-  const close = t.match(/if\(c\.name==='close_panel'\)\{[\s\S]{0,220}/)[0];
-  assert.match(close, /resolvePanelKey\(a\.panel\)/,
+  const close = t.match(/if\(c\.name==='close_panel'\)\{[\s\S]{0,700}/)[0];
+  assert.match(close, /resolvePanelKey\(raw\)/,
     'close_panel must resolve aliases like open_panel and read_panel do');
+  // …but an EXACT key must win first. resolvePanelKey normalises with /[^a-z0-9 ]/g, so the
+  // instance key 'shell#2' became 'shell2', matched nothing, and fell through to a prefix rule
+  // that closed the FIRST shell window. list_panels hands the agent exactly those keys.
+  assert.match(close, /screenPanels\(\)\.some\(x=>x\.key===raw\)\?raw:/,
+    'an exact on-screen key must not be normalised away');
   // and the resolver must still know the aliases the agent is told about
   assert.match(t, /PANEL_ALIASES=\{browser:'research'/);
 });

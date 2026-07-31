@@ -44,7 +44,10 @@ ENV HUB_BRIDGE_HOST=0.0.0.0 \
 
 # Never root. The image mounts the owner's app state at /data; a container escape or an
 # in-container RCE should not also start with uid 0.
-RUN mkdir -p /data && chown -R node:node /data /app
+# /home/node/CloneFrame must PRE-EXIST, owned by node, or Docker creates the volume's mount
+# point as root at runtime and the app cannot write its own folder tree. /data works precisely
+# because it is made here; the CloneFrame tree was moved onto a volume without the same step.
+RUN mkdir -p /data /home/node/CloneFrame && chown -R node:node /data /app /home/node
 USER node
 
 EXPOSE 8765

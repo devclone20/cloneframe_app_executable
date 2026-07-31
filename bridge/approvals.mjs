@@ -143,14 +143,26 @@ export async function approve(id) {
     item.decidedAt = Date.now();
     saveStore(store);
 
-    const result = await Email.send(item.accountId, {
-      to: item.to,
-      cc: item.cc,
-      bcc: item.bcc,
-      subject: item.subject,
-      text: item.body,
-      inReplyTo: item.inReplyTo || undefined,
-    });
+    // The claim is on disk, so from here EVERY exit must put it back. A throw used to fall
+    // through to the outer catch with the item still 'approved' — not pending, so the panel
+    // rendered it as a badge with no buttons, and not sent, so it never went. The owner's
+    // draft became unreachable from either side. Only the returned-{ok:false} path rolled back.
+    let result;
+    try {
+      result = await Email.send(item.accountId, {
+        to: item.to,
+        cc: item.cc,
+        bcc: item.bcc,
+        subject: item.subject,
+        text: item.body,
+        inReplyTo: item.inReplyTo || undefined,
+      });
+    } catch (e) {
+      const back = loadStore();
+      const row0 = back.items.find((it) => it.id === id);
+      if (row0) { row0.status = 'pending'; row0.decidedAt = null; row0.error = (e && e.message) || String(e); saveStore(back); }
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
 
     // RE-READ. `store` is now seconds stale; anything written during the send would be lost
     // by saving it. Apply the outcome to a fresh snapshot instead.

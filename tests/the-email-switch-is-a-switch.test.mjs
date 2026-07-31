@@ -80,11 +80,20 @@ test('the switch is OFF by default, and the gate is closed with it', () => {
 
 test('the router consults the gate, fails closed, and tells the agent the way out', () => {
   const hb = read('bridge/hub-bridge.mjs');
-  assert.match(hb, /Permissions\.agentGateFor\(name, fn\)/,
+  assert.match(hb, /CP\.agentGateFor\(name, fn\)/,
     'the gate must be consulted on the agent branch of the /mod router');
-  assert.match(hb, /if \(need && !Permissions\.can\(need\)\)/, 'and it must act on the answer');
-  assert.match(hb, /queue it with approvals\.add/,
+  assert.match(hb, /if \(need && !CP\.can\(need\)\)/, 'and it must act on the answer');
+  assert.match(hb, /CP\.agentGateAdvice\(need\)/,
     'a refusal must name the alternative — an agent told only "error" drops the draft');
+  // …and the alternative must FIT the gate. The first version hardcoded the email advice, so a
+  // files.write refusal told the agent to queue an email. The suite asserted the refusal and
+  // not its sense; the live sweep read the sentence and caught it.
+  const perms = read('bridge/permissions.mjs');
+  assert.match(perms, /agentGateAdvice\(need\) \{/, 'the advice belongs beside the gate table');
+  assert.match(perms, /queue it with approvals\.add/, 'email → the approval queue');
+  assert.match(perms, /"Write files" in Machine/, 'fileWrite → the switch, not the email queue');
+  assert.doesNotMatch(perms.match(/agentGateAdvice[\s\S]*?\n  \},/)[0].replace(/'queue it with approvals\.add[^']*'/, ''),
+    /approvals\.add/, 'no other gate may inherit the email sentence');
   // The allowlist above it fails OPEN by design; this one must not inherit that.
   assert.match(hb, /catch \(e\) \{ return fail\(503, 'permission gate unavailable/,
     'an unreadable permission store must refuse the send, not wave it through');

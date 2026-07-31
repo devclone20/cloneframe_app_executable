@@ -17,7 +17,7 @@
 //       files.write/writeB64/mkdir/remove/move/copy                 → the fileWrite switch
 //       servers.* · ssh.*                                           → the ssh switch
 //       matrix engine control                                       → the matrix switch
-//       rpcallow.set/reset                                          → refused outright
+//       permissions/rpcallow/admin/session writes                    → refused outright
 //       every shell path                                            → the catastrophic blocklist
 //
 // So the honest fix is not a gate that cannot exist. It is to stop the interface implying one.
@@ -76,9 +76,10 @@ test('everything pi does to the app passes a daemon gate', () => {
     ['files.write', 'fileWrite'], ['files.remove', 'fileWrite'], ['files.move', 'fileWrite'],
   ]) assert.ok(perms.includes(`'${call}': '${gate}'`), call + ' must need the ' + gate + ' switch');
 
-  assert.match(hb, /Permissions\.agentGateFor\(name, fn\)/, 'and the router must consult it');
+  assert.match(hb, /CP\.agentGateFor\(name, fn\)/, 'and the router must consult it');
   assert.match(read('bridge/ssh.mjs'), /Permissions\.can\('ssh'\)/);
   assert.match(read('bridge/servers.mjs'), /isDestructive\(/);
   assert.match(read('bridge/matrix.mjs'), /Permissions\.can\('matrix'\)/);
-  assert.match(hb, /fn === 'set' \|\| fn === 'reset'/, 'and the agent may not rewrite its own allowlist');
+  assert.match(hb, /CP\.agentForbidden\(name, fn\)/,
+    'and the agent may not rewrite its own allowlist, its permissions, its tools or the token');
 });

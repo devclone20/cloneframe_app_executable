@@ -90,6 +90,43 @@ export const Permissions = {
     const key = String(mod || '') + '.' + String(fn || '');
     return AGENT_GATED[key] || null;
   },
+
+  // ── the control plane: an agent may not change the rules that constrain it ──────────
+  //
+  // A switch the agent can flip is not a switch. The first version of the gate above was
+  // WORTHLESS and a live sweep proved it in three calls:
+  //
+  //   AGENT email.send                        → 403 refused, the switch is off
+  //   AGENT permissions.set {autoEmail:true}  → 200 OK
+  //   AGENT email.send                        → 200, straight through
+  //
+  // `permissions` is an ordinary routed module, so the agent could simply turn its own gate
+  // on. Gating `permissions.set` behind a permission would be circular; this is a different
+  // category and it is refused outright, like `rpcallow.set` already was.
+  //
+  // Expressed as a PRINCIPLE rather than another hand-written list, because a hand-written
+  // list is exactly what missed `scheduled.reschedule` one commit earlier and would miss the
+  // next one: everything that edits the constraints, the tool inventory, or the pairing
+  // identity is out of the agent's reach, and a new function in one of these modules is
+  // out of reach by default rather than by remembering.
+  agentForbidden(mod, fn) {
+    const m = String(mod || ''), f = String(fn || '');
+    const rule = CONTROL_PLANE[m];
+    if (!rule) return null;
+    return rule.reads.includes(f) ? null : rule.why;
+  },
+
+  // What to tell the agent INSTEAD. A refusal that names no alternative is how a draft gets
+  // dropped — but the alternative is not the same for every gate, and the first version of this
+  // said "queue it with approvals.add" to a file-write refusal, which is advice about email.
+  // Caught by the live sweep, not by the suite: the tests asserted the refusal, not its sense.
+  agentGateAdvice(need) {
+    return need === 'email'
+      ? 'queue it with approvals.add and the owner will send it'
+      : need === 'fileWrite'
+        ? 'show the owner the change instead — they can turn on "Write files" in Machine'
+        : 'ask the owner to enable it in Machine';
+  },
 };
 
 const AGENT_GATED = {
@@ -108,6 +145,21 @@ const AGENT_GATED = {
   'files.remove': 'fileWrite',
   'files.move': 'fileWrite',
   'files.copy': 'fileWrite',
+  // Moving a queued mail puts the same message on the wire as scheduling one. Missed by the
+  // first pass because the table was written from the three functions that were on the mind
+  // at the time rather than from what the module exports.
+  'scheduled.reschedule': 'email',
+};
+
+// module → { reads that stay open, why everything else is refused }.
+// DENY-BY-DEFAULT inside each module: adding a function to one of these does not accidentally
+// hand it to the agent. Reads stay open so the agent can still SEE what it is allowed to do —
+// that is what the original rpcallow exemption existed for, and it is the only part worth keeping.
+const CONTROL_PLANE = {
+  permissions: { reads: ['get'], why: 'the permission switches are the owner\'s — they are changed in SETTINGS → Machine, not by the agent they constrain' },
+  rpcallow:    { reads: ['get', 'check'], why: 'the app_rpc policy is the owner\'s — it is changed in SETTINGS, not by the agent it constrains' },
+  admin:       { reads: ['tools', 'users', 'system', 'logs'], why: 'the agent\'s own tool inventory is the owner\'s to edit, in SETTINGS → Agent tools' },
+  session:     { reads: ['get', 'keys'], why: 'the pairing identity is the owner\'s — minting, rotating or revoking a key is never the agent\'s call' },
 };
 
 export default Permissions;

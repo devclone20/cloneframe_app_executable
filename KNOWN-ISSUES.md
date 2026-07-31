@@ -7,7 +7,7 @@ backlog and it is not marketing — everything here is either measured or a deci
 we made on purpose and would defend. If you hit something that is **not** here,
 that is a real bug and we want the issue.
 
-Last reviewed 2026-07-31, against `0.3.2`.
+Last reviewed 2026-07-31, against `0.3.3`.
 
 ---
 
@@ -50,7 +50,7 @@ The automated suite is strong and the hands-on suite is not finished. Both numbe
 are real:
 
 ```
-automated     911 tests, green, on every build, with a reproducible single-file artifact
+automated     912 tests, green, on every build, with a reproducible single-file artifact
 hands-on      41 of 151 numbered tests run · 0 of 7 end-to-end user journeys walked
 ```
 

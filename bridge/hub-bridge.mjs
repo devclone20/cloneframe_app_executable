@@ -254,9 +254,16 @@ async function handleMod(req, res, name, body) {
     // that a token-holder can bypass the list by omitting this header — but a policy its own
     // subject can edit is not a policy. The exemption existed so the agent could READ what it
     // is allowed to do; that is all it keeps. Reads pass, writes do not.
-    if (name === 'rpcallow') {
-      if (fn === 'set' || fn === 'reset') return fail(403, "refused: the app_rpc policy is the owner's — it is changed in SETTINGS, not by the agent it constrains");
-    } else try {
+    // FIRST: the control plane. An agent may not edit the rules that constrain it, the tool
+    // inventory it runs on, or the pairing identity — no permission unlocks these, because a
+    // switch the agent can flip is not a switch. See Permissions.agentForbidden.
+    let CP = null;
+    try { ({ Permissions: CP } = await import('./permissions.mjs')); }
+    catch (e) { return fail(503, 'permission gate unavailable: ' + ((e && e.message) || e)); }
+    const forbidden = CP.agentForbidden(name, fn);
+    if (forbidden) return fail(403, 'refused: ' + forbidden);
+    // THEN the owner's own app_rpc allowlist, for everything else.
+    if (name !== 'rpcallow') try {
       const { RpcAllow } = await import('./rpcallow.mjs');
       const verdict = RpcAllow.check(name, fn);
       if (!verdict.allowed) return fail(403, verdict.reason);
@@ -266,13 +273,10 @@ async function handleMod(req, res, name, body) {
     // this fails CLOSED: it guards an irreversible, outward-facing act, and the app promises
     // in SETTINGS that it cannot happen with the switch off. Note the error names the way out —
     // an agent told "refused" queues to APPROVAL; one told "error" tends to drop the draft.
-    try {
-      const { Permissions } = await import('./permissions.mjs');
-      const need = Permissions.agentGateFor(name, fn);
-      if (need && !Permissions.can(need)) {
-        return fail(403, 'refused: the "' + need + '" permission is off — queue it with approvals.add and the owner will send it');
-      }
-    } catch (e) { return fail(503, 'permission gate unavailable: ' + ((e && e.message) || e)); }
+    const need = CP.agentGateFor(name, fn);
+    if (need && !CP.can(need)) {
+      return fail(403, 'refused: the "' + need + '" permission is off — ' + CP.agentGateAdvice(need));
+    }
   }
   let obj;
   try { obj = await getMod(name); } catch (e) { return fail(503, name + ' unavailable: ' + ((e && e.message) || e)); }
@@ -374,7 +378,12 @@ async function route(req, res) {
     const b = await Chat.brain();
     res.end(j({ ok: true, cwd: Shell.cwd(), brain: b.ready ? (b.provider || 'ready') : 'none', model: b.model, provider: b.provider || null })); return;
   }
-  if (req.method === 'POST' && url.pathname === '/shell') { Shell.handleShell(req, res, await readBody(req), { streamHead }); return; }
+  // AWAITED, like its four siblings. The router wrapper added two commits ago catches what
+  // `route()` throws — and an un-awaited async call throws into NOBODY. `POST /shell` with a
+  // body of literal `null` (readBody JSON.parses it) reaches shell.mjs and rejects, which is
+  // an unhandled rejection, which ends the process. The one route left un-awaited was the one
+  // route that could still kill the daemon.
+  if (req.method === 'POST' && url.pathname === '/shell') { await Shell.handleShell(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname === '/interrupt') {
     const { id } = await readBody(req);
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j({ ok: Shell.interrupt(id) })); return;

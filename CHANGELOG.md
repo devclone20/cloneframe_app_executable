@@ -5,6 +5,73 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.3 — 2026-07-31
+
+0.3.2 shipped, and then a regression sweep read every line of the twelve commits behind it,
+with a second reader trying to refute each finding. Fifteen survived. **Six were mine, and
+one of them made 0.3.2's headline fix worthless.** They are listed first because that is the
+honest order.
+
+**The gate could be switched off by the thing it gated**
+
+0.3.2 made `email.send`, the file writes and `scheduled.schedule` need the owner's switch when
+the caller marks itself as the agent. `permissions` is an ordinary routed module, and
+`permissions.set` was not on any list. Measured against a real daemon:
+
+    AGENT email.send                        → 403 refused, the switch is off
+    AGENT permissions.set {autoEmail:true}  → 200 OK
+    AGENT email.send                        → 200, straight through
+
+Three calls. The fix is not a longer list — a hand-written list is also what let
+`scheduled.reschedule` through in the same release. It is a principle: **an agent may not
+change the rules that constrain it.** `permissions`, `rpcallow`, `admin` and `session` are a
+control plane, deny-by-default inside each module, with their read functions named explicitly
+so the agent can still see what it is allowed to do. A function added to one of them tomorrow
+is already out of reach.
+
+**The daemon could still be killed — by the one route left un-awaited**
+
+0.3.1 wrapped the router so a throw costs one request rather than the process. `POST /shell`
+was called without `await`, so its rejection threw into nobody and ended the daemon exactly as
+before. `POST /shell` with a body of literal `null` was enough.
+
+**An approval could be stranded forever**
+
+0.3.1 made `approve()` claim the item on disk before opening the socket, and roll it back if
+the send returned an error. It does not always return one: a Gmail account whose refresh token
+has expired makes `Email.send` **throw**, which skipped the rollback. The item stayed
+'approved' — not pending, so the panel showed a badge with no buttons; not sent, so it never
+went; and the queue cap deletes non-pending items first. The owner's draft became unreachable
+from both sides. Every exit now puts the claim back.
+
+**And three more of mine**
+
+`close_panel` began resolving aliases in 0.3.2 — through a resolver that normalises with
+`/[^a-z0-9 ]/g`, so the instance key `shell#2` became `shell2`, matched nothing, and fell
+through to a prefix rule that closed the FIRST shell window. `list_panels` hands the agent
+exactly those keys. An exact on-screen key now wins before any normalising.
+
+MY AGENTS' USE IN CODE pinned `contract: undefined`, because it copied fields off a *card*
+object that never had them. LAB matches pins on (contract, tokenId), so pressing ✓ there
+pushed a second pin instead of toggling — and LAB's toggle is the only unpin control there is.
+The contract is in the card's own key.
+
+EMAIL's copy of the APPROVAL buttons still reported success on a refusal. Its twin was fixed
+in 0.3.2 and this one was left behind — and the refusals it hides became newly common the same
+day, when approve and reject started refusing anything not 'pending'.
+
+**Two that were not mine, and one the sweep got wrong**
+
+The Docker volume needed its mount point to pre-exist owned by `node`, or Docker creates it as
+root at runtime and the app cannot write. And `make-app.sh` reads `${BASH_SOURCE[0]}` under a
+`#!/bin/zsh` shebang, where it is empty.
+
+One confirmed finding was refuted on re-reading: `close()`'s release guard was called inverted,
+but the singleton dock path really does destroy the window and really does need the square to
+keep its key. The original guard was right and the "fix" was reverted before it shipped.
+
+  912 tests pass · 41/41 live checks against a real daemon on a scratch HOME
+
 ## 0.3.2 — 2026-07-31
 
 Closes the twenty-five findings 0.3.1 wrote down and did not fix. Nothing from the audit is

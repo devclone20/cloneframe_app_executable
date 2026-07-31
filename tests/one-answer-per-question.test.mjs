@@ -59,16 +59,48 @@ test('the Docker volume is mounted where the app actually writes', () => {
     `the image runs as ${user}, so homedir() is ${home} — the volume must mount there, not elsewhere`);
 });
 
-test('the agent may read the policy that constrains it, and may not rewrite it', () => {
+test('an agent may read the rules that constrain it, and may not rewrite them', () => {
+  // This began as a special case for `rpcallow` and had to become a PRINCIPLE. The special
+  // case left `permissions.set` on the agent's own RPC surface, so the gate built one commit
+  // earlier could be switched off by the very thing it gated. Proven against a live daemon:
+  //   AGENT email.send → 403 · AGENT permissions.set{autoEmail:true} → 200 · AGENT email.send → 200
+  // A hand-written per-module check is also what let `scheduled.reschedule` through. So: one
+  // table, DENY-BY-DEFAULT inside each control-plane module, with the reads named explicitly.
   const hb = decomment(read('bridge/hub-bridge.mjs'));
   assert.doesNotMatch(hb, /=== 'agent' && name !== 'rpcallow'/,
-    'exempting the whole module let the agent widen its own allowlist');
-  assert.match(hb, /if \(fn === 'set' \|\| fn === 'reset'\) return fail\(403/,
-    'writes to the policy must be refused');
-  assert.match(hb, /the app_rpc policy is the owner's/, 'and say whose it is');
-  // Reads must still work, or the exemption's original purpose is lost.
-  const branch = hb.match(/if \(name === 'rpcallow'\) \{[\s\S]*?\n {4}\}/)[0];
-  assert.doesNotMatch(branch, /fn === 'get'|fn === 'check'/, 'get and check must pass through');
+    'exempting a whole module let the agent widen its own allowlist');
+  assert.match(hb, /const forbidden = CP\.agentForbidden\(name, fn\)/,
+    'every agent call must pass the control plane');
+  assert.match(hb, /if \(forbidden\) return fail\(403, 'refused: ' \+ forbidden\)/, 'and be refused by name');
+
+  const table = read('bridge/permissions.mjs').match(/const CONTROL_PLANE = \{[\s\S]*?\n\};/)[0];
+  for (const mod of ['permissions', 'rpcallow', 'admin', 'session']) {
+    assert.ok(table.includes(mod + ':'), mod + ' edits what the agent may do — it belongs in the table');
+  }
+  // The literal in the source is inside a single-quoted JS string, so the apostrophe is escaped.
+  assert.ok(/the app_rpc policy is the owner\\?'s/.test(table), 'and each says whose it is');
+});
+
+test('the control plane denies by default and still lets the agent look', async () => {
+  const { Permissions } = await import('../bridge/permissions.mjs');
+  // Reads stay open, or the agent cannot see what it is allowed to do — the only part of the
+  // original rpcallow exemption worth keeping.
+  for (const [m, f] of [['permissions', 'get'], ['rpcallow', 'get'], ['rpcallow', 'check'],
+    ['admin', 'tools'], ['session', 'get'], ['session', 'keys']]) {
+    assert.equal(Permissions.agentForbidden(m, f), null, m + '.' + f + ' is a read and must pass');
+  }
+  for (const [m, f] of [['permissions', 'set'], ['permissions', 'reset'], ['rpcallow', 'set'],
+    ['rpcallow', 'reset'], ['admin', 'setToolEnabled'], ['admin', 'addTool'],
+    ['session', 'rotate'], ['session', 'issue'], ['session', 'revoke'], ['session', 'set']]) {
+    assert.ok(Permissions.agentForbidden(m, f), m + '.' + f + ' changes the rules and must be refused');
+  }
+  // The point of a principle: a function added to one of these modules tomorrow is already
+  // out of reach, rather than out of reach if somebody remembers to add a line.
+  assert.ok(Permissions.agentForbidden('permissions', 'somethingAddedLater'),
+    'a new control-plane function must be refused by default');
+  // …and an ordinary module is untouched by any of it.
+  assert.equal(Permissions.agentForbidden('notes', 'create'), null);
+  assert.equal(Permissions.agentForbidden('email', 'send'), null, 'email.send is GATED, not forbidden');
 });
 
 test('every file operation that writes needs the switch that says "Write files"', () => {

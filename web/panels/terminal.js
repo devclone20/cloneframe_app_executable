@@ -1100,8 +1100,13 @@ ANSWER DISCIPLINE:
         }
         if(c.name==='close_panel'){
           // open_panel and read_panel both call resolvePanelKey(); this twin did not, so the
-          // agent could open "browser" and then fail to close it. Same resolver, same names.
-          const t=(resolvePanelKey(a.panel)||String(a.panel||'').trim().toLowerCase());if(!t)return 'no panel key';
+          // agent could open "browser" and then fail to close it. Same resolver, same names —
+          // but resolvePanelKey normalises with /[^a-z0-9 ]/g, so an INSTANCE key like 'shell#2'
+          // became 'shell2', matched nothing, and fell through to a prefix rule that closed the
+          // FIRST shell window instead. list_panels hands the agent exactly those keys, so that
+          // was the common case, not the exotic one. An exact key wins before any resolving.
+          const raw=String(a.panel||'').trim();
+          const t=(screenPanels().some(x=>x.key===raw)?raw:(resolvePanelKey(raw)||raw.toLowerCase()));if(!t)return 'no panel key';
           const ps=screenPanels();
           const hit=ps.find(x=>x.key.toLowerCase()===t)||ps.find(x=>x.key.toLowerCase().startsWith(t));
           if(!hit)return 'panel "'+t+'" is not open (open now: '+(ps.map(x=>x.key).join(', ')||'none')+')';

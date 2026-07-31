@@ -226,8 +226,12 @@
         ${a.status==='pending'?`<div class="compose-actions"><button class="btn mini" data-ap="${a.id}">✓ approve and send</button><button class="btn mini" data-ed="${a.id}">save edit</button><button class="btn mini" data-rj="${a.id}">reject</button></div>`:''}</div>`).join('')+'</div>';
       // Same lock as APPROVAL's own button — this is the identical control in a second place.
       listEl.querySelectorAll('[data-ap]').forEach(b=>b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;b.textContent='sending…';let r;try{r=await RPC('approvals','approve',b.dataset.ap)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}finally{b.disabled=false}Toast.show(r.ok?'Email sent ✉':(r.error||'failed'));renderApprovals()}));
-      listEl.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{await RPC('approvals','reject',b.dataset.rj);Toast.show('Rejected');renderApprovals()}));
-      listEl.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=listEl.querySelector('[data-b="'+b.dataset.ed+'"]');await RPC('approvals','edit',b.dataset.ed,{body:ta.value});Toast.show('Edit saved')}));
+      // The identical pair in APPROVAL was switched to act() because the daemon reports a
+      // refusal as {ok:false,error} and does NOT throw. This twin was left behind — and the
+      // refusals it hides got MORE common the same day, when approve/reject started refusing
+      // any item not in 'pending'.
+      listEl.querySelectorAll('[data-rj]').forEach(b=>b.addEventListener('click',async()=>{if(!await act('approvals','reject',b.dataset.rj))return;Toast.show('Rejected');renderApprovals()}));
+      listEl.querySelectorAll('[data-ed]').forEach(b=>b.addEventListener('click',async()=>{const ta=listEl.querySelector('[data-b="'+b.dataset.ed+'"]');if(!await act('approvals','edit',b.dataset.ed,{body:ta.value}))return;Toast.show('Edit saved')}));
     }
 
     // ---------- list (search + filter + select mode) ----------
