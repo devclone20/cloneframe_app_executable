@@ -5,6 +5,97 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.4 — 2026-08-01
+
+Two rules the app had never chosen between, one promise it never kept, and a repository
+that had been publishing the workshop instead of the product.
+
+**Every panel is one window now. iT is the exception, and it always was the point.**
+
+Opening NOTES twice gave you two NOTES windows: the same store drawn twice, with two
+scroll positions and one set of data underneath. Asking for a panel you already have
+means *show it to me*. So it does — including a window you had tucked away in a frame
+square, which now comes back instead of a second, empty copy opening on top of it.
+
+**iT is untouched by that, and infinite on purpose.** Terminal windows side by side,
+each with its own workspaces, split panes and live shells, is the whole reason iT
+exists. Nothing about it changed except that it is now the only panel that does it.
+
+BROWSER lost its second window, and it was never a decision that it had one. One list
+answered two different questions — *may this panel have several windows?* and *does
+docking hide this window or destroy it?* — and BROWSER needed the second answer, because
+a docked browser must keep its live pages. It got the first for free. Two lists now.
+The browser is one window with tabs, docking it still keeps every page alive, and its
+"New browser window" button is gone: it could only ever have opened a copy of the window
+you were already looking at, and the tab strip's ＋ is the control that does what that
+icon depicted.
+
+**Closing an iT window now closes what was inside it**
+
+This is the one that was costing you something. The code claimed to "reap every live pty
+session"; it dropped the sockets instead. For a *persistent* session — the default — a
+dropped socket means DETACH, not close. So every shell in a window you closed went on
+running for the full sixty-minute detach timeout: builds still building, dev servers
+still holding ports, agents still spending tokens, invisible, against a 24-session cap
+you could not see. Nothing told you, because from the app's side the window was gone.
+
+Now closing the window ends its sessions three ways, because a socket is not the only
+way a session stays alive: live tabs are killed in band; every session id the window
+owns is named to the daemon, which reaches the ones whose sockets had already dropped
+and no in-band kill could touch; and workspaces you restored but never opened — which
+have no terminal on screen at all, yet whose shells are real and running — are reaped
+by the window that owns that layout.
+
+Measured against a real daemon with real login shells and a real marker process:
+
+```
+new  18/18   close kills · reload survives · detached sessions reachable
+old  12/18   "no such fn: killMany" — the marker process still running, unreachable
+```
+
+**A reload still keeps your shells.** That distinction is the entire value of persistent
+sessions and it is untouched: ⌘R detaches and reattaches, scrollback and all. Only
+closing the window is a close. Keeper sessions — the ⟳ "persistent sessions" tab —
+survive too, on purpose: they are this app's tmux, created deliberately, listed by
+`it sess list`, ended by `it sess kill`. Closing a terminal window does not kill your
+tmux, and nothing about them is hidden from you.
+
+**This repository is the app now, not a copy of the workshop**
+
+It used to mirror the whole development tree — panel sources, a 108-file test suite,
+build tooling, an Electron shell, planning notes — and ask you to find `index.html` in
+it. What you want from this page is an app you can run.
+
+So: download the release, double-click **`install.command`**, and you have
+`CLONE FRAME HUB.app` in `~/Applications` with the entire program inside the bundle —
+the app, the daemon, its dependencies. The folder you downloaded can then go in the
+Trash. To update: Trash the old app, download the new release, run its installer. Your
+data is never inside the app, so an update never touches it. To remove: `uninstall.command`,
+which stops the daemon, removes the app, and asks *separately* about your data.
+
+Two consequences worth saying out loud rather than letting you find them:
+
+- **You can no longer rebuild `index.html` from this clone** — the sources that build
+  it are not here. You can read it (it is one plain document) and check its hash against
+  the release. `bridge/` is different: that **is** its source, every line, and it is the
+  half that touches your machine.
+- The publisher's file list went from *everything except a denylist* to *exactly these
+  paths*. A denylist fails open — anything not named leaks by default, so every new
+  folder was public until someone remembered to exclude it. Now a folder added tomorrow
+  is private until it is named.
+
+**Also fixed**
+
+- `make-app.sh` read the version through `${BASH_SOURCE[0]}` under a `#!/bin/zsh`
+  shebang. zsh leaves that empty, so the version came from whatever directory you were
+  standing in — it looked right only because everyone ran it from `bridge/`.
+- The model's own tool list told it that `browse{newWindow:true}` opens "a SEPARATE
+  browser window… use several to research side-by-side", and that `open_panel` reached
+  27 panels. There are 20, and there is one browser window.
+- The publisher's secret scan aborted mid-pass with `GITLEAKS_CFG[@]: unbound variable`
+  the first time it ran without its config in staging — bash 3.2 under `set -u`. It
+  died on the safety gate, skipping the two checks after it.
+
 ## 0.3.3 — 2026-07-31
 
 0.3.2 shipped, and then a regression sweep read every line of the twelve commits behind it,

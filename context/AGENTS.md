@@ -32,10 +32,10 @@ Emit one action per fenced block, then wait:
 |---|---|
 | `open_panel{panel}` | Open a HUB tab (see §4) |
 | `open_settings{section}` | Settings — sections incl. `agenttools · itterm · addmodels · aidefaults · appearance · account · folders · servers · system · email · integrations · reminders · search` |
-| `open_terminal{cwd?,newWindow?}` | Live terminal; `newWindow:true` = a separate iT window |
+| `open_terminal{cwd?,newWindow?}` | Live terminal; `newWindow:true` = a separate iT window. **iT is the only panel with more than one window** — every other tool below opens or reveals the single window of its panel |
 | `open_app{app}` | Open any macOS app by name |
 | `open_path{path}` | Reveal any file/folder in Finder |
-| `open_url{url}` · `browse{url,newTab?,newWindow?}` | `open_url` hands off; `browse` renders a live tab **and returns the page text** |
+| `open_url{url}` · `browse{url,newTab?}` | `open_url` hands off; `browse` renders a live tab in the one BROWSER window **and returns the page text** |
 | `web_search{q}` | Search the web |
 | `run_shell{cmd}` | **Real zsh** — install, build, move files, anything (needs full access / root for sudo) |
 | `applescript{script}` | Automate macOS and control apps |

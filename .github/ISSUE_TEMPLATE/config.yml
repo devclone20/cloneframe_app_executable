@@ -6,6 +6,6 @@ contact_links:
   - name: Known issues
     url: https://github.com/devclone20/cloneframe_app_executable/blob/main/KNOWN-ISSUES.md
     about: What we already know is imperfect, and which behaviours are deliberate. Worth two minutes before you write.
-  - name: Contributing
-    url: https://github.com/devclone20/cloneframe_app_executable/blob/main/CONTRIBUTING.md
-    about: How to build it, how to run the gates, and the two rules that are not style.
+  - name: What is in this repository
+    url: https://github.com/devclone20/cloneframe_app_executable#-one-file-and-one-daemon
+    about: This repo publishes the built app plus the daemon's full source. The interface's own sources are not here — read index.html, or check its hash against the release.

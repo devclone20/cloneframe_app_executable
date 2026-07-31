@@ -30,12 +30,15 @@ You only need three things:
 | **A Chromium browser** (Chrome, Brave, Edge, or Chrome for Testing) | Draws the app window. |
 | **One thing to connect a model with** | Either a cloud **API key**, or your own hardware to run a **local model** via EXO LAB. |
 
-If the app is not running yet:
+If the app is not running yet: download the
+[latest release](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
+and double-click **`install.command`** — see [INSTALL.md](INSTALL.md). Or run the daemon
+straight from a clone:
 
 ```bash
 git clone https://github.com/devclone20/cloneframe_app_executable.git
 cd cloneframe_app_executable/bridge
-npm install          # only three optional email deps; the rest is Node built-ins
+npm install          # five small optional add-ons; the rest is Node built-ins
 ./launch.sh          # starts the bridge on 127.0.0.1 and opens the app window
 ```
 

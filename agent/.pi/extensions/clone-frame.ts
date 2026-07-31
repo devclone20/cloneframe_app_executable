@@ -103,7 +103,7 @@ export default function cloneFrame(pi: ExtensionAPI) {
 		name: "open_panel",
 		label: "Open panel",
 		description:
-			"Open one of CLONE FRAME's panels (tabs) in the running app window and focus it. Keys: terminal (CODE), shell (iT terminal), research (web browser), harness, lab, matrix, machine, agents, folders, email, notes, tasks, reminders, approval, automations, search, brain, agentview, theme, settings. There is no calendar, contacts, library, cookbook, compare, gallery or integrations panel — those were removed from the app; do not offer them. Titles like 'browser' (→research) or 'My Agents' (→agents) also resolve. This physically opens the tab on screen.",
+			"Open one of CLONE FRAME's 20 panels (tabs) in the running app window and focus it. Keys: terminal (CODE), shell (iT terminal), research (web browser), harness, lab, matrix, machine, agents, folders, email, notes, tasks, reminders, approval, automations, search, brain, agentview, theme, settings. There is no calendar, contacts, library, cookbook, compare, gallery or integrations panel — those were removed from the app; do not offer them. Titles like 'browser' (→research) or 'My Agents' (→agents) also resolve. This physically opens the tab on screen. Every panel has exactly ONE window except shell (iT), which may have several — so calling this twice for the same panel shows the owner the window they already have, and restores it if they had tucked it into a frame square.",
 		promptSnippet: "Open/focus a CLONE FRAME panel: open_panel{panel} (e.g. research, shell, notes, harness, settings)",
 		parameters: Type.Object({
 			panel: Type.String({ description: "Panel key or title, e.g. 'research', 'shell', 'notes'." }),

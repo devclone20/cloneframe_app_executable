@@ -218,6 +218,24 @@ function kill(id) {
   return { ok: true };
 }
 
+// Reap a whole WINDOW's worth of sessions in one call.
+//
+// Closing an iT window has to reach sessions its live sockets cannot: a tab whose socket
+// dropped hours ago is DETACHED — still running, still holding its port, with no channel
+// left to carry a {kill:true} over. The window knows every session id it opened, so it
+// names them here. Unknown ids are not an error: a session that already exited is exactly
+// the outcome asked for, and the caller closing a window should not have to care which of
+// its tabs the idle reaper got to first.
+function killMany(ids) {
+  if (!Array.isArray(ids)) return { ok: false, error: 'ids must be an array' };
+  let killed = 0;
+  for (const id of ids.slice(0, MAX_SESSIONS * 4)) {
+    const s = sessions.get(String(id));
+    if (s) { endSession(s, 'window closed'); killed++; }
+  }
+  return { ok: true, killed, asked: ids.length };
+}
+
 function list() {
   return [...sessions.values()].map(s => ({
     id: s.id, cmd: s.cmd, cols: s.cols, rows: s.rows, alive: !!s.alive, startedAt: s.startedAt,
@@ -303,5 +321,5 @@ function attach(ws, hello = {}) {
   return { ok: true, id };
 }
 
-export const Pty = { available: () => !!ptySpawn, sessions, open, write, resize, signal, kill, list, attach };
+export const Pty = { available: () => !!ptySpawn, sessions, open, write, resize, signal, kill, killMany, list, attach };
 export default Pty;

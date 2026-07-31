@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.3.3 build token — never as a number written here.
+   the app only through the 0.3.4 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -2796,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.3 · WEB</span>
+    <span class="gver">v0.3.4 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -5423,20 +5423,54 @@ const Panels=(()=>{
     opts=opts||{};
     const u=(typeof url==='string'?url:(url&&url.url)||'').trim();
     if(!u)return null;
-    const p=openPanel('research',{newInstance:!!opts.newWindow}); // open/focus a BROWSER window (wires its web:open listener)
-    Bus.emit('web:open',{url:u,newTab:!!opts.newTab,target:(p&&p.dataset.key)||''});
+    // BROWSER is ONE window with tabs. A caller that asks for a "new window" gets a new TAB —
+    // the only thing that request can still mean — and only when a window was already open,
+    // so a freshly opened BROWSER fills its blank tab instead of leaving one behind.
+    const had=anyInstanceOf('research').length>0;
+    const p=openPanel('research'); // open/focus/reveal THE BROWSER window (wires its web:open listener)
+    Bus.emit('web:open',{url:u,newTab:!!(opts.newTab||opts.newWindow)&&had,target:(p&&p.dataset.key)||''});
     return p;
   }
-  // Types that may open several independent windows at once (browser research / terminals):
-  // the first instance keeps key===type (every legacy open[type] lookup still works);
-  // extra instances get 'type#n'. Everything else stays a singleton.
-  const MULTI=new Set(['research','shell']);
+  // ── how many windows, and what a dock does to them — two questions, two tables ──────────
+  //
+  // MULTI: the types that may have SEVERAL independent windows at once. That is iT, and only
+  // iT: a terminal emulator whose windows you arrange side by side is the whole point, and
+  // each one carries its own workspaces, panes and live pty sessions. Every other panel is
+  // ONE window — asking for NOTES twice means "show me my notes", not "give me a second,
+  // divergent copy of my notes". Opening one that already exists REVEALS it (see openPanel),
+  // including a window tucked away in a frame square.
+  //
+  // DOCK_HIDES: the types whose window is HIDDEN rather than destroyed when it is docked into
+  // a frame square, because something is alive behind the glass — iT's pty sessions, BROWSER's
+  // private pages. Deliberately NOT the same question as MULTI: BROWSER is a single window
+  // that must survive a dock, and it used to get its second-window behaviour for free just by
+  // being on this one list. The two were one set until 2026-08-01, which is why the only way
+  // to keep the browser's pages alive across a dock was to also allow a second browser window.
+  //
+  // The first instance keeps key===type (every legacy open[type] lookup still works); extra
+  // iT windows get 'shell#n'.
+  const MULTI=new Set(['shell']);
+  const DOCK_HIDES=new Set(['shell','research']);
   let iseq=0;
   // Docked (hidden) windows are excluded everywhere focus/targeting matters: a window
   // tucked into a frame square must never grab web:open / shell:addcwd / focus — it
-  // belongs to its square until the square is clicked.
+  // belongs to its square until the square is clicked. anyInstanceOf() is the other
+  // question — "does this panel exist at all" — and it is the one openPanel must ask, or
+  // a docked singleton is invisible to it and a SECOND window opens over the top.
   const instancesOf=type=>Object.values(open).filter(el=>el&&el.dataset.type===type&&!el.dataset.docked);
+  const anyInstanceOf=type=>Object.values(open).filter(el=>el&&el.dataset.type===type);
   const topInstanceOf=type=>{let mx=-1,top=null;instancesOf(type).forEach(el=>{const zi=+el.style.zIndex||0;if(zi>=mx){mx=zi;top=el}});return top};
+  // Bring a window forward, whether it was behind others or hidden inside a frame square.
+  // ONE implementation: the frame-square click path used to carry its own copy of the undock
+  // steps, and openPanel had none at all.
+  function reveal(p){
+    if(!p)return p;
+    if(p.dataset.docked){
+      delete p.dataset.docked;p.style.display='';
+      if(typeof p._onundock==='function')try{p._onundock()}catch(_){}
+    }
+    focus(p);return p;
+  }
   // Panel registry (T-050 · T-060) — the single mount seam. registerPanel(type,{def,mount}) records
   // a panel's DEF (icon/title/sub/w/h/body) + its mount (wiring) fn; openPanel looks the DEF up in the
   // registry (falling back to the DEFS map) and dispatches the mount from it. As of T-060 EVERY panel
@@ -5452,8 +5486,11 @@ const Panels=(()=>{
     // 'agentview' is a REAL standalone panel again (owner call 2026-07-17): the deck's
     // footer strip opens it in its own window; the in-LAB Agents detail also remains.
     if(['machine','agents','automations','email','tasks','approval'].includes(type)&&!Caps.on(type))Caps.set(type,1); // using = activating
-    const existing=topInstanceOf(type);
-    if(existing&&!(MULTI.has(type)&&opts.newInstance)){focus(existing);Bus.emit('help','panel-'+type);Bus.emit('panels:changed');return existing}
+    // Only iT can be asked for another window. For everything else `existing` deliberately
+    // includes a DOCKED window, so clicking the tab again shows you the one you already have
+    // instead of opening a second, empty copy over the top of it.
+    const existing=MULTI.has(type)?topInstanceOf(type):(topInstanceOf(type)||anyInstanceOf(type)[0]||null);
+    if(existing&&!(MULTI.has(type)&&opts.newInstance)){reveal(existing);Bus.emit('help','panel-'+type);Bus.emit('panels:changed');return existing}
     const reg=REG.get(type);                         // registry first (T-050), else the legacy DEFS map
     const d=(reg&&reg.def)||DEFS[type];if(!d){Toast.show('Coming soon — under construction');return null}
     const key=open[type]?type+'#'+(++iseq):type;
@@ -5500,18 +5537,18 @@ const Panels=(()=>{
   function minimizeToCell(p){
     const type=p.dataset.type;
     const cells=Grid.cells();
-    // Multi-window types: every window gets its OWN square — its HOME square. Docking
-    // the same window again reuses the square that already carries its panelKey, so
-    // squares never accumulate; singletons keep reusing their type's square.
-    let cell=MULTI.has(type)
+    // A window that survives its dock gets its OWN square — its HOME square, carrying its
+    // panelKey. Docking the same window again reuses that square, so squares never accumulate;
+    // a rebuilt-on-demand panel keeps reusing its type's square instead.
+    let cell=DOCK_HIDES.has(type)
       ?cells.find(el=>el.classList.contains('occ')&&el.dataset.panelKey===p.dataset.key)||null
       :cells.find(el=>el.classList.contains('occ')&&el.dataset.type===type);
     // The handle rides WITH the record, not just on the element — see occupyEl.
     const meta=Object.assign({},(typeof p._dockMeta==='function'?(p._dockMeta()||null):null)||{});
-    if(MULTI.has(type))meta.panelKey=p.dataset.key;
+    if(DOCK_HIDES.has(type))meta.panelKey=p.dataset.key;
     // Reusing the window's HOME square: refresh its label/cwd/url so the tooltip and
     // the post-reload launcher fallback reflect where the window is NOW.
-    if(cell&&MULTI.has(type)){Grid.release(cell);Grid.occupy(cell,type,meta)}
+    if(cell&&DOCK_HIDES.has(type)){Grid.release(cell);Grid.occupy(cell,type,meta)}
     if(!cell){
       // Magic Frames placement (Settings → Magic Frames): organized lattice by default,
       // legacy nearest-to-window when the owner picks 'random'.
@@ -5525,7 +5562,7 @@ const Panels=(()=>{
       Grid.occupy(cell,type,meta);
     }
     cell.classList.add('minpulse');setTimeout(()=>cell.classList.remove('minpulse'),1000);
-    if(MULTI.has(type)){
+    if(DOCK_HIDES.has(type)){
       // HIDE, don't destroy: the window (its live pty sessions / open pages) stays
       // alive and the square becomes the handle to THIS exact window. The hidden-pane
       // resize guard makes display:none safe for xterm; clicking the square restores it.
@@ -5736,7 +5773,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.3.3
+  OS      CLONE FRAME OS · v0.3.4
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -6649,7 +6686,7 @@ const Panels=(()=>{
         : ' MODE = CHAT: answer conversationally, but the moment the owner asks you to DO something (open an app or tab, run a command, change a setting, create a file, browse, operate a server), actually DO it with your tools — never just explain how.';
       let h='';
       if(cur&&cur.harness&&cur.harness.name){const hd=harnesses.find(x=>x.id===cur.harness.id);const gg=hd&&hd.roles?hd.roles.filter(r=>r.gate).map(r=>r.name):[];h='\nActive HARNESS: '+cur.harness.name+(hd&&hd.roles?' — roles: '+hd.roles.map(r=>r.name).join(', '):'')+'.'+(gg.length?' GATES ARE REAL here: calling run_shell/applescript/write_file/send_email/server_* PAUSES this chat for the OWNER to approve or reject each call ('+gg.join(' · ')+'). Announce what you are about to run and why BEFORE calling a gated tool; if rejected, do not retry — propose an alternative.':'')}
-      return `You are the model the owner connected to CLONE FRAME, running INSIDE their app with a REAL body on this machine through the HUB Bridge.${inftContext()} You are NOT a text-only assistant — you have TOOLS and you CAN act on the app, the machine, and the owner's online servers. To act, emit ONE json block per action, exactly like this:\n\`\`\`tool\n{"name":"open_app","args":{"app":"Calculator"}}\n\`\`\`\nTOOLS: open_panel{panel} (open a HUB tab — one of: ${AGENT_PANELS}); read_panel{panel} (YOUR EYES — returns the visible content of an open panel); close_panel{panel} (close an open panel); app_context{} (fresh snapshot of what is open right now); list_capabilities{} (every panel + what it does); open_settings{section} (open Settings at a section: agent · models · appearance · folders · servers · account); open_terminal{cwd?,newWindow?} (open a live terminal in the app; newWindow:true opens a SEPARATE terminal window — e.g. one per agent, side by side); open_app{app} (open ANY macOS app by name); open_path{path} (reveal ANY file/folder in Finder); open_url{url}; applescript{script} (automate macOS & control apps); run_shell{cmd} (REAL zsh — install, build, move files, anything); web_search{q}; browse{url,newTab?,newWindow?} (opens a live rendered web tab AND returns the page text; newTab:true adds a tab, newWindow:true opens a SEPARATE browser window on the canvas — use several newWindow calls to research side-by-side); read_file{path}; write_file{path,content}; send_email{to,subject,body}; server_list{}; server_run{id,cmd} (run a command on an online server/droplet over SSH); server_automation{id,key} (one-click preset: status·start_agent·stop_agent·restart_agent·agent_logs·update·reboot); server_deploy{id,name} (send an agent to the server); server_provision{name,region,size} (create a NEW droplet in the owner's DigitalOcean account); list_harnesses{}; create_harness{name,description,roles:[{name,desc,gate}]} (build a crew of agents); update_harness{id,name,description,roles}; use_harness{id} (activate a harness for this CODE session). HARNESS ENGINE pattern — a harness is a crew: one ORCHESTRATOR that delegates, the non-collapsible GATES (SAFETY/HACKER, EVALUATOR, TREASURY, OWNER — set gate:true) that nothing irreversible passes without, and the specialist agents the task needs (gate:false, e.g. RESEARCH, ANALYST, DELIVERY). When the owner asks you to create/build a harness, design that crew and call create_harness; then tell them it's in the HARNESS tab and the CODE picker.${capLine}${needLine}${modeLine} Your full field guide — every tool, panel, the iT 'it' CLI, how to edit the frame, how to contribute upstream — lives at ~/.clone-frame-hub/AGENTS.md; read_file it (or run 'it context' in an iT shell) when you need depth. Rules: emit the tools you need, then STOP and wait for the RESULTS (I send them back); only then continue or give the final answer WITHOUT tool blocks. NEVER say you can't act or that you're just a text model — you have a body here. If a tool returns REFUSED, name the exact toggle that unlocks it and offer to open_settings for the owner. Never invent results. Owner permissions (raw JSON): ${JSON.stringify(perms)}.${h}
+      return `You are the model the owner connected to CLONE FRAME, running INSIDE their app with a REAL body on this machine through the HUB Bridge.${inftContext()} You are NOT a text-only assistant — you have TOOLS and you CAN act on the app, the machine, and the owner's online servers. To act, emit ONE json block per action, exactly like this:\n\`\`\`tool\n{"name":"open_app","args":{"app":"Calculator"}}\n\`\`\`\nTOOLS: open_panel{panel} (open a HUB tab — one of: ${AGENT_PANELS}); read_panel{panel} (YOUR EYES — returns the visible content of an open panel); close_panel{panel} (close an open panel); app_context{} (fresh snapshot of what is open right now); list_capabilities{} (every panel + what it does); open_settings{section} (open Settings at a section: agent · models · appearance · folders · servers · account); open_terminal{cwd?,newWindow?} (open a live terminal in the app; newWindow:true opens a SEPARATE terminal window — e.g. one per agent, side by side); open_app{app} (open ANY macOS app by name); open_path{path} (reveal ANY file/folder in Finder); open_url{url}; applescript{script} (automate macOS & control apps); run_shell{cmd} (REAL zsh — install, build, move files, anything); web_search{q}; browse{url,newTab?} (opens a live rendered web tab AND returns the page text; newTab:true adds a tab instead of replacing the current one — BROWSER is ONE window with tabs, so research side-by-side means several tabs, and iT is the only panel that opens more than one window); read_file{path}; write_file{path,content}; send_email{to,subject,body}; server_list{}; server_run{id,cmd} (run a command on an online server/droplet over SSH); server_automation{id,key} (one-click preset: status·start_agent·stop_agent·restart_agent·agent_logs·update·reboot); server_deploy{id,name} (send an agent to the server); server_provision{name,region,size} (create a NEW droplet in the owner's DigitalOcean account); list_harnesses{}; create_harness{name,description,roles:[{name,desc,gate}]} (build a crew of agents); update_harness{id,name,description,roles}; use_harness{id} (activate a harness for this CODE session). HARNESS ENGINE pattern — a harness is a crew: one ORCHESTRATOR that delegates, the non-collapsible GATES (SAFETY/HACKER, EVALUATOR, TREASURY, OWNER — set gate:true) that nothing irreversible passes without, and the specialist agents the task needs (gate:false, e.g. RESEARCH, ANALYST, DELIVERY). When the owner asks you to create/build a harness, design that crew and call create_harness; then tell them it's in the HARNESS tab and the CODE picker.${capLine}${needLine}${modeLine} Your full field guide — every tool, panel, the iT 'it' CLI, how to edit the frame, how to contribute upstream — lives at ~/.clone-frame-hub/AGENTS.md; read_file it (or run 'it context' in an iT shell) when you need depth. Rules: emit the tools you need, then STOP and wait for the RESULTS (I send them back); only then continue or give the final answer WITHOUT tool blocks. NEVER say you can't act or that you're just a text model — you have a body here. If a tool returns REFUSED, name the exact toggle that unlocks it and offer to open_settings for the owner. Never invent results. Owner permissions (raw JSON): ${JSON.stringify(perms)}.${h}
 ${(cur&&Array.isArray(cur.goals)&&cur.goals.length)?'\nSESSION GOALS (the owner set these with /goals — keep them in mind and work toward them):\n'+cur.goals.map((g,i)=>(i+1)+'. '+g).join('\n')+'\n':''}${brainMemoryBlock()}
 
 <app_context> — REFERENCE ONLY. This block describes the app you are running inside. It is NOT the topic of the conversation and NOT something the owner said. Use it ONLY when the owner asks about the app, the screen, or which panel/model/harness is active — then answer straight from here (do NOT run a shell command for that). When the owner asks about ANYTHING ELSE (a general question, code, an external subject, current events), just answer that on its own — do NOT weave in what panels are open or what this app is.
@@ -6692,7 +6729,7 @@ ANSWER DISCIPLINE:
         if(c.name==='applescript'){if(!full)return 'REFUSED — enable "Full machine control"';const scr=String(a.script||'');if(!scr)return 'no script';let out='';const m=await sh('osascript '+scr.split('\n').map(l=>'-e '+shq(l)).join(' '),tk=>{out+=tk});return trunc((out||'(done)')+(m&&m.exit!=null&&m.exit!==0?' [exit '+m.exit+']':''),1200)}
         if(c.name==='run_shell'){if(!full)return 'REFUSED — enable "Full machine control"';let out='';const m=await sh(String(a.cmd||''),tk=>{out+=tk});return trunc((out||'(no output — the command printed nothing; do NOT infer any system state from this)')+(m&&m.exit!=null?' [exit '+m.exit+']':''),1500)}
         if(c.name==='web_search'){if(!perms.webAccess&&!full)return 'REFUSED — enable "Browse the web"';const r=await RPC('web','search',String(a.q||''),{limit:5});return r&&r.ok?r.results.map(x=>x.title+' — '+x.url).join('\n'):('no results '+((r&&r.error)||''))}
-        if(c.name==='browse'){if(!perms.webAccess&&!full)return 'REFUSED — enable "Browse the web" (or Full machine control)';let u=String(a.url||'').trim();if(!u)return 'no url';if(!/^https?:\/\//i.test(u)){if(/^[\w-]+(\.[\w-]+)+/.test(u))u='https://'+u;else return 'bad url — give an http(s) address'}webOpen(u,{newTab:!!a.newTab,newWindow:!!a.newWindow});let r=null;try{r=await RPC('web','fetchUrl',u)}catch(e){}return 'Opened a live browser '+(a.newWindow?'WINDOW':'tab')+' rendering '+u+' (in the in-app Browser).'+(r&&r.ok?(' Readable text:\n'+String(r.text||'').slice(0,2500)):' (rendered for the owner; text extraction unavailable)')}
+        if(c.name==='browse'){if(!perms.webAccess&&!full)return 'REFUSED — enable "Browse the web" (or Full machine control)';let u=String(a.url||'').trim();if(!u)return 'no url';if(!/^https?:\/\//i.test(u)){if(/^[\w-]+(\.[\w-]+)+/.test(u))u='https://'+u;else return 'bad url — give an http(s) address'}webOpen(u,{newTab:!!(a.newTab||a.newWindow)});let r=null;try{r=await RPC('web','fetchUrl',u)}catch(e){}return 'Opened a live browser tab rendering '+u+' (in the in-app Browser — one window, many tabs).'+(r&&r.ok?(' Readable text:\n'+String(r.text||'').slice(0,2500)):' (rendered for the owner; text extraction unavailable)')}
         if(c.name==='read_file'){if(!perms.fileWrite&&!full)return 'REFUSED — enable "Write files" or "Full machine control" to let me read files on your machine';const r=await RPC('files','read',String(a.path||''));return r.ok?trunc(r.text,1800):('failed: '+r.error)}
         if(c.name==='write_file'){if(!perms.fileWrite&&!full)return 'REFUSED — enable "Write files" or "Full machine control"';const r=await RPC('files','write',String(a.path||''),String(a.content||''));return r.ok?('written: '+r.path):('failed: '+r.error)}
         if(c.name==='send_email'){if(!perms.autoEmail)return 'REFUSED — enable "Send email without approval"';const accs=await Mail.accounts().catch(()=>[]);if(!accs.length)return 'no email account connected';const r=await Mail.send((accs.find(x=>x.isDefault)||accs[0]).id,{to:a.to,subject:a.subject,text:a.body});return r&&r.ok?'email sent ✉':('failed: '+((r&&r.error)||''))}
@@ -10663,7 +10700,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.3 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.4 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -11087,11 +11124,62 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       expandTo(startCwd);renderAll();renderTree();ctlConnect();
     })();
     p._dockMeta=()=>{const w=wsCur();return{label:wsLabel(w)||'iT',cwd:(w&&w.cwd)||homeAbs}};
-    // Closing this window (✕ or a docked square's remove) reaps every live pty session across
-    // ALL workspaces — else docked-then-removed terminals would leak bridge sessions until the
-    // idle reaper, against the 24-session cap.
     p.addEventListener('pointerdown',e=>{if(ctxEl&&!e.target.closest('.it-ctx'))closeCtx()},true); // any click outside dismisses the right-click menu
-    p._dispose=()=>{itRelease();closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}workspaces.forEach(w=>(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{try{t.ctl&&t.ctl.abort()}catch(_){}try{t.termApi&&t.termApi.dispose()}catch(_){}})))};
+    // ── closing an iT window closes its terminals, the way closing a terminal window does ──
+    //
+    // The comment that stood here claimed this "reaps every live pty session". It did not.
+    // Term.dispose(kill) sends {kill:true} to the bridge only when it is told to; called with
+    // no argument — as it was — it just drops the socket, and a socket dropped by a PERSISTENT
+    // session (the default, `cfhub.it.persist`) means DETACH, not close. So every shell you
+    // ever opened went on running, invisible, for the full 60-minute detach timeout: builds
+    // still building, servers still holding ports, agents still spending tokens, against a
+    // 24-session cap you could not see. Close the window, and the work in it kept going.
+    //
+    // The distinction that must survive is RELOAD vs CLOSE. A reload never runs this hook, so
+    // Phase-4 reattach + scrollback replay is untouched — that is what persistence is for.
+    // Closing the window is the owner saying they are done, and it is answered here in three
+    // passes, because a socket is not the only way a session can still be alive:
+    //
+    //   1. every LIVE surface  → dispose(true): {kill:true} over its own socket, in band.
+    //   2. every session id this window owns → one pty.killMany. A tab whose socket had
+    //      already dropped (bridge restart, a lid closed for an hour) is detached-but-alive
+    //      and pass 1 cannot reach it: its send() is a no-op on a closed socket.
+    //   3. workspaces restored from the saved layout and never visited. They have no live
+    //      Term at all — mountWs is lazy — yet their psids name ptys still running from
+    //      before the last reload. Only the primary window owns that layout, so only it
+    //      may reap them.
+    //
+    // What deliberately SURVIVES: keeper sessions (the ⟳ "persistent sessions" tab). Those
+    // are the app's tmux — created on purpose, named, listed by `it sess list`, killed by
+    // `it sess kill`. Closing a terminal window on any machine does not kill your tmux, and
+    // nothing here is hidden: their whole point is to be findable. The ephemeral `keeper
+    // attach` child that bridges this window to one DOES die with pass 1.
+    p._dispose=()=>{
+      itRelease();closeCtx();ctlDown=true;try{ctlWs&&ctlWs.close()}catch(_){}
+      const ids=new Set();
+      workspaces.forEach(w=>{
+        (w.panes||[]).forEach(pn=>(pn.surfaces||[]).forEach(t=>{
+          if(t.pipe){try{pipeStop(t)}catch(_){}}              // flush an armed `it pipe` before the pty goes
+          if(t.kind==='tty'&&!t.sess&&t.psid)ids.add(t.psid);
+          try{t.ctl&&t.ctl.abort()}catch(_){}
+          try{t.termApi&&t.termApi.dispose(true)}catch(_){}
+        }));
+        // pass 3 — a workspace that was restored but never opened has a spec, not surfaces.
+        if(primary&&!w.grid&&w.spec)specPsids(w.spec).forEach(id=>ids.add(id));
+      });
+      // Fired, not awaited — the window is being torn down and the request is already on the
+      // wire. .catch() because a rejected promise nobody is holding is an unhandled rejection,
+      // and a bridge that went away mid-close is not an error worth raising at the owner.
+      if(ids.size){try{RPC('pty','killMany',[...ids]).catch(()=>{})}catch(_){}}
+    };
+    // Every tty session id in a serialized workspace spec, at any split depth.
+    function specPsids(n,out){
+      out=out||[];
+      if(!n||typeof n!=='object')return out;
+      if(n.sp){specPsids(n.a,out);specPsids(n.b,out);return out}
+      (n.surfs||[]).forEach(s=>{if(s&&s.kind!=='web'&&!s.sess&&s.psid)out.push(s.psid)});
+      return out;
+    }
     // Restored from its frame square: re-sync panes (the resize observer refits xterm).
     p._onundock=()=>{renderAll()};
     panelBus(p).on('bridge:changed',()=>{if(Bridge.on()&&homeAbs==='~'){(async()=>{try{let o='';const m=await Bridge.shell('pwd',x=>{o+=x});homeAbs=(m&&m.cwd)||o.trim()||'~';try{canTTY=!!(await RPC('pty','available'))}catch(_){}tree.root=homeAbs;workspaces.forEach(w=>{if(w.cwd==='~')w.cwd=homeAbs;(w.panes||[]).forEach(pn=>pn.surfaces.forEach(t=>{if(t.cwd==='~')t.cwd=homeAbs}))});renderAll();renderTree()}catch(_){}})()}});
@@ -11846,7 +11934,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.3 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.4 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -13993,7 +14081,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
               '<input id="wbrurl" placeholder="Search or enter address" spellcheck="false" autocomplete="off">'+
             '</div>'+
             IB('wbrcopy','Copy link','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>')+
-            IB('wbrwin','New browser window','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>')+
+            // 'New browser window' stood here until 2026-08-01. BROWSER is one window with
+            // tabs now, so the button could only have opened a second copy of the window you
+            // were already looking at — and the tab strip's ＋ (⌘T) is the control that does
+            // what it depicted. A button that cannot do what its icon promises is removed,
+            // not quietly rewired to something else.
             // Always present, never hidden: a control the owner can only reach when a page
             // happens to ask for a key is a control that does not exist. Off is the resting
             // state; the accent only comes on once a real window is being held.
@@ -14019,7 +14111,6 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       el('wbrfwd').addEventListener('click',()=>{const t=at();if(t){progStart();eng('forward',{id:t.eid}).catch(()=>{})}});
       el('wbrreload').addEventListener('click',()=>{const t=at();if(t){progStart();eng('reload',{id:t.eid}).catch(()=>{})}});
       el('wbrcopy').addEventListener('click',()=>{const t=at();if(!t||!t.url){Toast&&Toast.show('Open a page first');return}try{navigator.clipboard.writeText(t.url);Toast&&Toast.show('Link copied')}catch(_){Toast&&Toast.show('Could not copy')}});
-      el('wbrwin').addEventListener('click',()=>openPanel('research',{newInstance:true}));
       el('wbrsign').addEventListener('click',async()=>{
         const b=el('wbrsign');if(!b||b.disabled)return;
         b.disabled=true;
@@ -14095,7 +14186,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const o=(typeof d==='string')?{url:d}:(d||{});
       const u=o.url||'';if(!u)return;
       if(o.target&&o.target!==p.dataset.key)return;
-      if(!o.target&&p!==topInstanceOf('research'))return;
+      // There is one BROWSER window now, but it can be HIDDEN in a frame square, and
+      // topInstanceOf() deliberately cannot see a docked window. Comparing against it alone
+      // meant a docked browser ignored every untargeted web:open — the URL went nowhere.
+      if(!o.target&&p!==(topInstanceOf('research')||anyInstanceOf('research')[0]))return;
       if(o.newTab){newTab(u);return}
       const t=tabs.find(x=>!x.url)||at();if(t){setActive(t.id);nav(t,u)}else newTab(u);
     });
@@ -14800,24 +14894,28 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     const cwd=d.cwd||'',url=d.url||'',key=d.key||'';
     // A square linked to a LIVE window is that window's handle: restore it if docked,
     // just focus it if it's already on screen. Never a copy, never someone else's window.
-    if(key&&open[key]){
-      const p=open[key];
-      if(p.dataset.docked){
-        delete p.dataset.docked;p.style.display='';focus(p);
-        if(typeof p._onundock==='function')try{p._onundock()}catch(_){}
-      }else focus(p);
-      return;
-    }
+    // reveal() is the ONE implementation of "bring this window back" — openPanel uses the
+    // same one, so a docked window is restored identically whether you reach it by its
+    // square or by its tab.
+    if(key&&open[key]){reveal(open[key]);return}
     // ONE rule for every type: opening from a square LINKS the window to that square and
     // leaves the square standing. It used to be two rules — MULTI kept its square, and a
     // singleton released it ("the launcher tile has served its purpose", BUG-L2-004 Part 2).
     // That is why a chip vanished from the DOCK the moment you clicked it, for some panels
     // and not others. A square is the window's home; only its ✕ takes it away.
     let p=null;
-    if(MULTI.has(type)){
-      if(type==='shell'){if(cwd)pendingShellCwd=cwd;p=openPanel('shell',{newInstance:true})}
-      else{p=openPanel(type,{newInstance:true});if(type==='research'&&url&&p)Bus.emit('web:open',{url,target:p.dataset.key||''})}
-    }else p=openPanel(type);
+    if(type==='shell'){
+      // The one panel a square may open a SECOND window of: a square is a terminal you
+      // parked, and parking two folders must give you two terminals.
+      if(cwd)pendingShellCwd=cwd;p=openPanel('shell',{newInstance:true});
+    }else{
+      // Everything else has exactly one window. A BROWSER square carries an address, so
+      // opening it puts that page in a TAB of the browser you already have — replacing
+      // whatever you were reading would be the wrong answer to clicking a bookmark.
+      const had=anyInstanceOf(type).length>0;
+      p=openPanel(type);
+      if(type==='research'&&url&&p)Bus.emit('web:open',{url,newTab:had,target:p.dataset.key||''});
+    }
     // Persist the link, don't just stamp the element: a rebuild wipes the element and the
     // window would be orphaned exactly as before. Grid.linkPanel writes both.
     if(p&&d.cell&&typeof Grid!=='undefined'&&Grid.linkPanel)Grid.linkPanel(d.cell,p.dataset.key);
@@ -15587,7 +15685,12 @@ const Shortcuts=(()=>{
     },2000);
     function restore(){
       const saved=(Store.get().winsession||[]).slice(0,8);
+      // A session saved before 2026-08-01 can hold two BROWSER windows (or two of anything
+      // else). Only iT may be restored more than once now; a second entry of any other type
+      // would otherwise re-open the SAME window and move it to the older entry's geometry.
+      const seen=new Set();
       for(const w of saved){
+        if(w.t!=='shell'){ if(seen.has(w.t))continue; seen.add(w.t); }
         // Panels.openPanel — this scope is OUTSIDE the Panels module (the kernel-scope
         // gotcha: a bare openPanel here is a ReferenceError, and it only fired when a
         // session existed, so the differ then zeroed the evidence). Guard each window:

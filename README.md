@@ -10,11 +10,40 @@
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-000000)](docs/INSTALL.md)
 [![Status: Preview](https://img.shields.io/badge/Status-Preview-orange)](#)
 [![Bring your own model](https://img.shields.io/badge/AI-bring--your--own--model-8957e5)](#-bring-your-own-model)
-[![Single file + one daemon](https://img.shields.io/badge/build-single--file%20app-1f6feb)](#-the-single-file-build)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#-support-the-developer)
+[![Single file + one daemon](https://img.shields.io/badge/build-single--file%20app-1f6feb)](#-one-file-and-one-daemon)
+[![Star this repo](https://img.shields.io/badge/⭐-star%20this%20repo-brightgreen)](#-support-the-developer)
 [![Latest release](https://img.shields.io/github/v/release/devclone20/cloneframe_app_executable?label=download&color=2da44e)](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
 
-**→ [Download the latest build](https://github.com/devclone20/cloneframe_app_executable/releases/latest)** — with the sha256 to verify it against a build of your own.
+## ⬇️ Get the app
+
+**This repository is the app, not its source tree.** Download it, run the installer,
+and you have CLONE FRAME HUB in `~/Applications`.
+
+**→ [Download the latest release](https://github.com/devclone20/cloneframe_app_executable/releases/latest)**
+
+1. Download and unzip the release.
+2. Double-click **`install.command`**.
+   *(macOS flags anything downloaded from the web: if Finder refuses, right-click →
+   Open once, or run `zsh install.command` in Terminal, which never asks.)*
+3. The app opens. That is the whole install.
+
+The installer needs [Node.js 18+](https://nodejs.org) — it will tell you if it is
+missing — and it puts **everything inside the app bundle**: the `index.html` that is
+the entire interface, the local daemon, and its five small add-ons. Once it finishes,
+the folder you downloaded can go in the Trash.
+
+**To update.** Drag the old `CLONE FRAME HUB.app` to the Trash, download the new
+release, run its `install.command`. Your data is not in the app — it lives in
+`~/CloneFrame` and `~/.clone-frame-hub` — so an update never touches it.
+
+**To remove.** Trash the app, or run `uninstall.command` for the full cleanup. It stops
+the daemon, removes the app, and asks separately about your data, because "remove the
+program" and "throw away my work" are not the same request.
+
+Prefer a sandbox? [Run it in Docker](#-recommended--run-sandboxed-in-docker) instead —
+that is the recommended way to try it, and it needs no installer at all.
+
+---
 
 > [!CAUTION]
 > **🔒 Security comes first.**
@@ -200,34 +229,35 @@ Full model and threat notes: [SECURITY.md](SECURITY.md).
 
 ---
 
-## 🏗️ The single-file build
+## 🏗️ One file, and one daemon
 
-The app ships as **one** self-contained `index.html`, but it is *developed* as many
-small files. A tiny build step reassembles them with a strict guarantee: the built
-output is byte-for-byte reproducible, and a frozen checksum proves it never changed by
-accident.
+The whole interface is **one** self-contained `index.html` — the file at the root of
+this repository. Not a folder of assets, not a bundler's output directory with a
+manifest: one document you can open, read, and hash.
 
 ![The single-file build — many source files, one reproducible index.html, a golden sha256](docs/assets/single-file-build.svg)
 
-A fresh clone runs with **no build tools**: the `index.html` committed at the
-repository root *is* that built artifact, byte-for-byte what `npm run build` writes to
-`dist/index.html`. The panels are spliced back into the same scope at build time, so the
-single-file app and the modular source are always exactly the same program — and
-`tools/golden/index.sha256` is the frozen checksum that proves it.
+It is *developed* as many small files — a kernel and twenty panels — and a build step
+splices them back into one scope. That build is byte-for-byte reproducible, and a frozen
+checksum travels with every release so the app you downloaded can be checked against the
+one that was built and tested.
 
-### Verify it yourself
-
-You do not have to take our word for what is in the app you downloaded. Build it from
-the source in this repository and compare the bytes:
+### Verify what you downloaded
 
 ```bash
-npm install && npm run build          # web/ -> dist/index.html
-shasum -a 256 dist/index.html         # must equal the line in tools/golden/index.sha256
-cmp dist/index.html index.html        # and the committed app must be that same file
+shasum -a 256 index.html
 ```
 
-Three commands, no output, exit 0 — that is the whole proof. If any of them disagrees,
-the shipped app is not what this source says it is, and we want the issue.
+That number must equal the `sha256` line in the
+[release notes](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
+and the one in `SHA256SUMS.txt` published beside the download. If it does not, the file
+you have is not the file that was released, and we want the issue.
+
+> **On the source.** This repository publishes the app, not the workshop that makes it:
+> the panel sources, the build tooling and the test suite are not here, so you cannot
+> rebuild `index.html` from this clone. What you can do is read it — it is one plain
+> document — and verify its hash against the release. The daemon is different: `bridge/`
+> **is** its source, every line of it, and it is the half that touches your machine.
 
 ---
 
@@ -282,43 +312,34 @@ The port is published to your host's **loopback only**; your data persists in na
 Docker volumes (`cfhub-state`, `cfhub-data`). The terminal, file tree, and browser all
 operate **inside** the container — that is the sandbox.
 
-### 🖥️ Native — run directly on macOS
+### 🖥️ Native — install on macOS
 
-macOS is the primary platform for a direct install.
+The [installer at the top of this page](#️-get-the-app) is the supported path: download,
+double-click `install.command`, done. It builds `CLONE FRAME HUB.app` with the whole
+program inside the bundle, so nothing depends on where you unzipped it.
+
+If you would rather see every step, the installer does exactly this and nothing else:
 
 ```bash
-git clone https://github.com/devclone20/cloneframe_app_executable.git
-cd cloneframe_app_executable/bridge && npm install   # 5 small add-ons — see below
-./launch.sh                                            # starts the bridge on 127.0.0.1 and opens the app
-# or build the double-click app:  cd bridge && ./make-app.sh   -> "CLONE FRAME HUB.app"
+cd bridge && npm install --omit=dev     # 5 small add-ons — see below
+cd .. && zsh bridge/make-app.sh --bundle    # -> ~/Applications/CLONE FRAME HUB.app
+```
+
+Or skip the bundle entirely and just run the daemon where it stands:
+
+```bash
+cd bridge && npm install && ./launch.sh   # starts on 127.0.0.1 and opens the app window
 ```
 
 The daemon is otherwise pure Node built-ins. Those five add-ons are `ws` and `node-pty`
 (the live terminal) plus `imapflow`, `mailparser` and `nodemailer` (email). **Every one
 is imported behind a guard** — the bridge boots without any of them, you simply lose
 that feature. `node-pty` is a native module: if `npm install` complains, it is almost
-always that one wanting a prebuilt binary or the Xcode command line tools. See
-[docs/INSTALL.md](docs/INSTALL.md).
+always that one wanting a prebuilt binary or the Xcode command line tools
+(`xcode-select --install`). See [docs/INSTALL.md](docs/INSTALL.md).
 
-You do **not** need to build anything to run it: the committed `index.html` at the
-repository root *is* the app, and it is byte-for-byte what `npm run build` produces
-from `web/`. If you want to change the app, or run the tests, install the one root
-dev dependency too:
-
-```bash
-cd cloneframe_app_executable && npm install    # esbuild, for the single-file build
-cd bridge && npm install && cd ..              # the suite exercises the real daemon modules
-npm run build                                  # web/ -> dist/index.html
-npm test                                       # builds first, then runs the whole suite
-```
-
-Both installs are needed for `npm test`: a good part of the suite runs against the real
-bridge modules — a real `zsh`, real files, the real cron engine, a real HTTP daemon on a
-scratch port — rather than against mocks. With only the root install, eleven tests fail on
-a missing `imapflow`/`nodemailer`, which is a missing dependency and not a broken app.
-
-**Requirements:** Node ≥ 18 and a Chromium browser (Chrome, Brave, Edge, or Chrome
-for Testing) for the app window.
+**Requirements:** Node ≥ 18 and a Chromium browser (Chrome, Brave, or Edge) for the app
+window.
 
 On first run the app creates `~/CloneFrame/` (with `Models`, `Agents`, `Data`,
 `Cache`, `Harnesses`, `Servers`, `Downloads`, `Logs`) — ordinary folders you can open
@@ -341,7 +362,12 @@ so it will run, but the launch and packaging scripts are macOS-first. See
 | [SECURITY.md](SECURITY.md) | The full security model and how to report issues. |
 | [KNOWN-ISSUES.md](KNOWN-ISSUES.md) | What is thin, what is deliberate, and the residual risks — written before anyone else finds them. |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release, and what it cost you before it changed. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | The build is a splice and `dist/` is generated. Read this before your first change. |
+
+**Found a bug, or want something?** Open an
+[issue](https://github.com/devclone20/cloneframe_app_executable/issues) — bug reports
+and feature ideas both have a template. This repository publishes the built app, so
+there is no source here to send a patch against; a good issue is worth more anyway,
+and `KNOWN-ISSUES.md` is where anything already known is written down first.
 
 ## License
 

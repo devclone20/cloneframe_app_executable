@@ -52,7 +52,7 @@ Do this once; then never again.
 | Tool | Why | macOS | Linux (Debian/Ubuntu) | Linux (Fedora) | Windows |
 |---|---|---|---|---|---|
 | **Node.js ≥ 18** | Runs the Bridge | `brew install node` | `sudo apt install nodejs npm` | `sudo dnf install nodejs` | `winget install OpenJS.NodeJS.LTS` |
-| **git** | Downloads the app | `brew install git` | `sudo apt install git` | `sudo dnf install git` | `winget install Git.Git` |
+| **git** | One way to get the app — on macOS you can just download the release zip instead | `brew install git` | `sudo apt install git` | `sudo dnf install git` | `winget install Git.Git` |
 | **A Chromium browser** | Draws the app window | `brew install --cask google-chrome` | `sudo apt install chromium-browser` | `sudo dnf install chromium` | `winget install Google.Chrome` |
 
 Any Chromium-family browser works: **Google Chrome, Brave, Microsoft Edge, or
@@ -78,52 +78,76 @@ If that prints something like `v20.11.0`, you are ready. If it says
 
 ## macOS — the primary, best-supported path
 
-This is the path we build and test on first. Follow it top to bottom.
+This is the path we build and test on first. There are no commands to memorise.
 
-### The four commands
+### Two steps
 
-Open the **Terminal** app (press `⌘ + Space`, type "Terminal", hit Enter) and
-paste these one at a time:
+1. **Download** the
+   [latest release](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
+   and unzip it.
+2. **Double-click `install.command`.**
 
-```bash
-git clone https://github.com/devclone20/cloneframe_app_executable.git
-cd cloneframe_app_executable/bridge
-npm install          # a few small add-ons; the core is pure Node built-ins
-./launch.sh          # starts the Bridge and opens the app window
-```
+That is the whole install. It checks Node, installs the daemon's five small add-ons,
+builds **`CLONE FRAME HUB.app`** into your `~/Applications` folder with the entire
+program inside the bundle, and opens it. The window **pairs itself automatically** —
+there is no token to copy.
 
-That is it. `launch.sh` starts the Bridge on `127.0.0.1`, waits for it to become
-healthy, then opens the HUB in its own Chromium app window. The window **pairs
-itself automatically** — no token to copy.
+> **If macOS refuses to open it**, that is Gatekeeper, not a broken file: anything
+> downloaded from the web is quarantined until you say otherwise. Right-click the file →
+> **Open** → **Open** once, and it never asks again. Or run it from Terminal, which
+> never asks at all:
+>
+> ```bash
+> cd ~/Downloads/cloneframe_app_executable && zsh install.command
+> ```
+
+Once it finishes, **the folder you downloaded can go in the Trash.** The app carries
+everything it needs: `index.html`, the daemon, and its dependencies all live inside
+`CLONE FRAME HUB.app`.
 
 ### The picture
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
 flowchart TD
-  A["Open Terminal"] --> B["git clone the repo"]
-  B --> C["cd into cloneframe_app_executable/bridge"]
-  C --> D["npm install"]
-  D --> E["./launch.sh"]
-  E --> F{"Bridge healthy on 127.0.0.1:8765 ?"}
-  F -->|yes| G["Chromium app window opens and auto-pairs"]
-  F -->|"no"| H["Read ~/.clone-frame-hub/launch.log"]
-  G --> I["HUB is running"]
+  A["Download the release"] --> B["Unzip"]
+  B --> C["Double-click install.command"]
+  C --> D["Node found? add-ons installed?"]
+  D -->|yes| E["CLONE FRAME HUB.app built in ~/Applications"]
+  D -->|"no Node"| Z["It tells you, and stops"]
+  E --> G["It opens, and pairs itself"]
+  G --> H["Trash the download — the app is self-contained"]
 ```
 
-### Make the double-click app
+### Updating, and removing
 
-Once the clone works, you can turn it into a real macOS app you launch from
-Finder or the Dock — no terminal needed ever again:
+**To update:** drag the old `CLONE FRAME HUB.app` to the Trash, download the new
+release, run its `install.command`. Your data is never inside the app — it lives in
+`~/CloneFrame` and `~/.clone-frame-hub` — so an update leaves every setting, session
+and folder exactly as it was.
+
+**To remove:** Trash the app, or run **`uninstall.command`**, which stops the daemon,
+removes the app, and asks separately whether to delete your data. It will not decide
+that for you.
+
+### The manual path
+
+If you would rather do it by hand, or you want the daemon running from a folder you
+control rather than from inside a bundle:
 
 ```bash
-cd bridge && ./make-app.sh
+cd bridge
+npm install            # a few small add-ons; the core is pure Node built-ins
+./launch.sh            # starts the Bridge and opens the app window
 ```
 
-This builds **`CLONE FRAME HUB.app`** into your `~/Applications` folder. Double-click
-it like any other app; it starts the Bridge and opens the window for you.
+`launch.sh` starts the Bridge on `127.0.0.1`, waits for it to become healthy, then
+opens the HUB in its own Chromium app window. To build the double-click app from that
+same folder — as a shortcut into it rather than a self-contained copy — run
+`zsh bridge/make-app.sh` (add `--bundle` for the self-contained one, which is what the
+installer does).
 
-> To place the app somewhere else, pass a folder: `./make-app.sh ~/Desktop`.
+> To place the app somewhere else, pass a folder: `zsh bridge/make-app.sh ~/Desktop`.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
@@ -137,10 +161,9 @@ flowchart LR
 
 ## Linux
 
-The clone and install are identical to macOS. The difference is that the
-macOS-only conveniences — the AppleScript `.app` bundle and the `osascript`
-pop-up alerts — are not available. That is fine: **the app still runs perfectly
-in a browser window.**
+`install.command` is macOS-only — it builds an AppleScript `.app` bundle, which does
+not exist here. Everything underneath it does: **clone, install the daemon's add-ons,
+run it, and open the app in a browser window.**
 
 ### Install and run
 
