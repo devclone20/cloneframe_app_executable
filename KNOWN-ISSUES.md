@@ -78,10 +78,13 @@ fix and a regression test.
   exactly the thing a test harness cannot fake, and exactly why it is safe. If the
   window does not reach **APP** on a fresh machine, tell us; that is the one path
   where we most need reports from other people's hardware.
-- A fresh clone runs with no build tools: the committed `index.html` at the repository
-  root **is** the built artifact, byte-for-byte what `npm run build` writes to
-  `dist/index.html`. You only need `npm install` (in `bridge/`, plus the repo root for
-  `esbuild`) if you intend to **build** rather than run.
+- **This repository publishes the app, not the source that builds it.** As of
+  2026-08-01 the panel sources, build tooling and test suite are no longer here: what
+  is published is the built `index.html`, the daemon (`bridge/`, which *is* its own
+  source), the runtime assets and the installer. So you cannot rebuild the interface
+  from this clone, and there is no `npm run build` or `npm test` to run. What you can
+  do instead is `shasum -a 256 index.html` and compare it with the release notes.
+  Stated here rather than left for you to discover.
 - `npm install` in `bridge/` pulls **five** small add-ons, not three: `ws` and `node-pty`
   for the live terminal, and `imapflow`/`mailparser`/`nodemailer` for email. Every one is
   behind a guarded import — the daemon boots without any of them and reports the feature
