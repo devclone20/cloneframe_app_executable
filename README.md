@@ -16,16 +16,20 @@
 
 ## ⬇️ Get the app
 
-**This repository is the app, not its source tree.** Download it, run the installer,
-and you have CLONE FRAME HUB in `~/Applications`.
+**One file. Download it, double-click, done.**
 
-**→ [Download the latest release](https://github.com/devclone20/cloneframe_app_executable/releases/latest)**
+**→ [Download `CLONE-FRAME-HUB.zip`](https://github.com/devclone20/cloneframe_app_executable/releases/latest)**
 
-1. Download and unzip the release.
-2. Double-click **`install.command`**.
+1. Download the zip and unzip it.
+2. Double-click **`install.command`** inside.
    *(macOS flags anything downloaded from the web: if Finder refuses, right-click →
    Open once, or run `zsh install.command` in Terminal, which never asks.)*
 3. The app opens. That is the whole install.
+
+That zip is the download — the app, the local daemon, and the installer, in one
+file, with its sha256 published beside it. There is also a bare
+`clone-frame-hub-<version>.html` on the same page if all you want is to read the app
+file itself; it is byte-identical to the `index.html` in this repository.
 
 The installer needs [Node.js 18+](https://nodejs.org) — it will tell you if it is
 missing — and it puts **everything inside the app bundle**: the `index.html` that is
