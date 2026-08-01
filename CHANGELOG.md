@@ -5,6 +5,58 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.8 — 2026-08-01
+
+An adversarial audit read this release from six angles and confirmed 33 findings. This
+closes the six that cost you something — **including a blocker introduced two versions
+ago** — and the documentation that sent you to screens that do not exist.
+
+**A parked BROWSER could vanish with no square to bring it back.**
+
+Dock BROWSER, close it with its ✕, reopen it from anywhere that is *not* its square, dock
+it again — and the window hid behind a square that was never actually created. No icon on
+the canvas, nothing to click, and nothing written to disk. Your pages were still loaded,
+still using memory, and completely unreachable.
+
+Introduced in 0.3.6 by the one-square rule: the new refusal was correct, and the code that
+docks windows never read it. Reproduced against the published 0.3.7 build before fixing.
+If nowhere is available now, the window folds in place where you can still see it.
+
+**Five more**
+
+- **`it` was broken in every installed copy.** The shim the daemon writes had a
+  percent-encoded path, so inside `CLONE FRAME HUB.app` — two spaces in the name — it
+  pointed at a file that does not exist. Harmless for years in a developer checkout;
+  guaranteed from the moment the installer started putting the daemon in a bundle.
+- **The uninstaller was not in the app**, while the installer told you in consecutive
+  lines to run it and to Trash the folder holding it. It now travels with the app, and a
+  copy lands in `~/Applications` where you can find it.
+- **The uninstaller killed whatever held port 8765** — a dev server, a tunnel, anything.
+  Now it checks the process is actually the HUB before stopping it.
+- **Removing one frame square could close a window another square still pointed at**,
+  taking your CODE session and every agent running in it.
+- **Closing an iT workspace you had restored but never opened** left its shells running
+  with no way to name them again.
+- **⌘T / ⌘L / ⌘F kept reaching a browser you had just parked**, invisibly.
+
+**The front door pointed at rooms that were demolished**
+
+`docs/CONNECT.md` told you to open **CLI ECONOMY OS** to connect a wallet, and to install
+**EXO LAB** from an **INTEGRATIONS** tab. None of those exist. Wallet sign-in is the button
+in the header (and MY AGENTS → Connect wallet); the local cluster is **MATRIX**, a top-bar
+tab. `HOW-IT-WORKS.md` gave both demolished rooms a full guided tour. Retargeted at what
+actually shipped, with the unbundled tools now marked as a design note rather than
+instructions. `ARCHITECTURE.md`'s terminal-session cap corrected from 12 to the real 24.
+
+Twenty-odd smaller documentation findings from the same audit are not in this release. They
+are listed, not forgotten.
+
+---
+
+```
+sha256  e842392f1535348b5cb261158988a9b575f549157eb4f4a6be6b9498fcdd708c
+```
+
 ## 0.3.7 — 2026-08-01
 
 **No invisible windows that should not be there.**

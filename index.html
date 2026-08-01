@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.3.7 build token — never as a number written here.
+   the app only through the 0.3.8 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -2796,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.7 · WEB</span>
+    <span class="gver">v0.3.8 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -5624,9 +5624,24 @@ const Panels=(()=>{
     // A window that survives its dock gets its OWN square — its HOME square, carrying its
     // panelKey. Docking the same window again reuses that square, so squares never accumulate;
     // a rebuilt-on-demand panel keeps reusing its type's square instead.
-    let cell=DOCK_HIDES.has(type)
-      ?cells.find(el=>el.classList.contains('occ')&&el.dataset.panelKey===p.dataset.key)||null
-      :cells.find(el=>el.classList.contains('occ')&&el.dataset.type===type);
+    // Where does this window go? Three answers, in order:
+    //   1. its OWN home square — a square already carrying this exact window's key;
+    //   2. the one square its TYPE has. A square whose window was closed keeps its type and
+    //      loses its key, so (1) misses it. Grid.squareFor() returns null for iT, which is
+    //      why parking three terminals still gives you three squares;
+    //   3. a free one.
+    //
+    // Step 2 used to be missing for the dock-hides types, and that was a BLOCKER I shipped in
+    // 0.3.6: dock BROWSER, ✕ it (its square keeps type='research', loses the key), reopen from
+    // the tab, dock again — (1) missed, so it fell to (3), and Grid.occupy REFUSED because a
+    // research square already existed. The refusal was ignored. The window was then hidden
+    // behind a cell that was never occupied: no tile drawn, nothing to click, and no record in
+    // the store — so the next grid rebuild left it unclaimed and the safety net destroyed it,
+    // pages and all. A window you parked, vanishing with no square to bring it back.
+    let cell=(DOCK_HIDES.has(type)
+        ?cells.find(el=>el.classList.contains('occ')&&el.dataset.panelKey===p.dataset.key)
+        :null)
+      ||Grid.squareFor(type)||null;
     // The handle rides WITH the record, not just on the element — see occupyEl.
     const meta=Object.assign({},(typeof p._dockMeta==='function'?(p._dockMeta()||null):null)||{});
     if(DOCK_HIDES.has(type))meta.panelKey=p.dataset.key;
@@ -5639,11 +5654,14 @@ const Panels=(()=>{
       const r=p.getBoundingClientRect();
       const [wx,wy]=Camera.screenToWorld(r.left+r.width/2,r.top+Math.min(r.height/2,60));
       cell=Grid.pickFree(wx,wy);
-      if(!cell){ // no free square anywhere — fall back to header-only collapse
+      // NEVER hide a window behind a square that was not taken. occupy() can refuse, and the
+      // whole failure above was one ignored return value. If there is nowhere to put it, fold
+      // the window in place — visible, with its header — rather than making it disappear.
+      if(!cell||!Grid.occupy(cell,type,meta)){
         const b=p.querySelector('.body');if(b&&b.style.display!=='none'){p.dataset.h=p.style.height;p.style.height='auto';b.style.display='none'}
+        Toast.show('No free frame square — collapsed in place instead');
         return;
       }
-      Grid.occupy(cell,type,meta);
     }
     cell.classList.add('minpulse');setTimeout(()=>cell.classList.remove('minpulse'),1000);
     if(DOCK_HIDES.has(type)){
@@ -5864,7 +5882,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.3.7
+  OS      CLONE FRAME OS · v0.3.8
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -10187,6 +10205,16 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     function showWs(){workspaces.forEach((w,i)=>{if(w.grid)w.grid.classList.toggle('on',i===wsActive)})}
     function closeWorkspace(w){
       (w.panes||[]).forEach(pn=>{pn.surfaces.forEach(t=>disposeSurf(t,true));pn.surfaces=[]}); // closing a workspace reaps its shells
+      // …and the ones with no pane to reap. A workspace restored from the saved layout is
+      // LAZY: until you visit it, panes is empty and its session ids live only in w.spec —
+      // yet those shells are real and running from before the last reload. Closing such a
+      // workspace from the sidebar dropped it, spec and all, killing nothing and leaving no
+      // way to ever name them again. The window-close hook could not help: by then the
+      // workspace is gone from the list it walks.
+      if(!w.grid&&w.spec){
+        const ids=specPsids(w.spec);
+        if(ids.length){try{RPC('pty','killMany',ids).catch(()=>{})}catch(_){}}
+      }
       try{w.grid&&w.grid.remove()}catch(_){}
       const i=workspaces.indexOf(w);if(i>=0)workspaces.splice(i,1);
       pruneGroups(); // closing the last member of a group takes the group with it
@@ -10791,7 +10819,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.7 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.8 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -12030,7 +12058,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.7 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.8 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -13515,7 +13543,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     if(e.altKey)return; // ⌥⌘= / ⌥⌘- belong to the iT canvas, not to browser zoom
     // e.key is absent on some IME/dead-key paths — reading it blind threw inside this listener
     if(!['l','t','w','r','f','=','+','-','0'].includes(String(e.key||'').toLowerCase()))return;
-    let mx=-1,top=null;document.querySelectorAll('.panel').forEach(el=>{const zi=+el.style.zIndex||0;if(zi>=mx){mx=zi;top=el}});
+    // …the top-most VISIBLE one. A window that was just docked is display:none but keeps the
+    // z-index focus() gave it a moment earlier — minimizeToCell hides it without lowering it —
+    // so ⌘T / ⌘L / ⌘F went on opening tabs and focusing the address bar inside a browser the
+    // owner had parked and could not see. Keys landing in an invisible window is the same
+    // defect as a window being invisible at all: skip anything docked.
+    let mx=-1,top=null;document.querySelectorAll('.panel').forEach(el=>{
+      if(el.dataset.docked||el.style.display==='none')return;
+      const zi=+el.style.zIndex||0;if(zi>=mx){mx=zi;top=el}
+    });
     if(top&&top._wbr&&document.body.contains(top))top._wbr.key(e);
   });
   // ── BROWSER panel (panel key `research`) ──────────────────────────────────
@@ -15024,7 +15060,18 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   // A square's ✕ closes its window, whether that window is hidden in the square or open on
   // screen. It used to close only a DOCKED one, which was right while a square existed only
   // for a minimized window; now a square outlives the restore, so ✕ is the single way out.
-  Bus.on('cell:removed',pk=>{const p=open[pk];if(p)close(p);Bus.emit('panels:changed')});
+  Bus.on('cell:removed',pk=>{
+    if(!pk){Bus.emit('panels:changed');return}
+    // TWO squares can legitimately point at ONE window. openPanel aliases 'agent' → 'terminal'
+    // and 'browser' → 'research', and squareFor de-duplicates on the square's own type, so an
+    // AGENT square and a CODE square coexist and BOTH link to the single window keyed
+    // 'terminal'. Removing either one used to close that window — taking the owner's CODE
+    // session, and every agent running in it, away from a square they had not touched, which
+    // was still sitting there pointing at nothing.
+    const stillClaimed=[...document.querySelectorAll('.cell.occ')].some(c=>c.dataset.panelKey===pk);
+    if(stillClaimed){Bus.emit('panels:changed');return}
+    const p=open[pk];if(p)close(p);Bus.emit('panels:changed');
+  });
   // Safety net. A docked window is invisible and holds real resources — pty sessions, Chrome
   // tabs — and its ONLY handle is the square that carries its key. Persisting that key across
   // a grid rebuild is the fix; this is the guarantee. After any dock change, a hidden window

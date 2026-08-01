@@ -436,7 +436,12 @@ function ensureZdot() {
     // the `it` CLI, on PATH only inside iT shells
     const bin = path.join(CONFIG_DIR, 'bin');
     fs.mkdirSync(bin, { recursive: true, mode: 0o700 });
-    const cli = path.join(path.dirname(new URL(import.meta.url).pathname), 'it-cli.mjs');
+    // fileURLToPath, not .pathname. A file: URL percent-encodes, so `.pathname` hands back
+    // "…/CLONE%20FRAME%20HUB.app/…" — a path that does not exist. Harmless while the daemon
+    // only ever ran from a developer's space-free checkout; guaranteed broken the moment the
+    // installer started putting it inside "CLONE FRAME HUB.app", which has two spaces in its
+    // name. Every `it` command in every installed release would have failed to find its script.
+    const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), 'it-cli.mjs');
     fs.writeFileSync(path.join(bin, 'it'), `#!/bin/sh\nexec node ${JSON.stringify(cli)} "$@"\n`, { mode: 0o755 });
     const hook = [
       '# CLONE FRAME HUB shell integration (generated — safe to delete; recreated on demand).',

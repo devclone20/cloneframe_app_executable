@@ -23,13 +23,26 @@ say "  ────────────────────────�
 say ""
 
 # ── 1 · stop the daemon ──────────────────────────────────────────────────────
-# Only ever the process LISTENING on our port on loopback — never a pid matched by
-# name, which on a developer's machine is somebody else's editor.
+# The comment here used to claim this only ever kills "the process LISTENING on our port on
+# loopback". It did not: `lsof -ti tcp:8765` filters by PORT NUMBER alone. Anything holding
+# 8765 — somebody's dev server, a tunnel, an unrelated app that happens to like that port —
+# got a TERM and then a KILL -9 from an uninstaller the owner ran to remove OUR program.
+# Now the pid must also BE our daemon: a node process running hub-bridge.mjs.
 PIDS="$(/usr/sbin/lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null || true)"
-if [ -n "$PIDS" ]; then
-  for pid in ${=PIDS}; do kill "$pid" 2>/dev/null || true; done
+KILLED=0
+for pid in ${=PIDS}; do
+  CMD="$(/bin/ps -o command= -p "$pid" 2>/dev/null || true)"
+  case "$CMD" in
+    *hub-bridge.mjs*) kill "$pid" 2>/dev/null || true; KILLED=$((KILLED+1)) ;;
+    *) say "  · left pid $pid alone — it holds port ${PORT} but is not the HUB Bridge" ;;
+  esac
+done
+if [ "$KILLED" -gt 0 ]; then
   sleep 1
-  for pid in ${=PIDS}; do kill -9 "$pid" 2>/dev/null || true; done
+  for pid in ${=PIDS}; do
+    CMD="$(/bin/ps -o command= -p "$pid" 2>/dev/null || true)"
+    case "$CMD" in *hub-bridge.mjs*) kill -9 "$pid" 2>/dev/null || true ;; esac
+  done
   ok "stopped the daemon on 127.0.0.1:${PORT}"
 else
   ok "the daemon was not running"

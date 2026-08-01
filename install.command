@@ -82,6 +82,13 @@ zsh "$ROOT/bridge/make-app.sh" --bundle "$HOME/Applications"
 APP="$HOME/Applications/CLONE FRAME HUB.app"
 [ -d "$APP" ] || { bad "the app was not created"; read -r "?  Press return to close…"; exit 1; }
 
+# Put the uninstaller somewhere the owner will actually find it. It also lives inside the
+# bundle, but nobody goes hunting in Contents/Resources — and the line below used to tell
+# people to run it while the line after told them to Trash the folder holding it.
+UNINST="$HOME/Applications/Uninstall CLONE FRAME HUB.command"
+cp "$ROOT/uninstall.command" "$UNINST" 2>/dev/null && chmod +x "$UNINST" 2>/dev/null
+[ -f "$UNINST" ] && ok "uninstaller: $UNINST"
+
 # ── 5 · open it ──────────────────────────────────────────────────────────────
 say ""
 ok "installed: $APP"
@@ -91,7 +98,9 @@ say "    ~/CloneFrame          folders every frame reads and writes"
 say "    ~/.clone-frame-hub    settings, pairing token, agent workspace"
 say ""
 say "  To update: Trash the app, download the new release, run its installer."
-say "  To remove: Trash the app, or run uninstall.command for a full cleanup."
+say "  To remove: Trash the app — or, for a full cleanup that also stops the daemon"
+say "             and offers to delete your data:"
+say "             $UNINST"
 say ""
 say "  This folder is no longer needed — the app carries everything it needs."
 say ""

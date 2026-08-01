@@ -71,7 +71,11 @@ if [ "$BUNDLE" = 1 ]; then
   mkdir -p "$HUBDIR"
   # The payload, named explicitly. An allowlist, not "everything except" — a folder
   # added to the tree tomorrow must not silently ride into everyone's Applications.
-  for item in index.html mdlite.js privy-login.js vendor bridge agent context integrations package.json; do
+  # uninstall.command travels WITH the app. It was left out, while install.command's closing
+  # screen told the owner, in consecutive lines, both to "run uninstall.command" and that the
+  # folder it lives in "is no longer needed" — so following the instructions destroyed the only
+  # copy of the tool the same instructions point at.
+  for item in index.html mdlite.js privy-login.js vendor bridge agent context integrations package.json uninstall.command; do
     [ -e "$ROOT/$item" ] && cp -R "$ROOT/$item" "$HUBDIR/"
   done
   # dist/index.html wins over the root copy when both exist (transport/static.mjs), and
