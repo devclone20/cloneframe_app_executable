@@ -228,7 +228,11 @@ export async function schedule(input = {}) {
 // Read-path: scheduled emails, newest sendAt first. `status` is one of
 // 'all' | 'pending' | 'sent' | 'failed' | 'canceled'; an unknown value is
 // treated as 'all'.
-export function list({ status = 'all' } = {}) {
+export function list(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { status = 'all' } = opts || {};
   const store = loadStore();
   const want = asString(status).trim().toLowerCase() || 'all';
   const filtered = want === 'all' || !VALID_STATUS.has(want)

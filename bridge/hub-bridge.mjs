@@ -371,7 +371,16 @@ async function handleMod(req, res, name, body) {
   const f = obj[fn];
   if (typeof f !== 'function') return fail(400, 'no such fn: ' + fn);
   try { return ok(await f.apply(obj, Array.isArray(body.args) ? body.args : [])); }
-  catch (e) { return fail(500, e); }
+  catch (e) {
+    // A TypeError raised by applying the function is the CALLER's arguments, not a fault in
+    // the daemon. Answering 500 told an agent to retry something that will never work, and
+    // handed back a fragment of V8's own text ("Cannot destructure property 'status' of…")
+    // as if it were an answer. 400 says whose problem it is, and names the call.
+    if (e instanceof TypeError) {
+      return fail(400, name + '.' + fn + ' — the arguments were not what it accepts: ' + ((e && e.message) || e));
+    }
+    return fail(500, e);
+  }
 }
 // The in-app browser is now a real Chromium engine driven over CDP (bridge/webengine.mjs)
 // through the token-gated POST /mod/webengine router — the old token-less GET /proxy
@@ -435,7 +444,11 @@ async function route(req, res) {
     // layout and where the repo lives. It was added in 3d18a2d of this session's own work,
     // for diagnostics that appStale already answers as a boolean, and nothing ever read it —
     // every `.root` in the client comes from RPC('folders','root'), which is behind the token.
-    sendJson(res, 200, { ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale(), appStale: appStale() });
+    // `sockets` is the honest half of the answer. Without the `ws` dependency the upgrade
+    // handler refuses EVERY WebSocket, and the three biggest surfaces — the iT terminal, the
+    // browser's frame push and the agent control plane — go dark with nothing on screen to
+    // say why. The app reads this and tells the owner instead of looking broken.
+    sendJson(res, 200, { ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, sockets: !!WebSocketServer, stale: bridgeStale(), appStale: appStale() });
     return;
   }
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
@@ -639,6 +652,17 @@ server.listen(PORT, HOST, async () => {
   console.log(`  brain      ${brain.ready ? '\x1b[32m' + (brain.provider || 'model') + ' (' + brain.model + ') — from Settings/env, any provider\x1b[0m' : '\x1b[33mnone — add a provider, or set DEEPSEEK_API_KEY / ANTHROPIC_API_KEY in ~/.env.local\x1b[0m'}`);
   console.log(`  shell      zsh · cwd ${Shell.cwd()}`);
   console.log(`  bind       ${HOST} only  ·  token gate ON  ·  serving ${path.basename(HUB_ROOT)}/`);
+  // Say it out loud. `ws` is the daemon's one hard dependency, and install.command is what
+  // puts it there — but a half-finished install, or running this file straight out of the
+  // download, leaves it absent. The upgrade handler then refuses every socket and the iT
+  // terminal, the browser and the agent control plane are all simply dead, with the rest of
+  // the app looking perfectly fine. Nothing said so; a whole class of "it's broken" reports
+  // was one missing folder.
+  if (!WebSocketServer) {
+    console.log('  \x1b[33msockets    OFF — the `ws` package is missing, so the iT terminal, the BROWSER and');
+    console.log('             the agent control plane cannot connect. Run install.command (or, in this');
+    console.log('             folder: npm install --omit=dev) and start the app again.\x1b[0m');
+  }
   const sp = Session.get();
   console.log(`  session    ${sp.mode === 'expiring'
     ? `expires in ${Math.max(0, Math.round(sp.remainingMs / 60000))} min (${sp.hours}h token · Settings → Session)`

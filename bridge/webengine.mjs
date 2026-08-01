@@ -1138,7 +1138,11 @@ export const Webengine = {
 
   // Agent-facing page extraction. The expression is FIXED — maxChars is a
   // clamped integer, never caller text, so there is no eval-injection path.
-  async read({ id, maxChars = 20000 } = {}) {
+  async read(opts = {}) {
+    // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+    // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+    // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+    const { id, maxChars = 20000 } = opts || {};
     const tab = (id != null ? _tab(id) : _primaryTab());
     if (!tab) return { ok: false, error: 'no tab open' };
     const cap = _clampInt(maxChars, 1, 200000, 20000);
@@ -1195,7 +1199,8 @@ export const Webengine = {
   // readPage returns a compact accessibility tree: every interactive node gets a
   // stable ref (r1, r2…) mapped to its backendDOMNodeId, so click({ref}) is robust
   // against pixel drift — the Claude-Code browser-pane pattern.
-  async readPage({ id } = {}) {
+  async readPage(opts = {}) {
+    const { id } = opts || {};
     const tab = (id != null ? _tab(id) : _primaryTab());
     if (!tab) return { ok: false, error: 'no tab open' };
     try {

@@ -50,7 +50,11 @@ function load() {
 }
 
 /** @returns {{ok:true, memories:Array, enabled:boolean, topics:string[], counts:Record<string,number>}} */
-export function list({ topic, q } = {}) {
+export function list(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { topic, q } = opts || {};
   const s = load();
   let rows = s.memories.slice();
   if (topic && topic !== 'all') rows = rows.filter((m) => m.topic === topic);
@@ -157,7 +161,8 @@ export function importMemories(rows) {
  * What a prompt should carry. Newest first, bounded, and flattened — this runs on
  * every agent turn, so it must be cheap and it must never be able to throw.
  */
-export function recall({ limit } = {}) {
+export function recall(opts = {}) {
+  const { limit } = opts || {};
   try {
     const s = load();
     if (!s.enabled) return { ok: true, enabled: false, memories: [] };

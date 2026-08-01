@@ -143,7 +143,11 @@ function hasTag(n, tagLower) {
 
 // ── public API ────────────────────────────────────────────────────────────────
 // Read-path: returns values directly. `list` newest-first, body → snippet.
-export function list({ search = '', tag = '' } = {}) {
+export function list(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { search = '', tag = '' } = opts || {};
   const store = loadStore();
   const needle = asString(search).trim().toLowerCase();
   const wantTag = asString(tag).trim().toLowerCase();

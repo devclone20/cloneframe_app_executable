@@ -134,6 +134,10 @@ export const Files = {
     // Default stays modest for agent/tool callers; the iT/FOLDERS file viewer passes its
     // own big maxKB (65536) — the owner reads and edits large source files in-app.
     const f = resolve(p, opts.cwd); const maxKB = opts.maxKB || 512;
+    // The guard `write` and `move` already have. Without it a missing path reached statSync
+    // as null and the caller got Node's own sentence back — 'The "path" argument must be of
+    // type string or an instance of Buffer…' — which reads like a fault in the app.
+    if (!f) return { ok: false, error: 'no path' };
     // The allowlist is canonicalised the same way the guard is: a reader asking for
     // ~/.CLONE-FRAME-HUB/AGENTS.md means the same file, and should get the same answer.
     if (!isPublicHubFile(f) && isSecret(f)) return SECRET_ERR;
@@ -171,6 +175,7 @@ export const Files = {
   },
   stat(p, opts = {}) {
     const f = resolve(p, opts.cwd);
+    if (!f) return { ok: false, error: 'no path' };
     if (isSecret(f)) return SECRET_ERR;
     try { const st = fs.statSync(f); return { ok: true, info: { path: f, size: st.size, dir: st.isDirectory(), mtime: st.mtimeMs } }; }
     catch (e) { return { ok: false, error: e.message }; }

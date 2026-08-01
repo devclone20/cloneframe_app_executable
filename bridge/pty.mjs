@@ -145,7 +145,11 @@ function reap(pty) {
 
 // ── control plane ───────────────────────────────────────────────────────────
 
-function open({ cmd, args = [], cwd, cols = 80, rows = 24, env, id } = {}) {
+function open(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { cmd, args = [], cwd, cols = 80, rows = 24, env, id } = opts || {};
   if (!ptySpawn) return { ok: false, error: NOT_INSTALLED };
   if (typeof cmd !== 'string' || !cmd.trim()) return { ok: false, error: 'cmd required' };
   if (!Array.isArray(args)) return { ok: false, error: 'args must be an array' };

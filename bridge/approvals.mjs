@@ -57,7 +57,11 @@ function enforceCap(items) {
 // ── queries ──────────────────────────────────────────────────────────────────
 
 /** @returns {object[]} newest first, optionally filtered by status */
-export function list({ status } = {}) {
+export function list(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { status } = opts || {};
   const { items } = loadStore();
   const sorted = [...items].sort((a, b) => b.createdAt - a.createdAt);
   if (status === undefined) return sorted;

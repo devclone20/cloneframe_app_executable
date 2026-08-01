@@ -4843,6 +4843,7 @@ const Bridge=(()=>{
     info=h;Bus.emit('bridge:changed');
     return{on:true,msg:h.name+' v'+h.version+' · '+((h.brain&&h.brain!=='none')?((h.model||'model')+(h.provider?' · '+h.provider:'')):'no brain (add a provider or set an API key)')+(h.cwd?' · '+h.cwd:'')};
   }
+  let _socketsWarned=false; // say it once per window, not on every reconnect
   async function refresh(){
     let h=await health();
     // /health needs no token — it only proves a daemon is listening. Treating that as
@@ -4857,6 +4858,10 @@ const Bridge=(()=>{
     Bus.emit('bridge:changed');
     if(h&&h.ok&&h.stale)setTimeout(()=>Toast.show('The HUB Bridge is running an OLDER build than the code on disk — quit and relaunch the app to load it.'),600);
     if(h&&h.ok&&h.appStale)setTimeout(()=>Toast.show('This window is an OLD build of the app — web/ was edited without a rebuild. Run: npm run build'),1400);
+    // Without `ws` the daemon refuses every WebSocket, so iT, the BROWSER and the agent
+    // control plane are dead while the rest of the app looks perfectly healthy. Say it once,
+    // here, rather than let three panels fail one at a time with no explanation between them.
+    if(h&&h.ok&&h.sockets===false&&!_socketsWarned){_socketsWarned=true;setTimeout(()=>Toast.show('The daemon is missing its `ws` package, so the iT terminal, BROWSER and agent control cannot connect. Run install.command again.'),2200)}
     return info;
   }
   // Dropping the token is a local act. Whether a daemon is still listening is NOT something
@@ -9315,13 +9320,23 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
 
     // ---- live polling ----
+    // 1 Hz while the engine answers. When it does NOT — the ordinary state, since the engine
+    // is off until the owner starts it — every tick was a refused connection to 127.0.0.1:52415,
+    // one per second for as long as the panel stayed open, each one a red line in the console
+    // and the network log. Nothing was broken; it just looked like it was, and it cost a
+    // syscall a second for nothing. So back off while it is down (to ~5s) and snap back to
+    // 1 Hz the instant it answers — the owner still sees the engine come up promptly.
+    // Only the dead-port probe backs off — the disk refresh and the engine-status read below
+    // stay on their own cadence, so what is on this machine is never stale on account of it.
+    const OFFLINE_EVERY=5;
     async function tick(){
       if(!p.isConnected){clearInterval(st.timer);st.timer=null;return}
       invalidateDisk();
-      try{
+      const probe=st.online||st.fails<2||((st.skip=(st.skip||0)+1)%OFFLINE_EVERY===0);
+      if(probe)try{
         const r=await fetch(API+'/state',{signal:AbortSignal.timeout(1500)});
         if(!r.ok)throw 0;
-        st.st8=await r.json();st.fails=0;
+        st.st8=await r.json();st.fails=0;st.skip=0;
         const was=st.online;st.online=true;
         if(!was){loadModels();syncCluster();st.nodeId=null} // just came online → register + sync the pickers
         // exo mints a NEW random node id on every start (routing/router.py: persistence is

@@ -230,7 +230,11 @@ function chains() {
 }
 
 // probe: eth_chainId + eth_blockNumber + eth_gasPrice, verify chain id matches
-async function status({ testnet = false } = {}) {
+async function status(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { testnet = false } = opts || {};
   const key = 'status:' + (testnet ? 't' : 'm');
   const cached = _cacheGet(key);
   if (cached) return cached;

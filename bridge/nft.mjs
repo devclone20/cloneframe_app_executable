@@ -243,7 +243,11 @@ export const NFT = {
     agents.forEach((a) => { a.isAgent = isAgentNft(a); });
     return { ok: true, source: 'rpc', agents, inftCount: agents.filter(a => a.isAgent).length };
   },
-  async read({ contract, tokenId, rpcUrl, fresh = false } = {}) {
+  async read(opts = {}) {
+    // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+    // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+    // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+    const { contract, tokenId, rpcUrl, fresh = false } = opts || {};
     const c = contract || store.contract;
     if (!c) return { ok: false, error: 'need contract', nft: placeholder(tokenId || 55101) };
     const ck = c + ':' + tokenId;

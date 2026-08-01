@@ -139,7 +139,11 @@ function respondHtml(res, status, body) {
  * @param {{clientId?:string, clientSecret?:string}} creds
  * @returns {{ok:boolean, error?:string}}
  */
-function config({ clientId, clientSecret } = {}) {
+function config(opts = {}) {
+  // `opts || {}`: JSON has no `undefined`, so an omitted options bag arrives over RPC as
+  // null — and a `= {}` default only ever fires for undefined. Without this the destructure
+  // throws a V8 internal ("Cannot destructure property …") instead of answering the call.
+  const { clientId, clientSecret } = opts || {};
   if (!clientId || typeof clientId !== 'string') return { ok: false, error: 'clientId is required' };
   if (!clientSecret || typeof clientSecret !== 'string') return { ok: false, error: 'clientSecret is required' };
   try {
