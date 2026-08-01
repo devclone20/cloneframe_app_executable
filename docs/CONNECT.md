@@ -28,7 +28,7 @@ You only need three things:
 |---|---|
 | **Node ≥ 18** | Runs the HUB Bridge (the local daemon). |
 | **A Chromium browser** (Chrome, Brave, Edge, or Chrome for Testing) | Draws the app window. |
-| **One thing to connect a model with** | Either a cloud **API key**, or your own hardware to run a **local model** via EXO LAB. |
+| **One thing to connect a model with** | Either a cloud **API key**, or your own hardware to run a **local model** via MATRIX. |
 
 If the app is not running yet: download the
 [latest release](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
@@ -154,7 +154,7 @@ the app. There are two ways, and you can switch between them at any time.
 flowchart TD
   Q{"How do you want to run your model?"}
   Q -->|"Easiest · use a provider"| Cloud["Cloud API key"]
-  Q -->|"Fully private · your hardware"| Local["Local model via EXO LAB"]
+  Q -->|"Fully private · your hardware"| Local["Local model via MATRIX"]
   Cloud --> C1["Paste key in Settings"]
   C1 --> C2["Stays on your machine · never committed"]
   C2 --> Ready["Chat in CODE · run Harnesses"]
@@ -201,12 +201,13 @@ and the app uses the first provider you added, then falls back to a key in
 > revoke access, rotate the key at your provider — the app holds no copy it can
 > leak.
 
-### 2b · A fully local model via EXO LAB *(coming soon)*
+### 2b · A fully local model via MATRIX
 
 If you would rather **no cloud key at all**, run the model on your own hardware.
-EXO LAB clusters your own devices and serves a local model API.
+MATRIX clusters your own devices and serves a local model API. It is a top-bar tab in
+the app — not something to install.
 
-1. Go to the **INTEGRATIONS** tab and install **EXO LAB** (see §6).
+1. Open the **MATRIX** tab and start the cluster engine.
 2. Launch it. EXO serves its API on **`127.0.0.1:52415`** and opens **inside**
    the app.
 3. Go to **LAB**, and under local models select the model EXO is serving.
@@ -301,9 +302,9 @@ flowchart LR
 
 ---
 
-## 5 · Wallet (for the CLI ECONOMY OS)
+## 5 · Wallet (sign in)
 
-The **CLI ECONOMY OS** tab lets agents take part in an on-chain economy
+Signing in with your wallet lets agents take part in an on-chain economy
 (the VIRTUALS, ROBINHOOD, and OKX AI islands, plus your own iNFT agents). To use
 it, you connect a wallet — and the security model here is strict and simple.
 
@@ -314,14 +315,15 @@ private key**. You approve every signature yourself, in your own wallet.
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
 flowchart LR
-  UI["CLI ECONOMY OS"] --> Bridge["HUB Bridge"]
+  UI["Wallet sign-in · MY AGENTS"] --> Bridge["HUB Bridge"]
   Bridge -->|"builds UNSIGNED tx"| Wallet["Your wallet · sole key holder"]
   Wallet -->|"you review and sign"| Chain["The blockchain"]
 ```
 
 **Steps:**
 
-1. Open **CLI ECONOMY OS** and choose **Connect wallet**.
+1. Click **sign in** in the top-right of the header (the wallet icon). You can also
+   open **MY AGENTS** and use **Connect wallet** there.
 2. Approve the connection in your own wallet app. The app can now see your public
    address, e.g. `0xYourWallet`, and detect iNFT agents already in it.
 3. When you ask for an on-chain action, the app prepares an **unsigned**
@@ -338,8 +340,9 @@ flowchart LR
 ## 6 · Integrations setup
 
 > [!NOTE]
-> **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
-> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
+> **EXO LAB, Manaflow and TMUX are NOT in this build, and there is no INTEGRATIONS tab.**
+> That panel was removed from the app; this section describes an intended future and is
+> kept as a design note, not as instructions. Nothing below is installable today — no
 > module, no source. The details below describe how each will work once it ships.
 
 
@@ -347,8 +350,9 @@ The **INTEGRATIONS** tab bundles a few powerful tools. The repository ships only
 their **manifests and installers** — so nothing huge or secret is committed —
 and each tool installs itself into its own folder, then runs **inside** the app.
 
-Install one from the INTEGRATIONS tab (or install everything with the bundled
-`integrations/install-all.sh`).
+None of these can be installed from the app today: there is no INTEGRATIONS tab, and
+`integrations/install-all.sh` does not exist in this repository. The only thing shipped
+under `integrations/` is the Framer note.
 
 ### What each integration needs, at a glance
 
@@ -362,7 +366,7 @@ Install one from the INTEGRATIONS tab (or install everything with the bundled
 
 ### 6a · EXO LAB — your local models
 
-1. In **INTEGRATIONS**, click **Install** on **EXO LAB**, then **Launch**.
+1. *(Not available in this build.)* Use the **MATRIX** tab for a local cluster instead.
 2. EXO starts a local cluster and serves its API on **`127.0.0.1:52415`**.
 3. Select the served model in **LAB**. Done — see §2b.
 
@@ -384,7 +388,7 @@ flowchart TD
   D --> E["Run parallel agents"]
 ```
 
-1. Install **Manaflow** from the INTEGRATIONS tab. It launches five local
+1. *(Not available in this build.)* Manaflow would launch five local
    services — client `:5173`, server `:9776`, www `:9779`, and a Convex data
    layer `:3210`.
 2. Create a **free Hexclave / Stack Auth project**. It gives you **three keys**
@@ -401,7 +405,8 @@ flowchart TD
 
 ### 6c · TMUX — persistent crews
 
-1. Install **TMUX** (Tmux-Orchestrator) from the INTEGRATIONS tab.
+1. *(Not available in this build.)* iT already gives you workspaces, splits and
+   persistent sessions — see the iT section of docs/HOW-IT-WORKS.md.
 2. Start a crew from its control panel. The agents live in tmux windows that
    **survive disconnects**.
 3. Click **▸ Live** on any crew to attach a real live terminal to that tmux
@@ -449,10 +454,10 @@ Two safety nets are always on, regardless of the switches:
 | To connect… | Go to | You provide | Placeholder |
 |---|---|---|---|
 | Cloud model | Settings → Model | Provider API key | `sk-ant-YOURKEY` |
-| Local model | INTEGRATIONS → EXO, then LAB | Your hardware | — (served on `:52415`) |
+| Local model | MATRIX → start the engine, then LAB | Your hardware | — (served on `:52415`) |
 | MCP tools | Settings → MCP | Local server address | `http://127.0.0.1:YOUR_MCP_PORT` |
 | Email | Settings → Email | Host, port, user, app password | `you@example.com` · `YOUR_APP_PASSWORD` |
-| Wallet | CLI ECONOMY OS → Connect | Your wallet (unsigned tx only) | `0xYourWallet` |
+| Wallet | Header → **sign in** (or MY AGENTS → Connect wallet) | Your wallet (unsigned tx only) | `0xYourWallet` |
 | Manaflow | INTEGRATIONS → Manaflow | Hexclave 3 keys + Anthropic key | `YOUR_PROJECT_ID` · `pck_YOURKEY` · `sk-ant-YOURKEY` |
 
 **Remember:** every value above is *yours*. It lives in your session or your own

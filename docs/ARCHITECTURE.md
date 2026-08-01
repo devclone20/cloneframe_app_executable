@@ -224,7 +224,7 @@ flowchart LR
 
 **In plain English.** `xterm.js` in the window opens the token-gated WebSocket. The bridge's upgrade handler validates it and calls `dispatchStream`, which decides what to launch: a fresh login shell (`op=shell`), or an attach to an existing tmux crew (`op=attach`, session name validated against `cf-*`). `Pty.attach` then wires the socket to the TTY both ways — PTY output flows out as raw bytes, your keystrokes flow in. This is exactly what powers the TMUX integration's **▸ Live** button: it opens the same `/stream` channel with `op=attach`.
 
-The engine is careful about resources: at most 12 concurrent sessions, a 30-minute idle reap, a 12-hour hard lifetime cap, and per-socket backpressure so a runaway process cannot flood the WebSocket. `node-pty` is spawned as an argv array — never `sh -c` — so there is no shell-injection surface in the terminal path itself.
+The engine is careful about resources: at most 24 concurrent sessions, a 30-minute idle reap, a 12-hour hard lifetime cap, and per-socket backpressure so a runaway process cannot flood the WebSocket. `node-pty` is spawned as an argv array — never `sh -c` — so there is no shell-injection surface in the terminal path itself.
 
 ---
 
@@ -232,7 +232,8 @@ The engine is careful about resources: at most 12 concurrent sessions, a 30-minu
 
 > [!NOTE]
 > **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
-> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
+> app as placeholders. There is no INTEGRATIONS tab — that panel was removed — and none
+> of them is bundled in this build. This section is a design note, not instructions. No
 > module, no source. The details below describe how each will work once it ships.
 
 
@@ -256,7 +257,7 @@ flowchart TB
         TM["tmuxorch.mjs"]
     end
 
-    EX -->|":52415"| IFR["Embedded iframe · INTEGRATIONS tab"]
+    EX -->|":52415"| IFR["Embedded iframe (design only — no such tab ships)"]
     MA -->|":5173"| IFR
     TM -->|"tmux send-keys"| PNL["Native panel + Live xterm"]
 ```
@@ -297,7 +298,7 @@ flowchart TB
     CONVEX --> DEV["bash scripts/dev.sh — SKIP_DOCKER_BUILD true"]
     DEV --> SVC["Five services come up"]
     SVC --> POLL["Poll until :5173 answers — up to 90s"]
-    POLL --> READY["Ready — embeds in the INTEGRATIONS tab"]
+    POLL --> READY["Ready (design only — no such tab ships)"]
 ```
 
 **In plain English.** When you press Launch, the module first checks whether Manaflow is *already* running and simply adopts it if so — it never spawns a duplicate. Otherwise it does a one-time, marker-gated Convex bootstrap (so later launches skip it), then runs the upstream `scripts/dev.sh` under `bash` with `SKIP_DOCKER_BUILD=true` and `CONVEX_AGENT_MODE=anonymous`. That brings up the five local services — **client `5173`, server `9776`, www `9779`, and the anonymous local Convex on `3210`**. Because a GUI-launched daemon inherits a minimal `PATH`, the module carefully prepends the directories where `bun`, a supported Node (18/20/22/24), and the Rust toolchain actually live, so the build works regardless of how the bridge was started.

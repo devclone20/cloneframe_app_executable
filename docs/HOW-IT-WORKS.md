@@ -34,7 +34,7 @@ flowchart LR
 Two things worth knowing up front:
 
 - **There is no built-in AI.** You bring your own model — either an API key that never
-  leaves your machine, or a fully local model you run yourself (via **EXO LAB**, covered
+  leaves your machine, or a fully local model you run yourself (via **MATRIX**, covered
   below). The app is the cockpit; the engine is yours.
 - **The window never touches a tool directly.** Everything goes through the Bridge, which
   checks a token and the request's origin on every single call. You don't have to think
@@ -72,7 +72,7 @@ routes to the big rooms.
 
 ---
 
-## The top bar: five rooms
+## The top bar: four rooms
 
 Across the top you'll find five main tabs. Everything else (Email, Automations, Folders,
 Settings) lives one click away in the menu.
@@ -80,7 +80,7 @@ Settings) lives one click away in the menu.
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
 flowchart LR
-  CODE["CODE"] --- HARNESS["HARNESS"] --- LAB["LAB"] --- ECON["CLI ECONOMY OS"] --- INT["INTEGRATIONS"]
+  CODE["CODE"] --- HARNESS["HARNESS"] --- LAB["LAB"] --- MX["MATRIX"]
 ```
 
 Let's walk through each.
@@ -177,86 +177,24 @@ flowchart TB
 
 ---
 
-## CLI ECONOMY OS — the on-chain agent economy
+## What used to be here — CLI ECONOMY OS and INTEGRATIONS
 
-**What it is.** A room where agents can take part in an on-chain economy. It's organised as
-nested *islands* — self-contained areas for each network — plus your own agents.
+This tour described two more rooms at this point: **CLI ECONOMY OS**, an on-chain agent
+economy, and **INTEGRATIONS**, an in-app installer for EXO LAB, Manaflow and TMUX. Neither
+is in the app. Both were removed, and the sections that walked you through them were
+walking you through a screen that no longer exists.
 
-| Island | What it's for |
-|---|---|
-| **VIRTUALS** | The Virtuals agent-commerce world |
-| **ROBINHOOD** | Its on-chain economy island |
-| **OKX AI** | The OKX AI agent economy |
-| **My iNFT** | Build and deploy your own agents; the app also **detects agents already in your connected wallet** |
+What replaced them, and is real:
 
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
-flowchart TB
-  subgraph ECON["CLI ECONOMY OS"]
-    V["VIRTUALS"]
-    R["ROBINHOOD"]
-    O["OKX AI"]
-    M["My iNFT - build, deploy, detect"]
-  end
-```
+- **Wallet sign-in** lives in the header (top right) and in **MY AGENTS** → *Connect wallet*.
+  The app reads your wallet and can build transactions; it never signs one — you do, in your
+  own wallet. See [CONNECT.md §5](CONNECT.md).
+- **MATRIX**, the fourth room in the top bar, is the local AI cluster: your own devices,
+  serving your own models, with no cloud key involved.
 
-> 🔐 **Unsigned transactions only.** The app *never* holds or asks for a private key or
-> seed phrase. When an on-chain action is needed, the app builds an **unsigned** transaction
-> and hands it to your connected wallet — your wallet is the sole key holder and the only
-> thing that can ever sign. If anything asks you for a seed phrase, it isn't this app.
-
-**How to use it.** Connect your wallet, open an island, and explore what agents are offering
-there. To create your own, go to **My iNFT**, build the agent, and deploy — reviewing and
-signing every transaction in your wallet as you go.
-
----
-
-## INTEGRATIONS — tools embedded in-app
-
-> [!NOTE]
-> **EXO LAB, Manaflow and TMUX are currently "coming soon."** They appear in the
-> INTEGRATIONS tab as placeholders and are **not bundled in this build yet** — no
-> module, no source. The details below describe how each will work once it ships.
-
-
-**What it is.** A shelf of external tools you can install and launch, each one opening
-**inside** the app rather than in a separate window. The repository ships only the small
-manifests and installers — the heavy parts are fetched by each tool's own installer, so
-nothing huge or secret is committed.
-
-Here's what each one adds:
-
-- **EXO LAB** *(Apache-2.0)* — run a local LLM **cluster** across your own devices. It serves
-  a model API on port `52415` and opens inside the app. This is the path to a **fully local
-  model** with no cloud key at all — the other half of the "bring your own model" story.
-- **Manaflow / cmux** *(MIT)* — spawn **parallel coding agents**. It runs several small local
-  services and, notably, **works without Docker** using an anonymous local data deployment.
-  You'll add your model key in-app to actually run the agents; a couple of feature keys are
-  optional extras.
-- **TMUX** *(Tmux-Orchestrator, MIT)* — persistent agent **crews in tmux windows that survive
-  disconnects**. It has a native control panel, plus a **"▸ Live"** button that drops you into
-  a real terminal attached to the running tmux session.
-- **Framer** — a bundled browser extension that lets the in-app browser **display sites that
-  normally block embedding**, so more of the web works inside the app.
-- **Runtime** — a bundled **Chrome for Testing** that the app launches into, so the Framer
-  extension has a clean browser to load in.
-
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'background':'#0d1117','mainBkg':'#161b22','primaryColor':'#161b22','primaryBorderColor':'#ff3b30','primaryTextColor':'#e6edf3','nodeBorder':'#30363d','nodeTextColor':'#e6edf3','lineColor':'#566070','secondaryColor':'#161b22','tertiaryColor':'#0d1117','clusterBkg':'#10151c','clusterBorder':'#30363d','titleColor':'#e6edf3','edgeLabelBackground':'#0d1117','fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace','actorBkg':'#161b22','actorBorder':'#ff3b30','actorTextColor':'#e6edf3','signalColor':'#8b949e','signalTextColor':'#c9d1d9','labelBoxBkgColor':'#161b22','labelBoxBorderColor':'#30363d','labelTextColor':'#e6edf3','loopTextColor':'#e6edf3','noteBkgColor':'#1c2028','noteBorderColor':'#e8b86d','noteTextColor':'#c9d1d9','activationBkgColor':'#30363d','activationBorderColor':'#8b949e','sequenceNumberColor':'#0d1117'}}}%%
-flowchart LR
-  subgraph INT["INTEGRATIONS - all open inside the app"]
-    EXO["EXO LAB - local model cluster :52415"]
-    MANA["Manaflow / cmux - parallel agents, no Docker"]
-    TMUX["TMUX - persistent crews + Live terminal"]
-    FRAMER["Framer - frame blocked sites"]
-    RUNTIME["Runtime - Chrome for Testing"]
-  end
-```
-
-**How to use it.** Open INTEGRATIONS, pick a tool, and run its installer once. After that,
-launch it and it appears as a panel in the app like everything else.
-
----
+The tools that INTEGRATIONS would have installed are not bundled in this build and have no
+in-app installer. iT already covers what TMUX was for — workspaces, splits and sessions that
+survive a disconnect.
 
 ## The rest: Email, Automations, Folders, Settings
 
@@ -328,7 +266,7 @@ sequenceDiagram
   You->>App: Settings - connect a model (API key or EXO local)
   You->>App: CODE - open a terminal, ask the chat for help
   You->>App: HARNESS - run a crew, approve at each gate
-  You->>Wallet: CLI ECONOMY OS - sign unsigned txs yourself
+  You->>Wallet: sign the unsigned tx yourself
   You->>App: Zoom out - watch your universe of frames grow
 ```
 
