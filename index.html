@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.3.5 build token — never as a number written here.
+   the app only through the 0.3.6 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -2796,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.5 · WEB</span>
+    <span class="gver">v0.3.6 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -3944,6 +3944,20 @@ const MENU=[
   ['System',[['__search','Search','#i-search'],['__wallet','Sign in','#i-wallet'],['settings','Settings','#i-gear']]],
 ];
 
+// ── THE ONE FACT: iT is the only panel you may have more than one of ────────────────────
+//
+// One window per panel, and one frame square per panel. iT is the exception on BOTH counts,
+// and for the same reason: terminals you arrange side by side is what a terminal is for, so
+// every iT window gets its own square and parking three folders gives you three squares.
+//
+// Declared HERE, above Grid and above Panels, because both need it. It lived inside Panels
+// until 2026-08-01, which meant Grid — the module that hands out squares — could not see it
+// and had no rule at all: the `+` menu and a dragged tab each happily stamped a second
+// NOTES square, a third, a fourth, every one a duplicate logo pointing at the same single
+// window. A second copy of this Set inside Grid would have fixed that for a while and then
+// drifted, which is the shape of most of what this file has had to unpick.
+const MULTI = new Set(['shell']);
+
 /* ---------- Grid (cells ÷4: 28px, full-bleed with overscan) ---------- */
 const Grid=(()=>{
   const grid=document.getElementById('grid');
@@ -3975,8 +3989,35 @@ const Grid=(()=>{
       centers.push([-OV+c*DIM.PITCH+DIM.CELL/2,-OV+r*DIM.PITCH+DIM.CELL/2]); // WORLD coords
     }
     grid.appendChild(frag);
+    collapseDuplicateSquares();     // …and heal a frame saved before the one-square rule
     Bus.emit('dock:refresh'); // cells were recreated — repoint the dock chips at the new elements
     return true;
+  }
+  // The rule above stops NEW duplicates. This removes the ones already on the owner's canvas,
+  // saved to disk over months of the old behaviour — otherwise the frame keeps every repeated
+  // logo it ever collected and the fix only applies to people who never used the app.
+  //
+  // Which of a set of duplicates survives is not arbitrary: a square carrying a panelKey is
+  // the ONLY handle back to a live docked window, so it wins over one that carries none.
+  // Releasing a keyless duplicate can never strand anything. Two keyed squares of one type
+  // cannot both be live now that these panels are single-window, so the later one's key is
+  // necessarily stale and its square goes.
+  function collapseDuplicateSquares(){
+    const keep=new Map();
+    let dropped=0;
+    for(const el of cells){
+      if(!el.classList.contains('occ'))continue;
+      const t=el.dataset.type;
+      if(!t||MULTI.has(t))continue;                 // iT keeps every square you parked
+      const held=keep.get(t);
+      if(!held){keep.set(t,el);continue}
+      const loser=(el.dataset.panelKey&&!held.dataset.panelKey)?(keep.set(t,el),held):el;
+      delete Store.get().cells[key(loser.dataset.c,loser.dataset.r)];
+      clearEl(loser);
+      dropped++;
+    }
+    if(dropped){Store.save();try{Toast.show('Tidied '+dropped+' repeated '+(dropped===1?'square':'squares')+' — one per app, iT aside')}catch(_){}}
+    return dropped;
   }
   function occupyEl(el,type,meta){
     el.classList.add('occ');el.dataset.type=type;el.tabIndex=0;
@@ -4004,9 +4045,26 @@ const Grid=(()=>{
   // square, and HARNESS taking the centre cell unconditionally. Convention is not a guard.
   // The one caller that legitimately re-takes a square (a MULTI window refreshing its own HOME)
   // calls release() first, which clears the class, so it still passes.
+  // Which square already holds this panel — null if none, and always null for iT, which may
+  // have as many squares as you park terminals. This is the ONE reader of that question; the
+  // menu, a dragged tab, a docking window and dockNew all ask it rather than each deciding.
+  function squareFor(type){
+    if(!type||MULTI.has(type))return null;
+    return cells.find(el=>el.classList.contains('occ')&&el.dataset.type===type)||null;
+  }
+  // Draw attention to a square that already exists, instead of silently doing nothing.
+  function flash(el){ if(!el)return null; el.classList.add('minpulse'); setTimeout(()=>el.classList.remove('minpulse'),1000); return el; }
   // Returns false when it refused, so a caller can pick somewhere else.
   function occupy(el,type,meta){
     if(!el||el.classList.contains('occ'))return false;
+    // ONE SQUARE PER PANEL. The guard lives here, not in the callers, because there are four
+    // callers and three of them had no rule: the `+` menu, a dragged HUB tab, minimizeToCell
+    // and dockNew. Convention across four call sites is not an invariant — the two that never
+    // asked are exactly how a frame ends up with four NOTES logos pointing at one window.
+    // A caller that legitimately RE-takes a square (a docked window refreshing its own home)
+    // calls release() first, which clears the class and the record, so it still passes.
+    const dup=squareFor(type);
+    if(dup&&dup!==el)return false;
     occupyEl(el,type,meta);
     const c={type};
     if(meta&&meta.label)c.label=meta.label;
@@ -4050,11 +4108,17 @@ const Grid=(()=>{
     return null;
   }
   // Dock a NEW tile (not an existing panel) into a Magic Frames square.
+  // If this panel already has a square, that square IS the answer — point at it rather than
+  // minting a duplicate. It used to ignore occupy()'s verdict entirely, so once occupy began
+  // refusing duplicates this would have pulsed and returned a square it had not taken.
   function dockNew(type,meta){
+    const have=squareFor(type);
+    if(have)return flash(have);
     const [wx,wy]=Camera.screenToWorld(innerWidth/2,innerHeight/2);
     const cell=pickFree(wx,wy);
     if(!cell)return null;
-    occupy(cell,type,meta);cell.classList.add('minpulse');setTimeout(()=>cell.classList.remove('minpulse'),1000);return cell;
+    if(!occupy(cell,type,meta))return null;
+    return flash(cell);
   }
   function release(el){delete Store.get().cells[key(el.dataset.c,el.dataset.r)];Store.save();clearEl(el);Bus.emit('dock:refresh')}
   function move(src,dst){
@@ -4090,7 +4154,7 @@ const Grid=(()=>{
     else{delete el.dataset.panelKey;if(rec)delete rec.panelKey}
     Store.save();
   }
-  return{build,cells:()=>cells,centers:()=>centers,occupy,release,move,reset,dockNew,pickFree,linkPanel,el:grid,setDims,
+  return{build,cells:()=>cells,centers:()=>centers,occupy,release,move,reset,dockNew,pickFree,linkPanel,squareFor,flash,el:grid,setDims,
     iconFor:t=>ICON[t]||'#i-agent',
     overscan:()=>OV,worldW:()=>cols*DIM.PITCH,worldH:()=>rows*DIM.PITCH,
     centerX:()=>(-OV+cols*DIM.PITCH/2),centerY:()=>(-OV+rows*DIM.PITCH/2),
@@ -4439,8 +4503,17 @@ const Menu=(()=>{
     const type=b.dataset.add;
     if(b.dataset.soon){Toast.show('Coming soon — under construction');close();return}
     const cellT=target; // close() nulls target — capture the cell so the new window links to its square
-    Grid.occupy(cellT,type);
     close();
+    // Already on the frame? Then this is not "add", it is "go to it". Take them to the square
+    // that exists — pulsing it so they see WHERE, since a frame is large and the square they
+    // clicked may be nowhere near it — and leave the square they clicked empty.
+    const have=Grid.squareFor(type);
+    if(have&&have!==cellT){
+      Grid.flash(have);
+      Bus.emit('open-panel',{type,cwd:have.dataset.cwd||'',url:have.dataset.url||'',key:have.dataset.panelKey||'',cell:have});
+      return;
+    }
+    Grid.occupy(cellT,type);
     Bus.emit('open-panel',{type,cell:cellT});
   });
   addEventListener('keydown',e=>{if(e.key==='Escape')close()});
@@ -4527,9 +4600,17 @@ Grid.el.addEventListener('click',e=>{
     if(!cell||cell.classList.contains('occ'))return;
     const type=e.dataTransfer.getData('cf/type');
     if(['agent','harness','terminal','lab','machine','agents','automations','settings'].includes(type)){
+      // Already on the frame? Go to that square instead of stamping a second logo for the
+      // same single window — the same rule the `+` menu follows, because dropping a tab and
+      // picking it from the menu are the same request made two ways.
+      const have=Grid.squareFor(type);
+      if(have&&have!==cell){
+        Grid.flash(have);
+        Bus.emit('open-panel',{type,cwd:have.dataset.cwd||'',url:have.dataset.url||'',key:have.dataset.panelKey||'',cell:have});
+      }
       // Dropping onto a square that already holds one of his tiles used to replace it. occupy()
       // now refuses; open the panel anyway, just without stealing the square.
-      if(!Grid.occupy(cell,type)){Toast.show('That square is taken — dropped as a window instead');Bus.emit('open-panel',{type});}
+      else if(!Grid.occupy(cell,type)){Toast.show('That square is taken — dropped as a window instead');Bus.emit('open-panel',{type});}
       else Bus.emit('open-panel',{type,cell});
     }else{ // you dragged something generic (file/text) → opens the menu in that frame
       cell.classList.add('armed');Menu.openAt(cell);
@@ -5449,7 +5530,10 @@ const Panels=(()=>{
   //
   // The first instance keeps key===type (every legacy open[type] lookup still works); extra
   // iT windows get 'shell#n'.
-  const MULTI=new Set(['shell']);
+  //
+  // MULTI is NOT declared here any more — it is the module-level constant above Grid, which
+  // needs the same answer to decide whether a panel may take a second frame square. One fact,
+  // one home. Re-declaring it here would shadow that and the two would drift silently.
   const DOCK_HIDES=new Set(['shell','research']);
   let iseq=0;
   // Docked (hidden) windows are excluded everywhere focus/targeting matters: a window
@@ -5773,7 +5857,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.3.5
+  OS      CLONE FRAME OS · v0.3.6
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -10700,7 +10784,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.5 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.6 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -11939,7 +12023,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.5 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.6 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});

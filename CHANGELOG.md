@@ -5,6 +5,42 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.6 — 2026-08-01
+
+**One square per app on your frame. iT keeps as many as you park.**
+
+A frame square is a handle to a panel, and there is one of each panel — so there should be
+one square for each. There was not. Adding NOTES from the `+` menu stamped a second NOTES
+logo, then a third, each on its own square, all four pointing at the same single window.
+Nothing looked broken, because clicking any of them opened that one window; the canvas just
+filled with repeated icons you could not tell apart.
+
+Now the second time is not "add", it is **"go to it"**: the square you already have pulses so
+you can see *where* on the canvas it is — a frame is large, and silently doing nothing is not
+an answer — and the square you clicked stays empty.
+
+**iT is untouched and still infinite.** Park three folders, get three terminals and three
+squares. That is what iT is for.
+
+**Your existing frame is tidied, not left as it was.** Squares saved under the old behaviour
+are collapsed on launch — on screen *and* on disk, so they do not come back next time — and
+you are told how many went. Which duplicate survives is not arbitrary: a square still
+pointing at a live docked window outlives one that points at nothing.
+
+**Why it happened, since it explains the shape of the fix.** Four places hand a square to a
+panel — the `+` menu, a dragged HUB tab, docking a window, and iT parking a terminal — and
+only one of them ever asked whether that panel was already on the frame. The rule now lives
+in the single function all four pass through, so a fifth caller cannot reintroduce it. And
+"iT is the exception" moved to one declaration that both the frame and the window manager
+read: it used to sit inside the window manager, where the frame could not see it, which is
+exactly why the frame had no rule at all.
+
+---
+
+```
+sha256  58b2353964cd47e41564b61db6e3b4d7ccdca11894a15049c3163f3a868f1442
+```
+
 ## 0.3.5 — 2026-08-01
 
 A fix to 0.3.4, found by re-reading yesterday's own change instead of trusting it.

@@ -1,6 +1,6 @@
 {
   "name": "clone-frame-hub",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "description": "CLONE FRAME HUB — the app. One index.html plus the local HUB Bridge daemon.",
   "license": "MIT",
