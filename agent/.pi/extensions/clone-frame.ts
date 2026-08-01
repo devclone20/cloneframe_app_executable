@@ -123,7 +123,7 @@ export default function cloneFrame(pi: ExtensionAPI) {
 		name: "read_screen",
 		label: "Read screen",
 		description:
-			"See the CLONE FRAME screen RIGHT NOW: which panels are open, which is focused, which are docked/minimized, plus the active model, harness and iNFT for the CODE session. Your eyes on the app — call this before assuming any on-screen state instead of guessing.",
+			"See the CLONE FRAME screen RIGHT NOW: which panels are open, which is focused, which are docked/minimized, plus the active model, harness and iNFT for the CODE session. Your eyes on the app — call this before assuming any on-screen state instead of guessing. DOCKED means the owner tucked that window into a frame square: it is invisible but ALIVE — its terminals are still running and its pages are still loaded — so never report a docked panel as closed, and never open_panel it expecting a fresh one, because you will get that same window back.",
 		promptSnippet: "Read the live app screen (open/focused/docked panels + active model): read_screen{}",
 		parameters: Type.Object({}),
 		async execute() {

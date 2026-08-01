@@ -5,6 +5,46 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.3.7 — 2026-08-01
+
+**No invisible windows that should not be there.**
+
+A harness drove the app through the sequence you actually perform — add a panel, add it
+again, dock it, add it while docked, close it, take its square away — and checked five
+things after *every* step: that no window is invisible without being docked, that every
+hidden window is still claimed by a square, that no panel has two windows or two squares,
+and that **no square points at a window that no longer exists**.
+
+The last one fired. Docking NOTES destroys its window (only iT and BROWSER survive hidden
+behind their square), but the square kept holding a handle to it. Harmless today only by
+luck — a single-window panel gets the same key back, so the dead handle happens to point at
+the right window again. The square now lets go when the window is destroyed.
+
+Measured after the fix, eleven steps, nothing flagged. Including the case that matters most:
+
+```
+BROWSER docked, then its square removed    square gone AND the hidden window closed
+3 iT windows, 2 docked, one hidden iT's
+square removed                             that exact window closed; the other hidden
+                                           one kept its square; shells 3 -> 2
+```
+
+**Your agent was told none of this, and now knows it.** Both the curriculum it reads and
+the extension it loads carry the counts — iT may have many windows and many squares, every
+other panel has exactly one of each — and what **docked** means: invisible on purpose and
+still alive, its terminals still running. So it will not report a parked panel as closed,
+and will not promise you a second NOTES window.
+
+Also corrected: the field guide listed `compare` and `cookbook` as panels you could open.
+Both were removed from the app, and the extension already said so — two documents your
+agent reads, contradicting each other.
+
+---
+
+```
+sha256  e82a6f9b6463c872858c1e600cd2976575e0f1d4f80eb7007f95782f6f4b3fa3
+```
+
 ## 0.3.6 — 2026-08-01
 
 **One square per app on your frame. iT keeps as many as you park.**

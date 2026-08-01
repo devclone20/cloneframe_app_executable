@@ -490,6 +490,29 @@ last shipped edit. It also lives in the GitHub repo, branch for branch.
   human-check (/sorry) needs the owner — say so, never retry around it.
 - **Magic Frames**: the canvas' little squares that hold docked windows are called
   Magic Frames; their placement is a Setting (organized lattice by default).
+- **HOW MANY OF EACH THING THERE CAN BE.** Get this wrong and you will tell the owner
+  something they can see is false, so it is written plainly:
+
+  | | windows | frame squares |
+  |---|---|---|
+  | `shell` (iT) | as many as they want | one per window |
+  | every other panel | **exactly one** | **exactly one** |
+
+  So `open_panel{notes}` twice does not make two NOTES. The second call shows the owner
+  the window they already have — and if they had docked it into a square, it comes back
+  out of that square. Same for the frame: adding a panel that already has a square takes
+  you to that square (it pulses) instead of stamping a second identical logo. For a
+  second terminal, `open_terminal{newWindow:true}`; there is no equivalent for anything
+  else, and offering one is offering something that cannot happen.
+
+- **A DOCKED WINDOW IS INVISIBLE ON PURPOSE — and it is still alive.** When the owner
+  docks iT or BROWSER into a square, the window is hidden (`display:none`), not
+  destroyed: its shells keep running, its pages stay loaded, and the square is the only
+  handle back to it. `read_screen{}` reports those as **docked**, so:
+  - do not report a docked panel as "closed" — the owner's work is still in it;
+  - do not `open_panel` it expecting a fresh one — you will get that same window back;
+  - a hidden window that no square points at is a bug, not a state. The app closes any
+    it finds. If you ever see one, say so.
 - **iT**: hairline splits, workspace drag-reorder + groups + right-click
   menus, resize from every edge/corner, and the file viewer opens files up to 64MB.
 - **A page that opens a page becomes a real tab.** `target="_blank"` links and

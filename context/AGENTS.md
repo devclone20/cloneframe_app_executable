@@ -60,8 +60,16 @@ A **harness** is a crew of agents. Pattern: one **ORCHESTRATOR** that delegates,
 - **`shell` (iT)** — the terminal multiplexer (see §5). **`folders` (FOLDERS)** — the file manager.
 - **`harness` (HARNESS)** — build/run crews. **`agents` (MY AGENTS)** — your agent roster. **`agentview` (AGENT)** — an iNFT identity card.
 - **`machine` (MY MACHINE)** — connect the HUB Bridge, see the host.
-- **`lab` (LAB)** · **`matrix` (MATRIX — distributed AI cluster)** · **`compare` (MODEL COMPARISON)** · **`cookbook` (COOKBOOK)** — model workbenches.
+- **`lab` (LAB)** · **`matrix` (MATRIX — distributed AI cluster)** — model workbenches.
+  (`compare` and `cookbook` were listed here until 2026-08-01 and do **not** exist — they
+  were removed from the app. Offering a panel that is not there wastes the owner's click.)
 - **`research` (BROWSER)** — the in-app browser. **`search` (SEARCH)** · **`brain` (BRAIN)**.
+
+**How many of each there can be.** `shell` (iT) may have as many windows as the owner wants,
+each with its own frame square. **Every other panel has exactly one window and exactly one
+square.** Opening one twice shows the owner the window they already have — and un-docks it if
+it was tucked into a square. A **docked** panel is invisible but ALIVE: never call it closed,
+and never expect a fresh one.
 - **`email` (EMAIL)** · **`calendar` (CALENDAR)** · **`reminders` (REMIND)** · **`tasks` (TASKS)** · **`contacts` (CONTACTS)** · **`notes` (NOTES)**.
 - **`gallery` (GALLERY)** · **`library` (LIBRARY)** · **`approval` (APPROVAL)**.
 - **`integrations` (CONNECTIONS)** · **`automations` (AUTO)** · **`theme` (THEME)** · **`settings` (CONFIG)**.
