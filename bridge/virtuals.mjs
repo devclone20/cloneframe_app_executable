@@ -354,13 +354,18 @@ export const Virtuals = {
       ]);
       const a = acp.ok && acp.data && acp.data.data;
       const jobs = a && a.id ? await acpJobs(a.id) : null;
-      return { w, cat, acp: a, jobs, regs: erc.registrations || [] };
+      // `ercOk` travels with the registrations. A failed log scan and a wallet with no
+      // registrations both produced an empty array, so an unreachable RPC was reported to
+      // the owner as "this agent is not activated" — a statement about the chain, made
+      // without having read it. Same shape as `catalogOk`, which this module already gets right.
+      return { w, cat, acp: a, jobs, regs: erc.registrations || [], ercOk: erc.ok === true };
     }));
     const agents = [];
     const seen = new Set();
-    let catalogOk = true;
-    for (const { w, cat, acp: a, jobs, regs } of per) {
+    let catalogOk = true, identityOk = true;
+    for (const { w, cat, acp: a, jobs, regs, ercOk } of per) {
       if (!cat.ok) catalogOk = false;
+      if (!ercOk) identityOk = false;
       for (const a2 of (cat.agents || [])) {
         const k = 'v:' + (a2.virtualId || a2.id || a2.name);
         if (seen.has(k)) continue; seen.add(k);
@@ -373,7 +378,9 @@ export const Virtuals = {
         agents.push({
           acpId: a.id, name: a.name || 'agent', image: a.imageUrl || null, role: a.role || null,
           rating: a.rating ?? null, source: 'ACP', wallet: w,
-          activated: !!reg, agentId: reg ? reg.agentId : null, jobs,
+          // null, not false, when the scan never answered — "unknown" is a third state and
+          // the UI must be able to tell it from "checked, and no".
+          activated: reg ? true : (ercOk ? false : null), agentId: reg ? reg.agentId : null, jobs,
         });
       }
       for (const r of regs) {
@@ -384,7 +391,7 @@ export const Virtuals = {
         agents.push({ agentId: r.agentId, name: name || ('agent #' + r.agentId), source: 'ERC-8004', wallet: w, activated: true, txHash: r.txHash });
       }
     }
-    return { ok: true, wallets, linked: wallets.length - 1, catalogOk, agents, total: agents.length };
+    return { ok: true, wallets, linked: wallets.length - 1, catalogOk, identityOk, agents, total: agents.length };
   },
 
   // Primary wallet discovery — fast and authoritative via the Virtuals catalog.

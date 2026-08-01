@@ -54,7 +54,12 @@ export const It = {
   },
 
   // GET /stream?op=it — called from dispatchStream AFTER the upgrade gates passed.
-  attachCtl(ws) {
+  // `_` prefix: handleMod refuses any fn starting with an underscore, and this one takes a
+  // live WebSocket. Exported bare, it was reachable as POST /mod/it {fn:'attachCtl'} with any
+  // JSON at all — the value was pushed into `ctls` BEFORE ws.on() threw, so a plain object sat
+  // permanently at the head of the control-socket stack and every `it` command after it
+  // answered "iT control channel broke". Nothing but the upgrade path may call this.
+  _attachCtl(ws) {
     const drop = () => { const i = ctls.indexOf(ws); if (i >= 0) ctls.splice(i, 1); };
     drop(); ctls.push(ws);
     if (ctls.length > 8) { const old = ctls.shift(); try { old.close(1000, 'too many iT windows'); } catch {} }

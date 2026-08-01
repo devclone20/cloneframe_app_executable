@@ -561,10 +561,10 @@ async function dispatchStream(ws, url) {
   const op = url.searchParams.get('op') || 'shell';
   // iT control plane — no PTY: the iT window parks one socket here and the `it` CLI's
   // commands are ferried over it. Same host/token gates as every stream (upgrade handler).
-  if (op === 'it') { try { (await getMod('it')).attachCtl(ws); } catch { try { ws.close(1011, 'it unavailable'); } catch {} } return; }
+  if (op === 'it') { try { (await getMod('it'))._attachCtl(ws); } catch { try { ws.close(1011, 'it unavailable'); } catch {} } return; }
   // main-app control plane — the running window parks one socket here so the Pi agent (via
   // /mod/app) can open panels + read the live screen. Sibling of op=it; same host/token gates.
-  if (op === 'app') { try { (await getMod('app')).attachCtl(ws); } catch { try { ws.close(1011, 'app unavailable'); } catch {} } return; }
+  if (op === 'app') { try { (await getMod('app'))._attachCtl(ws); } catch { try { ws.close(1011, 'app unavailable'); } catch {} } return; }
   // BROWSER data plane — the panel parks one socket here: screencast frames are PUSHED
   // (no 30Hz HTTP polling) and pointer/keyboard input rides the same socket. Sibling of
   // op=it/app; same host/token gates as every stream.

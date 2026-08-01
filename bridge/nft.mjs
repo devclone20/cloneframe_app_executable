@@ -67,7 +67,15 @@ function isAgentNft(a) {
 // ── neural soul ──────────────────────────────────────────────────────────────
 // The soul becomes a SYSTEM PROMPT — privileged input. Only these origins may
 // ever serve soul text; an arbitrary NFT's tokenURI is attacker-controlled.
-const SOUL_ORIGINS = ['gateway.irys.xyz', 'arweave.net', 'ipfs.io', 'cloudflare-ipfs.com', 'api.acp.virtuals.io'];
+// Split by what the origin actually PROVES. api.acp.virtuals.io is a service that answers for
+// its own records; the four below are open content-addressed gateways — anyone can pin any
+// bytes and get a URL on them, so "the host is ipfs.io" says nothing about who wrote the text.
+// A host-only allowlist that includes them constrains nobody: an attacker's tokenURI points at
+// their own CID and the gateway serves it, straight into a system prompt.
+const SOUL_ORIGINS = ['api.acp.virtuals.io'];
+// Reachable only for a pointer the OWNER configured (configSoul / KNOWN_SOULS) — never for one
+// read out of a token's own metadata, which is the attacker-controlled path this guard exists for.
+const SOUL_GATEWAYS = ['gateway.irys.xyz', 'arweave.net', 'ipfs.io', 'cloudflare-ipfs.com'];
 // raw.githubusercontent.com allowed only under the owner's org
 const SOUL_GH_PREFIX = 'https://raw.githubusercontent.com/devclone20/';
 // today the monorepo is the only real soul source (on-chain pointers come later);
@@ -78,11 +86,17 @@ const KNOWN_SOULS = {
 };
 const SOUL_TTL = 24 * 3600 * 1000, SOUL_NEG_TTL = 10 * 60 * 1000, SOUL_MAX = 512 * 1024, SOUL_MIN = 1024;
 
-function soulOriginOk(u) {
+/**
+ * @param {string} u  normalized https URL
+ * @param {boolean} ownerConfigured  true only for a pointer the owner set (configSoul /
+ *   KNOWN_SOULS). A pointer read out of token metadata is never owner-configured.
+ */
+function soulOriginOk(u, ownerConfigured = false) {
   try {
-    if (u.startsWith(SOUL_GH_PREFIX)) return true;
+    if (u.startsWith(SOUL_GH_PREFIX)) return true; // authenticated by PATH, to the owner's org
     const h = new URL(u).hostname;
-    return SOUL_ORIGINS.includes(h);
+    if (SOUL_ORIGINS.includes(h)) return true;
+    return ownerConfigured && SOUL_GATEWAYS.includes(h);
   } catch { return false; }
 }
 // normalize pointer schemes to fetchable https, preserving the allowlist
@@ -273,7 +287,9 @@ export const NFT = {
     if (!store.souls) store.souls = {};
     const u = String(url || '').trim();
     if (!u) { delete store.souls[String(tokenId)]; save(store); return { ok: true, removed: true }; }
-    if (!soulOriginOk(soulUrl(u))) return { ok: false, error: 'origin not allowlisted for souls' };
+    // The owner setting this IS the trust decision, so the content-addressed gateways are on
+    // the table here — and only here.
+    if (!soulOriginOk(soulUrl(u), true)) return { ok: false, error: 'origin not allowlisted for souls' };
     store.souls[String(tokenId)] = u; save(store); return { ok: true };
   },
 
@@ -294,10 +310,10 @@ export const NFT = {
       save(store);
       return soul ? { ok: true, soul } : { ok: true, soul: null, reason: neg };
     };
-    const tryUri = async (v, source) => {
+    const tryUri = async (v, source, ownerConfigured = false) => {
       const u = soulUrl(v);
       if (!u) return null;
-      if (!soulOriginOk(u)) { reason = 'untrusted-origin'; return null; }
+      if (!soulOriginOk(u, ownerConfigured)) { reason = 'untrusted-origin'; return null; }
       const text = await soulFetch(u);
       if (text == null) { reason = 'fetch-failed'; return null; }
       if (!soulValidate(text)) { reason = 'invalid-content'; return null; }
@@ -329,7 +345,9 @@ export const NFT = {
     // 2) owner override, then known monorepo souls
     const mapped = (store.souls && store.souls[String(tokenId)]) || KNOWN_SOULS[String(tokenId)];
     if (mapped) {
-      const got = await tryUri(mapped, 'monorepo');
+      // ownerConfigured: this pointer came from configSoul() or the shipped KNOWN_SOULS map,
+      // not from the token — so a content-addressed gateway is a choice the owner made.
+      const got = await tryUri(mapped, 'monorepo', true);
       if (got) return finish(got);
     }
     // 3) serve stale positive over nothing when the network failed

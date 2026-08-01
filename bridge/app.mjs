@@ -73,7 +73,10 @@ export const App = {
   },
 
   // GET /stream?op=app — called from dispatchStream AFTER the upgrade gates passed.
-  attachCtl(ws) {
+  // `_` prefix for the same reason as It._attachCtl: handleMod refuses underscore fns, and
+  // this one takes a live WebSocket and pushes it into the control stack before it validates
+  // anything. Only the upgrade path may call it.
+  _attachCtl(ws) {
     const drop = () => { const i = ctls.indexOf(ws); if (i >= 0) ctls.splice(i, 1); };
     drop(); ctls.push(ws);
     if (ctls.length > 8) { const old = ctls.shift(); try { old.close(1000, 'too many app windows'); } catch {} }

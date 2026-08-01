@@ -33,15 +33,25 @@ function saveStore(s) {
   store.write(s);
 }
 
-// Drops the oldest non-pending items first so nothing awaiting a human
-// decision is ever silently discarded by the cap.
+// Drops the oldest DECIDED items first so nothing awaiting a human decision is ever silently
+// discarded by the cap.
+//
+// The old version ended with `kept.slice(-MAX_ITEMS)`, applied to pending and decided alike —
+// so once pending alone reached the cap it deleted the OLDEST PENDING items, which is exactly
+// the promise above, inverted. (`slice(-(Math.max(MAX_ITEMS - pending.length, 0)))` was its
+// own trap: at 200 pending that is `slice(-0)`, and `slice(-0)` is `slice(0)` — the whole
+// decided list, kept.)
+//
+// Pending is never truncated. If a human has 200 unanswered approvals the answer is not to
+// throw the oldest away behind their back.
 function enforceCap(items) {
   if (items.length <= MAX_ITEMS) return items;
   const pending = items.filter((it) => it.status === 'pending');
-  const rest = items.filter((it) => it.status !== 'pending').slice(-(Math.max(MAX_ITEMS - pending.length, 0)));
-  const kept = [...rest, ...pending];
+  const decided = items.filter((it) => it.status !== 'pending').sort((a, b) => a.createdAt - b.createdAt);
+  const room = Math.max(MAX_ITEMS - pending.length, 0);
+  const kept = [...decided.slice(decided.length - room), ...pending];
   kept.sort((a, b) => a.createdAt - b.createdAt);
-  return kept.slice(-MAX_ITEMS);
+  return kept;
 }
 
 // ── queries ──────────────────────────────────────────────────────────────────

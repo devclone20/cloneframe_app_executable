@@ -180,7 +180,12 @@ async function _uiMultiplier(tokenAddr, testnet) {
   if (r.ok && typeof r.result === 'string' && /^0x[0-9a-fA-F]{2,}$/.test(r.result)) {
     try { const v = BigInt(r.result); if (v > 0n) value = v.toString(); } catch { /* not a uint */ }
   }
-  _cacheSet(key, { value }, TTL.multiplier);
+  // Only a REAL answer goes in the cache. `_rpc` reports a timeout, an HTTP 502 and a
+  // contract revert all as {ok:false}, and caching them alike turned one bad second into an
+  // hour of "not a Stock Token" — the multiplier silently unapplied and every holding of that
+  // token under-reported, with nothing on screen to say the read had failed.
+  const answered = r.ok || /revert|invalid opcode|out of gas|no data|0x$/i.test(String(r.error || ''));
+  if (answered) _cacheSet(key, { value }, TTL.multiplier);
   return value;
 }
 

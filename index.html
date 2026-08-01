@@ -6681,6 +6681,7 @@ const Panels=(()=>{
       // "never reached the end". We restore the position after building (below).
       const _sw=_lastRenderSess!==(cur&&cur.id);
       const _dist=tr?(tr.scrollHeight-tr.scrollTop-tr.clientHeight):0;
+      const _top=tr?tr.scrollTop:0;
       const _pin=_pinBottom||_sw||!tr||_dist<120;
       if(!cur||!cur.msgs.length){
         tr.innerHTML=`<div class="cdwelcome"><div class="cwbrand">&lt;/&gt; CODE</div><div class="cwsub">Yours to command.</div><div class="cwtip">Talk to your model in natural language. Pick the model and the harness below — or open the real terminal ( ❯_ ), the diff ( ⧉ ) and the web browser on the right.</div></div>`;
@@ -6694,7 +6695,12 @@ const Panels=(()=>{
       // exact spot across the rebuild.
       _lastRenderSess=cur&&cur.id;
       if(_pin)forceBottom(tr);
-      else if(tr)tr.scrollTop=Math.max(0,tr.scrollHeight-tr.clientHeight-_dist);
+      // Anchor to the TOP, not to the bottom. Restoring distance-from-bottom looks identical
+      // while the transcript is a fixed height and is wrong the moment it grows: every ⚙ tool
+      // line and every streamed chunk appends BELOW the reader, so holding their distance to
+      // the end dragged them forward by exactly the amount the turn had written. What is above
+      // them does not move during a turn, so their offset into it is the stable thing.
+      else if(tr)tr.scrollTop=Math.min(_top,Math.max(0,tr.scrollHeight-tr.clientHeight));
       _pinBottom=false;
       syncPickers();syncSend();
     }
@@ -6857,13 +6863,24 @@ ANSWER DISCIPLINE:
         if(c.name==='app_context'){return appContextText(active())}
         if(c.name==='list_capabilities'){return 'PANELS (key — name (purpose)):\n'+panelCatalog()+'\n\nTOOLS: every tool in your system prompt TOOLS list is real; anything else does not exist.'}
         if(c.name==='read_panel'){
+          const raw=String(a.panel||'').trim().toLowerCase();
           const key=resolvePanelKey(a.panel);if(!key)return 'no panel matches "'+String(a.panel||'')+'"';
           const ps=screenPanels();
-          const hit=ps.find(x=>x.key.toLowerCase()===key)||ps.find(x=>x.key.toLowerCase().startsWith(key));
+          // iT is the one panel with many windows, and their keys are 'shell', 'shell#1',
+          // 'shell#2'. resolvePanelKey strips the '#', so every one of them collapsed to
+          // 'shell' and a request for a specific window was answered from whichever sorted
+          // first — another terminal's output, returned as the answer, with nothing said.
+          // Match the raw name first, and when it IS ambiguous, say so instead of guessing.
+          const exact=ps.find(x=>x.key.toLowerCase()===raw);
+          const same=ps.filter(x=>x.key.toLowerCase()===key||x.key.toLowerCase().startsWith(key+'#'));
+          const hit=exact||same[0];
           if(!hit)return 'panel "'+key+'" is not open (open now: '+(ps.map(x=>x.key).join(', ')||'none')+') — open_panel it first';
+          const ambiguous=(!exact&&same.length>1)
+            ? ' [ '+same.length+' windows of this panel are open: '+same.map(x=>x.key).join(', ')+' — this is '+hit.key+'; name one exactly to read another ]'
+            : '';
           const body=hit.el.querySelector('.body')||hit.el;
           const txt=(body.innerText||'').replace(/\n{3,}/g,'\n\n').trim();
-          return 'PANEL '+hit.key+' — '+hit.title+(hit.docked?' [docked]':'')+' — visible content:\n'+(txt?trunc(txt,2200):'(no visible text)');
+          return 'PANEL '+hit.key+' — '+hit.title+(hit.docked?' [docked]':'')+ambiguous+' — visible content:\n'+(txt?trunc(txt,2200):'(no visible text)');
         }
         if(c.name==='close_panel'){
           // open_panel and read_panel both call resolvePanelKey(); this twin did not, so the
@@ -6984,6 +7001,13 @@ ANSWER DISCIPLINE:
       });
     }
     const MAX_STEPS=6;
+    // Drop assistant bubbles that finished with nothing in them (stopped before the first
+    // token, or a provider that returned an empty completion). Only ever called once a turn
+    // has ENDED — mid-stream, empty is the live state.
+    function pruneEmptyReplies(cur){
+      if(!cur||!Array.isArray(cur.msgs))return;
+      cur.msgs=cur.msgs.filter(m=>m.role!=='ai'||String(m.raw||m.content||'').trim());
+    }
     async function agentRun(cur,sig){
       let perms={};try{perms=await RPC('permissions','get')}catch(_){}
       let convo=cur.msgs.filter(m=>(m.role==='user'||m.role==='ai')&&String(m.raw||m.content||'').trim()).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.raw||m.content})); // drop empties (aborted turns) → no Anthropic 400
@@ -7126,7 +7150,12 @@ ANSWER DISCIPLINE:
       if(text.charAt(0)==='/'){
         const sp=text.indexOf(' '),cmd=(sp<0?text:text.slice(0,sp)).toLowerCase(),arg=sp<0?'':text.slice(sp+1).trim();
         const note=m=>{cur.msgs.push({role:'ai',content:m});saveSt();renderChat();inp.value='';autosize();};
-        if(cmd==='/clear'){cur.msgs=[];saveSt();renderChat();inp.value='';autosize();return}
+        // Clearing the transcript has to clear the AGENT too. pi keeps the conversation in
+        // its own process, keyed by the session id — wiping only the screen left every prior
+        // turn live in a context the owner believed they had just deleted, and the next
+        // message answered as if nothing had been cleared. Ending it is what `archive` and
+        // panel teardown already do; the next message starts a fresh one.
+        if(cmd==='/clear'){endAgent(cur.id);cur.msgs=[];cur._lastEngine=null;saveSt();renderChat();inp.value='';autosize();return}
         if(cmd==='/model'){inp.value='';popModels();return}
         if(cmd==='/harness'){inp.value='';popHarness();return}
         if(cmd==='/context'){note('**What I can see right now:**\n```\n'+appContextText(cur)+'\n```');return}
@@ -7165,11 +7194,23 @@ ANSWER DISCIPLINE:
             +'\n\nType `/` to filter any of them. Also: ❯_ real terminal · ⧉ diff · 🌐 web.');return}
         // unknown slash: fall through and send as a normal message
       }
+      // Only piRun carries images — codeStream sends {role,content} strings and has nowhere
+      // to put them. This block used to run unconditionally: on the fallback path the images
+      // were dropped, the tray was emptied, and the message still said "[2 images attached]".
+      // Decide the route FIRST, then either attach them or keep them and say why.
+      const routesToPi=Bridge.on()&&(((cur.model||'')==='pi')||String(cur.model||'').includes('::'));
+      if(routesToPi&&draftImgs.length&&!piOk)await refreshPiOk();
       let imgs=[];
       if(draftImgs.length){
-        imgs=draftImgs.map(m=>({data:m.data,mimeType:m.mime}));
-        text=(text?text+'\n':'')+'['+imgs.length+' image'+(imgs.length>1?'s':'')+' attached]';
-        draftImgs=[];
+        if(routesToPi&&piOk){
+          imgs=draftImgs.map(m=>({data:m.data,mimeType:m.mime}));
+          text=(text?text+'\n':'')+'['+imgs.length+' image'+(imgs.length>1?'s':'')+' attached]';
+          draftImgs=[];
+        }else{
+          // Kept in the tray, not thrown away — switching to pi and pressing send again is
+          // the whole fix from the owner's side.
+          Toast.show(draftImgs.length+' image'+(draftImgs.length>1?'s':'')+' not sent — only pi can read images. They are still attached; pick pi in the model picker.');
+        }
       }
       if(draftFiles.length){
         const ctx=draftFiles.map(f=>f.text?('```'+f.name+'\n'+f.text+'\n```'):('[attached file: '+(f.path||f.name)+' — read it with your tools]')).join('\n');
@@ -7190,7 +7231,7 @@ ANSWER DISCIPLINE:
         // running on that model underneath (routed via the local relay). agentRun is the
         // fallback when pi is absent, and for the bare machine brain ('').
         try{
-          const wants=((cur.model||'')==='pi')||String(cur.model||'').includes('::');
+          const wants=routesToPi;
           // A session pinned to pi used to fall through to the MACHINE BRAIN whenever the
           // status probe had failed or not answered yet — a different LLM answered under the
           // label "pi". Re-ask instead of guessing, and if pi really is gone, say so.
@@ -7205,6 +7246,12 @@ ANSWER DISCIPLINE:
           if(!sig.aborted&&e&&e.name!=='AbortError')cur.msgs.push({role:'ai',content:'⚠ '+friendlyErr(e.message||String(e)),err:true});
         }
         if(runs.get(cur.id)===ctl)runs.delete(cur.id);
+        // A turn that was stopped before its first token — or that answered with nothing —
+        // left an assistant message with no content. While streaming, empty means "still
+        // coming" and renders as '…'; once the run is over it is a bubble that pulses
+        // forever, gets saved, and reloads that way next session. agentRun already discards
+        // these when it rebuilds the conversation, so nothing downstream wants them.
+        pruneEmptyReplies(cur);
         syncSend();saveSt();if(active()&&active().id===cur.id)await renderChat();else renderSessions();
         return;
       }
@@ -7399,7 +7446,10 @@ ANSWER DISCIPLINE:
       runs.clear();
       st.sessions.forEach(x=>endAgent(x.id));
     };
-    renderSessions();renderChat();loadModels();loadHarnesses();loadPiCommands();
+    // loadDraft here too. _dispose stashes the half-typed sentence and its attachments into
+    // the session, and mount never read them back — so a draft survived the close, sat in the
+    // store unseen, and the first session switch stashed the empty composer over it.
+    renderSessions();renderChat();loadDraft();loadModels();loadHarnesses();loadPiCommands();
   }
 
   /* ---------- AGENT VIEW — standalone panel: full iNFT detail (identity · traits · soul).
@@ -7768,8 +7818,10 @@ ANSWER DISCIPLINE:
     }
     // Live-refresh the chat model picker when the registry changes (e.g. MATRIX cluster sync) —
     // rewrites only the <select> options so typing and the open conversation are untouched.
-    Bus.on('models:changed',async()=>{
-      if(!document.body.contains(p))return;
+    // panelBus, not Bus: a raw Bus.on registered per mount is never removed, so every LAB
+    // open left another closure holding this panel alive. The contains(p) guard kept it
+    // quiet, not absent.
+    panelBus(p).on('models:changed',async()=>{
       const sel=body.querySelector('#labcmodel');if(!sel)return;
       const opts=await modelOptions();
       sel.innerHTML=opts.map(o=>`<option value="${escAttr(o.v)}" ${o.v===chat.model?'selected':''}>${escAttr(o.label)}</option>`).join('');
@@ -8590,17 +8642,26 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     function looksBinary(t){let bad=0;const n=Math.min(t.length,2000);for(let i=0;i<n;i++){const c=t.charCodeAt(i);if(c===0||(c<9&&c!==0)||(c>13&&c<32))bad++}return bad>n*0.02}
     function addFiles(list){
       const files=[...(list||[])];
+      // The push happens in the reader's onload, so the cap could not be counted off
+      // st.attach alone: a five-file drop tested `length>=3` five times while length was
+      // still 0 and attached all five. `taken` counts what this call has already claimed.
+      let taken=0;
       for(const f of files){
-        if(st.attach.length>=ATT_MAX){Toast.show('Max '+ATT_MAX+' attachments.');break}
+        if(st.attach.length+taken>=ATT_MAX){Toast.show('Max '+ATT_MAX+' attachments.');break}
         if(f.size>ATT_BYTES){Toast.show(f.name+' skipped — over 200KB.');continue}
+        taken++;
         const rd=new FileReader();
         rd.onload=()=>{
           const t=String(rd.result||'');
-          if(looksBinary(t)){Toast.show(f.name+' skipped — text files only for now.');return}
+          // The slot was reserved before the read; a file that turns out to be binary
+          // gives it back, so a rejected file never costs the owner an attachment.
+          if(looksBinary(t)){taken--;Toast.show(f.name+' skipped — text files only for now.');return}
           st.attach.push({name:f.name,size:f.size,text:t});
+          taken--;
           renderChips();
           if(st.view==='dl'||st.view==='int')Toast.show('Attached to chat: '+f.name);
         };
+        rd.onerror=()=>{taken--};
         rd.readAsText(f);
       }
     }
@@ -8806,6 +8867,18 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       // With no live cluster there is no memory to check against — say so instead of
       // sizing the model against a demo topology.
       const mFits=!!m&&(dlDone||(liveCluster()&&(m.storage_size_megabytes||0)*1048576<=clusterFree()));
+      // The DOWNLOAD row used to label itself `nodes()[0]` — which is DEMO NODE 01 whenever
+      // the engine is down — and paint a bar that only ever read 0% or 100%. It is about
+      // THIS machine, so it says so, and the engine already reports the real percentage.
+      const dlHere=(()=>{
+        const node=(liveCluster()&&(nodes().find(n=>n.id===st.nodeId)||{}).name)||'This machine';
+        if(!m)return{node,pct:0,label:'—'};
+        if(dlDone)return{node,pct:100,label:'100%'};
+        const live=(dlMap()[m.id]||{})[st.nodeId];
+        if(live&&live.s==='run')return{node,pct:Math.max(0,Math.min(100,live.pct||0)),label:(live.pct||0)+'%'};
+        if(live&&live.s==='err')return{node,pct:0,label:'failed'};
+        return{node,pct:0,label:'not here'};
+      })();
       const launchLbl=st.launching?'LAUNCHING…':mLive?'● LIVE'
         :!liveCluster()?'START ENGINE FIRST':(!mFits?'INSUFFICIENT MEMORY':'▸ LAUNCH');
       const launchDim=st.launching||!liveCluster()||(!mFits&&!mLive);
@@ -8831,7 +8904,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
               <span class="mx-chip tog" data-mxopt="nodes" title="AUTO lets placement pick; ALL spans every node">${st.launchOpts.allNodes?`ALL ${nodes().length} NODES`:'AUTO NODES'}</span>
             </div>
             <div class="mx-dllbl">DOWNLOAD</div>
-            <div class="mx-dlrow"><span>${escHtml(nodes()[0]?nodes()[0].name.slice(0,10):'node')}…</span><div class="mx-dlbar"><i style="width:${dlDone?100:0}%"></i></div><span>${dlDone?'100%':'—'}</span></div>
+            <div class="mx-dlrow"><span>${escHtml(dlHere.node)}</span><div class="mx-dlbar"><i style="width:${dlHere.pct}%"></i></div><span>${escHtml(dlHere.label)}</span></div>
             ${prevHTML}
             <button class="mx-launch${launchDim?' dim':''}" data-mx="launch">${launchLbl}</button>
           </div>`:'');
@@ -9036,10 +9109,14 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       }else{
         Toast.show(label+': nothing was removed here'+((r.engine&&r.engine.nodes)?' — the engine dropped it on '+r.engine.nodes+' node(s).':'.'));
       }
-      if(st.selModel&&st.selModel.id===modelId){st.selModel=null;st.preview=null}
       for(const k of Object.keys(dlMeta))if(k.startsWith(modelId+'|'))delete dlMeta[k];
       invalidateDisk();
       await refreshLocal();
+      // Deselect only once the disk agrees the model is gone. This used to run before the
+      // refresh and unconditionally, so a refused delete — no MATRIX permission, a read-only
+      // models root — still cleared the selection and collapsed the LOAD MODEL card under a
+      // toast saying the delete had failed.
+      if(st.selModel&&st.selModel.id===modelId&&!onDisk().some(x=>x.id===modelId)){st.selModel=null;st.preview=null}
       await refreshProv();
       Bus.emit('models:changed'); // CODE · LAB drop it the moment the disk does
       renderAside();updateComposer();
@@ -9158,7 +9235,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       if(!c||c.s==='wait')return `<td class="c">${act('start','⤓','Download to this node')}</td>`;
       if(c.s==='done'){const sz=c.bytes?gb1(c.bytes):mb2gb(m.storage_size_megabytes||0);
         const rm=st.armed&&st.armed.key==='purge:'+m.id?'SURE?':'RM';
-        return `<td class="c"><span class="ok">✓</span><span class="szl">${escHtml(sz)}</span>${act('disk',rm,'Delete this model from this machine — instance, download, weights and caches')}</td>`}
+        // RM only under THIS machine's column. The handler purges the local copy — it has no
+        // node argument and the bridge owns this disk alone — so painting it under a remote
+        // node offered to delete a file that column is not about, and deleted ours instead.
+        return `<td class="c"><span class="ok">✓</span><span class="szl">${escHtml(sz)}</span>${isLocal?act('disk',rm,'Delete this model from this machine — instance, download, weights and caches'):''}</td>`}
       if(c.s==='run')return `<td class="c"><div class="mx-dlbar" style="width:56px;margin:0 auto 3px"><i style="width:${c.pct}%"></i></div><span class="szl">${c.pct}%</span>${act('cancel','✕','Cancel download')}</td>`;
       return `<td class="c"><span style="color:var(--mx-err)">✗</span>${act('start','↻','Retry download')}</td>`;
     }
@@ -9253,6 +9333,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       if(st.tickN%8===1)refreshEng();
       if(st.tickN%5===2)refreshLocal();          // the disk answers whether the engine is up or not
       if(st.online&&st.tickN%5===0)syncCluster(); // keep the pickers in sync with disk (download/delete)
+      if(st.online&&!st.models&&st.tickN%5===3)loadModels(); // an online engine with no catalog is a fetch that failed, not an empty engine
       if(st.selModel&&st.online&&st.tickN%15===0)fetchPreview(st.selModel.id);
       // stall tracking: an instance that sits non-READY for minutes means the engine
       // wedged mid-load (seen killing WindowServer on 2026-07-21) — surface it honestly
@@ -9274,7 +9355,13 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       try{
         const r=await fetch(API+'/models',{signal:AbortSignal.timeout(3000)});
         const j=await r.json();st.models=(j.data||j||[]).map(m=>({id:m.id,name:m.name||m.id.split('/').pop(),family:m.family||'other',quant:m.quantization||'',base:m.base_model||m.name||m.id,storage_size_megabytes:m.storage_size_megabytes||0,caps:m.capabilities||[],gbLabel:mb2gb(m.storage_size_megabytes||0)}));
-      }catch(_){st.models=null}
+      }catch(_){
+        // A 3s timeout is not the same answer as "this engine has no models". This used to
+        // write `st.models=null` and ran only on the offline→online edge, so one slow reply
+        // emptied the catalog for the rest of the session — the picker read "Engine offline
+        // — no catalog" under a header reading ENGINE ONLINE. Keep whatever we had; the
+        // tick below asks again while the engine is up and the catalog is still empty.
+      }
       renderAside();
     }
     // The model the composer will actually talk to. The selection wins over whatever
@@ -9643,13 +9730,20 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       try{const o=itLeaseHeld();if(o&&o.id===itSelf)localStorage.removeItem(IT_OWNER)}catch(_){}
       primary=false;
     };
-    if(primary){
-      // Two windows opening in the same tick can both claim; whoever's write landed last
-      // owns it, and the other stands down here.
-      setTimeout(()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)primary=false},300);
-      itHb=setInterval(()=>{if(primary&&p.isConnected)itClaim();else itRelease()},3000);
-      if(itHb.unref)itHb.unref();
-    }
+    // Two windows opening in the same tick can both claim; whoever's write landed last
+    // owns it, and the other stands down here.
+    if(primary)setTimeout(()=>{const o=itLeaseHeld();if(o&&o.id!==itSelf)primary=false},300);
+    // The heartbeat runs in EVERY iT window, not only in the one that won at mount. `primary`
+    // used to be decided once and could only ever go false — so when the owning window closed,
+    // the surviving iT windows stayed live-only forever: nobody parked the op=it socket and the
+    // `it` CLI answered "iT control channel broke" until a human opened another window. A
+    // window that finds the lease free now takes it and connects.
+    itHb=setInterval(()=>{
+      if(!p.isConnected){itRelease();return}
+      if(primary){itClaim();return}
+      if(itClaim()){primary=true;ctlConnect()} // promoted — the layout and the CLI are ours now
+    },3000);
+    if(itHb.unref)itHb.unref();
     const strip=s=>String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g,'').replace(/\r(?!\n)/g,'');
     const base=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>=0?s.slice(i+1):s};
     const parent=pth=>{const s=String(pth||'').replace(/\/+$/,'');const i=s.lastIndexOf('/');return i>0?s.slice(0,i):'/'};
@@ -11354,8 +11448,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // (top-most window only — with several iT windows open, exactly one answers)
     panelBus(p).on('shell:addcwd',dir=>{if(p!==topInstanceOf('shell'))return;if(dir){newWorkspace(dir);markHere();pendingShellCwd=null}});
     // native menu (Electron) actions — only the top iT window acts, same functions as the keys
-    Bus.on('it:menu',name=>{
-      if(!document.body.contains(p)||p!==topInstanceOf('shell'))return;
+    // panelBus, like its two neighbours — a raw Bus.on per mount kept every closed iT window
+    // (and its whole workspace tree) alive for the life of the session.
+    panelBus(p).on('it:menu',name=>{
+      if(p!==topInstanceOf('shell'))return;
       const A={'new-workspace':()=>newWorkspace(homeAbs),'new-surface':()=>{const pn=paneCur();if(pn)newSurface(pn,curCwd())},'split-right':()=>{const pn=paneCur();if(pn)splitPane(pn,'h')},'split-down':()=>{const pn=paneCur();if(pn)splitPane(pn,'v')},'command-palette':palette,'go-to-workspace':wsPicker,'notifications':notesOverlay};
       (A[name]||(()=>{}))();
     });
@@ -11571,6 +11667,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const showingCard=!!pane.querySelector('[data-setneedbridge]');
       if(Bridge.on()===showingCard)go(cur);   // paired but still carded, or unpaired but not
     });
+    // Caps.set fires 'caps' and, until now, nothing anywhere listened. Every other surface
+    // marks a panel as used — openPanel does it on sight, EMAIL does it on connect — so the
+    // TOOLS switches drifted out of date while the owner watched them. A stale row reads OFF
+    // for a cap that is ON, and the click then does the opposite of what the switch showed.
+    panelBus(p).on('caps',()=>{ if(p.isConnected&&cur==='tools')secToolsList(); });
     function go(name){
       cur=name;
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
@@ -11800,7 +11901,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div style="font-size:10px;color:var(--ink-faint);padding:6px 2px;line-height:1.6">'
         +(anyModel?'':'<b>No models to choose from yet</b> — add a provider in <b>Add Models</b> first.<br>')
         +'Chat is the general default: everything not listed here follows it, including research, recipes and comparisons. With nothing selected the app uses the first provider you added, and falls back to a key in <code>~/.env.local</code>.</div>';
-      pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{const v=s.value;if(!v)await RPC('models','setDefault',s.dataset.cap,{providerId:null});else{const parts=v.split('::');await RPC('models','setDefault',s.dataset.cap,{providerId:parts[0],model:parts[1]})}Toast.show('Saved')}));
+      // models.setDefault answers a refusal with {ok:false,error} — an unwritable store, a
+      // provider that has since been removed. Toasting 'Saved' regardless is how an owner
+      // ends up certain they chose a model and puzzled that another one keeps answering.
+      pane.querySelectorAll('[data-cap]').forEach(s=>s.addEventListener('change',async()=>{
+        const v=s.value;
+        const sel=v?{providerId:v.split('::')[0],model:v.split('::')[1]}:{providerId:null};
+        const r=await act('models','setDefault',s.dataset.cap,sel);
+        if(r)Toast.show('Saved');
+      }));
     }
     async function secSearch(){
       pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, tasks…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · tasks · reminders · research).</div>';
@@ -11959,7 +12068,18 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       // and when the master is what is switching this row on, say so rather than pretend.
       pane.querySelectorAll('[data-perm]').forEach(sw=>sw.addEventListener('click',async()=>{const k=sw.dataset.perm,ownGate=(k==='autoEmail'||k==='ssh'||k==='matrix');
         if(perms.machineControl&&!ownGate&&!perms[k]){Toast.show('Governed by Full machine control — turn that off to set this one individually');return}
-        const on=!perms[k];try{await RPC('permissions','set',{[k]:on});perms[k]=on;Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{sw.classList.toggle('on',on);Toast.show((on?'Enabled: ':'Disabled: ')+k)}}catch(e){Toast.show(e.message)}}));
+        const on=!perms[k];try{await RPC('permissions','set',{[k]:on});perms[k]=on;Bus.emit('permissions:changed');if(k==='machineControl'){Toast.show(on?'Full machine control ON — the agent can do anything you ask':'Full machine control off');secAgentTools()}else{
+          // The row above refuses to turn an IMPLIED row on. This is the other half: a row
+          // that was explicitly on, switched off while the master is still on. The flag is
+          // now false and bridge/permissions.mjs:55 still answers yes, so "Disabled: fileWrite"
+          // would be a plain untruth. Say what is actually true, and repaint the effective
+          // value rather than the stored one.
+          const stillAllowed=perms.machineControl&&!ownGate;
+          sw.classList.toggle('on',on||stillAllowed);
+          Toast.show(on?('Enabled: '+k)
+            :stillAllowed?(k+' is off here, but Full machine control still allows it — turn that off too')
+            :('Disabled: '+k));
+        }}catch(e){Toast.show(e.message)}}));
       pane.querySelectorAll('[data-tool]').forEach(sw=>sw.addEventListener('click',async()=>{const on=!sw.classList.contains('on');await RPC('admin','setToolEnabled',sw.dataset.tool,on);sw.classList.toggle('on',on)}));
       // app_rpc allowlist. The textarea edits whichever list the current mode uses, so the
       // owner never has to reason about two lists at once; flipping the mode re-renders.
@@ -12333,9 +12453,21 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         try{
           const provs=await RPC('models','listProviders').catch(()=>[]);
           const twin=(provs||[]).find(x=>String(x.label||'').toLowerCase()===hit[1].toLowerCase()||String(x.provider||'').toLowerCase()===id);
-          if(twin)await RPC('models','removeProvider',twin.id); // a replaced key must not leave the old one behind
-          const r=await RPC('models','addProvider',{kind:'api',provider:id,label:hit[1],baseUrl:hit[2],apiKey:key});
-          if(r&&r.ok){shared=true;if(models.length)await RPC('models','setModels',r.id,models).catch(()=>{});Bus.emit('models:changed')}
+          // Replace the KEY, not the provider. remove+add mints a new provider id, and
+          // models.removeProvider nulls every AI Default that pointed at the old one — so
+          // re-pasting a key (the ordinary way to rotate one) silently emptied Settings →
+          // AI Defaults, dropped the per-model disable list and reset the enabled flag.
+          // updateProvider keeps the id, so everything attached to it survives.
+          let pid=twin&&twin.id;
+          // Patch only what actually differs — updateProvider clears the probed model list
+          // whenever baseUrl is present, even when it is the same URL.
+          const patch={apiKey:key};
+          if(twin&&String(twin.label||'')!==hit[1])patch.label=hit[1];
+          if(twin&&String(twin.baseUrl||'')!==hit[2])patch.baseUrl=hit[2];
+          const r=pid
+            ?await RPC('models','updateProvider',pid,patch)
+            :await RPC('models','addProvider',{kind:'api',provider:id,label:hit[1],baseUrl:hit[2],apiKey:key});
+          if(r&&r.ok){pid=pid||r.id;shared=true;if(models.length)await RPC('models','setModels',pid,models).catch(()=>{});Bus.emit('models:changed')}
         }catch(_){/* the browser-side key still works — never fail CONNECT over the mirror */}
       }
       Brain.update();renderBrains();
@@ -12708,10 +12840,17 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           +(sched.length>5?`<div class="brn-desc" style="padding:4px 2px">and ${sched.length-5} more — see EMAIL.</div>`:'')
         : '';
 
+      // What the DAEMON answers, not what the row's own flag says. bridge/permissions.mjs:55
+      // lets machineControl allow everything except email, ssh and matrix — so with the master
+      // on, four of these six rows read ASKS FIRST while the agent was already free to act.
+      // A panel whose whole job is to report the gate cannot report a value the gate ignores.
+      const OWN_GATE=new Set(['autoEmail','ssh','matrix']);
       const gateRows=GATES.map(([k,label,note])=>{
-        const on=perms[k]===true;
+        const own=perms[k]===true;
+        const viaMaster=perms.machineControl===true&&!OWN_GATE.has(k);
+        const on=own||viaMaster;
         return `<div class="setline"><span style="flex:1"><b style="color:var(--fg);font-size:10.5px">${escHtml(label)}</b>`
-          +`<div class="brn-desc">${escHtml(note)}</div></span>`
+          +`<div class="brn-desc">${escHtml(note)}${(viaMaster&&!own)?' · allowed by Full machine control':''}</div></span>`
           +`<span class="brn-tag ${on?'project':''}">${on?'ALLOWED':'ASKS FIRST'}</span></div>`;
       }).join('');
 
@@ -12728,14 +12867,17 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
           'Messages queued to leave at a set time. Cancelling one here deletes the send, not the draft.',
           schedRows,''):'')
         +card('WHAT IT MAY DO WITHOUT ASKING',
-          'The gate every agent action passes on this machine. Change it in <b>SETTINGS → MACHINE</b> — '
+          'The gate every agent action passes on this machine. Change it in <b>SETTINGS → AGENT TOOLS</b> — '
           +'this panel shows it rather than setting it, so there is only ever one place that decides.',
           gateRows,
           `<div class="compose-actions" style="justify-content:flex-start"><button class="btn" id="autoperm">OPEN SETTINGS</button></div>`);
 
       const q=root.querySelector('#autoq');if(q)q.addEventListener('click',()=>openPanel('approval'));
       const t=root.querySelector('#autotasks');if(t)t.addEventListener('click',()=>openPanel('tasks'));
-      const g=root.querySelector('#autoperm');if(g)g.addEventListener('click',()=>{openPanel('settings');setTimeout(()=>{const n=document.querySelector('#setnav [data-sec="machine"]');if(n)n.click()},90)});
+      // There is no `machine` section in the settings nav — these gates live under ADMIN →
+      // Agent Tools. The old selector matched nothing, so OPEN SETTINGS opened Settings on
+      // whatever section was last used and the owner had to go looking for the switches.
+      const g=root.querySelector('#autoperm');if(g)g.addEventListener('click',()=>{openPanel('settings');setTimeout(()=>{const n=document.querySelector('#setnav [data-sec="agenttools"]');if(n)n.click()},90)});
       root.querySelectorAll('[data-unsched]').forEach(b=>b.addEventListener('click',async()=>{
         b.disabled=true;b.textContent='cancelling…';
         let r;try{r=await RPC('scheduled','cancel',b.dataset.unsched)}catch(e){r={ok:false,error:(e&&e.message)||String(e)}}
@@ -12937,16 +13079,27 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       unreadEl.style.display=un?'':'none';if(un)unreadEl.textContent=un+' unread';
       countEl.textContent=(folder&&!folder.__sched&&!folder.__appr&&folder.total)?folder.total+' emails':'';
     }
+    // A row carries a uid, and every action pairs that uid with the CURRENT `folder.path`.
+    // IMAP uids are per-mailbox, so that pair is only meaningful while both halves come from
+    // the same load. Nothing blocks the folder menu during a fetch, and the bridge serialises
+    // per account — so picking a second folder mid-load leaves the FIRST fetch to land last
+    // and paint its rows under the second folder's name. `token` is the honest question on
+    // resolve: am I still the load this panel is waiting for?
+    let loadToken=0;
     async function openFolder(f){
       if(!f)return;folder=f;sel.clear();updateBulk();closeMenu();
+      const token=++loadToken;
       foldLbl.textContent=f.specialUse==='\\Inbox'?'INBOX':fname(f);
       if(paneMode==='read')hidePane();
       updateCounts();
       if(f.__sched)return renderScheduled();
       if(f.__appr)return renderApprovals();
       note('loading…');setBusy(true);
-      try{msgs=await Mail.list(acct.id,f.path,{limit:60})}catch(e){setBusy(false);note('Error: '+escHtml(e.message));return}
-      setBusy(false);updateCounts();renderList();
+      let got;
+      try{got=await Mail.list(acct.id,f.path,{limit:60})}
+      catch(e){if(token!==loadToken)return;setBusy(false);note('Error: '+escHtml(e.message));return}
+      if(token!==loadToken)return; // a newer folder took over — these rows belong to nobody
+      msgs=got;setBusy(false);updateCounts();renderList();
     }
     function foldMenu(){
       if(!acct||!folders.length){Toast.show('Connect an account first');return}
@@ -13023,9 +13176,23 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       bulk.querySelector('#embarch').addEventListener('click',()=>{const arch=folders.find(f=>f.specialUse==='\\Archive'||f.specialUse==='\\All');if(!arch){Toast.show('No archive folder');return}bulkOp(uid=>Mail.move(acct.id,folder.path,uid,arch.path))});
       bulk.querySelector('#embdel').addEventListener('click',()=>bulkOp(uid=>{const tr=folders.find(f=>f.specialUse==='\\Trash');return(tr&&tr.path!==folder.path)?Mail.move(acct.id,folder.path,uid,tr.path):Mail.flag(acct.id,folder.path,uid,{deleted:true})}));
     }
+    // Same contract as the reader's buttons: a refused op RESOLVES with {ok:false}, so the
+    // catch here only ever saw transport failures — everything the server itself refused
+    // fell through to 'Done ✓'. Count what actually happened and say that instead. One
+    // failure does not abandon the rest: the owner asked for all of them.
     async function bulkOp(fn){
       setBusy(true);
-      try{for(const uid of[...sel])await fn(uid);Toast.show('Done ✓')}catch(e){Toast.show(e.message)}
+      const total=sel.size;let done=0,firstErr='';
+      for(const uid of[...sel]){
+        try{
+          const r=await fn(uid);
+          if(r&&r.ok===false){firstErr=firstErr||String(r.error||'refused');continue}
+          done++;
+        }catch(e){firstErr=firstErr||((e&&e.message)||String(e))}
+      }
+      Toast.show(done===total?'Done ✓'
+        :done?(done+' of '+total+' done — '+friendlyErr(firstErr))
+        :('Nothing changed — '+friendlyErr(firstErr||'the server refused it')));
       sel.clear();setBusy(false);updateBulk();loadFolders();
     }
 
@@ -13055,9 +13222,35 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       paneEl.querySelector('#mrclose').addEventListener('click',()=>hidePane());
       paneEl.querySelector('#mrreply').addEventListener('click',()=>compose({to:(h.from&&h.from[0]&&h.from[0].address)||'',subject:/^re:/i.test(h.subject||'')?h.subject:'Re: '+(h.subject||''),inReplyTo:h.messageId,quote:m.text}));
       paneEl.querySelector('#mrfwd').addEventListener('click',()=>compose({subject:/^fwd:/i.test(h.subject||'')?h.subject:'Fwd: '+(h.subject||''),body:'\n\n--- Forwarded message ---\n'+(m.text||'')}));
-      paneEl.querySelector('#mrstar').addEventListener('click',async e=>{const nf=!sum.flagged;await Mail.flag(acct.id,folder.path,sum.uid,{flagged:nf});sum.flagged=nf;e.target.textContent=nf?'★ unstar':'☆ star';Toast.show(nf?'Starred':'Star removed');renderList()});
-      paneEl.querySelector('#mrarch').addEventListener('click',async()=>{const arch=folders.find(f=>f.specialUse==='\\Archive'||f.specialUse==='\\All');if(!arch){Toast.show('No archive folder');return}await Mail.move(acct.id,folder.path,sum.uid,arch.path);Toast.show('Archived');hidePane();openFolder(folder)});
-      paneEl.querySelector('#mrdel').addEventListener('click',async()=>{const tr=folders.find(f=>f.specialUse==='\\Trash');if(tr&&tr.path!==folder.path){await Mail.move(acct.id,folder.path,sum.uid,tr.path)}else{await Mail.flag(acct.id,folder.path,sum.uid,{deleted:true})}Toast.show('Moved to trash');hidePane();openFolder(folder)});
+      // bridge/email.mjs answers a refused IMAP op with {ok:false,error} — it does not throw.
+      // These three used to `await` and then toast success regardless, so a mailbox that
+      // refuses the move (Gmail's All Mail, any read-only folder) told the owner their mail
+      // was archived and left it exactly where it was. `mailOk` is the one question worth
+      // asking, and the answer decides whether anything else is claimed.
+      const mailOk=r=>{
+        if(r&&r.ok===false){Toast.show(friendlyErr(r.error||'the server refused it'));return false}
+        return true;
+      };
+      paneEl.querySelector('#mrstar').addEventListener('click',async e=>{
+        const nf=!sum.flagged;
+        let r;try{r=await Mail.flag(acct.id,folder.path,sum.uid,{flagged:nf})}catch(err){Toast.show(friendlyErr(err.message||err));return}
+        if(!mailOk(r))return;
+        sum.flagged=nf;e.target.textContent=nf?'★ unstar':'☆ star';Toast.show(nf?'Starred':'Star removed');renderList();
+      });
+      paneEl.querySelector('#mrarch').addEventListener('click',async()=>{
+        const arch=folders.find(f=>f.specialUse==='\\Archive'||f.specialUse==='\\All');if(!arch){Toast.show('No archive folder');return}
+        let r;try{r=await Mail.move(acct.id,folder.path,sum.uid,arch.path)}catch(err){Toast.show(friendlyErr(err.message||err));return}
+        if(!mailOk(r))return;
+        Toast.show('Archived');hidePane();openFolder(folder);
+      });
+      paneEl.querySelector('#mrdel').addEventListener('click',async()=>{
+        const tr=folders.find(f=>f.specialUse==='\\Trash'),toTrash=!!(tr&&tr.path!==folder.path);
+        let r;
+        try{r=toTrash?await Mail.move(acct.id,folder.path,sum.uid,tr.path):await Mail.flag(acct.id,folder.path,sum.uid,{deleted:true})}
+        catch(err){Toast.show(friendlyErr(err.message||err));return}
+        if(!mailOk(r))return;
+        Toast.show(toTrash?'Moved to trash':'Marked deleted');hidePane();openFolder(folder);
+      });
     }
 
     // ---------- compose (right pane, tab strip like the spec) ----------
@@ -13392,7 +13585,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         const L=runs.filter(r=>(acat==='all'||r.t.category===acat)&&(!ql||r.t.name.toLowerCase().includes(ql)||String(r.summary||'').toLowerCase().includes(ql)));
         listEl.innerHTML=L.map(r=>`<div class="tkarow"><i class="tkdot ${escAttr(r.status)}"></i><svg class="tkico"><use href="${ico(r.t.category)}"/></svg><div class="tkainfo"><b>${escAttr(r.t.name)}</b><span class="tkasum">${escAttr(r.summary||r.error||r.status)}</span></div><span class="tkago">${rel(r.startedAt)}</span></div>`).join('')||'<div class="qempty">no runs yet — enable a task or hit RUN in the Tasks tab</div>';
       }
-      card.querySelector('#tkaq').addEventListener('input',e=>{aq=e.target.value;paint()});
+      // The activity fetch above can outlive the screen that started it — a tab click, a
+      // ↻ while the first pass is still in flight, or `bridge:changed` re-rendering the
+      // card all replace this markup mid-await. paint() already asks whether its nodes are
+      // still there; this line did not, and threw on a card that had moved on.
+      const q=card.querySelector('#tkaq');if(!q)return;
+      q.addEventListener('input',e=>{aq=e.target.value;paint()});
       paint();
     }
     const TYPES=[
@@ -13422,8 +13620,18 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const txt=(inp&&inp.value.trim())||'';
       if(!txt){Toast.show('Describe the task first');return}
       b.textContent='drafting…';
-      try{const r=await RPC('tasks','draft',txt);if(r&&r.ok){Toast.show('Task drafted by AI');go('tasks');return}}catch(e){}
-      openForm({title:'Prompt on schedule (drafted)',name:txt.slice(0,60),category:'custom',cron:'0 7 * * 1-5',prompt:txt});
+      // tasks.draft returns a PROPOSAL, not a task — it fills this form and the owner still
+      // presses CREATE. A scheduled job that acts on this machine should never appear from
+      // one sentence without a human reading the schedule. When there is no model (or it
+      // answers with something that is not a task) the form still opens, pre-filled from
+      // what was typed, which is what this button did on every press before `draft` existed.
+      let d=null;
+      try{const r=await RPC('tasks','draft',txt);if(r&&r.ok&&r.task)d=r.task;else if(r&&r.error)Toast.show(friendlyErr(r.error))}
+      catch(e){Toast.show(friendlyErr(e.message||e))}
+      b.textContent='+ Draft with AI';
+      openForm(d
+        ?{title:'Prompt on schedule (drafted)',name:d.name,category:d.category,cron:d.cron,prompt:d.prompt}
+        :{title:'Prompt on schedule (drafted)',name:txt.slice(0,60),category:'custom',cron:'0 7 * * 1-5',prompt:txt});
     }
     function openForm(f={}){
       card.innerHTML=`<div class="acctform"><div class="afh">${escHtml(f.title||'New scheduled task')}</div>
@@ -13472,8 +13680,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     const body=p.querySelector('#ntbody'),search=p.querySelector('#ntsearch'),chips=p.querySelector('#ntchips'),selbar=p.querySelector('#ntselbar'),selBtn=p.querySelector('#ntsel'),archBtn=p.querySelector('#ntarch'),gridBtn=p.querySelector('#ntgrid'),input=p.querySelector('#ntadd');
     const ARCH='archived',REM='reminder',sel=new Set();
     let chip='all',archView=false,selMode=false,grid=false,mode='todo',view=[];
-    p.querySelector('#ntmin').addEventListener('click',()=>{const m=p.querySelector('.pbtns .m');if(m)m.click()});
     if(!Bridge.on()){needBridge(body);return}
+    // Below the gate, not above it. needBridge re-mounts this panel when the bridge comes
+    // up, on the SAME element — so anything wired before the early return is wired twice,
+    // and ⌄ minimised the window and immediately restored it.
+    p.querySelector('#ntmin').addEventListener('click',()=>{const m=p.querySelector('.pbtns .m');if(m)m.click()});
     const hasTag=(n,t)=>(n.tags||[]).some(x=>String(x).toLowerCase()===t);
     const todosOf=sn=>(String(sn||'').match(/\[[ xX]\][^\[]*/g)||[]).map(c=>({done:c[1].toLowerCase()==='x',text:c.slice(3).trim()}));
     const restOf=sn=>String(sn||'').replace(/\[[ xX]\][^\[]*/g,'').trim();
@@ -13797,7 +14008,24 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         setActive(b.dataset.id);
       }));
     }
-    function addrSync(t){const i=inp();if(i&&document.activeElement!==i){i.value=(t&&t.url)||'';lockSync(i.value)}}
+    // Never clobber what the OWNER is typing — but a caret the app parked there itself is
+    // not someone typing.
+    //
+    // This used to skip whenever the input merely had focus, and startSync() focuses it on
+    // every blank tab (correctly — with nothing on screen the caret belongs in the address
+    // bar). So the bookmark path went: blank tab → address bar focused → the URL arrives and
+    // navigates that same tab → addrSync sees "focused" and declines to write. The page
+    // loaded and the address bar sat empty showing its placeholder, with no way to tell where
+    // you were. Seen on the real app, not in the source (DEBUG4 · CF4-E-005).
+    //
+    // `addrDirty` is the honest question: has a KEY been pressed in there since the caret
+    // arrived? Only then is there anything of the owner's to protect.
+    let addrDirty=false;
+    function addrSync(t){
+      const i=inp();if(!i)return;
+      if(document.activeElement===i&&addrDirty)return;   // the owner is mid-edit — leave it alone
+      i.value=(t&&t.url)||'';lockSync(i.value);addrDirty=false;
+    }
 
     // Cross-window ownership: eids claimed by any live BROWSER window, so two ⧉
     // windows never fight over one engine tab and reload-adoption can't double-claim.
@@ -13827,7 +14055,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       // If a real page landed while the wipe was in flight, the blank tab is no longer the
       // right thing to create — the window is already showing what the user asked for.
       if(tabs.length)return;
-      newTab('');
+      // AWAITED. newTab() is itself async — it round-trips `eng('open')` before it pushes
+      // anything into `tabs` — so an un-awaited call here made openClean() resolve while the
+      // tab still did not exist. A web:open waiting on cleanBoot therefore woke to an EMPTY
+      // `tabs`, found nothing to reuse, and created its own; the blank one then arrived
+      // behind it. Two tabs where there should be one, measured on the real app.
+      await newTab('');
     }
     function closeTab(id){
       const i=tabs.findIndex(t=>t.id===id);if(i<0)return;
@@ -14306,9 +14539,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       i.addEventListener('keydown',e=>{if(e.key==='Enter')go();else if(e.key==='Escape'){const t=at();i.value=(t&&t.url)||'';i.blur()}});
       // Click-to-focus selects the whole URL (every browser does this) — without it,
       // typing APPENDS to the old address and "google.com" becomes garbage.
-      i.addEventListener('focus',()=>setTimeout(()=>{try{i.select()}catch(_){}},0));
-      i.addEventListener('input',()=>lockSync(i.value));
-      i.addEventListener('blur',()=>addrSync(at())); // a tab push that landed mid-edit resyncs on blur
+      i.addEventListener('focus',()=>{addrDirty=false;setTimeout(()=>{try{i.select()}catch(_){}},0)});
+      // A key was pressed in here: from now until this field is left, it belongs to the owner
+      // and no tab update may overwrite it. Before the first keystroke there is nothing to
+      // protect, which is what lets a bookmark's URL reach a bar the app itself focused.
+      i.addEventListener('input',()=>{addrDirty=true;lockSync(i.value)});
+      i.addEventListener('blur',()=>{addrDirty=false;addrSync(at())}); // a tab push that landed mid-edit resyncs on blur
       const fb=el('wbrfind');
       fb.querySelector('input').addEventListener('keydown',e=>{
         e.stopPropagation();
@@ -14380,8 +14616,11 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // windows and an untargeted URL would have landed in all of them; with one window it
     // is belt-and-braces, and it stays because webOpen already passes it and a listener
     // on a window being torn down must not answer for the one replacing it.
-    Bus.on('web:open',async d=>{
-      if(!document.body.contains(p)||!p._wbr)return;
+    // panelBus, not Bus — the file's own neighbours already use it. A raw Bus.on inside a
+    // mount is never removed, so the closure (and through it the panel, its canvas and its
+    // frame buffers) outlived every close.
+    panelBus(p).on('web:open',async d=>{
+      if(!p._wbr)return;
       const o=(typeof d==='string')?{url:d}:(d||{});
       const u=o.url||'';if(!u)return;
       if(o.target&&o.target!==p.dataset.key)return;

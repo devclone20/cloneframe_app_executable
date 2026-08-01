@@ -381,7 +381,11 @@ function _onMessage(msg) {
     const tab = S.bySession.get(msg.sessionId);
     if (tab) {
       tab.seq++; tab.frame = { seq: tab.seq, data: params.data, metadata: params.metadata, ts: Date.now() };
-      tab.lastSeen = Date.now();
+      // `lastSeen` is a CLIENT liveness clock — it answers "is a panel still watching this
+      // tab", and only frame() polling, an op=web watch and the explicit keepalive may set
+      // it. Stamping it here let the engine vouch for its own tab: a casting tab whose panel
+      // had crashed kept pushing frames, kept refreshing its own clock, and could never go
+      // stale — the one kind of tab the reaper exists to collect.
       _pushFrame(tab, params);
     }
     // Ack immediately even for untracked sessions — an unacked frame stalls the cast.
@@ -1571,11 +1575,27 @@ async function _historyStep(id, delta) {
 // at their pages — in a fresh private context, so the relaunch also drops every cookie
 // and cache the old one held (the engine restart IS a wipe; this is by design).
 S.headful = false;
-async function _relaunch(headful, { cookies, tabs } = {}) {
+// Relaunches are serialised, and their spawn goes through the SAME S.starting latch that
+// _ensureEngine waits on. Without both, a reveal racing a tab open (or a second reveal) ran
+// _spawnEngine twice: the first Chrome had not released the profile's singleton lock, the
+// second exited on arrival, and the owner got "Browser engine unavailable" with an orphaned
+// Chrome still holding the old profile.
+let _relaunchP = null;
+function _relaunch(headful, opts = {}) {
+  const prev = _relaunchP ? _relaunchP.catch(() => {}) : Promise.resolve();
+  const p = prev.then(() => _relaunchNow(headful, opts));
+  _relaunchP = p;
+  return p.finally(() => { if (_relaunchP === p) _relaunchP = null; });
+}
+async function _relaunchNow(headful, { cookies, tabs } = {}) {
   headful = !!headful;
   if (!cookies && !tabs && S.proc && S.ready && S.headful === headful) return { ok: true, headful, unchanged: true };
   const snap = tabs || [...S.tabs.values()].map((t) => ({ url: t.url, casting: t.casting }));
   const proc = S.proc;
+  // Not ready from the first kill signal onwards: the awaits below used to leave S.ready
+  // true while the engine was dying, so _ensureEngine answered "fine" and callers talked to
+  // a corpse.
+  S.ready = false;
   if (proc) {
     try { proc.stdio[3].end(); } catch { /* pipe gone */ }
     try { proc.kill('SIGTERM'); } catch { /* gone */ }
@@ -1591,11 +1611,14 @@ async function _relaunch(headful, { cookies, tabs } = {}) {
   S.proc = null; S.ready = false; S.headful = headful;
   // Every ceremony waiting on the old engine died with it — its page no longer exists.
   S.pk.clear();
-  try { await _spawnEngine(); }
+  // Through S.starting, so a concurrent _ensureEngine joins this spawn instead of starting
+  // a second Chrome on a profile this one already owns.
+  const spawnLatched = () => { S.starting = _spawnEngine().finally(() => { S.starting = null; }); return S.starting; };
+  try { await spawnLatched(); }
   catch (e) {
     // One honest retry: the lock is the usual reason, and it clears in well under a second.
     await new Promise((r) => setTimeout(r, 900));
-    try { await _spawnEngine(); } catch { return { ok: false, error: e.message }; }
+    try { await spawnLatched(); } catch { return { ok: false, error: e.message }; }
   }
   // Cookies BEFORE the first page loads, or the rebuilt tab arrives signed out and the
   // whole point of carrying them across is lost.

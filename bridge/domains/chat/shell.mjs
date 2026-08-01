@@ -89,8 +89,13 @@ export async function handleShell(req, res, body, { streamHead }) {
   streamHead(res);
   if (!cmd) { res.end(); return; }
 
-  // built-in cd (persists this session's tracked cwd; real terminals need this)
-  const cdMatch = cmd.match(/^cd(?:\s+(.+))?$/);
+  // built-in cd (persists this session's tracked cwd; real terminals need this).
+  // Only a BARE cd. The old pattern was `^cd(?:\s+(.+))?$`, which swallowed the whole line —
+  // so `cd repo && npm test` was handed to statSync as the directory "repo && npm test" and
+  // came back "cd: no such file or directory". The command never ran, and the most ordinary
+  // shell idiom there is looked like a broken path. Anything with a shell operator in it goes
+  // to zsh, which is the only thing that can interpret it.
+  const cdMatch = /[;&|]|\$\(|`/.test(cmd) ? null : cmd.match(/^cd(?:\s+(.+))?$/);
   if (cdMatch) {
     const target = resolveCd((cdMatch[1] || '').trim().replace(/^["']|["']$/g, ''), s);
     try {
@@ -123,7 +128,11 @@ export async function handleShell(req, res, body, { streamHead }) {
     env: process.env,
     detached: true, // own process group → SIGINT/SIGKILL the whole tree (npm run dev, sleep, …)
   });
-  if (sudoPass) { try { child.stdin.write(sudoPass + '\n'); child.stdin.end(); } catch {} }
+  // stdin is closed either way. This endpoint is one-shot — there is no channel to type into
+  // it — so leaving the pipe open on non-sudo commands meant anything that reads stdin (`cat`
+  // with no file, `sort`, `grep foo` alone) blocked on a pipe nobody would ever write to and
+  // held the response open for the full two-minute timeout. Closed, they see EOF and finish.
+  try { if (sudoPass) child.stdin.write(sudoPass + '\n'); child.stdin.end(); } catch {}
   const killGroup = (sig) => { try { process.kill(-child.pid, sig); } catch { try { child.kill(sig); } catch {} } };
   running.set(id, killGroup);
   const to = setTimeout(() => { killGroup('SIGKILL'); res.write('\n\x00ERR\x00command timed out (2m)\n'); }, CMD_TIMEOUT);

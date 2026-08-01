@@ -364,8 +364,18 @@ async function runTask(task, scheduled) {
   // Advance schedule + lastRunAt (persist through the live store object).
   const live = store.tasks.find((t) => t.id === task.id);
   if (live) {
-    live.lastRunAt = finishedAt;
-    if (scheduled || live.state === 'running') live.nextRunAt = nextRunISO(live.cron, new Date());
+    // startedAt, not finishedAt. The built-in email jobs use lastRunAt as their watermark
+    // (`newerThan(m, since)`), and a run takes as long as the model does — so stamping the
+    // END created a blind window the width of the whole run: every email that arrived while
+    // the summary was being written was older than the next run's watermark and was never
+    // summarized, replied to or tagged by ANY run. Anchoring to the start can re-consider a
+    // message once; that is the direction to be wrong in.
+    live.lastRunAt = startedAt;
+    // What the task is NOW decides, not how this run started. `scheduled` only says the clock
+    // began it — so pausing a task while its run was in flight re-armed nextRunAt on the way
+    // out, and the row then read PAUSED next to a next-run time. add() is explicit that paused
+    // means no next run; setState() fills it back in when the owner starts it again.
+    live.nextRunAt = live.state === 'running' ? nextRunISO(live.cron, new Date()) : null;
     // This write is the schedule advancing. Swallowing its failure meant a task that HAD run
     // kept its old nextRunAt and ran again at the same time — repeatedly, on a full or
     // read-only disk — with lastRunAt never recorded either, so the run log said it never
@@ -616,6 +626,64 @@ export function get(id) {
   return t ? publicView(t) : null;
 }
 
+/**
+ * Turn one sentence into a task PROPOSAL — never into a task.
+ *
+ * The TASKS panel has shipped a "+ Draft with AI" button calling `tasks.draft` since the
+ * screen was written, and this module never exported it: every press went to the catch and
+ * fell through to the blank form, so the button worked by accident and never once used a
+ * model. This is the missing half.
+ *
+ * It returns a draft for the owner to confirm rather than creating anything. A scheduled
+ * job that acts on this machine is not something a single sentence should be able to
+ * conjure without a human reading the schedule first — and `add()` is right there.
+ *
+ * @returns {Promise<{ok:true, task:{name,category,cron,prompt,action}}|{ok:false,error:string}>}
+ */
+export async function draft(text) {
+  const q = String(text || '').trim();
+  if (!q) return { ok: false, error: 'describe the task first' };
+  let raw;
+  try {
+    raw = await ask(
+      [{ role: 'user', content: `Describe this as a scheduled task:\n\n${q}` }],
+      {
+        system: 'You turn a sentence into a scheduled task for a local agent. Respond with ONLY '
+          + 'valid JSON, no markdown fence, in the shape {"name":string,"category":string,'
+          + '"cron":string,"prompt":string}. `cron` is standard 5-field UNIX cron in the '
+          + "owner's local time. `name` is at most 60 characters. `prompt` is the instruction "
+          + 'the agent will follow on every run, written in the second person. `category` is one '
+          + 'of: custom, research, email, action.',
+        capability: 'chat',
+        maxTokens: 400,
+      },
+    );
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'the model could not be reached' };
+  }
+  // Models fence JSON even when told not to; take the first balanced object rather than
+  // trusting the whole reply.
+  const body = String(raw || '');
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  let obj = null;
+  if (start >= 0 && end > start) { try { obj = JSON.parse(body.slice(start, end + 1)); } catch {} }
+  if (!obj || typeof obj !== 'object') return { ok: false, error: 'the model did not answer with a task' };
+
+  const name = String(obj.name || '').trim().slice(0, 60);
+  const cron = String(obj.cron || '').trim();
+  const prompt = String(obj.prompt || '').trim();
+  const category = ['custom', 'research', 'email', 'action'].includes(String(obj.category || '').trim())
+    ? String(obj.category).trim() : 'custom';
+  if (!name || !prompt) return { ok: false, error: 'the draft was missing a name or a prompt' };
+  // The same two gates add() applies, applied here — a proposal the owner cannot save is
+  // worse than no proposal, because the failure arrives after they have read and accepted it.
+  try { parseCron(cron); } catch { return { ok: false, error: 'the model proposed a schedule that is not valid cron' }; }
+  if (!nextRun(cron)) return { ok: false, error: 'the model proposed a schedule that never comes round' };
+
+  return { ok: true, task: { name, category, cron, prompt, action: 'custom' } };
+}
+
 export function add({ name, category, cron, prompt, action, config } = {}) {
   if (!loaded) init();
   if (!name || !String(name).trim()) return { ok: false, error: 'name is required' };
@@ -745,6 +813,7 @@ export const Tasks = {
   stopScheduler,
   list,
   get,
+  draft,
   add,
   update,
   remove,

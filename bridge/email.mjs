@@ -452,11 +452,38 @@ function extractMessageId(rawBuffer) {
   return m ? m[1] : null;
 }
 
+// SMTP envelope recipients. A comma is BOTH the separator between addresses and an ordinary
+// character inside a quoted display name — `"Silva, Ana" <ana@x.com>` is one recipient, and a
+// plain String.split(',') turned it into two, the first of which (`"Silva`) is not an address
+// at all. Split only on commas that are outside quotes and outside <angle brackets>, then keep
+// whatever looks like an address.
+function splitOne(s) {
+  const out = [];
+  let buf = '', quoted = false, angle = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\' && quoted) { buf += c + (s[i + 1] || ''); i++; continue; }
+    if (c === '"') { quoted = !quoted; buf += c; continue; }
+    if (!quoted && c === '<') { angle = true; buf += c; continue; }
+    if (!quoted && c === '>') { angle = false; buf += c; continue; }
+    if (c === ',' && !quoted && !angle) { out.push(buf); buf = ''; continue; }
+    buf += c;
+  }
+  out.push(buf);
+  return out;
+}
+
+// The envelope wants bare addresses, so a display name is dropped rather than shipped.
+function bareAddress(s) {
+  const m = String(s).match(/<([^>]+)>/);
+  return (m ? m[1] : String(s)).trim().replace(/^["']|["']$/g, '').trim();
+}
+
 function splitRecipients(...fields) {
   return fields
     .filter(Boolean)
-    .flatMap((r) => (Array.isArray(r) ? r : String(r).split(',')))
-    .map((r) => r.trim())
+    .flatMap((r) => (Array.isArray(r) ? r : splitOne(String(r))))
+    .map((r) => bareAddress(r))
     .filter(Boolean);
 }
 
@@ -741,10 +768,32 @@ export async function send(accountId, msg = {}) {
   });
   try {
     const info = await transport.sendMail({ envelope: { from: acct.email, to: recipients }, raw });
+    // nodemailer resolves the promise when the server accepted at least ONE recipient, and
+    // lists the refused ones in `info.rejected`. Reading only the resolution reported a full
+    // success for a partial send — and the caller (APPROVAL, the compose pane) takes that as
+    // permission to destroy the only copy of the draft.
+    const rejected = Array.isArray(info.rejected) ? info.rejected.filter(Boolean) : [];
+    const accepted = Array.isArray(info.accepted) ? info.accepted.filter(Boolean) : [];
+    if (rejected.length && !accepted.length) {
+      return { ok: false, error: `every recipient was refused: ${rejected.join(', ')}` };
+    }
     const messageId = info.messageId || extractMessageId(raw);
     if (!isGmailAccount(acct)) {
       // Gmail auto-appends sent mail server-side; everyone else needs an explicit copy.
+      // A partial send still left the building, so it still belongs in Sent.
       appendRawToSent(accountId, raw).catch(() => {});
+    }
+    if (rejected.length) {
+      // Not ok: some of the people the owner addressed never received it, and `ok` is what
+      // the caller reads before it throws the draft away.
+      return {
+        ok: false,
+        partial: true,
+        accepted,
+        rejected,
+        messageId,
+        error: `sent to ${accepted.length} of ${accepted.length + rejected.length} — refused: ${rejected.join(', ')}`,
+      };
     }
     return { ok: true, messageId };
   } catch (e) {

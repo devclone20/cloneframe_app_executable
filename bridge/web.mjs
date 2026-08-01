@@ -185,10 +185,41 @@ const COOKIE_TTL_MS = 30 * 60_000;
 const COOKIE_MAX_DOMAINS = 200;
 const COOKIE_MAX_PER_DOMAIN = 30;
 const cookieJar = new Map(); // registrable domain -> Map(name -> { value, exp })
+// A Domain= attribute may only widen a cookie to a domain the host is under — never to a
+// PUBLIC SUFFIX. `Set-Cookie: x=1; Domain=co.uk` from a.co.uk passes the endsWith test and
+// would then be replayed to every other .co.uk host this jar ever fetches. Browsers refuse
+// this with the Public Suffix List; a full PSL is not something to embed here, and it is not
+// what the risk needs: requiring at least one label BELOW a known multi-label suffix, and at
+// least two labels otherwise, closes it for every real registry.
+const MULTI_SUFFIX = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'net.uk', 'sch.uk',
+  'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'id.au',
+  'co.jp', 'or.jp', 'ne.jp', 'ac.jp', 'go.jp',
+  'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br',
+  'co.nz', 'net.nz', 'org.nz', 'govt.nz',
+  'co.za', 'org.za', 'net.za',
+  'com.cn', 'net.cn', 'org.cn', 'gov.cn',
+  'co.in', 'net.in', 'org.in', 'gov.in',
+  'com.mx', 'com.ar', 'com.tr', 'com.sg', 'com.hk', 'com.tw', 'com.pl', 'com.pt', 'com.es',
+  'github.io', 'gitlab.io', 'pages.dev', 'workers.dev', 'vercel.app', 'netlify.app',
+  's3.amazonaws.com', 'herokuapp.com', 'appspot.com', 'azurewebsites.net',
+]);
+function isPublicSuffix(d) {
+  const labels = d.split('.').filter(Boolean);
+  if (labels.length < 2) return true;                                  // a bare TLD
+  const last2 = labels.slice(-2).join('.');
+  const last3 = labels.slice(-3).join('.');
+  if (labels.length === 2 && MULTI_SUFFIX.has(last2)) return true;     // exactly `co.uk`
+  if (labels.length === 3 && MULTI_SUFFIX.has(last3)) return true;     // exactly `s3.amazonaws.com`
+  return false;
+}
 function cookieDomain(host, attr) {
   const h = String(host || '').toLowerCase();
   const d = String(attr || '').toLowerCase().replace(/^\./, '');
-  return d && (h === d || h.endsWith('.' + d)) ? d : h; // reject foreign Domain= attrs
+  if (!d) return h;
+  if (h !== d && !h.endsWith('.' + d)) return h; // reject foreign Domain= attrs
+  if (isPublicSuffix(d)) return h;               // …and registry-wide ones
+  return d;
 }
 function cookieStore(host, setCookies) {
   for (const line of setCookies || []) {

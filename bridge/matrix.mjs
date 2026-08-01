@@ -465,7 +465,7 @@ function localModels() {
     }
   }
   const val = { ok: true, roots: roots.map(tilde), models: [...byId.values()].sort((a, b) => a.id.localeCompare(b.id)) };
-  diskMemo = { at: now, val };
+  diskMemo = { at: now, sig, val }; // `sig` — without it the read above compares undefined and never hits
   return val;
 }
 

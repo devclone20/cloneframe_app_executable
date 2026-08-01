@@ -133,8 +133,13 @@ function find(hosts, alias) { return hosts.find((h) => h.alias === alias) || nul
 // never be reparsed as an option, and we never construct `user@host`.
 function argvFor(h, opts = {}) {
   const o = opts || {};
+  // `-F <path>` is FATAL when the file does not exist — ssh exits with "Can't open user
+  // config file" before it tries to connect. A fresh macOS account has no ~/.ssh/config, so
+  // every ssh path in this module failed on exactly the machines with nothing configured
+  // yet. `none` is ssh's own word for "read no config", which is what we wanted anyway:
+  // every option below is a fixed constant chosen here.
   const args = [
-    '-F', CONFIG_PATH,
+    '-F', fs.existsSync(CONFIG_PATH) ? CONFIG_PATH : 'none',
     '-o', 'StrictHostKeyChecking=' + (o.strict || 'accept-new'),
     '-o', 'UserKnownHostsFile=' + KNOWN_HOSTS,
     '-o', 'ForwardAgent=no',
@@ -221,8 +226,22 @@ export const Ssh = {
     if (!vAlias(alias)) return { ok: false, error: 'invalid alias' };
     const h = find(load().hosts, alias);
     if (!h) return { ok: false, error: 'no such host' };
-    const r = await _spawnCapped('ssh-keygen', ['-R', h.hostname, '-f', KNOWN_HOSTS], '', 8000);
-    return r.ok ? { ok: true } : { ok: false, error: 'ssh-keygen -R failed' };
+    // known_hosts keys a non-default port as `[host]:port`, so `-R hostname` matched nothing
+    // for every host saved on anything but 22 — and ssh-keygen exits 0 when it removes
+    // nothing, so this reported success while the stale key stayed put and the next connect
+    // failed the same way. Try both forms, and say whether anything was actually removed.
+    const port = Number(h.port) || 22;
+    const targets = port === 22 ? [h.hostname] : [`[${h.hostname}]:${port}`, h.hostname];
+    let removed = 0, failed = '';
+    for (const t of targets) {
+      const r = await _spawnCapped('ssh-keygen', ['-R', t, '-f', KNOWN_HOSTS], '', 8000);
+      if (!r.ok) { failed = failed || (r.err || 'ssh-keygen -R failed').trim(); continue; }
+      // ssh-keygen prints "# Host <x> found: line N" for each line it drops, and nothing at all
+      // when there was no match.
+      removed += (String(r.out || '').match(/found:\s*line/gi) || []).length;
+    }
+    if (!removed && failed) return { ok: false, error: failed };
+    return { ok: true, removed, note: removed ? undefined : 'no key for this host was in known_hosts' };
   },
 
   /** Run ONE command on a saved host and capture output — non-interactive (agent/publickey auth),
