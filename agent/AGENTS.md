@@ -123,7 +123,7 @@ for the live catalog.
 | key | title | what you do there |
 |---|---|---|
 | `terminal` | CODE | chat · terminal · diff · web |
-| `machine` | MY MACHINE | bridge · brain |
+| `machine` | MY MACHINE | connection · brain · setup |
 | `agents` | MY AGENTS | your wallet · every economy |
 | `email` | EMAIL | IMAP · SMTP · real |
 | `tasks` | TASKS | cron · the agent works on its own |

@@ -420,6 +420,23 @@ html.native-shell #topbar{padding-left:82px}
 .sw.live::after{content:'●';position:absolute;top:7px;right:8px;font-size:10px;color:var(--accent);animation:pulse 2.2s infinite}
 .setline{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg);margin-top:10px}
 .setline .btn{margin-left:auto;padding:5px 12px;font-size:10.5px}
+/* A settings row whose control is a continuous value. Settings had switches, selects and
+   segmented controls but nothing for a range — and a dock is all ranges: size, spacing, how
+   far an icon grows, how far it lifts. The reading sits beside the track so the number and
+   the handle are one thing to look at. */
+.setrange{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg)}
+.setrange>span:first-child{flex:0 0 132px}
+.setrange input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:80px;height:3px;border-radius:3px;background:color-mix(in srgb,var(--fg) 14%,transparent);outline:none}
+.setrange input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:grab;border:0;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.setrange input[type=range]::-webkit-slider-thumb:active{cursor:grabbing}
+.setrange input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:grab;border:0}
+.setrange .rv{flex:0 0 62px;text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+.setrange.off{opacity:.4;pointer-events:none}
+/* the kept-in-dock list */
+.dkpin{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:11px;color:var(--fg)}
+.dkpin svg{width:14px;height:14px;color:var(--ink-dim);flex:none}
+.dkpin .rmk{margin-left:auto;font-size:10px;letter-spacing:.08em;color:var(--ink-faint);cursor:pointer}
+.dkpin .rmk:hover{color:var(--accent)}
 /* Settings → Folders: accordion folder tree + inline file viewer */
 .fldtree{margin-top:6px}
 .fld-row{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:9px;cursor:pointer;transition:background .12s}
@@ -579,17 +596,28 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
    a top inner highlight (light catching the lip), and a bottom inner shade. Never a flat fill.
    The chips do NOT live directly in here — they ride .wdk-track inside .wdk-rail, which is
    what lets the dock hold any number of them (see the rail below). */
-#wdock{--wdk-unit:34px;--wdk-pad:7px;position:fixed;left:10px;top:50%;z-index:500;display:none;
-  flex-direction:column;gap:6px;padding:var(--wdk-pad);border-radius:20px;align-items:center;
+/* --wdk-glass is how much of the slab is its own colour; the rest is whatever is behind it.
+   Lower = more of the workspace bleeds through. Settings → Dock drives it, along with the
+   gap and the padding ring, which is also the dock's only drag handle now. */
+#wdock{--wdk-unit:34px;--wdk-pad:11px;--wdk-gap:11px;--wdk-glass:34%;
+  position:fixed;left:10px;top:50%;z-index:500;display:none;
+  flex-direction:column;gap:0;padding:var(--wdk-pad);align-items:center;
+  border-radius:calc(var(--wdk-unit) * .42 + var(--wdk-pad));
+  cursor:grab; /* the whole ring drags — there is no bar to find, the cursor says so */
   background:
-    linear-gradient(to bottom,color-mix(in srgb,var(--fg) 9%,transparent) 0 1px,transparent 1px),
-    linear-gradient(to top,color-mix(in srgb,#000 14%,transparent) 0 1px,transparent 1px),
-    color-mix(in srgb,var(--panel) 52%,transparent);
-  border:1px solid color-mix(in srgb,var(--fg) 12%,transparent);
-  backdrop-filter:blur(28px) saturate(185%);-webkit-backdrop-filter:blur(28px) saturate(185%);
-  box-shadow:0 12px 40px -8px rgba(0,0,0,.55),0 2px 10px -2px rgba(0,0,0,.35),
-             inset 0 1px 0 color-mix(in srgb,var(--fg) 10%,transparent);
+    linear-gradient(to bottom,color-mix(in srgb,var(--fg) 11%,transparent) 0 1px,transparent 1px),
+    linear-gradient(to top,color-mix(in srgb,#000 16%,transparent) 0 1px,transparent 1px),
+    color-mix(in srgb,var(--panel) var(--wdk-glass),transparent);
+  border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);
+  backdrop-filter:blur(34px) saturate(210%);-webkit-backdrop-filter:blur(34px) saturate(210%);
+  box-shadow:0 18px 52px -10px rgba(0,0,0,.62),0 3px 12px -3px rgba(0,0,0,.40),
+             inset 0 1px 0 color-mix(in srgb,var(--fg) 15%,transparent),
+             inset 0 -1px 0 color-mix(in srgb,#000 22%,transparent);
   overflow:visible}
+/* the two ends of the slab resize the icons — the zone the old grip occupied, now unmarked */
+#wdock.rz{cursor:ns-resize}
+#wdock.horiz.rz{cursor:ew-resize}
+#wdock.sizing{transition:none}
 #wdock.on{display:flex}
 #wdock.horiz{flex-direction:row}
 #wdock.dragging{opacity:.92;cursor:grabbing;transition:none}
@@ -626,7 +654,10 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
 .wdk-rail.panning{cursor:grabbing}
 /* Growth goes AWAY from the edge the dock is anchored to — the icon rises out of the bar
    instead of pushing through it. That is what align-items decides now that the box is real. */
-.wdk-track{display:flex;flex-direction:column;align-items:flex-start;gap:6px;will-change:transform}
+/* The gap scales with the icons and is the owner's to set. It was a flat 6px whatever the
+   chip size, which reads as a stack of tiles rather than a row of apps — the macOS dock keeps
+   real air between icons and keeps it proportional as they grow. */
+.wdk-track{display:flex;flex-direction:column;align-items:flex-start;gap:var(--wdk-gap,11px);will-change:transform}
 #wdock.edge-right .wdk-track{align-items:flex-end}
 #wdock.horiz .wdk-track{flex-direction:row;align-items:flex-end}
 /* The chip takes REAL space when it magnifies, exactly like the macOS dock: the box grows,
@@ -639,11 +670,22 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
    static, so no chip was ever a positioning context and every ✕ — absolutely positioned —
    landed against the dock instead of its own chip. One ✕ at the dock's corner, for every
    chip, which is exactly what the owner saw and reported. */
+/* LIFT. Growing is only half of what the macOS dock does: the icon under the pointer also
+   rises OUT of the slab, as if it came forward to meet you, and its neighbours rise a little
+   less — one curve sampled at each icon's own distance, which is what makes the row read as a
+   single sheet lifting rather than one tile popping. --lift is that travel, perpendicular to
+   the dock's axis and always away from the screen edge it is parked on; --liftsh is the same
+   curve driving the shadow, so the icon in the air actually casts one.
+   translate, never scale: the box itself grows (see below), and scaling it again is exactly
+   the painting-outside-its-box bug the rail used to clip. */
 .wdk-chip{all:unset;position:relative;cursor:pointer;box-sizing:border-box;
   width:calc(var(--wdk-unit) * var(--mag,1));height:calc(var(--wdk-unit) * var(--mag,1));
   flex:none;display:flex;align-items:center;justify-content:center;
+  transform:translate(var(--liftx,0px),var(--lifty,0px));
   border-radius:calc(11px * var(--mag,1));color:var(--ink-dim);background:color-mix(in srgb,var(--fg) 6%,transparent);
-  transition:width .12s cubic-bezier(.2,1.4,.4,1),height .12s cubic-bezier(.2,1.4,.4,1),border-radius .12s,background .16s,color .16s,box-shadow .16s}
+  filter:drop-shadow(0 calc(4px * var(--liftsh,0)) calc(10px * var(--liftsh,0)) rgba(0,0,0,calc(.45 * var(--liftsh,0))));
+  transition:width .12s cubic-bezier(.2,1.4,.4,1),height .12s cubic-bezier(.2,1.4,.4,1),
+             transform .12s cubic-bezier(.2,1.4,.4,1),border-radius .12s,background .16s,color .16s,box-shadow .16s}
 /* Hover wears the chip's OWN hue, not the theme accent: now that every window has a colour,
    an app must not change identity just because the pointer is over it. Open is still told
    apart by the stronger fill, the ring and the dot below. */
@@ -681,15 +723,22 @@ html.traffic-tucked #panels{opacity:0!important;transform:scale(.9);pointer-even
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:4}
 .wdk-chip:hover .wdk-x{display:flex}
 .wdk-x:hover{color:#fff;background:hsl(0 72% 52%);border-color:hsl(0 72% 52%)}
-/* the grab bar replaces the word DOCK: same job (drag the dock, drop it on ▲), no label */
-.wdk-grab{flex:none;width:20px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--fg) 16%,transparent);cursor:grab;opacity:.55;transition:opacity .15s,background .15s}
-#wdock:hover .wdk-grab{opacity:.9}
-.wdk-grab:active{cursor:grabbing}
-#wdock.horiz .wdk-grab{width:4px;height:20px}
-/* size grip: a tiny handle at the dock tail to drag chip size */
-.wdk-grip{width:22px;height:8px;flex:none;border-radius:4px;background:color-mix(in srgb,var(--fg) 10%,transparent);cursor:ns-resize;opacity:0;transition:opacity .15s}
-#wdock:hover .wdk-grip{opacity:.6}
-#wdock.horiz .wdk-grip{width:8px;height:22px;cursor:ew-resize}
+/* NO HANDLES. There was a grab bar and a size grip — two little marks the owner had to find
+   and aim at, on a thing whose whole job is to be a strip of icons. They are gone. The dock
+   is dragged by its padding ring (anywhere that is not an icon) and resized by its two ends,
+   and the CURSOR is the only affordance: grab on the ring, a resize arrow on the caps. Same
+   pixel, same meaning, every time — that is what makes it findable without a mark. */
+/* the dock's own right-click menu — .it-ctx supplies the look; this only lifts it out of the
+   panel coordinate space it was written for, because the dock lives on document.body */
+/* .it-ctx is declared ~1100 lines FURTHER DOWN, and it carries position:absolute + z-index:60.
+   Equal specificity, later wins — so a single-class rule here lost both, and the menu opened
+   UNDERNEATH the dock: the owner right-clicked an icon and got a menu with its first item
+   hidden behind the icon he had just clicked. Photographed on the running app. Two classes
+   beat one, whatever the order of the file. */
+.it-ctx.wdk-ctx{position:fixed;z-index:1002}
+.it-ctx.wdk-ctx .hd{font-size:9.5px;letter-spacing:.14em;color:var(--ink-faint);padding:7px 11px 5px;font-family:var(--mono);white-space:nowrap}
+.it-ctx.wdk-ctx button .lb{display:flex;align-items:center}
+.it-ctx.wdk-ctx button .tick{margin-right:7px;width:9px;flex:none;color:var(--accent)}
 /* ghost pill that follows the cursor while dragging the DOCK entry out of the ▲ menu */
 .flydock-ghost{position:fixed;z-index:1000;padding:6px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--accent);color:var(--accent);font-size:10px;letter-spacing:.14em;pointer-events:none;box-shadow:var(--shadow-1)}
 
@@ -1156,6 +1205,42 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brdot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .keyadd{display:flex;gap:7px;margin-top:7px}
 .keyadd input{all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-family:var(--mono);font-size:10.5px;color:var(--fg);caret-color:var(--accent)}
+/* MY MACHINE, laid out. It was two boxes with prose, a command, a paste field and a status
+   line all stacked at the same weight, so nothing told you where one job ended and the next
+   began. Four boxes now, each answering ONE question — am I connected · who is my model · how
+   do I get a token · can something do this for me — with real air between them. */
+.mmwrap{display:flex;flex-direction:column;gap:16px}
+.mmbox{margin-bottom:0;padding:14px}
+.mmbox>h4{margin-bottom:11px}
+.mmlede{font-size:10.5px;color:var(--ink-faint);line-height:1.65;margin-bottom:12px}
+/* the ON/OFF card — same switch the BRAIN keys and the autonomy rows already use */
+.mmswitch{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid color-mix(in srgb,var(--fg) 6%,transparent);border-radius:12px;background:color-mix(in srgb,var(--fg) 3%,var(--panel));margin-bottom:13px}
+.mmswitch b{font-size:11px;letter-spacing:.05em;color:var(--fg)}
+.mmswitch .sub{font-size:10px;color:var(--ink-faint);margin-top:3px;font-family:var(--mono)}
+.mmswitch .rmk{margin-left:auto;font-size:10px;letter-spacing:.1em;color:var(--ink-faint);cursor:pointer;padding:4px 8px;border:1px solid var(--line);border-radius:7px}
+.mmswitch .rmk:hover{color:#fff;background:hsl(0 62% 45%);border-color:hsl(0 62% 45%)}
+.mmswitch .rmk.off{opacity:.35;pointer-events:none}
+.mmswitch .sw3{margin-left:0}
+.mmfield{margin-bottom:11px}
+.mmfield label{display:block;font-size:10px;letter-spacing:.14em;color:var(--ink-faint);margin-bottom:6px;font-family:var(--mono)}
+.mmstatus{font-size:10.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:10px;min-height:15px}
+/* per-OS instructions */
+.mmtabs{display:flex;gap:6px;margin-bottom:12px}
+.mmtabs button{all:unset;cursor:pointer;font-size:10px;letter-spacing:.12em;padding:6px 13px;border-radius:999px;border:1px solid var(--line);color:var(--ink-dim);transition:color .15s,border-color .15s,background .15s}
+.mmtabs button:hover{color:var(--fg)}
+.mmtabs button.on{color:var(--ink-on-accent);background:var(--accent);border-color:var(--accent)}
+.mmstep{display:flex;gap:11px;margin-bottom:13px}
+.mmstep .n{flex:0 0 19px;height:19px;border-radius:50%;border:1px solid var(--line);color:var(--ink-faint);font-size:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);margin-top:1px}
+.mmstep .t{flex:1;min-width:0;font-size:11px;color:var(--fg);line-height:1.6}
+.mmstep .t .why{display:block;font-size:10px;color:var(--ink-faint);margin-top:3px;line-height:1.55}
+.mmcmd{display:flex;align-items:center;gap:8px;margin-top:7px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:color-mix(in srgb,var(--bg) 55%,transparent)}
+.mmcmd code{flex:1;min-width:0;font-family:var(--mono);font-size:10.5px;color:var(--accent);overflow-x:auto;white-space:nowrap}
+.mmcopy{all:unset;cursor:pointer;display:flex;align-items:center;gap:5px;flex:0 0 auto;font-size:9.5px;letter-spacing:.1em;color:var(--ink-faint);border:1px solid var(--line);border-radius:6px;padding:4px 7px;transition:color .15s,border-color .15s}
+.mmcopy:hover{color:var(--fg);border-color:var(--accent)}
+.mmcopy svg{width:11px;height:11px}
+.mmcopy.done{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+/* the prompt to hand to a model */
+.mmprompt{margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--bg) 55%,transparent);font-family:var(--mono);font-size:10.5px;line-height:1.62;color:var(--ink-dim);max-height:230px;overflow:auto;white-space:pre-wrap;word-break:break-word;user-select:text}
 
 
 /* ---------- MY AGENTS ---------- */
@@ -2626,6 +2711,10 @@ input:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transp
     <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
       <path d="M6 3.5h7.2L18.5 8.8V19a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5Z"/><path d="M13 3.7V9h5.2"/>
     </symbol>
+    <!-- two stacked sheets: the copy affordance every app in the world draws the same way -->
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <rect x="8.5" y="8.5" width="11" height="12" rx="2"/><path d="M15.5 5.5H6A1.5 1.5 0 0 0 4.5 7v9.5"/>
+    </symbol>
     <symbol id="i-term2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M6.5 9.5 9.5 12l-3 2.5M12.5 14.5h5"/>
     </symbol>
@@ -2813,7 +2902,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="keysbox">
     <h3>KEYBOARD SHORTCUTS<span id="keysclose">ESC TO CLOSE</span></h3>
     <h5>GENERAL</h5>
-    <div class="krow"><kbd>⌘K</kbd><span>command palette</span></div>
+    <div class="krow"><kbd>⌘K</kbd> <kbd>⌘⇧P</kbd><span>command palette</span></div>
     <div class="krow"><kbd>?</kbd><span>this overlay</span></div>
     <div class="krow"><kbd>ESC</kbd><span>close overlay · menu · popover</span></div>
     <h5>PANELS</h5>
@@ -4171,11 +4260,39 @@ const WDock=(()=>{
   if(!el)return{refresh(){}};
   const occCells=()=>Grid.cells().filter(c=>c.classList.contains('occ'));
   const SNAP=26; // px from an edge that magnetically snaps + sets orientation
-  const dockState=()=>Object.assign({x:10,y:Math.round(innerHeight/2-60),edge:'left',unit:34},Store.get().wdock||{});
+  // Everything the owner can set about the dock, with the shipped defaults. `gap:null` means
+  // AUTO — spacing proportional to the icon, so growing the icons does not crowd them back
+  // together; a number is an explicit choice made in Settings → Dock.
+  const DOCK_DEF={edge:'left',unit:34,gap:null,mag:true,amp:.55,spread:1.9,lift:.22,glass:34,pins:[]};
+  const dockState=()=>{
+    const st=Object.assign({x:10,y:Math.round(innerHeight/2-60)},DOCK_DEF,Store.get().wdock||{});
+    if(!Array.isArray(st.pins))st.pins=[];
+    return st;
+  };
+  const gapPx=st=>st.gap==null?Math.max(4,Math.round(st.unit*.32)):st.gap;
+  // ONE WRITER. The drag used to do `s.wdock={x,y,edge,unit}` — a whole-object replacement,
+  // which quietly erased every other key the first time the owner moved the dock. Every
+  // setting below would have survived exactly until then.
+  function saveDock(patch){
+    const s=Store.get();
+    s.wdock=Object.assign(dockState(),patch||{});
+    Store.save();
+    return s.wdock;
+  }
   // ── placement: free-float anywhere; horizontal on a top/bottom edge, vertical on L/R ──
   function place(){
     const st=dockState();
     el.style.setProperty('--wdk-unit',st.unit+'px');
+    el.style.setProperty('--wdk-gap',gapPx(st)+'px');
+    el.style.setProperty('--wdk-pad',Math.max(7,Math.round(st.unit*.32))+'px');
+    el.style.setProperty('--wdk-glass',st.glass+'%');
+    // Headroom for the magnifier. The chip GROWS by amp and TRAVELS by lift, both away from
+    // the anchored edge, and the rail has to clip along the other axis — so the room reserved
+    // inside the clip box must cover both. A fixed 0.62 covered growth alone; the moment either
+    // is turned up in Settings, the peak of the wave would be sliced off again, which is the
+    // exact defect that fixed number was written to stop.
+    const rail=el.querySelector('.wdk-rail');
+    if(rail)rail.style.setProperty('--wdk-lift',(st.unit*(st.mag?st.amp+st.lift+.1:.1)).toFixed(1)+'px');
     el.classList.toggle('horiz',st.edge==='top'||st.edge==='bottom');
     // which side the icons grow OUT of — the rail keeps its headroom on that side
     el.classList.toggle('edge-right',st.edge==='right');
@@ -4189,21 +4306,53 @@ const WDock=(()=>{
   // reading the pointer position captured last — a pointermove burst can no longer thrash it.
   // (transform-origin is gone with the transform: a box that grows in the flow needs no origin,
   // the track's align-items decides which way it grows.)
+  // THREE THINGS HAPPEN AT ONCE, AND THEY ALL READ ONE CURVE.
+  //
+  //   · SCALE  — the box grows, so its neighbours are pushed along the axis. That is the wave.
+  //   · LIFT   — it travels OUT of the slab, away from the screen edge, and its neighbours
+  //              travel less. That is what makes an icon look like it came forward to meet the
+  //              pointer instead of merely getting bigger.
+  //   · SHADOW — an icon in the air casts one. Without it the lift reads as a rendering glitch.
+  //
+  // Sampling one curve at each chip's own distance is the whole effect: it is what makes the
+  // row behave like a single sheet of rubber being lifted rather than tiles popping one by one.
+  // Magnification alone — which is all this used to do — looks mechanical next to it.
+  //
+  // The curve is a raised cosine over a FINITE reach, not the Gaussian that was here. A Gaussian
+  // never actually reaches zero, so every chip in the dock was permanently a little magnified
+  // and the whole row crept; the cosine lands on exactly 1.0 at the edge of its reach WITH ZERO
+  // SLOPE, which is what gives the wave clean shoulders instead of a smear.
+  const magCurve=t=>t>=1?0:.5*(1+Math.cos(Math.PI*t));
   let magPt=null,magQueued=false;
   function magnify(){
     magQueued=false;
     if(!magPt)return;
+    const st=dockState();
+    if(!st.mag){demagNow();return}
     const horiz=el.classList.contains('horiz');
+    const reach=Math.max(1,st.unit*st.spread),travel=st.unit*st.lift;
+    // "Out of the dock" is always away from the edge it is parked on.
+    const dx=horiz?0:(st.edge==='right'?-1:1),dy=horiz?(st.edge==='bottom'?-1:1):0;
     el.querySelectorAll('.wdk-chip').forEach(chip=>{
       const b=chip.getBoundingClientRect();
       const cx=b.left+b.width/2,cy=b.top+b.height/2;
       const d=horiz?Math.abs(magPt.x-cx):Math.abs(magPt.y-cy);
-      chip.style.setProperty('--mag',(1+0.55*Math.exp(-(d/58)*(d/58))).toFixed(3));
+      const f=magCurve(d/reach);
+      chip.style.setProperty('--mag',(1+st.amp*f).toFixed(3));
+      chip.style.setProperty('--liftx',(dx*travel*f).toFixed(2)+'px');
+      chip.style.setProperty('--lifty',(dy*travel*f).toFixed(2)+'px');
+      chip.style.setProperty('--liftsh',f.toFixed(3));
     });
   }
-  const demag=()=>{magPt=null;el.querySelectorAll('.wdk-chip').forEach(c=>c.style.setProperty('--mag',1))};
+  function demagNow(){
+    el.querySelectorAll('.wdk-chip').forEach(c=>{
+      c.style.setProperty('--mag',1);c.style.setProperty('--liftx','0px');
+      c.style.setProperty('--lifty','0px');c.style.setProperty('--liftsh',0);
+    });
+  }
+  const demag=()=>{magPt=null;demagNow()};
   el.addEventListener('pointermove',e=>{
-    if(el.classList.contains('dragging'))return;
+    if(el.classList.contains('dragging')||el.classList.contains('sizing'))return;
     magPt={x:e.clientX,y:e.clientY};
     if(!magQueued){magQueued=true;requestAnimationFrame(magnify)}
   });
@@ -4212,13 +4361,13 @@ const WDock=(()=>{
   // While stashed it never auto-returns — minimized windows keep their cells; the dock
   // only comes back when the owner drags (or clicks) the DOCK entry out of the menu. ──
   function stash(){
-    const s=Store.get();s.wdock=Object.assign(dockState(),{stashed:true});Store.save();
-    el.classList.remove('on');el.innerHTML='';
+    saveDock({stashed:true});
+    el.classList.remove('on');el.innerHTML='';closeCtx();
     Bus.emit('wdock:changed');
     Toast.show('DOCK stashed in the ▲ menu — drag it back to the workspace anytime');
   }
   function unstash(x,y){
-    const s=Store.get(),st=dockState();delete st.stashed;
+    const st=dockState();delete st.stashed;
     if(x!=null&&y!=null){
       st.x=Math.round(x);st.y=Math.round(y);
       const w=el.offsetWidth||60,h=el.offsetHeight||60;
@@ -4229,8 +4378,25 @@ const WDock=(()=>{
         else if(m===dl){st.edge='left';st.x=8} else {st.edge='right';st.x=innerWidth-w-8}
       }
     }
-    s.wdock=st;Store.save();refresh();Bus.emit('wdock:changed');
+    const s=Store.get();s.wdock=st;delete s.wdock.stashed;Store.save();
+    refresh();Bus.emit('wdock:changed');
     Toast.show(occCells().length?'Dock restored':'Dock restored — it appears when a window is minimized');
+  }
+  // ── KEEP IN DOCK ──────────────────────────────────────────────────────────
+  // Until now the dock had no model of its own: it was a 1:1 projection of the occupied frame
+  // squares, so an app could only be in it while it was open or parked. A pin is the one piece
+  // of state the dock owns — the app stays on the strip whether or not it is running, exactly
+  // as it does on macOS. It lives beside the geometry in `wdock`, which is why every writer
+  // above had to become a merge first.
+  const pinsOf=()=>dockState().pins;
+  const isPinned=t=>pinsOf().some(p=>p&&p.type===t);
+  function pin(type,label){
+    if(!type||isPinned(type))return;
+    saveDock({pins:pinsOf().concat([{type,label:label||type.toUpperCase()}])});
+  }
+  function unpin(type){
+    if(!type||!isPinned(type))return;
+    saveDock({pins:pinsOf().filter(p=>!p||p.type!==type)});
   }
   // Each panel's own hue, so an open dock reads as a row of distinct apps. Hand-picked and
   // spaced rather than hashed: a hash puts neighbours on top of each other and there is no
@@ -4291,9 +4457,19 @@ const WDock=(()=>{
   // Repaint the running state only — no rebuild, so nothing flickers and no listener is lost.
   function markOpen(){
     const cells=occCells(),lit=litCells(cells);
+    // A pinned chip has no square, so litCells cannot speak for it. It follows the same rule
+    // one step later: light it from a live window of its type that no square already claimed.
+    const claimed=new Set([...lit].map(c=>OPEN_ALIAS[c.dataset.type||'']||c.dataset.type||''));
+    const live=[...document.querySelectorAll('.panel')].filter(p=>!p.dataset.docked);
     el.querySelectorAll('.wdk-chip').forEach(btn=>{
-      const cell=cells[+btn.dataset.i];if(!cell)return;
-      const on=lit.has(cell);
+      let on;
+      if(btn.dataset.pin){
+        const want=OPEN_ALIAS[btn.dataset.pin]||btn.dataset.pin;
+        on=!claimed.has(want)&&live.some(p=>p.dataset.type===want);
+      }else{
+        const cell=cells[+btn.dataset.i];if(!cell)return;
+        on=lit.has(cell);
+      }
       if(on)btn.dataset.open='1';else delete btn.dataset.open;
       const name=btn.dataset.name||'Window';
       btn.title=name+(on?' — open':'');
@@ -4351,34 +4527,52 @@ const WDock=(()=>{
     });
   }
   function refresh(){
-    const cells=occCells();
-    if(!cells.length||dockState().stashed){el.classList.remove('on');el.innerHTML='';return}
+    const st=dockState(),cells=occCells();
+    // A pin whose app already holds a square would draw that app twice.
+    const held=new Set(cells.map(c=>c.dataset.type||''));
+    const pins=st.pins.filter(p=>p&&p.type&&!held.has(p.type));
+    if(st.stashed||(!cells.length&&!pins.length)){el.classList.remove('on');el.innerHTML='';closeCtx();return}
     place();
-    // No label. The word DOCK used to be here because it doubled as the drag handle; the
-    // grab bar does that job now and says it with a shape instead of a noun.
-    el.innerHTML='<div class="wdk-grab" title="Drag to move the dock · drop it on ▲ to stash it"></div>'+
-      '<div class="wdk-rail"><div class="wdk-track">'+(()=>{const nth={};return cells.map((c,i)=>{
-      const type=c.dataset.type||'';
-      const tip=(c.querySelector('.tile')&&c.querySelector('.tile').getAttribute('title'))||(type.toUpperCase());
+    // No label, no grab bar, no grip. The dock is its icons and the slab under them; the slab's
+    // ring drags it and its two ends resize it, with the cursor as the only sign (wireBody).
+    const nth={};
+    const chipHtml=(type,tip,attr)=>{
       const n=(nth[type]=(nth[type]||0)+1)-1;    // 0 for the first window of this type
-      const hue=chipHue(type,n);
-      return `<button class="wdk-chip" data-i="${i}" data-name="${escAttr(tip)}" style="--chip-hue:${hue}" title="${escAttr(tip)}" aria-label="Open ${escAttr(tip)}"><svg><use href="${Grid.iconFor(type)}"/></svg><span class="wdk-x" title="Close ${escAttr(tip)}">✕</span></button>`;
-    }).join('')})()+'</div></div><div class="wdk-grip" title="Drag to resize the dock"></div>';
+      return `<button class="wdk-chip" ${attr} data-type="${escAttr(type)}" data-name="${escAttr(tip)}" style="--chip-hue:${chipHue(type,n)}" title="${escAttr(tip)}" aria-label="Open ${escAttr(tip)}"><svg><use href="${Grid.iconFor(type)}"/></svg><span class="wdk-x" title="Remove ${escAttr(tip)} from the dock">✕</span></button>`;
+    };
+    el.innerHTML='<div class="wdk-rail"><div class="wdk-track">'
+      +cells.map((c,i)=>{
+        const type=c.dataset.type||'';
+        const tip=(c.querySelector('.tile')&&c.querySelector('.tile').getAttribute('title'))||(type.toUpperCase());
+        return chipHtml(type,tip,`data-i="${i}"`);
+      }).join('')
+      +pins.map(p=>chipHtml(p.type,p.label||p.type.toUpperCase(),`data-pin="${escAttr(p.type)}"`)).join('')
+      +'</div></div>';
     el.classList.add('on');
-    wireGrabDrag();wireGrip();wirePan();
+    wirePan();wireChips(cells);
+    applyPan();markOpen();
+  }
+  function wireChips(cells){
     el.querySelectorAll('.wdk-chip').forEach(btn=>{
-      const cell=cells[+btn.dataset.i];if(!cell)return;
+      const cell=btn.dataset.pin?null:cells[+btn.dataset.i];
+      if(!cell&&!btn.dataset.pin)return;
       btn.addEventListener('click',e=>{
-        if(e.target.closest('.wdk-x')){ // the ONLY way a chip leaves the dock
-          const pk=cell.dataset.panelKey||'';Grid.release(cell);if(pk)Bus.emit('cell:removed',pk);
-          Toast.show((btn.dataset.name||'Window')+' closed');return
-        }
+        if(e.target.closest('.wdk-x')){removeFromDock(btn,cell);return}
         // Open it, or focus it if it is already up. Either way the chip stays — a dock that
         // empties itself as you use it is a list of what you are NOT doing.
-        Bus.emit('open-panel',{type:cell.dataset.type,cwd:cell.dataset.cwd||'',url:cell.dataset.url||'',key:cell.dataset.panelKey||'',cell});
+        if(cell)Bus.emit('open-panel',{type:cell.dataset.type,cwd:cell.dataset.cwd||'',url:cell.dataset.url||'',key:cell.dataset.panelKey||'',cell});
+        else Bus.emit('open-panel',{type:btn.dataset.pin});
       });
+      btn.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();chipMenu(e,btn,cell)});
     });
-    applyPan();markOpen();
+  }
+  // ✕ and "Remove from Dock" are one act: take this app off the strip. What that means depends
+  // on why it is there — and a KEPT app is the macOS rule: closing it leaves its icon behind.
+  function removeFromDock(btn,cell){
+    const name=btn.dataset.name||'Window',type=btn.dataset.type||'';
+    if(!cell){unpin(btn.dataset.pin);refresh();Toast.show(name+' removed from the dock');return}
+    const pk=cell.dataset.panelKey||'';Grid.release(cell);if(pk)Bus.emit('cell:removed',pk);
+    Toast.show(isPinned(type)?(name+' closed — kept in the dock'):(name+' closed'));
   }
   // ── drag the dock by its header; drop on ▲ stashes it, else snap to the nearest edge ──
   const overTri=ev=>{
@@ -4386,59 +4580,196 @@ const WDock=(()=>{
     const tb=tri.getBoundingClientRect();
     return ev.clientX>tb.left-24&&ev.clientX<tb.right+24&&ev.clientY>tb.top-24&&ev.clientY<tb.bottom+24;
   };
-  function wireGrabDrag(){
-    const hd=el.querySelector('.wdk-grab');if(!hd)return;
-    hd.addEventListener('pointerdown',e=>{
+  // ── THE BODY IS THE HANDLE ────────────────────────────────────────────────
+  // There used to be a grab bar and a size grip: two small marks on a strip of icons, each
+  // needing to be found and aimed at. They are gone, and the gesture is now decided by WHERE
+  // on the dock the pointer is — the ends resize, everything else that is not an icon drags:
+  //
+  //   ┌─ resize ─┐   the caps along the dock's own axis (the end padding). The old grip lived
+  //   │  icons   │   here, so the muscle memory is the same; the cursor is the only sign.
+  //   └─ resize ─┘   The side ring drags. An icon always wins over both.
+  //
+  // Wired ONCE, on #wdock, not from refresh(). refresh() rebuilds innerHTML on every
+  // dock:refresh — the old handles were destroyed with it, so re-wiring them was free. #wdock
+  // itself survives, so wiring here from refresh() would stack a new drag listener on every
+  // square the owner ever occupies.
+  function zoneAt(ev){
+    const r=el.getBoundingClientRect(),horiz=el.classList.contains('horiz');
+    const p=horiz?ev.clientX-r.left:ev.clientY-r.top,len=horiz?r.width:r.height;
+    const cap=Math.max(10,parseFloat(getComputedStyle(el).getPropertyValue('--wdk-pad'))||11);
+    return (p<cap||p>len-cap)?'resize':'drag';
+  }
+  function wireBody(){
+    el.addEventListener('pointerdown',e=>{
+      if(e.button!==0)return;                        // the right button is the menu
+      if(e.target.closest('.wdk-chip'))return;       // an icon owns its own press
+      // The rail pans itself when it has icons hidden past the edge. Leave it that gesture:
+      // reaching for a hidden icon must not move the dock instead.
+      const m=railMetrics();
+      if(e.target.closest('.wdk-rail')&&m&&m.over)return;
       e.preventDefault();e.stopPropagation();
-      const st=dockState(),sx=e.clientX,sy=e.clientY,ox=st.x,oy=st.y;let moved=false;
-      const tri=document.getElementById('tri');
-      el.classList.add('dragging');
-      const mm=ev=>{
-        moved=moved||Math.hypot(ev.clientX-sx,ev.clientY-sy)>4;
-        el.style.left=Math.max(4,Math.min(innerWidth-el.offsetWidth-4,ox+ev.clientX-sx))+'px';
-        el.style.top=Math.max(56,Math.min(innerHeight-el.offsetHeight-4,oy+ev.clientY-sy))+'px';
-        if(tri)tri.classList.toggle('fitdrop',moved&&overTri(ev));
-      };
-      const mu=ev=>{
-        removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);el.classList.remove('dragging');
-        if(tri)tri.classList.remove('fitdrop');
-        if(!moved)return;
-        if(overTri(ev)){stash();return} // dropped on the ▲ launcher → into the menu
-        const r=el.getBoundingClientRect();const s=Store.get();const cur=dockState();
-        const dl=r.left,dr=innerWidth-r.right,dt=r.top-52,db=innerHeight-r.bottom;
-        const m=Math.min(dl,dr,dt,db);let edge=cur.edge,x=r.left,y=r.top;
-        if(m<SNAP){
-          if(m===dt){edge='top';y=56;} else if(m===db){edge='bottom';y=innerHeight-r.height-6;}
-          else if(m===dl){edge='left';x=8;} else {edge='right';x=innerWidth-r.width-8;}
-        } // else: free-float, keep the prior orientation
-        x=Math.max(4,Math.min(innerWidth-r.width-4,x));y=Math.max(56,Math.min(innerHeight-r.height-4,y));
-        s.wdock={x:Math.round(x),y:Math.round(y),edge,unit:cur.unit};Store.save();place();
-      };
-      addEventListener('pointermove',mm);addEventListener('pointerup',mu);
+      if(zoneAt(e)==='resize')startResize(e);else startDrag(e);
+    });
+    // the cursor is the whole affordance, so it has to be right before the press, not after
+    el.addEventListener('pointermove',e=>{
+      if(el.classList.contains('dragging')||el.classList.contains('sizing'))return;
+      el.classList.toggle('rz',!e.target.closest('.wdk-chip')&&zoneAt(e)==='resize');
+    });
+    el.addEventListener('pointerleave',()=>el.classList.remove('rz'));
+    el.addEventListener('contextmenu',e=>{
+      if(e.target.closest('.wdk-chip'))return;       // the chip menu handles its own
+      e.preventDefault();e.stopPropagation();dockMenu(e);
     });
   }
-  // ── size grip: drag to grow/shrink the chips (own size control) ──
-  function wireGrip(){
-    const g=el.querySelector('.wdk-grip');if(!g)return;
-    g.addEventListener('pointerdown',e=>{
-      e.preventDefault();e.stopPropagation();
-      const horiz=el.classList.contains('horiz'),start=horiz?e.clientX:e.clientY,u0=dockState().unit;
-      const mm=ev=>{
-        const d=(horiz?ev.clientX-start:ev.clientY-start);
-        const unit=Math.max(24,Math.min(64,Math.round(u0+d)));
-        el.style.setProperty('--wdk-unit',unit+'px');el.dataset.tmpUnit=unit;
-      };
-      const mu=()=>{removeEventListener('pointermove',mm);removeEventListener('pointerup',mu);
-        const s=Store.get();s.wdock=Object.assign(dockState(),{unit:+(el.dataset.tmpUnit||dockState().unit)});Store.save();};
-      addEventListener('pointermove',mm);addEventListener('pointerup',mu);
-    });
+  function startDrag(e){
+    const st=dockState(),sx=e.clientX,sy=e.clientY,ox=st.x,oy=st.y;let moved=false;
+    const tri=document.getElementById('tri');
+    el.classList.add('dragging');closeCtx();
+    const ac=new AbortController(),sig=ac.signal;
+    const mm=ev=>{
+      moved=moved||Math.hypot(ev.clientX-sx,ev.clientY-sy)>4;
+      el.style.left=Math.max(4,Math.min(innerWidth-el.offsetWidth-4,ox+ev.clientX-sx))+'px';
+      el.style.top=Math.max(56,Math.min(innerHeight-el.offsetHeight-4,oy+ev.clientY-sy))+'px';
+      if(tri)tri.classList.toggle('fitdrop',moved&&overTri(ev));
+    };
+    const mu=ev=>{
+      ac.abort();el.classList.remove('dragging');
+      if(tri)tri.classList.remove('fitdrop');
+      // A press that never travelled still moved el.style.left/top by a pixel or two and used
+      // to leave it there, un-persisted — so the dock crept away from its saved position and
+      // jumped back on the next reload. place() puts it where the store says it is.
+      if(!moved){place();return}
+      if(overTri(ev)){stash();return} // dropped on the ▲ launcher → into the menu
+      const r=el.getBoundingClientRect(),cur=dockState();
+      const dl=r.left,dr=innerWidth-r.right,dt=r.top-52,db=innerHeight-r.bottom;
+      const m=Math.min(dl,dr,dt,db);let edge=cur.edge,x=r.left,y=r.top;
+      if(m<SNAP){
+        if(m===dt){edge='top';y=56;} else if(m===db){edge='bottom';y=innerHeight-r.height-6;}
+        else if(m===dl){edge='left';x=8;} else {edge='right';x=innerWidth-r.width-8;}
+      } // else: free-float, keep the prior orientation
+      x=Math.max(4,Math.min(innerWidth-r.width-4,x));y=Math.max(56,Math.min(innerHeight-r.height-4,y));
+      saveDock({x:Math.round(x),y:Math.round(y),edge});place();applyPan();
+    };
+    addEventListener('pointermove',mm,{signal:sig});addEventListener('pointerup',mu,{signal:sig});
   }
-  Bus.on('dock:refresh',refresh);
+  function startResize(e){
+    const horiz=el.classList.contains('horiz'),r=el.getBoundingClientRect();
+    const start=horiz?e.clientX:e.clientY,u0=dockState().unit;
+    // Which cap was grabbed sets the sign: pulling an end AWAY from the dock always grows it.
+    // One shared sign would make one of the two ends run backwards under the hand.
+    const far=(horiz?e.clientX-r.left:e.clientY-r.top)>(horiz?r.width:r.height)/2;
+    el.classList.add('sizing');closeCtx();demagNow();
+    const ac=new AbortController(),sig=ac.signal;
+    let unit=u0;
+    const mm=ev=>{
+      const d=((horiz?ev.clientX:ev.clientY)-start)*(far?1:-1);
+      unit=Math.max(22,Math.min(76,Math.round(u0+d/2)));   // /2: a dock is small, a hand is not
+      el.style.setProperty('--wdk-unit',unit+'px');
+      el.style.setProperty('--wdk-pad',Math.max(7,Math.round(unit*.32))+'px');
+      const st=dockState();
+      el.style.setProperty('--wdk-gap',(st.gap==null?Math.max(4,Math.round(unit*.32)):st.gap)+'px');
+    };
+    const mu=()=>{ac.abort();el.classList.remove('sizing');saveDock({unit});place();applyPan()};
+    addEventListener('pointermove',mm,{signal:sig});addEventListener('pointerup',mu,{signal:sig});
+  }
+  // ── right-click, the way the macOS dock does it ───────────────────────────
+  // The look is .it-ctx, which the iT panel already owns; .wdk-ctx only lifts it out of the
+  // panel coordinate space it was written for, because the dock lives on document.body.
+  let ctxEl=null,ctxAc=null;
+  function closeCtx(){if(ctxAc){ctxAc.abort();ctxAc=null}if(ctxEl){ctxEl.remove();ctxEl=null}}
+  function ctxMenu(x,y,head,items){
+    closeCtx();
+    const ov=document.createElement('div');ov.className='it-ctx wdk-ctx';
+    ov.innerHTML=(head?`<div class="hd">${escHtml(head)}</div>`:'')+items.map(it=>it
+      ?`<button${it.disabled?' disabled':''}${it.danger?' class="danger"':''}><span class="lb"><span class="tick">${it.on?'✓':''}</span>${escHtml(it.label)}</span>${it.key?`<span class="k">${escHtml(it.key)}</span>`:''}</button>`
+      :'<div class="dv"></div>').join('');
+    document.body.appendChild(ov);
+    const bs=ov.querySelectorAll('button');let i=0;
+    items.forEach(it=>{if(!it)return;const b=bs[i++];if(!b)return;
+      b.addEventListener('click',()=>{closeCtx();if(!it.disabled&&it.fn)it.fn()})});
+    // Clear of the dock, then inside the window. A menu that covers the icons it is about is
+    // the one thing it must not do — you lose sight of what you right-clicked.
+    const r=ov.getBoundingClientRect(),d=el.getBoundingClientRect();
+    let lx=x+6,ly=y+2;
+    if(lx<d.right&&lx+r.width>d.left&&ly<d.bottom&&ly+r.height>d.top){
+      lx=(d.left>innerWidth-d.right)?(d.left-r.width-8):(d.right+8);   // whichever side has room
+    }
+    ov.style.left=Math.max(6,Math.min(innerWidth-r.width-6,lx))+'px';
+    ov.style.top=Math.max(6,Math.min(innerHeight-r.height-6,ly))+'px';
+    ctxEl=ov;
+    // A menu you cannot dismiss is worse than no menu, and this one lives on a thing that
+    // rebuilds itself whenever a square changes. Pointer elsewhere, Escape, a resize, or the
+    // dock rebuilding all close it — through ONE controller, so add and remove cannot disagree.
+    ctxAc=new AbortController();const sig=ctxAc.signal;
+    addEventListener('pointerdown',ev=>{if(ctxEl&&!ctxEl.contains(ev.target))closeCtx()},{capture:true,signal:sig});
+    addEventListener('keydown',ev=>{if(ev.key==='Escape'){ev.preventDefault();closeCtx()}},{capture:true,signal:sig});
+    addEventListener('resize',closeCtx,{signal:sig});
+  }
+  function chipMenu(ev,btn,cell){
+    const type=btn.dataset.type||'',name=btn.dataset.name||'Window';
+    const open=btn.dataset.open==='1',kept=isPinned(type);
+    ctxMenu(ev.clientX,ev.clientY,name,[
+      {label:open?'Show':'Open',fn:()=>btn.click()},
+      null,
+      {label:'Keep in Dock',on:kept,fn:()=>{
+        if(kept)unpin(type);else pin(type,name);
+        refresh();
+        Toast.show(kept?(name+' will leave the dock when it closes'):(name+' stays in the dock'));
+      }},
+      {label:'Remove from Dock',fn:()=>removeFromDock(btn,cell)},
+      null,
+      {label:'Dock Settings…',fn:openDockSettings},
+    ]);
+  }
+  // TWO STEPS, and they cannot be one. Changing the edge changes the dock's SHAPE — a vertical
+  // strip of eight icons becomes a horizontal one — so the size used to park it has to be
+  // measured AFTER the orientation is applied. Measuring first put a 58×373 box at the bottom
+  // edge as if it were still 373 tall: the dock landed in the middle of the screen, horizontal,
+  // 315px short of the edge it had just been sent to. Seen on the running app, not deduced.
+  function moveToEdge(edge){
+    saveDock({edge});place();                             // 1 · become that shape
+    const w=el.offsetWidth||60,h=el.offsetHeight||60;     // 2 · then ask how big it is
+    const at={left:{x:8,y:Math.round(innerHeight/2-h/2)},right:{x:innerWidth-w-8,y:Math.round(innerHeight/2-h/2)},
+              top:{x:Math.round(innerWidth/2-w/2),y:56},bottom:{x:Math.round(innerWidth/2-w/2),y:innerHeight-h-6}}[edge];
+    if(at)saveDock(at);
+    place();applyPan();Bus.emit('wdock:changed');
+  }
+  function dockMenu(ev){
+    const st=dockState();
+    ctxMenu(ev.clientX,ev.clientY,'DOCK',[
+      {label:'Magnification',on:st.mag,fn:()=>{saveDock({mag:!st.mag});place();demagNow();Toast.show('Magnification '+(st.mag?'off':'on'))}},
+      null,
+      {label:'Position: Left',on:st.edge==='left',fn:()=>moveToEdge('left')},
+      {label:'Position: Right',on:st.edge==='right',fn:()=>moveToEdge('right')},
+      {label:'Position: Top',on:st.edge==='top',fn:()=>moveToEdge('top')},
+      {label:'Position: Bottom',on:st.edge==='bottom',fn:()=>moveToEdge('bottom')},
+      null,
+      {label:'Hide Dock',fn:stash},
+      {label:'Dock Settings…',fn:openDockSettings},
+    ]);
+  }
+  // openPanel is inside the Panels module; from out here the door is the same event a frame
+  // square emits. The section is selected the way iT's palette does it.
+  function openDockSettings(){
+    Bus.emit('open-panel',{type:'settings'});
+    setTimeout(()=>{const b=document.querySelector('#setnav [data-sec="dock"]');if(b)b.click()},120);
+  }
+  Bus.on('dock:refresh',()=>{closeCtx();refresh()});
   Bus.on('panels:changed',markOpen); // a window opened, closed or docked → repaint, don't rebuild
   Bus.on('wdock:unstash',d=>unstash(d&&d.x,d&&d.y)); // the ▲ menu's DOCK entry brings it back
   addEventListener('resize',()=>{if(el.classList.contains('on'))applyPan()});
-  refresh(); // pick up any squares restored from Store at boot
-  return{refresh,stash,unstash,markOpen};
+  wireBody();  // once, on #wdock — see the comment above zoneAt
+  refresh();   // pick up any squares restored from Store at boot
+  // `state`/`set`/`reset` are the door Settings → Dock comes through: it never touches Store
+  // directly, so there is exactly one place that knows the shape of a dock setting and one
+  // place that applies it. `set` re-places and re-lays out, because unit and gap change layout.
+  return{refresh,stash,unstash,markOpen,
+    state:dockState,defaults:()=>Object.assign({},DOCK_DEF),
+    set(patch){saveDock(patch);place();demagNow();applyPan();Bus.emit('wdock:changed');return dockState()},
+    reset(){const s=Store.get();const keep=dockState();
+      s.wdock=Object.assign({x:keep.x,y:keep.y},DOCK_DEF,{pins:keep.pins});Store.save();
+      place();demagNow();refresh();Bus.emit('wdock:changed');return dockState()},
+    pin,unpin,isPinned,moveToEdge,openSettings:openDockSettings};
 })();
 
 /* ---------- Proximity (world coords — zoom-invariant) ---------- */
@@ -4727,8 +5058,12 @@ const BridgeClient=(()=>{
   // window.__CFHUB_BRIDGE__, not from sessionStorage. Keep the two in step here — after a
   // token rotation (Settings → Session) a stale global means every NEW socket is refused
   // while the HTTP side carries on working, which looks like anything but an auth problem.
+  // CLEARING HAS TO CLEAR BOTH. The mirror used to be guarded by `if(t && …)`, so setToken('')
+  // emptied sessionStorage and left the injected global holding the secret — and wsAuth() falls
+  // back to that global. "Remove the token" would have taken it off the HTTP side while iT, the
+  // BROWSER and the agent control plane went on opening authenticated sockets with it.
   const setToken=(t)=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(e){}
-    try{if(t&&window.__CFHUB_BRIDGE__)window.__CFHUB_BRIDGE__.token=t}catch(e){}};
+    try{if(window.__CFHUB_BRIDGE__)window.__CFHUB_BRIDGE__.token=t||''}catch(e){}};
   const endpoint=()=>Store.get().bridge.endpoint||'';
   const headers=()=>({'Content-Type':'application/json',Authorization:'Bearer '+token()});
   // ONE answer to "where is the bridge, and what is my token" — for the live-socket panels
@@ -4744,7 +5079,22 @@ const BridgeClient=(()=>{
   // The stores survive a reload (token in sessionStorage, endpoint in the app store), so they
   // are the truth; the injected global is only ever a bootstrap seed, and stays as a fallback
   // for the very first paint before setToken has run.
+  //
+  // …AND IT MUST ANSWER NOTHING WHEN THE OWNER HAS SWITCHED THE CONNECTION OFF.
+  //
+  // That fallback to the injected global is the whole reason this needs saying. The daemon
+  // re-arms its one-shot injector on every launch, so a window that had its token removed
+  // gets a fresh one written into the page head on the next reload. The HTTP side ignores it
+  // (no saved endpoint), and two of the three socket callers happen to check Bridge.on() —
+  // but the BROWSER checked only `b.token`, so it would have opened an authenticated socket
+  // to the machine the owner had just disconnected from. Measured in the running app.
+  //
+  // Three callers today and any number tomorrow: the gate belongs in the one function they
+  // all go through, not in each of them. Read from the Store, not Bridge.paused(), so this
+  // cannot depend on which of the two modules was defined first.
+  const NO_AUTH={endpoint:'',token:''};
   const wsAuth=()=>{
+    if((Store.get().bridge||{}).off)return NO_AUTH;
     let g=null;try{g=window.__CFHUB_BRIDGE__||null}catch(e){}
     return{endpoint:endpoint()||(g&&g.endpoint)||'',token:token()||(g&&g.token)||''};
   };
@@ -4815,6 +5165,17 @@ const Bridge=(()=>{
   // A daemon is listening but this window is not paired with it. The distinction matters to
   // the owner: "start the app" and "paste the link" are different instructions.
   const unpaired=()=>reachable&&!info;
+  // A THIRD state, and it exists because the first two could not tell the truth about it.
+  //
+  // The owner asked to be able to switch the pairing off. Doing that by simply dropping the
+  // token would make on() false and — because a daemon is still listening — unpaired() TRUE,
+  // so MY MACHINE and all twelve gated Settings sections and every panel's needBridge() card
+  // would tell him to pair with a machine he had just deliberately disconnected from. Wrong
+  // instruction, in about twenty places at once.
+  //
+  // So `paused` is its own answer, it is persisted, and refresh() never probes while it holds.
+  // on()=false · unpaired()=false · paused()=true — one sentence each, none of them lying.
+  const paused=()=>!!(Store.get().bridge||{}).off;
   const brainReady=()=>!!(info&&info.brain&&info.brain!=='none'); // any configured provider (registry/env/anthropic), never Claude-only
   function parse(pasted){
     // accepts  http://127.0.0.1:8765#token=XXX  |  http://127.0.0.1:8765?token=XXX  |  just the url (token separate)
@@ -4830,6 +5191,7 @@ const Bridge=(()=>{
   async function connect(pasted){
     const{ep,tok}=parse(pasted);
     if(!ep)return{on:false,msg:'paste the bridge address (e.g. http://127.0.0.1:8765#token=…)'};
+    Store.get().bridge.off=false;   // pasting a link IS switching it back on
     if(tok)BridgeClient.setToken(tok);
     const h=await health(ep);
     if(!h||!h.ok){info=null;Bus.emit('bridge:changed');return{on:false,msg:'bridge did not respond at '+ep+' — run the HUB Bridge and paste the startup link'}}
@@ -4845,6 +5207,9 @@ const Bridge=(()=>{
   }
   let _socketsWarned=false; // say it once per window, not on every reconnect
   async function refresh(){
+    // Switched off means switched off: do not probe the daemon, do not pair, and leave BOTH
+    // flags false so unpaired() cannot fire and send the owner to re-pair something he closed.
+    if(paused()){info=null;reachable=false;Bus.emit('bridge:changed');return null}
     let h=await health();
     // /health needs no token — it only proves a daemon is listening. Treating that as
     // "connected" made Bridge.on() true in a window holding no valid token: every panel's
@@ -4871,6 +5236,28 @@ const Bridge=(()=>{
   // command above" about a daemon that was running. It also made the unpaired sweep in
   // 03_HARMONY_PROTOCOL.md test the wrong state — "no daemon" instead of "not paired".
   function disconnect(){info=null;BridgeClient.setToken('');Bus.emit('bridge:changed');refresh()}
+  // ── the switch, and the delete ────────────────────────────────────────────
+  // pause() keeps the token and stops using it. forget() destroys it. They are different acts
+  // and the owner asked for both; collapsing them would mean either an OFF that quietly threw
+  // his pairing away, or a REMOVE that left the secret sitting in the window.
+  function pause(off){
+    const s=Store.get();s.bridge.off=!!off;Store.save();
+    if(off){info=null;reachable=false;Bus.emit('bridge:changed')}
+    else refresh();     // refresh emits on its own once it knows the answer
+    return !!off;
+  }
+  // "When we remove it, the token has to disappear." All of it:
+  //   · sessionStorage      — the HTTP Bearer
+  //   · window.__CFHUB_BRIDGE__.token — the WebSocket fallback (iT · BROWSER · agent control)
+  //   · Store.bridge.endpoint — or the boot auto-connect below dials straight back in
+  // and it lands switched OFF, because a window with no token has nothing to be on with, and
+  // the daemon re-arms its one-shot injector on every launch — a reload would otherwise hand
+  // the token straight back to a window the owner had just cleared.
+  function forget(){
+    BridgeClient.setToken('');
+    const s=Store.get();s.bridge.endpoint='';s.bridge.off=true;Store.save();
+    info=null;reachable=false;Bus.emit('bridge:changed');
+  }
   const streamRaw=(path,bodyObj,onText,signal)=>BridgeClient.stream(path,bodyObj,onText,signal);
   const shell=(cmd,onText,signal,id,extra)=>streamRaw('/shell',Object.assign({cmd,id:id||''},extra||{}),onText,signal);
   // The bridge's own view of whether the running window is the built one. `appStale` means
@@ -4903,12 +5290,16 @@ const Bridge=(()=>{
   async function interrupt(id){try{await BridgeClient.post('/interrupt',{id},{tolerant:true})}catch(e){}}
   // served by the local APP → auto-pairing (the server injects a token on a top-level navigation)
   (function(){
+    // A window the owner switched off must STAY off through a reload. The daemon re-arms its
+    // one-shot injector on every launch, so without this the token he removed would be handed
+    // straight back to the next paint and the app would silently re-pair itself.
+    if(paused())return;
     const b=(typeof window!=='undefined')&&window.__CFHUB_BRIDGE__;
     if(b&&b.endpoint&&b.token){Store.get().bridge.endpoint=b.endpoint;Store.save();BridgeClient.setToken(b.token);setTimeout(()=>refresh(),150);return}
     // otherwise: auto-connects if there's already a saved endpoint (session token) — preview/paste mode
     setTimeout(()=>{if(BridgeClient.endpoint()&&BridgeClient.token())refresh()},400);
   })();
-  return{connect,refresh,disconnect,health,shell,chat,providerChat,piChat,interrupt,on,unpaired,brainReady,appStale,info:()=>info,endpoint:BridgeClient.endpoint,parse};
+  return{connect,refresh,disconnect,health,shell,chat,providerChat,piChat,interrupt,on,unpaired,paused,pause,forget,hasToken:()=>!!BridgeClient.token(),brainReady,appStale,info:()=>info,endpoint:BridgeClient.endpoint,parse};
 })();
 
 /* ---------- Brain: brain router (bridge → BYOK → mock; never dead) ---------- */
@@ -5384,19 +5775,44 @@ const Panels=(()=>{
           </div>
         </div>
       </div>`},
-    machine:{icon:'#i-chip',title:'MY MACHINE',sub:'bridge · brain',w:520,h:600,body:()=>`
-      <div class="ds4-visor"><h4>HUB BRIDGE — the real body on your machine<span class="r" id="brstat"><span class="brdot"></span>checking…</span></h4>
-        <div style="font-size:10px;color:var(--ink-faint);line-height:1.6;margin-bottom:8px">A local daemon (Node, zero dependencies) that gives the terminal a real body: a <b>true shell</b> + <b>Claude</b> with your key (BYOK — stays on your disk, <b>never</b> on the site). Listens only on 127.0.0.1, with a pairing token.</div>
-        <div class="brrun"><code id="brcmd">node bridge/hub-bridge.mjs</code><button class="btn" id="brcopy" style="padding:7px 12px;font-size:10px">COPY</button></div>
-        <div class="keyadd"><input id="brep" placeholder="paste: http://127.0.0.1:8765#token=…" autocomplete="off" spellcheck="false"><button class="btn" id="brbtn" style="padding:7px 12px;font-size:10px">CONNECT</button></div>
-        <div id="brinfo" style="font-size:10.5px;color:var(--ink-faint);margin-top:6px;line-height:1.5"></div>
+    machine:{icon:'#i-chip',title:'MY MACHINE',sub:'connection · brain · setup',w:620,h:720,body:()=>`
+      <div class="mmwrap">
+
+      <div class="ds4-visor mmbox"><h4>CONNECTION — the HUB Bridge<span class="r" id="brstat"><span class="brdot"></span>checking…</span></h4>
+        <div class="mmlede">A local daemon (Node) that gives this window a real body on your machine: a <b>true shell</b> and your own model, BYOK. It listens only on <b>127.0.0.1</b> and answers nothing without a <b>pairing token</b>.</div>
+
+        <div class="mmswitch"><div><b>Use the pairing token</b><div class="sub" id="brtokline">—</div></div>
+          <span class="rmk" id="brforget" title="Delete the token from this window">REMOVE</span>
+          <div class="sw3" id="brsw" role="switch" tabindex="0" aria-label="Use the pairing token"><i></i></div></div>
+
+        <div class="mmfield"><label for="brep">Pairing link</label>
+          <div class="keyadd"><input id="brep" placeholder="paste: http://127.0.0.1:8765#token=…" autocomplete="off" spellcheck="false"><button class="btn" id="brbtn" style="padding:7px 12px;font-size:10px">CONNECT</button></div>
+        </div>
+
+        <div id="brinfo" class="mmstatus"></div>
         <div class="secnote">the address stays saved; the token lives only in this browser session (sessionStorage). Whoever has the token gets a shell just like yours — keep it local.</div>
       </div>
 
-      <div class="ds4-visor"><h4>BRAIN — who answers in the CONSOLE</h4>
+      <div class="ds4-visor mmbox"><h4>BRAIN — who answers in the CONSOLE</h4>
         <div id="mbrains"></div>
         <div class="keyadd"><input id="mkey" type="password" placeholder="paste an API key (detects the provider)" autocomplete="off"><button class="btn" id="mkeybtn" style="padding:7px 12px;font-size:10px">CONNECT</button></div>
         <div class="secnote">the key stays in this browser session (sessionStorage). While the HUB Bridge is connected it is also saved to your macOS Keychain, so pi and scheduled tasks can use it — <b>remove</b> clears both.</div>
+      </div>
+
+      <div class="ds4-visor mmbox"><h4>GETTING THE TOKEN — on any machine</h4>
+        <div class="mmlede">Start the daemon, ask it for the link, paste the link above. Pick your system.</div>
+        <div class="mmtabs" id="mmos">
+          <button data-os="mac" class="on">macOS</button><button data-os="linux">Linux</button><button data-os="win">Windows</button>
+        </div>
+        <div class="mmsteps" id="mmsteps"></div>
+        <div class="secnote"><b>npm run pair</b> copies the link straight to your clipboard and never prints the token — that is deliberate. Read the file by hand only if the clipboard is unavailable, and never paste the token anywhere but the field above.</div>
+      </div>
+
+      <div class="ds4-visor mmbox"><h4>OR HAND IT TO YOUR AI<span class="r"><button class="mmcopy" id="mmpcopy" title="Copy the prompt"><svg><use href="#i-copy"/></svg><span>COPY</span></button></span></h4>
+        <div class="mmlede">Copy this into any assistant — <b>CODE</b> in this app, or anything else you use. It has everything the model needs to either do it for you or walk you through it, and it tells the model what it must never ask you to do.</div>
+        <pre class="mmprompt" id="mmprompt"></pre>
+      </div>
+
       </div>
 `},
     agents:{icon:'#i-agents',title:'MY AGENTS',sub:'your wallet · every economy',w:540,h:560,body:()=>`
@@ -5484,6 +5900,7 @@ const Panels=(()=>{
           <div class="setgap"></div>
           <button data-sec="appearance"><svg><use href="#i-pal"/></svg>Appearance</button>
           <button data-sec="magicframes"><svg><use href="#i-frame"/></svg>Magic Frames</button>
+          <button data-sec="dock"><svg><use href="#i-agents"/></svg>Dock</button>
           <button data-sec="shortcuts"><svg><use href="#i-term"/></svg>Shortcuts</button>
           <div class="setgap"></div>
           <button data-sec="account"><svg><use href="#i-wallet"/></svg>Account</button>
@@ -5703,6 +6120,32 @@ const Panels=(()=>{
 
   function wire(p){
     p.addEventListener('pointerdown',()=>focus(p));
+    // …and give it the KEYBOARD, not only the z-index.
+    //
+    // Panels listen for their own shortcuts on their own element (iT's whole key language is
+    // one capture listener on the panel), which only ever fires when the focused node is
+    // INSIDE the window. Clicking a non-focusable part of it — iT's workspace list, a section
+    // header, the padding between controls — leaves focus on <body>, and from that moment every
+    // shortcut the window advertises silently does nothing. That is the ⌘⇧P the owner reported:
+    // the hint is printed in iT's sidebar footer, and clicking anywhere near it is exactly what
+    // takes the keyboard away from the window.
+    //
+    // Raising z without moving focus is a window that LOOKS active and is not. So: after the
+    // click settles, if nothing inside claimed focus, the window itself takes it. A frame later,
+    // never before — a click on the terminal, an input or a button must keep the focus it just
+    // won, and doing this at pointerdown would steal it back from xterm's textarea.
+    //
+    // The same frame-later call runs once when the window is BORN, because a fresh window is
+    // the worst case of all: iT's only focusable thing is its terminal, and Term()'s focus() is
+    // a no-op stub until xterm resolves — permanently so while the bridge is down. Open iT with
+    // no bridge and, without this, the keyboard never entered it at all.
+    p.tabIndex=-1;
+    const takeKeyboard=()=>requestAnimationFrame(()=>{
+      const a=document.activeElement;
+      if((!a||a===document.body||a===document.documentElement)&&p.isConnected)p.focus({preventScroll:true});
+    });
+    p.addEventListener('pointerdown',takeKeyboard);
+    takeKeyboard();
     const head=p.querySelector('header');
     head.addEventListener('pointerdown',e=>{
       if(e.target.closest('.pbtns'))return;
@@ -11659,7 +12102,9 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     function needBridge(){
       // "Connect the HUB Bridge" is the wrong instruction when the bridge is already running
       // and only this window is unpaired. Same conflation wave W removed from Bridge.on().
-      const why=(Bridge.unpaired&&Bridge.unpaired())
+      const why=(Bridge.paused&&Bridge.paused())
+        ? 'The connection to your machine is <b>switched off</b> — turn it back on in MY MACHINE.'
+        : (Bridge.unpaired&&Bridge.unpaired())
         ? 'The <b>HUB Bridge</b> is running — this window just is not paired with it yet.'
         : 'Connect the <b>HUB Bridge</b> (MY MACHINE) for this section.';
       pane.innerHTML='<div class="qempty" data-setneedbridge style="padding:22px;line-height:1.7">'+why+'<br><br><button class="btn" id="spm">OPEN MY MACHINE</button></div>';
@@ -11691,7 +12136,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       cur=name;
       nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sec===name));
       if(['addmodels','added','aidefaults','piagent','email','reminders','agenttools','session','users','system','folders','servers'].includes(name)&&!Bridge.on())return needBridge();
-      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
+      const SEC={addmodels:secAddModels,added:secAdded,aidefaults:secDefaults,piagent:secPiAgent,search:secSearch,itterm:secIT,email:secEmail,reminders:secReminders,appearance:secAppearance,magicframes:secMagicFrames,dock:secDock,shortcuts:secShortcuts,account:secAccount,tools:secToolsList,licenses:secLicenses,folders:secFolders,servers:secServers,agenttools:secAgentTools,session:secSession,users:secUsers,system:secSystem};
       (SEC[name]||secAddModels)();
     }
     // ----- MAGIC FRAMES — the little frame squares that hold docked tabs & their figures.
@@ -11714,6 +12159,106 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +soon('Galaxies')+soon('Agentic Engineering')+soon('Magic');
       const sel=pane.querySelector('#mfdist');sel.value=dist;
       sel.addEventListener('change',()=>{const s=Store.get();s.magic=Object.assign({},s.magic,{dist:sel.value});Store.save();Toast.show('Frames: '+(sel.value==='organized'?'organized — one square apart':'random scatter'))});
+    }
+    // ----- DOCK — the strip of app icons: how big, how far apart, how it magnifies, where it
+    // lives, and which apps stay on it. Nothing here is gated on the bridge; the dock is canvas
+    // furniture. WDock.state()/set()/reset() are the ONLY door — this section never writes
+    // Store.wdock itself, so exactly one place knows the shape of a dock setting and exactly
+    // one applies it. Everything lands on the live dock as you move the control.
+    function secDock(){
+      if(typeof WDock==='undefined'||!WDock.state){
+        pane.innerHTML='<div class="qempty" style="padding:22px">The dock is not available in this window.</div>';return;
+      }
+      const st=WDock.state();
+      const autoGap=Math.max(4,Math.round(st.unit*.32));
+      const row=(id,label,min,max,step,val,read,dim)=>
+        '<div class="setrange'+(dim?' off':'')+'" data-r="'+id+'"><span>'+label+'</span>'
+        +'<input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'">'
+        +'<span class="rv" id="'+id+'v">'+escHtml(read)+'</span></div>';
+      const pins=st.pins||[];
+      pane.innerHTML='<div class="sethead">DOCK</div>'
+        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">The <b>dock</b> is the floating strip of app icons. It has no handles: drag it by its body, resize it by grabbing either end, and <b>right-click</b> it — or any icon on it — for the same choices you find here. Drop it on the <b>▲</b> launcher to put it away.</div>'
+        +'<div class="sethead">SIZE</div>'
+        +row('dkunit','Icon size',22,76,1,st.unit,st.unit+' px')
+        +row('dkgap','Spacing',0,30,1,st.gap==null?0:st.gap,st.gap==null?('auto · '+autoGap+' px'):(st.gap+' px'))
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Spacing at <b>0</b> is automatic — it stays proportional to the icons, so making them bigger never crowds them back together.</div>'
+        +'<div class="sethead">MAGNIFICATION</div>'
+        +'<div class="autotoggle"><div><b>Magnify on hover</b><div class="sub">Icons grow and rise out of the dock as the pointer passes, the way the macOS dock does.</div></div><div class="sw3 '+(st.mag?'on':'')+'" id="dkmag"><i></i></div></div>'
+        +row('dkamp','Growth',10,100,5,Math.round(st.amp*100),Math.round(st.amp*100)+' %',!st.mag)
+        +row('dklift','Lift',0,60,5,Math.round(st.lift*100),Math.round(st.lift*100)+' %',!st.mag)
+        +row('dkspread','Spread',80,350,10,Math.round(st.spread*100),(st.spread).toFixed(1)+' icons',!st.mag)
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6"><b>Growth</b> is how much the icon under the pointer gains. <b>Lift</b> is how far it travels out of the dock — that is what makes it look like it came forward rather than just got bigger. <b>Spread</b> is how many icons either side follow the curve with it.</div>'
+        +'<div class="sethead">POSITION</div>'
+        +'<div class="setline">Edge of the screen<span style="margin-left:auto"><select id="dkedge" style="background:color-mix(in srgb,var(--bg) 60%,transparent);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10px;font-family:var(--mono)">'
+          +['left','right','top','bottom'].map(e=>'<option value="'+e+'"'+(st.edge===e?' selected':'')+'>'+e[0].toUpperCase()+e.slice(1)+'</option>').join('')
+        +'</select></span></div>'
+        +'<div class="setline">'+(st.stashed?'The dock is put away in the ▲ menu':'Put the dock away in the ▲ menu')
+          +'<button class="btn" id="dkstash">'+(st.stashed?'BRING IT BACK':'HIDE DOCK')+'</button></div>'
+        +'<div class="sethead">GLASS</div>'
+        +row('dkglass','Translucency',8,90,2,st.glass,st.glass+' %')
+        +'<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">How much of the slab is its own colour. Lower lets more of the workspace bleed through it.</div>'
+        +'<div class="sethead">KEPT IN THE DOCK</div>'
+        +(pins.length
+          ? pins.map(p=>'<div class="dkpin"><svg><use href="'+escAttr(Grid.iconFor(p.type))+'"/></svg>'+escHtml(p.label||p.type.toUpperCase())+'<span class="rmk" data-unpin="'+escAttr(p.type)+'">remove</span></div>').join('')
+          : '<div class="setline" style="display:block;color:var(--ink-faint);font-size:10px;line-height:1.6">Nothing is kept yet. Right-click any icon on the dock and choose <b>Keep in Dock</b> — it will stay on the strip whether or not its window is open.</div>')
+        +'<div class="setline">Put every dock setting back<button class="btn" id="dkreset">RESET</button></div>';
+
+      // Live while you drag, saved when you let go. A range fires `input` on every pixel and
+      // `change` once on release: poking the CSS variable is free, writing to disk 60 times a
+      // second is not — and only `set` knows how to re-lay out the rail.
+      const dock=document.getElementById('wdock');
+      const live=(k,v)=>{if(dock)dock.style.setProperty(k,v)};
+      const rv=id=>pane.querySelector('#'+id+'v');
+      const on=(id,f)=>{const el=pane.querySelector('#'+id);if(el)f(el)};
+      on('dkunit',el=>{
+        el.addEventListener('input',()=>{const v=+el.value;rv('dkunit').textContent=v+' px';
+          live('--wdk-unit',v+'px');live('--wdk-pad',Math.max(7,Math.round(v*.32))+'px');
+          if(WDock.state().gap==null){const g=Math.max(4,Math.round(v*.32));live('--wdk-gap',g+'px');rv('dkgap').textContent='auto · '+g+' px'}});
+        el.addEventListener('change',()=>WDock.set({unit:+el.value}));
+      });
+      on('dkgap',el=>{
+        const read=v=>v===0?('auto · '+Math.max(4,Math.round(WDock.state().unit*.32))+' px'):(v+' px');
+        el.addEventListener('input',()=>{const v=+el.value;rv('dkgap').textContent=read(v);
+          live('--wdk-gap',(v===0?Math.max(4,Math.round(WDock.state().unit*.32)):v)+'px')});
+        el.addEventListener('change',()=>WDock.set({gap:+el.value===0?null:+el.value}));
+      });
+      on('dkglass',el=>{
+        el.addEventListener('input',()=>{rv('dkglass').textContent=el.value+' %';live('--wdk-glass',el.value+'%')});
+        el.addEventListener('change',()=>WDock.set({glass:+el.value}));
+      });
+      on('dkamp',el=>{
+        el.addEventListener('input',()=>{rv('dkamp').textContent=el.value+' %'});
+        el.addEventListener('change',()=>WDock.set({amp:+el.value/100}));
+      });
+      on('dklift',el=>{
+        el.addEventListener('input',()=>{rv('dklift').textContent=el.value+' %'});
+        el.addEventListener('change',()=>WDock.set({lift:+el.value/100}));
+      });
+      on('dkspread',el=>{
+        el.addEventListener('input',()=>{rv('dkspread').textContent=(+el.value/100).toFixed(1)+' icons'});
+        el.addEventListener('change',()=>WDock.set({spread:+el.value/100}));
+      });
+      on('dkmag',el=>el.addEventListener('click',()=>{
+        const want=!el.classList.contains('on');
+        el.classList.toggle('on',want);WDock.set({mag:want});
+        // the three curve controls mean nothing while magnification is off — say so
+        ['dkamp','dklift','dkspread'].forEach(id=>{const r=pane.querySelector('[data-r="'+id+'"]');if(r)r.classList.toggle('off',!want)});
+        Toast.show('Dock magnification '+(want?'on':'off'));
+      }));
+      // moveToEdge, not set({edge}): flipping the edge changes the dock's SHAPE, so the size
+      // used to park it has to be measured after the new orientation is applied. WDock owns
+      // that two-step, and the right-click menu goes through the same call.
+      on('dkedge',el=>el.addEventListener('change',()=>{
+        WDock.moveToEdge(el.value);Toast.show('Dock moved to the '+el.value);
+      }));
+      on('dkstash',el=>el.addEventListener('click',()=>{
+        if(WDock.state().stashed)WDock.unstash();else WDock.stash();
+        secDock();
+      }));
+      on('dkreset',el=>el.addEventListener('click',()=>{WDock.reset();secDock();Toast.show('Dock settings reset — the apps you kept stay kept')}));
+      pane.querySelectorAll('[data-unpin]').forEach(b=>b.addEventListener('click',()=>{
+        WDock.unpin(b.dataset.unpin);WDock.refresh();secDock();Toast.show('Removed from the dock');
+      }));
     }
     function secIT(){
       const theme=localStorage.getItem('cfhub.shell.omz')||'robbyrussell';
@@ -11928,7 +12473,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     }
     async function secSearch(){
       pane.innerHTML='<div class="sethead">SEARCH</div><div style="display:flex;margin-bottom:9px"><input id="ssq" placeholder="Search settings, tools, notes, tasks…" style="all:unset;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:10.5px;color:var(--fg);caret-color:var(--accent)"></div><div id="ssres" class="qempty" style="padding:10px;font-size:10px;line-height:1.6">Type to search the settings sections and everything indexed (notes · tasks · reminders · research).</div>';
-      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
+      const SECS=[['addmodels','Add Models'],['added','Added Models'],['aidefaults','AI Defaults'],['piagent','Pi Agent'],['itterm','iT — Terminal'],['email','Email'],['reminders','Reminders'],['appearance','Appearance'],['magicframes','Magic Frames'],['dock','Dock'],['shortcuts','Shortcuts'],['account','Account'],['tools','Tools'],['licenses','Licenses'],['folders','Folders'],['servers','Servers'],['agenttools','Agent Tools'],['users','Users'],['system','System']];
       const inp=pane.querySelector('#ssq'),res=pane.querySelector('#ssres');let tmr=null;
       inp.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
         const q=inp.value.trim().toLowerCase();
@@ -12498,6 +13043,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         brStat.innerHTML='<span class="brdot on"></span>connected';
         brInfo.innerHTML='<b style="color:var(--ok)">● '+escHtml(inf.name)+' v'+escHtml(inf.version)+'</b> · '+((inf.brain&&inf.brain!=='none')?('brain: <b>'+escHtml(inf.model||'model')+'</b>'+(inf.provider?' · '+escHtml(inf.provider):'')):'<span style="color:var(--warn)">no brain — add a provider or set DEEPSEEK_API_KEY / ANTHROPIC_API_KEY in ~/.env.local</span>')+'<br>cwd: '+escHtml(inf.cwd||'');
         if(brEp)brEp.value='';
+      }else if(Bridge.paused&&Bridge.paused()){
+        // Switched off on purpose. Neither of the two sentences below fits: the daemon may be
+        // running perfectly and the token may be sitting right there — the owner simply closed
+        // the connection, and telling him to pair or to start something would be nonsense.
+        brStat.innerHTML='<span class="brdot"></span>switched off';
+        brInfo.textContent='this window is not using the pairing token. Switch it back on above to reconnect.';
       }else if(Bridge.unpaired()){
         // The daemon answered /health but this window holds no token. Bridge.info() is null in
         // BOTH failures, so without unpaired() this branch told the owner to start a daemon that
@@ -12510,19 +13061,181 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         brInfo.textContent='run the command above, then paste the link it prints (with #token=…).';
       }
     }
-    p.querySelector('#brcopy').addEventListener('click',e=>{navigator.clipboard?.writeText('node bridge/hub-bridge.mjs');e.target.textContent='COPIED';setTimeout(()=>{if(e.target)e.target.textContent='COPY'},1400)});
+    // The switch and the token line are painted SEPARATELY, on purpose: paintBridge owns exactly
+    // two nodes (#brstat and #brinfo) and a test holds it to that, so that the panel's one
+    // sentence about the connection can never be spread across a growing set of controls.
+    const brSw=p.querySelector('#brsw'),brTokLine=p.querySelector('#brtokline'),brForget=p.querySelector('#brforget');
+    function paintToken(){
+      const off=!!(Bridge.paused&&Bridge.paused()),has=!!(Bridge.hasToken&&Bridge.hasToken());
+      brSw.classList.toggle('on',!off);
+      brSw.setAttribute('aria-checked',String(!off));
+      const ep=Bridge.endpoint()||'';
+      brTokLine.textContent=has
+        ?((off?'held, not in use':'in use')+(ep?' · '+ep:''))
+        :(off?'no token · switched off':'no token yet — paste a pairing link below');
+      brForget.classList.toggle('off',!has&&!ep);
+    }
+    brSw.addEventListener('click',()=>{
+      const off=!!(Bridge.paused&&Bridge.paused());
+      Bridge.pause(!off);
+      paintToken();paintBridge();
+      Toast.show(off?'Reconnecting to your machine…':'Connection to your machine switched off — the token is kept');
+    });
+    brSw.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();brSw.click()}});
+    // REMOVE means gone: the Bearer, the WebSocket copy in the injected global, and the saved
+    // address. It lands switched off so a reload cannot silently hand the token straight back —
+    // the daemon re-arms its one-shot injector on every launch.
+    brForget.addEventListener('click',()=>{
+      if(!(Bridge.hasToken&&Bridge.hasToken())&&!Bridge.endpoint()){Toast.show('There is no token to remove');return}
+      Bridge.forget();
+      if(brEp)brEp.value='';
+      paintToken();paintBridge();
+      Toast.show('Token removed — this window holds nothing that can reach your machine');
+    });
     async function connectBridge(){
       const v=brEp.value.trim();if(!v){Toast.show('Paste the bridge link (with #token=…)');return}
       brStat.innerHTML='<span class="brdot"></span>connecting…';
       const r=await Bridge.connect(v);
       Toast.show(r.on?('HUB Bridge connected — '+((Bridge.info().brain&&Bridge.info().brain!=='none')?('real shell + '+(Bridge.info().model||'brain')):'real shell')):'Failed — '+r.msg);
-      paintBridge();
+      paintBridge();paintToken();
     }
     p.querySelector('#brbtn').addEventListener('click',connectBridge);
     brEp.addEventListener('keydown',e=>{if(e.key==='Enter')connectBridge()});
-    panelBus(p).on('bridge:changed',()=>{paintBridge()});
-    Bridge.refresh().then(paintBridge);paintBridge();
+    wireSetup(p);
+    panelBus(p).on('bridge:changed',()=>{paintBridge();paintToken()});
+    Bridge.refresh().then(()=>{paintBridge();paintToken()});paintBridge();paintToken();
     renderBrains();
+  }
+
+  // ── GETTING THE TOKEN, per system · and the prompt that hands the job to a model ─────────
+  //
+  // On macOS and Linux the app pairs itself: the daemon injects the token into the page on a
+  // real navigation. These steps are for every case where that did not happen — a second
+  // window, a reload after the 120s pairing window, a token the owner removed, a machine where
+  // the launcher was never run — and for Windows, where there is no launcher at all.
+  //
+  // Every command here is one that actually exists in this repo. `npm run pair` copies the link
+  // to the clipboard and DELIBERATELY never prints the token (tools/pair.mjs); reading the file
+  // by hand is the fallback, and it is shown as a fallback rather than as the way.
+  const MM_PORT='8765';
+  const MM_OS={
+    mac:{
+      name:'macOS',
+      steps:[
+        {t:'Open <b>Terminal</b> and go to the CLONE FRAME HUB folder — the one holding <code>package.json</code> and a <code>bridge/</code> directory.',cmd:'cd ~/Desktop/cloneframe_app_executable'},
+        {t:'Start the daemon. Leave this window open; it prints a banner and keeps running.',why:'Double-clicking the CLONE FRAME app does this for you — you only need it by hand if the app is not installed.',cmd:'node bridge/hub-bridge.mjs'},
+        {t:'Ask it for the pairing link. It goes straight to your clipboard.',why:'It never prints the token on screen. Whoever reads it gets a shell on this machine.',cmd:'npm run pair'},
+        {t:'Paste it into the <b>Pairing link</b> field above and press CONNECT.'},
+        {t:'If the clipboard is not available, read the token file and build the link yourself.',why:'The link is http://127.0.0.1:'+MM_PORT+'#token=&lt;what that file contains&gt;',cmd:'cat ~/.clone-frame-hub/bridge.token'},
+      ],
+    },
+    linux:{
+      name:'Linux',
+      steps:[
+        {t:'Open a terminal and go to the CLONE FRAME HUB folder — the one holding <code>package.json</code> and a <code>bridge/</code> directory.',cmd:'cd ~/cloneframe_app_executable'},
+        {t:'Install the daemon’s one dependency, if you have not already.',why:'Without <code>ws</code> the daemon still serves the app, but the iT terminal, the BROWSER and the agent control plane cannot connect.',cmd:'npm install --omit=dev'},
+        {t:'Start the daemon. Leave it running.',cmd:'node bridge/hub-bridge.mjs'},
+        {t:'Ask it for the pairing link — it is copied with <code>xclip</code>.',why:'If xclip is missing, use the file in the last step instead.',cmd:'npm run pair'},
+        {t:'Paste it into the <b>Pairing link</b> field above and press CONNECT.'},
+        {t:'No clipboard? Read the token file and build the link yourself.',why:'The link is http://127.0.0.1:'+MM_PORT+'#token=&lt;what that file contains&gt;',cmd:'cat ~/.clone-frame-hub/bridge.token'},
+      ],
+    },
+    win:{
+      name:'Windows',
+      steps:[
+        {t:'Open <b>PowerShell</b> or <b>Command Prompt</b> and go into the <code>bridge</code> folder of CLONE FRAME HUB.',why:'The macOS/Linux launcher scripts do not run here — on Windows you start the daemon yourself.',cmd:'cd cloneframe_app_executable\\bridge'},
+        {t:'Install its dependency.',cmd:'npm install'},
+        {t:'Start the daemon. Leave the window open.',cmd:'node hub-bridge.mjs'},
+        {t:'Open <b>http://127.0.0.1:'+MM_PORT+'</b> in Chrome or Edge. It pairs itself — you usually never need the field above.',why:'The daemon injects the token into the page on a real navigation, once per launch.'},
+        {t:'If you do need the link — a second window, or a reload after that first minute — ask for it. It goes to your clipboard.',cmd:'npm run pair'},
+        {t:'No clipboard? Print the token file and build the link yourself.',why:'The link is http://127.0.0.1:'+MM_PORT+'#token=&lt;what that file contains&gt;',cmd:'type %USERPROFILE%\\.clone-frame-hub\\bridge.token'},
+      ],
+    },
+  };
+  const MM_PROMPT=[
+    'I am setting up CLONE FRAME HUB, an app that runs entirely on my own computer.',
+    'It has two halves: a window (what I am looking at) and a local daemon called the HUB',
+    'Bridge. The daemon listens only on 127.0.0.1 and refuses every request that does not',
+    'carry a pairing token. Right now my window is not connected to it, and I need it to be.',
+    '',
+    'Please walk me through this ONE STEP AT A TIME. Wait for me to report back after each',
+    'step before giving me the next one. First ask me which system I am on (macOS, Linux or',
+    'Windows) and adapt everything to that answer.',
+    '',
+    'The steps:',
+    '',
+    '1. Help me open a terminal, and help me get into the CLONE FRAME HUB folder — the one',
+    '   that contains package.json and a bridge/ directory. Ask me where I put it.',
+    '',
+    '2. Have me start the daemon:',
+    '       node bridge/hub-bridge.mjs        (macOS and Linux)',
+    '       node hub-bridge.mjs               (Windows, from inside the bridge folder)',
+    '   Tell me what a healthy startup banner looks like, and what to do if the port is',
+    '   already in use or if it complains about a missing "ws" package.',
+    '',
+    '3. Have me ask it for the pairing link:',
+    '       npm run pair',
+    '   This copies a link of the form  http://127.0.0.1:8765#token=SECRET  to my clipboard.',
+    '   It deliberately never prints the token on screen.',
+    '   If the clipboard does not work, the token is in a file:',
+    '       macOS and Linux   ~/.clone-frame-hub/bridge.token',
+    '       Windows           %USERPROFILE%\\.clone-frame-hub\\bridge.token',
+    '   and the link is http://127.0.0.1:8765#token= followed by that file’s contents.',
+    '',
+    '4. Have me paste that link into MY MACHINE, into the field labelled "Pairing link",',
+    '   and press CONNECT.',
+    '',
+    '5. Help me read what the panel says afterwards:',
+    '       "connected"     it worked.',
+    '       "not paired"    the daemon is running but it refused that token — the link is',
+    '                       stale or was truncated. Ask me to run npm run pair again.',
+    '       "disconnected"  nothing is listening at that address — the daemon is not running,',
+    '                       or it is on a different port.',
+    '       "switched off"  I turned the connection off myself, with the switch in the panel.',
+    '',
+    'Rules you must follow:',
+    '',
+    '- NEVER ask me to paste the token into a chat, a web page, a form, or anything at all',
+    '  outside the CLONE FRAME window. Whoever holds that token gets a shell on my computer',
+    '  with my permissions. If you need to know whether a step worked, ask me what the panel',
+    '  says, not what the token is.',
+    '- Do not invent commands. Everything you need is above. If a step fails, ask me for the',
+    '  exact error text and work from that.',
+    '- Do not assume anything about my setup. Ask before each command, and tell me what it',
+    '  will do before I run it.',
+  ].join('\n');
+
+  function wireSetup(p){
+    const tabs=p.querySelector('#mmos'),steps=p.querySelector('#mmsteps'),prompt=p.querySelector('#mmprompt');
+    if(!tabs||!steps||!prompt)return;
+    // Copy through ONE helper: the label has to say what happened, and a clipboard that is
+    // blocked (no permission, no secure context) must say so instead of silently doing nothing.
+    async function copy(btn,text,what){
+      try{
+        await navigator.clipboard.writeText(text);
+        const had=btn.querySelector('span');if(had)had.textContent='COPIED';
+        btn.classList.add('done');
+        setTimeout(()=>{if(btn.isConnected){btn.classList.remove('done');const s=btn.querySelector('span');if(s)s.textContent='COPY'}},1500);
+      }catch(_){Toast.show('Could not reach the clipboard — select the '+what+' and copy it by hand')}
+    }
+    function draw(os){
+      const d=MM_OS[os]||MM_OS.mac;
+      steps.innerHTML=d.steps.map((s,i)=>
+        '<div class="mmstep"><div class="n">'+(i+1)+'</div><div class="t">'+s.t
+        +(s.why?'<span class="why">'+s.why+'</span>':'')
+        +(s.cmd?'<div class="mmcmd"><code>'+escHtml(s.cmd)+'</code><button class="mmcopy" data-cmd="'+escAttr(s.cmd)+'" title="Copy this command"><svg><use href="#i-copy"/></svg><span>COPY</span></button></div>':'')
+        +'</div></div>').join('');
+      steps.querySelectorAll('.mmcopy').forEach(b=>b.addEventListener('click',()=>copy(b,b.dataset.cmd,'command')));
+      tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.os===os));
+    }
+    tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(b)draw(b.dataset.os)});
+    // Guess once, from the platform, so the right system is already showing. It is only a
+    // default — the three tabs are always there, and the guess is never announced as a fact.
+    const ua=(navigator.userAgent||'')+' '+(navigator.platform||'');
+    draw(/Win/i.test(ua)?'win':(/Mac|iP(hone|ad|od)/i.test(ua)?'mac':'linux'));
+    prompt.textContent=MM_PROMPT;
+    const pc=p.querySelector('#mmpcopy');
+    if(pc)pc.addEventListener('click',()=>copy(pc,MM_PROMPT,'prompt'));
   }
 
   /* ---- MY AGENTS (I18: read-only on-chain ERC-8004 + HUB Bridge + BYOK) ---- */
@@ -13441,7 +14154,12 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // Two different situations, two different instructions. A daemon that is running but has
     // not paired with this window is not the same as no daemon at all, and telling the owner
     // to "run the HUB Bridge" when it is already running sends them the wrong way.
-    const why=(typeof Bridge!=='undefined'&&Bridge.unpaired&&Bridge.unpaired())
+    // …and a third: switched off on purpose. Telling someone who just closed the connection
+    // to go and pair is the same wrong instruction, one state further along.
+    const has=typeof Bridge!=='undefined';
+    const why=(has&&Bridge.paused&&Bridge.paused())
+      ? 'The connection to your machine is <b>switched off</b>. Turn it back on in MY MACHINE.'
+      : (has&&Bridge.unpaired&&Bridge.unpaired())
       ? 'The <b>HUB Bridge</b> is running on your machine, but this window is not paired with it yet.'
       : 'Needs the <b>HUB Bridge</b> — it runs on your machine.';
     el.innerHTML='<div class="qempty" data-needbridge style="padding:24px;line-height:1.7">'+why+'<br><br><button class="btn" id="nbm">OPEN MY MACHINE</button></div>';
@@ -15770,7 +16488,18 @@ const Palette=(()=>{
   // followed ran whatever entry happened to be selected. That is how "random windows" opened.
   const MAC=/Mac|iP(hone|ad|od)/.test(navigator.platform||navigator.userAgent||'');
   addEventListener('keydown',e=>{
-    if((MAC?e.metaKey:(e.metaKey||e.ctrlKey))&&!e.altKey&&e.key.toLowerCase()==='k'){e.preventDefault();openF?closeP():openP();return}
+    // ⌘K *and* ⌘⇧P. The app printed "COMMAND PALETTE · ⌘⇧P" in iT's sidebar footer while
+    // nothing outside that one window answered it, so the shortcut every editor has trained
+    // people to press did nothing anywhere else — which is exactly what the owner reported.
+    //
+    // Inside iT both combos belong to iT (⌘K clears the terminal, ⌘⇧P opens ITS command list):
+    // its capture listener claims them and calls stopPropagation, so this bubble listener never
+    // sees them. One key, the palette of whichever window you are in.
+    //
+    // ⌘⇧P, not ⌘P — ⌘P is Print, and taking it would be taking something that is not ours.
+    // e.key is absent on some IME/dead-key paths; reading it blind throws inside the listener.
+    const k=String(e.key||'').toLowerCase();
+    if((MAC?e.metaKey:(e.metaKey||e.ctrlKey))&&!e.altKey&&(k==='k'||(k==='p'&&e.shiftKey))){e.preventDefault();openF?closeP():openP();return}
     if(!openF)return;
     if(e.key==='Escape'){closeP();return}
     // Arrows and Enter steer the palette only while the palette's own box holds focus —
@@ -16146,12 +16875,53 @@ const Shortcuts=(()=>{
   Bus.on('bridge:changed',()=>appCtlConnect());
   appCtlConnect();
   (window.requestIdleCallback||(f=>setTimeout(f,900)))(()=>Brain.detect());
-  // seed the agent at the center only once the grid has its final dimensions
-  function seedIfEmpty(){
-    if(Object.keys(Store.get().cells).length)return;
+  // The one square a brand-new canvas starts with: CODE, tucked into the top-left corner.
+  //
+  // It used to be an 'agent' square in the dead centre of the screen — the first thing the
+  // owner saw was a robot sitting in the middle of his workspace, and 'agent' is not even a
+  // real panel: openPanel routes it to CODE. Two names for one destination, parked where the
+  // eye lands first. Now the square IS what it opens (LABEL.terminal === 'CODE') and it sits
+  // out of the way. The 'agent' alias stays alive everywhere else — canvases saved with one
+  // must keep working — it is simply no longer minted.
+  //
+  // GRID COORDS ARE NOT SCREEN COORDS. build() draws an overscan margin of 4 pitches around
+  // the viewport and offsets the grid by -OV, so column/row 0 is off-screen; screen x for a
+  // column is (-OV + c*pitch). The corner cell is therefore the first one past the overscan,
+  // and the row is the first whose box clears the 52px top bar. Both are derived from the
+  // grid's own numbers — a density change moves PITCH, and a hardcoded 5,6 would strand the
+  // seed under the top bar or off the left edge.
+  const SEED_TOP=60; // px of headroom to clear --topbar-h (52) with a little air
+  function seedCorner(){
     const d=Grid.dims();
-    const mid=document.querySelector(`.cell[data-c="${Math.floor(d.cols/2)}"][data-r="${Math.floor(d.rows/2)}"]`);
-    if(mid)Grid.occupy(mid,'agent');
+    if(!d.cols||!d.rows)return null;
+    const pitch=Grid.worldW()/d.cols,ov=Grid.overscan();
+    if(!(pitch>0))return null;
+    const c=Math.min(d.cols-1,Math.round((ov+pitch)/pitch));
+    const r=Math.min(d.rows-1,Math.ceil((ov+SEED_TOP)/pitch));
+    return document.querySelector(`.cell[data-c="${c}"][data-r="${r}"]`);
+  }
+  function seedIfEmpty(){
+    const s=Store.get();
+    if(Object.keys(s.cells).length){relocateLegacySeed();return}
+    const at=seedCorner();
+    if(at)Grid.occupy(at,'terminal');
+  }
+  // A canvas that already exists never gets re-seeded — which would have left every current
+  // install with the robot still in the middle. Move that ONE square, once, and only while it
+  // is still the untouched seed: type 'agent', not linked to a live window, and the corner
+  // free. Anything the owner has since done to it (dragged it, docked a window onto it) makes
+  // it his, and `seedv` makes sure this never runs a second time.
+  function relocateLegacySeed(){
+    const s=Store.get();
+    if(s.seedv>=2)return;
+    const at=seedCorner();
+    if(!at)return;                 // the grid has no dimensions yet — try again on the next tick
+    s.seedv=2;Store.save();        // whatever happens below, this is a one-time move
+    const old=[...document.querySelectorAll('.cell.occ')].find(el=>el.dataset.type==='agent'&&!el.dataset.panelKey);
+    // A CODE square somewhere else means the owner already has one, and occupy() would refuse
+    // the second: releasing first would delete his AGENT square and put nothing in its place.
+    if(!old||at===old||at.classList.contains('occ')||Grid.squareFor('terminal'))return;
+    Grid.release(old);Grid.occupy(at,'terminal');
   }
   // ── window-session restore (T01.07): open windows survive ⌘R ──────────────
   // Docked chips already persist through Grid.cells; this covers the OPEN windows,
