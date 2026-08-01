@@ -5,6 +5,94 @@ whether to update, not for someone reading a diff.
 
 Full detail lives in `git log` — every commit here says what a user would have hit.
 
+## 0.4.0 — 2026-08-01
+
+The largest gap between two public releases so far. **v0.3.8 to here is 96 confirmed
+defects closed and four new surfaces**, so this is a minor version, not another patch.
+
+If you are on 0.3.8, the short version: shortcuts that were advertised now answer, the
+dock behaves like a dock, and you can finally switch the connection to your machine off —
+and delete its token for real.
+
+### The shortcut the app printed and did not answer
+
+`COMMAND PALETTE · ⌘⇧P` is written in the iT sidebar. Pressing it did nothing, and not
+because the shortcut was missing.
+
+A window's shortcuts are bound to the window, and a key event goes to whatever holds
+focus. Clicking a workspace row, a section header, or the padding between two controls —
+none of which accept focus — left the keyboard on the page body, and from that moment
+*every* shortcut that window advertised stopped working. Silently. It was worse with no
+bridge running: iT's only focusable element is its terminal, so the keyboard never
+entered the window at all.
+
+A window now takes the keyboard when you click it and once when it opens. And **⌘⇧P opens
+the command palette from anywhere**, not only inside iT.
+
+### The dock
+
+**The two little handles are gone.** Drag it by its body; resize it by either end. The
+cursor tells you which, and nothing is drawn on it.
+
+**Hovering lifts the icons, it does not only grow them.** The icon under the pointer rises
+out of the slab and its neighbours rise less, on one shared curve, with a shadow — the way
+the macOS dock does it. The old curve never reached zero, so every icon in the strip was
+permanently a little magnified and the whole row crept as you moved. Spacing is now
+proportional to the icon size and stays proportional as you change it.
+
+**Right-click works.** On an icon: Open, Keep in Dock, Remove from Dock, Dock Settings. On
+the dock itself: magnification, position on screen, hide. **Keep in Dock** does what it
+does on macOS — the app stays on the strip whether or not it is running.
+
+Three things that were broken and are not: the menu opened *underneath* the dock; moving
+the dock to another edge parked it hundreds of pixels short of that edge; and dragging the
+dock silently erased every dock setting you had changed.
+
+### Settings → Dock
+
+New room. Icon size, spacing, magnification with its growth, lift and spread, position,
+glass, the apps you have kept, and a reset that keeps them.
+
+### MY MACHINE, rebuilt
+
+It was one wall of text. It is now four boxes that each answer one question: **am I
+connected · who is my model · how do I get a token · can something do this for me.**
+
+The last two are new. There are per-system instructions for **macOS, Linux and Windows**,
+with a copy button on every command, and a prompt you can hand to any model — it has
+everything needed to walk you through pairing, and it tells the model the one thing it
+must never ask you for.
+
+### You can switch your machine off now, and delete the token
+
+The app could pair and it could rotate. It could never **stop**, and it could never
+**forget**.
+
+**OFF** keeps the token and stops using it. **REMOVE** destroys it — and that word is now
+true. Removing used to clear the token the app sends over HTTP and leave a second copy in
+the page, which is exactly the copy the terminal, the browser and the agent channel read.
+Of those three, only two checked whether the app was connected before opening a socket.
+A window whose token you had removed could still open an authenticated connection to your
+own machine.
+
+There is also a third state on screen now. Switching off used to make the app say *"not
+paired"* — sending you to re-pair a machine you had just deliberately disconnected from,
+in about twenty places at once.
+
+### Smaller
+
+- A new canvas starts with a **CODE** square in the top-left corner instead of an "Agent"
+  tile in the middle. "Agent" was never a panel; it only ever opened CODE. If you have the
+  old square and have not touched it, it moves once.
+- The pairing card tells three situations apart instead of two.
+
+### Before this
+
+0.4.0 also carries everything from the two unreleased fix waves after 0.3.8: an audit's
+52 findings, then 44 more an adversarial sweep found in the surfaces that audit had only
+sampled, then a contract sweep, an argument fuzz and a virgin-boot pass over the whole
+app. Those are in `git log`; the ones you would have noticed are above.
+
 ## 0.3.8 — 2026-08-01
 
 An adversarial audit read this release from six angles and confirmed 33 findings. This
