@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.3.8 build token — never as a number written here.
+   the app only through the 0.3.9 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -2796,7 +2796,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.3.8 · WEB</span>
+    <span class="gver">v0.3.9 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -5882,7 +5882,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.3.8
+  OS      CLONE FRAME OS · v0.3.9
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -7256,7 +7256,20 @@ ANSWER DISCIPLINE:
           const cell=cellAt(d.x,d.y);
           if(cell&&!cell.classList.contains('occ')){Grid.occupy(cell,'shell',{label:(cwdAbs||'').split('/').filter(Boolean).pop()||'terminal',cwd:cwdAbs||''});cell.classList.add('minpulse');setTimeout(()=>cell.classList.remove('minpulse'),1000);Toast.show('iT docked into a frame — click it to open')}
           else Toast.show('Drop it on an empty frame square')}});
-      pop.addEventListener('click',()=>{if(pop.dataset.dragged)return;pendingShellCwd=cwdAbs||'';openPanel('shell')});
+      // THE THIRD COPY of a bug fixed twice. pendingShellCwd is consumed by wireShell(),
+      // which runs only when an iT window MOUNTS — so with iT already open, openPanel('shell')
+      // early-returns, nothing reads the variable, the button appears to do nothing AND the
+      // directory stays set, so the NEXT iT window opens somewhere the owner chose minutes ago.
+      // Fixed in terminal.js's open_terminal tool and in folders.js's #fmterm button; this
+      // site sits 426 lines below the first of those, in the same file, and was missed
+      // (DEBUG4 · CF4-D-001). Same shape as both: if iT is already there, hand it the folder.
+      pop.addEventListener('click',()=>{
+        if(pop.dataset.dragged)return;
+        const cwd=cwdAbs||'';
+        const wasOpen=instancesOf('shell').length>0;
+        pendingShellCwd=cwd;openPanel('shell');
+        if(wasOpen&&cwd){Bus.emit('shell:addcwd',cwd);Toast.show('Added '+(cwd.split('/').filter(Boolean).pop()||cwd)+' to iT')}
+      });
     } }
     initSplitter($('#cdsplitside'),ev=>{                 // resize sessions rail (px)
       const r=p.querySelector('.cdwrap').getBoundingClientRect();
@@ -9743,10 +9756,28 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       if(!w.focus&&w.panes.length)w.focus=w.panes[0].id;
       renderGrid(w);
     }
+    // A pane restores at most PANE_TAB_CAP tabs. The cap is fine; dropping the rest in
+    // SILENCE was not. A dropped surface takes its psid with it, so the rebuilt window
+    // never learns that session id and its _dispose can never name it to pty.killMany —
+    // a live shell on the bridge with nothing on screen pointing at it, which is exactly
+    // the class of thing this app is not supposed to leave lying around
+    // (DEBUG4 · CF4-D-003). So: reap what we drop, and say how many.
+    const PANE_TAB_CAP=6;
+    function reapDropped(surfs){
+      const ids=[];
+      for(const s of surfs){ if(s&&s.kind!=='web'&&!s.sess&&s.psid)ids.push(s.psid); }
+      if(ids.length){ try{RPC('pty','killMany',ids).catch(()=>{})}catch(_){} }
+      // Announced where it happens. A pane hydrates lazily — when its workspace is first
+      // shown — so a boot-time message would be wrong for every workspace still in the
+      // background.
+      try{Toast.show('This pane had '+(PANE_TAB_CAP+surfs.length)+' tabs — restored '+PANE_TAB_CAP+', closed '+surfs.length+' and stopped their shells')}catch(_){}
+    }
     function hydrate(spec,w){ // rebuild a saved split tree; each tty surface reopens a fresh shell at its cwd
       if(spec&&spec.sp)return{sp:spec.sp,ratio:spec.ratio||.5,a:hydrate(spec.a,w),b:hydrate(spec.b,w)};
       const pn=makePane(w);
-      ((spec&&spec.surfs)||[]).slice(0,6).forEach(s=>{const nt=newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,true,s.psid,s.host||null,s.sess||null);if(nt&&s.sessName)nt.sessName=s.sessName;});
+      const all=(spec&&spec.surfs)||[];
+      if(all.length>PANE_TAB_CAP)reapDropped(all.slice(PANE_TAB_CAP));
+      all.slice(0,PANE_TAB_CAP).forEach(s=>{const nt=newSurface(pn,s.kind==='web'?(s.url||''):(s.cwd||w.cwd),s.kind,true,s.psid,s.host||null,s.sess||null);if(nt&&s.sessName)nt.sessName=s.sessName;});
       if(!pn.surfaces.length)newSurface(pn,w.cwd,undefined,true);
       pn.active=Math.max(0,Math.min((spec&&spec.active)||0,pn.surfaces.length-1));
       return{pane:pn};
@@ -10819,7 +10850,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.8 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.3.9 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -11232,9 +11263,21 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         leftHidden=!!saved.left;treeHidden=!!saved.right;
         if(Array.isArray(saved.groups)){wsGroups=saved.groups.map(g=>({id:g.id||('g'+(++grpSeq)),name:g.name||'Group',color:g.color||'',collapsed:!!g.collapsed}));grpSeq=Math.max(grpSeq,wsGroups.length)}
         const gids=new Set(wsGroups.map(g=>g.id));
-        saved.ws.slice(0,8).forEach(sw=>newWorkspace((sw.cwd&&sw.cwd!=='~')?sw.cwd:homeAbs,{name:sw.name||'',color:sw.color||'',group:gids.has(sw.group)?sw.group:null,canvasOn:!!sw.canvasOn,canvasZoom:sw.canvasZoom||1,canvasPan:sw.canvasPan||{x:0,y:0},canvasRects:sw.canvasRects||null,spec:sw.spec||null,background:true}));
+        // Same rule as the tab cap: restore up to WS_CAP, and reap the sessions in the
+        // ones we drop rather than leaving them running with nothing pointing at them.
+        const WS_CAP=8;
+        let droppedWs=0;
+        if(saved.ws.length>WS_CAP){
+          const gone=saved.ws.slice(WS_CAP);droppedWs=gone.length;
+          const ids=[];gone.forEach(sw=>{if(sw&&sw.spec)specPsids(sw.spec).forEach(id=>ids.push(id))});
+          if(ids.length){try{RPC('pty','killMany',ids).catch(()=>{})}catch(_){}}
+        }
+        saved.ws.slice(0,WS_CAP).forEach(sw=>newWorkspace((sw.cwd&&sw.cwd!=='~')?sw.cwd:homeAbs,{name:sw.name||'',color:sw.color||'',group:gids.has(sw.group)?sw.group:null,canvasOn:!!sw.canvasOn,canvasZoom:sw.canvasZoom||1,canvasPan:sw.canvasPan||{x:0,y:0},canvasRects:sw.canvasRects||null,spec:sw.spec||null,background:true}));
         if(workspaces.length)selectWs(Math.min(saved.wsActive||0,workspaces.length-1));
         if(pcwd)newWorkspace(pcwd); // opened at an explicit folder → its own workspace
+        // Say it. A layout that comes back smaller than it went away, silently, is how the
+        // owner ends up believing work vanished on its own.
+        if(droppedWs)try{Toast.show('Restored '+WS_CAP+' workspaces — '+droppedWs+' older '+(droppedWs===1?'one was':'ones were')+' closed and their shells stopped')}catch(_){}
       }
       if(!workspaces.length)newWorkspace(startCwd);
       wsEl.classList.toggle('hidden',leftHidden);
@@ -11723,6 +11766,10 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         <div class="mrow" style="flex-wrap:wrap">
           <b>${escHtml(pr.label||pr.provider)}</b><span class="kind">${escHtml((pr.kind||'').toUpperCase())}</span>
           <span class="url">${escHtml(pr.baseUrl||'')}</span>
+          ${pr.keyAt?`<span class="kind" title="${pr.keyAt==='keychain'
+              ?'Your key is in the macOS Keychain. models.json holds only a marker.'
+              :'The Keychain was not available, so your key is stored in ~/.clone-frame-hub/models.json (owner-only, 0600) in the clear. This is the fallback — losing the key would be worse — and it is always the case inside Docker.'}"
+            >KEY · ${pr.keyAt==='keychain'?'KEYCHAIN':'ON DISK'}</span>`:''}
           <div class="sw3 ${pr.enabled!==false?'on':''}" data-en="${pr.id}" title="Enable / disable provider"><i></i></div>
           <button class="rm" data-rm="${pr.id}" title="Remove">✕</button>
           <div style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px;margin-top:7px">
@@ -12058,7 +12105,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.8 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.3.9 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -13772,8 +13819,14 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // `ifIdle` lets the ENGINE decide: `owned` only knows about THIS document, so a second
     // browser window (or the second app window) used to arrive believing nothing was open
     // and wipe the first one's tabs away. The engine wipes only when nobody is watching.
+    // Set while a clean starting tab is being prepared; awaited by web:open so a URL that
+    // arrives mid-flight cannot be overtaken by the blank tab. See the call site in build().
+    let cleanBoot=null;
     async function openClean(){
       if(!owned.size)await eng('wipe',{ifIdle:true}).catch(()=>{});
+      // If a real page landed while the wipe was in flight, the blank tab is no longer the
+      // right thing to create — the window is already showing what the user asked for.
+      if(tabs.length)return;
       newTab('');
     }
     function closeTab(id){
@@ -14300,7 +14353,19 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         // windows: the private context dies with the LAST one, never with this one alone.
         if(!owned.size)closed.then(()=>eng('wipe',{ifIdle:true}).catch(()=>{}));
       };
-      if(!tabs.length)openClean();
+      // The clean starting tab, and the reason it is tracked rather than fired and forgotten.
+      //
+      // openClean() is ASYNC — it awaits an engine `wipe` before calling newTab('') — while
+      // a caller that opens BROWSER *at a URL* emits web:open synchronously, right after
+      // openPanel() returns. So the order on the wire was: wipe starts → the requested page
+      // opens in a tab → wipe resolves → a BLANK tab appears and takes focus. Click a frame
+      // square holding a bookmark with BROWSER closed, and you landed on an empty page with
+      // the page you asked for hiding behind it (DEBUG4 · CF4-E-001).
+      //
+      // The panel already has the right pattern one layer up (`pend`, for the not-yet-wired
+      // case). This is the same idea at the right depth: web:open waits for the clean tab if
+      // one is on its way, and the clean tab stands down if a real URL got there first.
+      if(!tabs.length)cleanBoot=openClean().then(()=>{cleanBoot=null});
       wsConnect();
       // Sign-in mode belongs to the ENGINE, not to a window: a reopened BROWSER must not
       // forget that a real sign-in window is being held open for it.
@@ -14315,11 +14380,15 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     // windows and an untargeted URL would have landed in all of them; with one window it
     // is belt-and-braces, and it stays because webOpen already passes it and a listener
     // on a window being torn down must not answer for the one replacing it.
-    Bus.on('web:open',d=>{
+    Bus.on('web:open',async d=>{
       if(!document.body.contains(p)||!p._wbr)return;
       const o=(typeof d==='string')?{url:d}:(d||{});
       const u=o.url||'';if(!u)return;
       if(o.target&&o.target!==p.dataset.key)return;
+      // Wait for the clean starting tab if one is still being prepared, so this URL is
+      // never overtaken by it. Re-check the panel afterwards: an await is a window in
+      // which the owner can close it.
+      if(cleanBoot){try{await cleanBoot}catch(_){}if(!document.body.contains(p)||!p._wbr)return}
       // There is one BROWSER window now, but it can be HIDDEN in a frame square, and
       // topInstanceOf() deliberately cannot see a docked window. Comparing against it alone
       // meant a docked browser ignored every untargeted web:open — the URL went nowhere.
@@ -14387,7 +14456,17 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
   // have written a memory since the last one.
   Bus.on('bridge:changed',()=>{brainSnapAt=0;brainSync(true)});
   Bus.on('brain:changed',()=>{brainSnapAt=0;brainSync(true)});
-  setInterval(()=>{if(Bridge.on())brainSync(false)},15000);
+  // Every 60s, and only while the window is in front.
+  //
+  // This was every 15 seconds, unconditionally, from the moment the app loaded and whether
+  // or not BRAIN was ever opened — four bridge round trips a minute, ~5 700 over a working
+  // day, on the event loop that also carries the terminal (DEBUG4 · CF4-E-003). The reason
+  // it exists is real (pi can write a memory outside the app, and an agent turn can happen
+  // at any time), so it stays — at a rate that matches how often that actually happens, and
+  // paused when nobody is looking. A backgrounded window costs nothing, and coming back to
+  // the front resyncs immediately, which is the moment freshness is worth paying for.
+  setInterval(()=>{if(Bridge.on()&&document.visibilityState==='visible')brainSync(false)},60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Bridge.on())brainSync(false)});
   brainSync(true);
 
   function wireBrain(p){
@@ -14514,7 +14593,14 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         await memLoad();
         if(before!==mem.total+':'+mem.rows.map(r=>r.id).join(','))renderMem();
       },6000);
+      // …and the reader that makes that handle mean something. `p._brainPoll` was written
+      // here and appeared NOWHERE else in the codebase: a cleanup handle stored for a
+      // cleanup nobody wrote. Closing BRAIN left the interval running for the life of the
+      // app, one per window ever opened — harmless in effect (the callback's first line
+      // returns once `p.isConnected` is false) but it reads to a maintainer as "handled"
+      // when it is not (DEBUG4 · CF4-E-002).
       p._brainPoll=memPoll;
+      p._dispose=()=>{try{clearInterval(p._brainPoll)}catch(_){}};
     }
     /* — skills — */
     function skRow(s){
@@ -15713,7 +15799,13 @@ const Shortcuts=(()=>{
     // palette that cycles through the themes' accents — the square changes color
     const COLORS=['#f85149','#8ab4ff','#37e05f','#b06ae0','#ff8a4a','#4fd6c2','#0ff0fc','#e040fb'];
     let m=0,c=0;
+    // The living mark keeps its cadence — and stops costing anything when nobody is looking.
+    // It writes four inline style properties plus a box-shadow transition on an element that
+    // is on screen at all times, so it forces paint every 1.5s for the life of the window,
+    // including while the app sits behind another one all afternoon (DEBUG4 · CF4-E-004).
+    // Nothing about how it looks changes; a hidden window simply skips its turn.
     setInterval(()=>{
+      if(document.visibilityState!=='visible')return;
       m=(m+1)%modes.length;modes[m]();
       if(m===0){c=(c+1)%COLORS.length;el.style.borderColor=COLORS[c];i.style.background=COLORS[c];u.style.borderColor=COLORS[c];
         el.style.boxShadow='0 0 10px -2px '+COLORS[c];setTimeout(()=>{el.style.boxShadow='0 0 0 0 '+COLORS[c]},600);}
@@ -15823,13 +15915,39 @@ const Shortcuts=(()=>{
       });
       return out.sort((a,b)=>a.z-b.z).map(o=>{delete o.z;return o});
     };
-    let last='';
+    // The differ notices motion every 2s; the SAVE waits for motion to stop.
+    //
+    // It used to write on every tick that differed — and during a drag every tick differs,
+    // so dragging a window meant up to 30 full Store.save() calls a minute. Store.save()
+    // serialises the WHOLE store (every frame square, every panel's persisted state, the
+    // whole canvas) into localStorage, synchronously, on the main thread. The cost was
+    // never the geometry; it was that geometry dragged the entire store along with it
+    // (DEBUG4 · CF4-D-005).
+    let last='',saveT=null;
     setInterval(()=>{
       const str=JSON.stringify(snap());
-      if(str!==last){last=str;Store.get().winsession=JSON.parse(str);Store.save()}
+      if(str===last)return;
+      last=str;
+      Store.get().winsession=JSON.parse(str);
+      clearTimeout(saveT);
+      saveT=setTimeout(()=>Store.save(),1200);   // one write once the window stops moving
     },2000);
     function restore(){
-      const saved=(Store.get().winsession||[]).slice(0,8);
+      // Restore assumes it runs before anything else has opened a panel: for a non-MULTI
+      // type openPanel IGNORES newInstance and returns the window that already exists, and
+      // the geometry assignment below would then MOVE the owner's live window to a stale
+      // saved position. That was true only by call order — WinSession.restore() runs before
+      // seedIfEmpty() — and written down nowhere, so a deep link or a fast agent connection
+      // that opened a panel first would have turned a restore into a window jumping away
+      // (DEBUG4 · CF4-D-004). Assert it instead of relying on it.
+      if(Object.keys(open).length){ return; }
+      const all=Store.get().winsession||[];
+      const CAP=8;
+      const saved=all.slice(0,CAP);
+      // The cap is reasonable; the SILENCE was not. Windows past it simply never came back
+      // and nothing said so (DEBUG4 · CF4-D-002). iT's own sessions are reaped by shell.js,
+      // which owns them; here we only have to stop the disappearance being invisible.
+      if(all.length>CAP)setTimeout(()=>{try{Toast.show('Restored '+CAP+' windows — '+(all.length-CAP)+' more from last time were not reopened')}catch(_){}} ,900);
       // A session saved before 2026-08-01 can hold two BROWSER windows (or two of anything
       // else). Only iT may be restored more than once now; a second entry of any other type
       // would otherwise re-open the SAME window and move it to the older entry's geometry.

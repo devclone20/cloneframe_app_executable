@@ -1,0 +1,28 @@
+<!-- CLONE FRAME HUB app icon — the red double-triangle (the in-app menu mark, #trishape)
+     on a black macOS squircle. Source of truth for applet.icns and the browser favicon.
+     Red = --tri #ff3b30. Triangle geometry is identical to the #tri menu symbol. -->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161618"/>
+      <stop offset="0.55" stop-color="#040404"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.12" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#ff3b30" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  <!-- squircle body (macOS grid: 824 square, 100 margin, r≈185) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#rim)"/>
+  <rect x="100.75" y="100.75" width="822.5" height="822.5" rx="184.25" ry="184.25" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1.5"/>
+  <!-- red double triangle: exact #trishape geometry, scaled/centered, thin double outline -->
+  <g transform="translate(206,214) scale(15)" fill="none" stroke="#ff3b30" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M20 6 34 33 6 33 Z" stroke-width="2.1"/>
+    <path d="M20 6 34 33 6 33 Z" stroke-width="1.7" transform="translate(20 20) scale(0.7) translate(-20 -20)"/>
+  </g>
+</svg>

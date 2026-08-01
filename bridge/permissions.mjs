@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { hubRoot } from './platform/hub-root.mjs';
+import { isDestructive } from './platform/shell-guard.mjs';
 
 // Resolved through the shared hub-root seam like every other store. This module was
 // missed when the ~19 hardcoded `path.join(homedir(), '.clone-frame-hub')` copies were
@@ -114,6 +115,46 @@ export const Permissions = {
     const rule = CONTROL_PLANE[m];
     if (!rule) return null;
     return rule.reads.includes(f) ? null : rule.why;
+  },
+
+  // ── the anti-wipe, on the path the agent actually uses ──────────────────────────────
+  //
+  // The two gates above ask WHO is calling and WHAT function. This one asks what is IN the
+  // call, and it exists because of a hole DEBUG4 proved by executing it (CF4-F-001):
+  //
+  //   AGENT pty.open  {cmd:"mkfs", args:["-t","ext4","/dev/disk0"]}  → refused
+  //   AGENT pty.open  {cmd:"/bin/cat"}                               → ok, id …
+  //   AGENT pty.write [id, "mkfs -t ext4 /dev/disk0"]                → ok
+  //
+  // isDestructive() ran at four call sites and every one of them inspected a command line
+  // being SUBMITTED — ssh.exec, servers.exec, /shell, pty.open. Nothing inspected the bytes
+  // going into a shell that was already running. And "open a shell, then write into it" is
+  // not an exotic bypass: it is the ordinary way an agent drives a terminal. It does not
+  // have to be evading anything to land there — a prompt injection in a page it reads is
+  // enough.
+  //
+  // That mattered more than the usual "a token-holder already has a shell" framing covers.
+  // The anti-wipe was never built to stop a token-holder; it is the ONE limit SECURITY.md
+  // says cannot be turned off, and it is the reason shipping the agent in YOLO is defensible
+  // at all. A promise with a one-call gap is not that.
+  //
+  // WHY ONLY THE AGENT. A human's keystrokes are NOT filtered and must not be: a terminal
+  // that second-guesses what you type is not a real terminal, and iT promises a real one. The
+  // owner's own UI never sends the agent header, so nothing the owner types passes through
+  // here. Where a refusal is meaningful — an automated caller, no human mid-keystroke — it
+  // fires; where it would be paternalistic, it does not.
+  //
+  // Returns a refusal string, or null to allow.
+  agentContentGuard(mod, fn, args) {
+    if (String(mod || '') !== 'pty') return null;
+    const f = String(fn || '');
+    if (f !== 'write') return null;
+    // Pty.write(id, data) — the payload is the second argument.
+    const data = Array.isArray(args) ? args[1] : null;
+    const text = typeof data === 'string' ? data : (data == null ? '' : String(data));
+    if (!isDestructive(text)) return null;
+    return 'catastrophic pattern blocked for safety — this is the one limit that cannot be '
+      + 'turned off, and it applies to what you type into a shell, not only to what you spawn';
   },
 
   // What to tell the agent INSTEAD. A refusal that names no alternative is how a draft gets

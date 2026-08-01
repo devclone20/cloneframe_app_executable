@@ -247,7 +247,7 @@ flowchart LR
 A few guarantees worth remembering:
 
 - **Loopback only.** The Bridge listens on `127.0.0.1` — it isn't reachable from the network.
-- **Catastrophic commands are blocked** (things like wiping a disk) *even* when you've enabled
+- **Catastrophic commands are blocked** for the agent (things like wiping a disk) *even* when you've enabled
   full shell access.
 - **Your secrets stay yours.** API keys and credentials live in your own session/`.env` and
   are never written into the app, its logs, or the repository.

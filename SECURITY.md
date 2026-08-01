@@ -38,9 +38,26 @@ security model therefore concentrates on *who can reach the bridge*:
 There is **no embedded assistant** and no vendored key. Your API key lives in
 your environment or `~/.env.local`, is read only by the bridge, is never
 returned to the browser, and is scrubbed from log output (literal-secret
-redaction plus pattern scrubbers for `sk-ant-…`, JWTs, bearer tokens and
-common cloud credentials). BYOK keys entered in the UI live in
-`sessionStorage` only — gone when the window closes.
+redaction plus pattern scrubbers for every provider this app ships —
+`sk-ant-…`, `sk-…`, `sk-or-v1-…`, `AIza…`, `gsk_…`, `xai-…`, `hf_…`, `r8_…` —
+plus JWTs, bearer tokens, PEM blocks, AWS/GitHub/Slack credentials, and
+`ANY_NAME_API_KEY=…` pairs).
+
+**Where a key you add in the UI actually lives.** Two places, and it depends
+which surface you used:
+
+| you did this | the key ends up |
+|---|---|
+| pasted a key into a transient BYOK prompt | `sessionStorage` — gone when the window closes |
+| added a provider in **Settings → Add Models** | sent to the bridge and **saved**, so it survives a reload |
+
+A saved provider's key goes into the **macOS Keychain** (service `CLONE FRAME
+HUB`), and `~/.clone-frame-hub/models.json` keeps only a `keychain:v1` marker.
+If the Keychain is unavailable — `security` fails, or `CLONE_FRAME_HUB_ROOT`
+is set, **which the Docker image always sets** — the key stays in that file in
+the clear, owner-only (`0600`) inside a `0700` directory. Losing your key to
+make a point would be worse, so the fallback is deliberate. It is not silent:
+every provider row in Settings says `KEY · KEYCHAIN` or `KEY · ON DISK`.
 
 ## The session token — permanent by default, yours to shorten
 
@@ -89,9 +106,19 @@ semantics worth knowing:
   and is never stored or logged.
 
 Catastrophic patterns (`rm -rf /`, `rm -rf /*`, `rm -rf ~`, `mkfs`, `dd` to a
-device, fork bombs) are refused **even in root mode**. This blocklist is a
-best-effort seatbelt against accidents, not a sandbox — the boundary remains
-who reaches the bridge, not which commands exist.
+device, fork bombs) are refused **even in root mode**, including when they are
+wrapped in quotes — a `git commit -m "…"` whose message contains one is caught,
+because the shell would expand it. This blocklist is a best-effort seatbelt
+against accidents, not a sandbox — the boundary remains who reaches the bridge,
+not which commands exist.
+
+**Exactly where it applies, because "everywhere" would not be true.** The guard
+runs on every command the app *submits* — `/shell`, `ssh`, remote servers, and
+the argv a terminal is spawned with — and on every keystroke **the agent** sends
+into a shell that is already running. It does **not** filter what *you* type.
+That is deliberate: a terminal that second-guesses your keystrokes is not a real
+terminal, and iT promises a real one. The distinction is enforced by the caller,
+not by trust: the agent marks its own calls, your interface never does.
 
 ## The pi agent ships in YOLO — deliberately, and here is how to narrow it
 
@@ -100,7 +127,10 @@ per-command approval**. Its bash is free. That is the owner's choice, not an
 oversight, and it is what makes the app what it is: one prompt drives the whole
 machine. Exactly **one** hard limit is wired in and cannot be turned off — the
 anti-wipe: `rm -rf /` (root, a top-level system directory, or your whole home),
-`mkfs`, and `dd` to a raw device are always refused, even with root mode on.
+`mkfs`, and `dd` to a raw device are always refused, even with root mode on —
+whether the agent spawns them or types them into a terminal it already opened.
+Both paths are gated; see the section above for what the guard does and does not
+cover.
 
 If you want a narrower agent, you have two independent layers, and they compose:
 

@@ -176,7 +176,7 @@ flowchart TB
 - **Loopback-only + Host allowlist.** The bridge binds `127.0.0.1` and additionally checks the `Host` header is exactly our loopback address. A malicious website that rebinds its DNS to `127.0.0.1` still sends *its own* hostname, so it fails the Host check. This is the anti-DNS-rebinding lock.
 - **Pairing token.** A constant-time comparison against the per-session token. No token, no action.
 - **Permissions default OFF.** The powerful capabilities are switches you must consciously flip. A fresh install cannot run a shell command, `sudo`, browse the web, or send email on its own.
-- **Catastrophic-command block.** Even with root mode on, a hard pattern guard refuses the truly unrecoverable: `rm -rf /` and friends, `mkfs`, `dd` writing to a raw disk, classic fork bombs. This guard is applied identically by the `/shell` route **and** the PTY engine, as defence in depth.
+- **Catastrophic-command block.** Even with root mode on, a hard pattern guard refuses the truly unrecoverable on every path the agent can reach a shell through — including keystrokes into a terminal it already opened, and quoted forms a shell would expand. What you type yourself is not filtered. The patterns: `rm -rf /` and friends, `mkfs`, `dd` writing to a raw disk, classic fork bombs. This guard is applied identically by the `/shell` route **and** the PTY engine, as defence in depth.
 
 ### The browser has its own lane
 
@@ -275,8 +275,7 @@ The boundary law holds even here: the window never fetches an integration's port
 | Manaflow · www | MIT | `9779` | loopback | — | Marketing/app www |
 | Manaflow · Convex | MIT | `3210` | loopback | — | Anonymous **local** data layer, no Docker |
 | **TMUX** (Orchestrator) | MIT | none | — | native panel | Pattern over `tmux send-keys`; **▸ Live** attaches a real xterm |
-| **Framer** | MIT | none | — | Chrome extension | MV3 extension that lets the browser frame anti-embedding sites |
-| **Runtime** | Chrome for Testing ToS | none | — | launched app | Bundled Chromium the app opens so Framer can load |
+
 
 Every integration module spawns with `shell: false` and argv arrays — no string interpolation, no injection surface. TMUX in particular hard-scopes all crew operations to the `cf-*` namespace: it will `list` and `kill` only sessions it created and will never touch your own tmux sessions, and never `kill-server`.
 

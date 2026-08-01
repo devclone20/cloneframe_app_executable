@@ -20,7 +20,7 @@ import path from 'node:path';
 import Shell from './domains/chat/shell.mjs';
 import Chat from './domains/chat/chat.mjs';
 import Session from './session.mjs';
-import { serveStatic, armPairing } from './transport/static.mjs';
+import { serveStatic, armPairing, SECURITY_HEADERS } from './transport/static.mjs';
 // guarded (never crash the daemon if 'ws' is absent — /stream just becomes unavailable).
 // ws is CommonJS: the WebSocketServer lives on the default export, not as a named ESM export.
 let WebSocketServer = null;
@@ -38,32 +38,66 @@ const VERSION = (() => {
 // Any bridge/*.mjs newer on disk than this process = the daemon is serving old code
 // (it only reloads on relaunch, unlike the HTML's ⌘R). Reported by /health as `stale`.
 const STARTED_AT = Date.now();
+// CACHED, and it does not descend into node_modules.
+//
+// This ran on EVERY /health call — the one route with no token — and measured 1 872
+// directory entries plus 61 statSync calls, ~15 ms, all of it SYNCHRONOUS on the event
+// loop that also carries the live terminal, the browser screencast and every chat
+// stream. The `node_modules` filter ran AFTER readdirSync had already walked it.
+// launch.sh polls this up to 60 times at startup, and any local process could hold the
+// daemon at 100% with an unauthenticated loop (DEBUG4 · CF4-B-001).
+//
+// The answer changes only when a file on disk changes, so a few seconds of cache costs
+// nothing real: the whole point of `stale` is to notice an update between launches, not
+// within one second of one. Same reasoning as session.mjs's 1s policy TTL, which says so
+// in its own comment — this probe is orders of magnitude more expensive and had none.
+const STALE_TTL_MS = 5000;
+let _staleAt = 0, _staleVal = false;
+function walkMjs(dir, out) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name.startsWith('.')) continue;   // never descend
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walkMjs(p, out);
+    else if (e.name.endsWith('.mjs')) out.push(p);
+  }
+  return out;
+}
 function bridgeStale() {
+  const age = Date.now() - _staleAt;
+  if (age >= 0 && age < STALE_TTL_MS) return _staleVal;
+  let v = false;
   try {
-    for (const f of fs.readdirSync(BRIDGE_DIR, { recursive: true })) {
-      const name = String(f);
-      if (!name.endsWith('.mjs') || name.includes('node_modules')) continue;
-      if (fs.statSync(path.join(BRIDGE_DIR, name)).mtimeMs > STARTED_AT) return true;
+    for (const p of walkMjs(BRIDGE_DIR, [])) {
+      if (fs.statSync(p).mtimeMs > STARTED_AT) { v = true; break; }
     }
   } catch { /* best effort — never break health */ }
-  return false;
+  _staleAt = Date.now(); _staleVal = v;
+  return v;
 }
 // The DOCUMENT can be stale too, and in a way a reload does not fix: web/ is the source and
 // dist/index.html is what is served, so editing a panel without `npm run build` leaves the
 // owner running old code with nothing on screen to say so. This only compares the two files
 // the build turns into each other — no walk, no cost.
+// Cached on the same clock as bridgeStale, and for the same reason: both are answered
+// only by /health, which is unauthenticated and polled.
+let _appAt = 0, _appVal = false;
 function appStale() {
+  const age = Date.now() - _appAt;
+  if (age >= 0 && age < STALE_TTL_MS) return _appVal;
+  let v = false;
   try {
     const src = path.join(HUB_ROOT, 'web', 'index.html');
     const out = path.join(HUB_ROOT, 'dist', 'index.html');
-    if (!fs.existsSync(src) || !fs.existsSync(out)) return false;
-    const built = fs.statSync(out).mtimeMs;
-    if (fs.statSync(src).mtimeMs > built) return true;
-    for (const f of fs.readdirSync(path.join(HUB_ROOT, 'web', 'panels'))) {
-      if (f.endsWith('.js') && fs.statSync(path.join(HUB_ROOT, 'web', 'panels', f)).mtimeMs > built) return true;
+    if (fs.existsSync(src) && fs.existsSync(out)) {
+      const built = fs.statSync(out).mtimeMs;
+      if (fs.statSync(src).mtimeMs > built) v = true;
+      if (!v) for (const f of fs.readdirSync(path.join(HUB_ROOT, 'web', 'panels'))) {
+        if (f.endsWith('.js') && fs.statSync(path.join(HUB_ROOT, 'web', 'panels', f)).mtimeMs > built) { v = true; break; }
+      }
     }
   } catch { /* not a source checkout — nothing to compare */ }
-  return false;
+  _appAt = Date.now(); _appVal = v;
+  return v;
 }
 const HOST = process.env.HUB_BRIDGE_HOST || '127.0.0.1'; // bind addr; loopback only by default
 const PORT = Number(process.env.HUB_BRIDGE_PORT || 8765);
@@ -131,6 +165,17 @@ ensureContext();
 
 // ── tiny helpers ─────────────────────────────────────────────────────────────
 const j = (o) => JSON.stringify(o);
+// EVERY response in this daemon goes out through one of these two, so the security
+// header set cannot be forgotten by a route added next month. Previously the headers
+// lived inside transport/static.mjs and only static files carried them; six other
+// writeHead sites in this file had none (DEBUG4 · CF4-B-003).
+function head(res, code, extra) {
+  res.writeHead(code, { ...SECURITY_HEADERS, ...(extra || {}) });
+}
+function sendJson(res, code, obj) {
+  head(res, code, { 'Content-Type': 'application/json' });
+  res.end(j(obj));
+}
 // Same-machine app only: reflecting an arbitrary Origin would let any page the owner
 // visits read our responses the day a token leaks. No legitimate internet origin needs
 // to read 127.0.0.1:PORT — so allowlist ours and stay silent for everyone else.
@@ -177,27 +222,53 @@ function authed(req) {
 // pasted screenshot over ~3MB killed the request silently and CODE waited forever for a stream
 // that would never start. The chat routes carry base64 images (5 × ~8MB is allowed upstream),
 // so they get room; anything over the limit is answered with a 413 the client can render.
-const BODY_MAX = 64e6;
+const BODY_MAX = 64e6;   // BYTES — see below
+// Chunks are COLLECTED and decoded once, never accumulated into a string.
+//
+// This used to be `b += c`, which calls toString() on each Buffer independently — so a
+// character whose UTF-8 bytes straddle a chunk boundary (Node chunks at ~64 KB) was
+// decoded as two invalid fragments. Reproduced exactly:
+//
+//   original    : Olá — ação, coração, não. 😀 iNFT · CLONE FRAME
+//   reassembled : Ol�� — ação, coração, não. 😀 iNFT · CLONE FRAME
+//
+// Silent and unrecoverable: U+FFFD is legal inside a JSON string, so JSON.parse still
+// succeeded and the prompt simply arrived with mojibake in it. In an app whose owner
+// writes Portuguese and whose body limit is 64 MB precisely because people paste large
+// things into it, that is not a rare shape (DEBUG4 · CF4-B-002).
+//
+// The cap is measured in BYTES now too. `b.length` counted UTF-16 code units, so the
+// stated 64 MB admitted up to ~192 MB of UTF-8 — with V8 holding and repeatedly
+// reallocating the growing string the whole time (DEBUG4 · CF4-B-006).
 function readBody(req, res) {
   return new Promise((resolve) => {
-    let b = '', over = false;
+    const chunks = []; let bytes = 0, over = false;
     req.on('data', (c) => {
       if (over) return;
-      b += c;
-      if (b.length > BODY_MAX) {
-        over = true; b = '';
-        if (res && !res.headersSent) { try { res.writeHead(413, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'that message is too large — attach fewer or smaller images' })); } catch {} }
+      const buf = Buffer.isBuffer(c) ? c : Buffer.from(c);
+      bytes += buf.length;
+      if (bytes > BODY_MAX) {
+        over = true; chunks.length = 0;
+        if (res && !res.headersSent) { try { sendJson(res, 413, { ok: false, error: 'that message is too large — attach fewer or smaller images' }); } catch {} }
         req.destroy();
+        return;
       }
+      chunks.push(buf);
     });
     // null means "already answered with 413" — only possible when a res was handed in, so
     // the callers that do not pass one keep their old never-throws contract.
-    req.on('end', () => { if (over) return resolve(res ? null : {}); try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } });
+    req.on('end', () => {
+      if (over) return resolve(res ? null : {});
+      // ONE decode, over the whole body, so no boundary can fall inside a character.
+      let text = '';
+      try { text = Buffer.concat(chunks).toString('utf8'); } catch { return resolve({}); }
+      try { resolve(text ? JSON.parse(text) : {}); } catch { resolve({}); }
+    });
     req.on('error', () => resolve(over && res ? null : {}));
   });
 }
 function streamHead(res) {
-  res.writeHead(200, {
+  head(res, 200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'X-Accel-Buffering': 'no',
@@ -239,8 +310,8 @@ async function getMod(name) {
   _modCache[name] = obj; return obj;
 }
 async function handleMod(req, res, name, body) {
-  const ok = (o) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j(o)); };
-  const fail = (code, e) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: String((e && e.message) || e) })); };
+  const ok = (o) => sendJson(res, 200, o);
+  const fail = (code, e) => sendJson(res, code, { ok: false, error: String((e && e.message) || e) });
   if (!MODULES[name]) return fail(404, 'unknown module');
   const fn = String(body.fn || '');
   if (!fn || fn[0] === '_' || fn === 'constructor') return fail(400, 'bad fn');
@@ -262,12 +333,29 @@ async function handleMod(req, res, name, body) {
     catch (e) { return fail(503, 'permission gate unavailable: ' + ((e && e.message) || e)); }
     const forbidden = CP.agentForbidden(name, fn);
     if (forbidden) return fail(403, 'refused: ' + forbidden);
+    // …and the anti-wipe, which asks what is IN the call rather than who is making it.
+    // pty.open was guarded and pty.write was not, so "open a shell, then write into it"
+    // walked around the one limit the product says cannot be turned off. See
+    // Permissions.agentContentGuard for why this binds the agent and never the owner.
+    const unsafe = CP.agentContentGuard(name, fn, body.args);
+    if (unsafe) return fail(403, 'refused: ' + unsafe);
     // THEN the owner's own app_rpc allowlist, for everything else.
-    if (name !== 'rpcallow') try {
-      const { RpcAllow } = await import('./rpcallow.mjs');
-      const verdict = RpcAllow.check(name, fn);
+    if (name !== 'rpcallow') {
+      let RpcAllow = null;
+      try { ({ RpcAllow } = await import('./rpcallow.mjs')); }
+      catch (e) { return fail(503, 'the agent allowlist could not be loaded: ' + ((e && e.message) || e)); }
+      // A read failure is NOT the same event as "no policy configured". The module answers
+      // the shipped default (mode:'open') for an absent file all by itself, so reaching this
+      // catch means a policy EXISTS and could not be read — a truncated write, a bad hand-edit,
+      // a disk error. Failing open there silently discards a restriction the owner chose, which
+      // is the one outcome they would never pick. So it fails CLOSED and says why, exactly like
+      // the email gate below. (DEBUG4 · CF4-B-004)
+      let verdict;
+      try { verdict = RpcAllow.check(name, fn); }
+      catch (e) { return fail(403, 'refused: your app_rpc policy could not be read, so nothing is '
+        + 'allowed until it is fixed (Settings → Agent Tools): ' + ((e && e.message) || e)); }
       if (!verdict.allowed) return fail(403, verdict.reason);
-    } catch { /* policy unreadable → fail OPEN, matching the shipped default */ }
+    }
     // …and the few calls that send mail on the owner's behalf need the owner's toggle. See
     // Permissions.agentGateFor for why these three and no others. Unlike the allowlist above
     // this fails CLOSED: it guards an irreversible, outward-facing act, and the app promises
@@ -323,16 +411,16 @@ const server = http.createServer(async (req, res) => {
   try { await route(req, res); }
   catch (e) {
     console.error('router:', (e && e.stack) || e);
-    if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'request failed' })); }
+    if (!res.headersSent) { sendJson(res, 500, { ok: false, error: 'request failed' }); }
     else { try { res.end(); } catch {} }
   }
 });
 
 async function route(req, res) {
   cors(req, res);
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  if (req.method === 'OPTIONS') { head(res, 204); res.end(); return; }
   try { req.socket.setNoDelay(true); } catch {}
-  if (!localOnly(req)) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'forbidden' })); return; }
+  if (!localOnly(req)) { sendJson(res, 403, { ok: false, error: 'forbidden' }); return; }
   const url = new URL(req.url, 'http://x');
 
   // /health is open (needed for probing) — deliberately minimal: no cwd (leaks the
@@ -341,13 +429,13 @@ async function route(req, res) {
   // long-lived daemon serving old code was the real cause of "email → 404" (the UI
   // reloads with ⌘R but the daemon only reloads on relaunch).
   if (url.pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    // one writer, one header set — see head()/sendJson()
     // `root: HUB_ROOT` was here and it contradicted the comment two lines up: HUB_ROOT is
     // /Users/<name>/… , so an UNAUTHENTICATED probe learned the macOS username, the desktop
     // layout and where the repo lives. It was added in 3d18a2d of this session's own work,
     // for diagnostics that appStale already answers as a boolean, and nothing ever read it —
     // every `.root` in the client comes from RPC('folders','root'), which is behind the token.
-    res.end(j({ ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale(), appStale: appStale() }));
+    sendJson(res, 200, { ok: true, name: 'HUB Bridge', version: VERSION, host: HOST, stale: bridgeStale(), appStale: appStale() });
     return;
   }
   // static app files (GET only; no token — the HTML is not secret and carries the injected token)
@@ -361,12 +449,12 @@ async function route(req, res) {
   // with the relay token, not with the app's pairing token; an unknown token gets a 401 and
   // never reaches a provider. See bridge/pi.mjs → mintRelay / handleRelay.
   if (url.pathname.startsWith('/llm/')) {
-    let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
+    let P; try { P = await getMod('pi'); } catch (e) { head(res, 503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
     await P.handleRelay(req, res, url.pathname.slice(5) + (url.search || ''));
     return;
   }
   // everything else requires the pairing token
-  if (!authed(req)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'unpaired' })); return; }
+  if (!authed(req)) { sendJson(res, 401, { ok: false, error: 'unpaired' }); return; }
 
   if (req.method === 'POST' && url.pathname === '/pair') {
     // Reaching here means this client already holds the token (the authed() gate is above),
@@ -374,9 +462,8 @@ async function route(req, res) {
     // the launcher's first one spent the latch. An unauthenticated attacker cannot re-arm,
     // which is the entire point: the thing they lack is exactly the thing this requires.
     armPairing();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
     const b = await Chat.brain();
-    res.end(j({ ok: true, cwd: Shell.cwd(), brain: b.ready ? (b.provider || 'ready') : 'none', model: b.model, provider: b.provider || null })); return;
+    sendJson(res, 200, { ok: true, cwd: Shell.cwd(), brain: b.ready ? (b.provider || 'ready') : 'none', model: b.model, provider: b.provider || null }); return;
   }
   // AWAITED, like its four siblings. The router wrapper added two commits ago catches what
   // `route()` throws — and an un-awaited async call throws into NOBODY. `POST /shell` with a
@@ -386,19 +473,19 @@ async function route(req, res) {
   if (req.method === 'POST' && url.pathname === '/shell') { await Shell.handleShell(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname === '/interrupt') {
     const { id } = await readBody(req);
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(j({ ok: Shell.interrupt(id) })); return;
+    sendJson(res, 200, { ok: Shell.interrupt(id) }); return;
   }
   if (req.method === 'POST' && url.pathname === '/chat') { await Chat.handleChat(req, res, await readBody(req), { streamHead }); return; }
   if (req.method === 'POST' && url.pathname === '/provider-chat') { await Chat.handleProviderChat(req, res, await readBody(req), { streamHead }); return; }
   // CODE chat → the raw Pi agent: streams Pi's answer + tool activity as NDJSON. Pi drives the
   // app through the clone-frame extension (op=app + /mod/*); BYOK, one hard limit (anti-wipe).
   if (req.method === 'POST' && url.pathname === '/pi-chat') {
-    let P; try { P = await getMod('pi'); } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
+    let P; try { P = await getMod('pi'); } catch (e) { head(res, 503, { 'Content-Type': 'text/plain' }); res.end('pi unavailable: ' + ((e && e.message) || e)); return; }
     const b = await readBody(req, res); if (b === null) return;   // 413 already answered
     await P.handlePiChat(req, res, b, { streamHead }); return;
   }
   if (req.method === 'POST' && url.pathname.startsWith('/mod/')) { await handleMod(req, res, url.pathname.slice(5), await readBody(req)); return; }
-  res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(j({ ok: false, error: 'not found' }));
+  sendJson(res, 404, { ok: false, error: 'not found' });
 }
 
 // ── live PTY terminal — ONE token-gated WS at GET /stream (boundary DATA plane) ───
@@ -580,6 +667,19 @@ server.on('error', (e) => { console.error('bridge error:', e.message); process.e
 // the daemon exited, so a Ctrl-C left the engine's cookies and cache sitting there — measured:
 // 7 cookies for a link-redirect domain, still on disk with no engine running.
 // Best-effort and time-boxed: quitting must never hang on cleanup.
+// …and the terminals. iT Keeper sessions live in DETACHED daemons on purpose — a shell
+// that survives a reload is the feature — but nothing ever took them down again. Not
+// quitting, not stopping the bridge, and not the uninstaller, whose guard matches
+// `hub-bridge.mjs` and therefore cannot see a process running `keeper.mjs`. Each one
+// holds a live shell, and one that is producing output never reaches the 12-hour idle
+// cap, so "uninstall CLONE FRAME" could leave shells running your code indefinitely with
+// the program that started them deleted (DEBUG4 · CF4-B-005).
+//
+// PERSISTENCE IS STILL THE POINT, so this is deliberately narrow: a keeper session the
+// owner explicitly asked to persist survives a bridge RESTART, which is the case the
+// feature exists for. What must not survive is the bridge going away for good, and the
+// uninstaller now reaps them unconditionally (uninstall.command step 2). Here we take
+// down only the ones this process spawned and that nobody asked to keep.
 {
   let leaving = false;
   const bye = (sig) => {
@@ -588,6 +688,7 @@ server.on('error', (e) => { console.error('bridge error:', e.message); process.e
     const timer = setTimeout(done, 3000);          // never hang the quit
     (async () => {
       try { const m = await import('./webengine.mjs'); await m.Webengine.stop(); } catch { /* not running */ }
+      try { const k = await import('./keeper.mjs'); if (k.Keeper && k.Keeper.stopEphemeral) await k.Keeper.stopEphemeral(); } catch { /* keeper absent */ }
       clearTimeout(timer); done();
     })();
   };

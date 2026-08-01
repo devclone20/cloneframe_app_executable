@@ -265,6 +265,16 @@ function toPublic(r) {
     baseUrl: r.baseUrl,
     enabled: r.enabled !== false,
     hasApiKey: !!r.apiKey,
+    // WHERE the key actually lives. Never the key itself — just which of the two stores
+    // holds it, so the owner can see it rather than having to read this file.
+    //   'keychain' — the macOS Keychain, and models.json holds only the sentinel
+    //   'disk'     — the 0600 store, in the clear
+    // The disk case is deliberate and correct (a fallback that LOSES keys would be worse),
+    // and it happens whenever `security` fails or CLONE_FRAME_HUB_ROOT is set — which the
+    // shipped Dockerfile always sets, so the recommended container path is always 'disk'.
+    // What was wrong was that it happened silently while SECURITY.md said BYOK keys live
+    // in sessionStorage and nowhere else (DEBUG4 · CF4-C-002).
+    keyAt: !r.apiKey ? null : (r.apiKey === KC_SENTINEL ? 'keychain' : 'disk'),
     models,
     disabledModels: Array.isArray(r.disabledModels) ? r.disabledModels.slice() : [],
     modelCount: models.length,

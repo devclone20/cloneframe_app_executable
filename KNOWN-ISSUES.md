@@ -102,9 +102,15 @@ fix and a regression test.
   a real shell as you, so there is no boundary at that layer to lose. The exceptions above are
   the acts that are irreversible, reach other people, or that the app promises about on screen.
 - **The catastrophic-command blocklist is not a sandbox either.** `rm -rf /`, `mkfs`
-  and `dd`-to-a-disk are refused on every path, always, even with root mode on — local
-  shell, PTY, and (since 0.3.1) both remote paths — but a blocklist stops accidents,
-  not a determined attacker who already has your shell.
+  and `dd`-to-a-disk are refused on every path the AGENT can reach a shell through,
+  always, even with root mode on — local shell, spawning a PTY, both remote paths, and
+  (since 0.3.9) writing into a PTY that is already open. That last one was a real hole
+  and it was open for a long time: the guard inspected command lines being *submitted*,
+  so an agent that opened a plain `zsh` and then typed into it walked straight past the
+  one limit this app says cannot be turned off. It is closed, quoted forms included.
+  **What you type yourself is deliberately not filtered** — a terminal that second-guesses
+  your keystrokes is not a real terminal. And a blocklist stops accidents, not a
+  determined attacker who already has your shell.
 - **AGENTVIEW opens only when you own something to look at.** Its deck route needs a
   wallet connected and an iNFT pinned. It is always reachable from the command
   palette (⌘K → `agent` / `inft`), and its empty state says what to do.
@@ -165,7 +171,7 @@ passes a gate in the daemon:
 | `servers.*` · `ssh.*` | the **Remote servers (SSH)** switch |
 | MATRIX engine start/stop | the **MATRIX engine control** switch |
 | `rpcallow.set` / `reset` | refused outright — the policy is yours, not the agent's |
-| any command reaching a shell | the catastrophic-pattern blocklist, on every path |
+| `pty.write` · `/shell` · `ssh.*` · `servers.exec` · spawning a terminal | the catastrophic-pattern blocklist — every path the AGENT can reach a shell through, including keystrokes into one it already opened. What YOU type is never filtered |
 
 So the fix was not a gate that cannot exist. It was to stop the interface implying one: with a
 session on `pi`, the crew chip now reads **"· off for pi"** and both it and the crew picker say

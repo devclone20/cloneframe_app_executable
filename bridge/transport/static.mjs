@@ -80,7 +80,17 @@ function isUserNavigation(req) {
 // script execution, and these headers do not change that. They close clickjacking,
 // MIME confusion, base-tag hijack, referrer leakage and form exfiltration, and nothing
 // more. Said plainly so nobody reads this block as "CSP: done".
-const SECURITY_HEADERS = {
+// EXPORTED, because this constant used to be visible only inside this file and so only
+// serveStatic ever applied it. `/health`, `/pair`, `/mod/*`, `/shell`, `/chat` and every
+// 401/403/404/500 body went out bare, while SECURITY.md described the set as covering
+// every response. Measured:
+//     GET  /health      → 200, none of the four
+//     GET  /mdlite.js   → 200, all four
+//     POST /mod/models  → 401, none of the four
+// The gap itself is narrow (these are JSON API responses; nosniff is the only one that
+// really bites) — the documentation being wrong is the part that mattered, and a constant
+// only one file can see is exactly why five other files forgot it (DEBUG4 · CF4-B-003).
+export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'SAMEORIGIN',
@@ -114,8 +124,8 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
   // never expose dotfiles or the bridge source dir
   const isHead = req.method === 'HEAD';
   if (/(^|\/)\.[^/]/.test(rel) || rel === '/bridge' || rel.startsWith('/bridge/')) { res.writeHead(404, { ...SECURITY_HEADERS }); res.end(isHead ? undefined : 'not found'); return true; }
-  let data;
-  try { if (fs.statSync(file).isDirectory()) return false; data = fs.readFileSync(file); }
+  let data, st;
+  try { st = fs.statSync(file); if (st.isDirectory()) return false; data = fs.readFileSync(file); }
   catch { return false; }
   const ext = path.extname(file).toLowerCase();
   if (ext === '.html') {
@@ -137,7 +147,30 @@ export function serveStatic(req, res, pathname, { root, host, port, token }) {
     }
     data = Buffer.from(html, 'utf8');
   }
-  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': data.length });
+  // `no-store` is exactly right for the HTML — the pairing token is injected into it and
+  // must never sit in a disk cache. It was applied to EVERYTHING, including a 5 MB wallet
+  // bundle and the xterm vendor files, so every reload, every new window and every panel
+  // that pulls a vendor asset re-read megabytes from disk synchronously because the
+  // browser had been told it may not keep a single byte (DEBUG4 · CF4-B-008).
+  //
+  // Everything else here is versioned by the app it ships inside: a new release is a new
+  // download, so the bytes at a given path never change under a running app. Cache them,
+  // and revalidate cheaply — ETag on mtime+size means even a forced reload costs a 304.
+  const cache = ext === '.html'
+    ? 'no-store'
+    : 'public, max-age=604800, immutable';   // one week; the app is replaced wholesale, not patched
+  const hdrs = { ...SECURITY_HEADERS, 'Content-Type': MIME[ext] || 'application/octet-stream',
+                 'Cache-Control': cache, 'Content-Length': data.length };
+  if (ext !== '.html') {
+    const tag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    hdrs.ETag = tag;
+    if (req.headers['if-none-match'] === tag) {
+      res.writeHead(304, { ...SECURITY_HEADERS, ETag: tag, 'Cache-Control': cache });
+      res.end();
+      return true;
+    }
+  }
+  res.writeHead(200, hdrs);
   res.end(isHead ? undefined : data); // HEAD: headers only, no body
   return true;
 }

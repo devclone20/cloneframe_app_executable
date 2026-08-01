@@ -61,26 +61,35 @@ fi
 export PATH="$(dirname "$NODE"):$PATH"
 ok "Node $("$NODE" -v)"
 
-# ── 3 · the daemon's add-ons ─────────────────────────────────────────────────
-# Five small packages, every one imported behind a guard: the daemon boots without
-# any of them, you simply lose that feature. node-pty is native, so it is the one
-# that can fail — and it fails to a working app with no live terminal, not to a
-# broken install. Say which, rather than printing a wall of npm output.
-say "  · installing the daemon's add-ons (ws, node-pty, imapflow, mailparser, nodemailer)…"
-if ( cd "$ROOT/bridge" && npm install --omit=dev --no-audit --no-fund >/tmp/cfhub-install.log 2>&1 ); then
-  ok "add-ons installed"
-else
-  bad "some add-ons did not build — see /tmp/cfhub-install.log"
-  say "    This is almost always node-pty, the live terminal, wanting the Xcode"
-  say "    command line tools:  xcode-select --install"
-  say "    Everything else still works; iT will say the terminal is unavailable."
-fi
-
-# ── 4 · build the double-clickable app, with the payload inside it ───────────
+# ── 3 · build the double-clickable app, with the payload inside it ───────────
+# make-app.sh installs the daemon's five add-ons INSIDE the bundle, which is the copy
+# the app actually loads. This step used to run its own `npm install` in the download
+# first — and the bundle build then pruned node_modules and installed again, so
+# node-pty (a native addon, compiled from source) was built twice per install and the
+# helpful error message belonged to the tree that gets thrown away. One install, in
+# the place that matters, with the diagnostics attached to it (DEBUG4 · CF4-A-005).
+#
+# NOT run bare: `set -e` at the top of this file would abort here on any failure, and
+# the handler two lines down — the one that prints a diagnosis and holds the window
+# open for a Finder double-click — would never run (DEBUG4 · CF4-A-006).
 say "  · building CLONE FRAME HUB.app…"
-zsh "$ROOT/bridge/make-app.sh" --bundle "$HOME/Applications"
+BUILD_OK=1
+zsh "$ROOT/bridge/make-app.sh" --bundle "$HOME/Applications" || BUILD_OK=0
 APP="$HOME/Applications/CLONE FRAME HUB.app"
-[ -d "$APP" ] || { bad "the app was not created"; read -r "?  Press return to close…"; exit 1; }
+if [ "$BUILD_OK" = 0 ] || [ ! -d "$APP" ]; then
+  bad "the app was not created"
+  say ""
+  say "    The bundle build did not finish. The usual causes:"
+  say "      • Xcode command line tools missing (node-pty cannot compile):"
+  say "          xcode-select --install"
+  say "      • no write access to $HOME/Applications"
+  say "      • macOS refused to sign the bundle"
+  say ""
+  say "    Run it from Terminal to see the full output:"
+  say "      zsh \"$ROOT/install.command\""
+  say ""
+  read -r "?  Press return to close…"; exit 1
+fi
 
 # Put the uninstaller somewhere the owner will actually find it. It also lives inside the
 # bundle, but nobody goes hunting in Contents/Resources — and the line below used to tell
@@ -89,17 +98,18 @@ UNINST="$HOME/Applications/Uninstall CLONE FRAME HUB.command"
 cp "$ROOT/uninstall.command" "$UNINST" 2>/dev/null && chmod +x "$UNINST" 2>/dev/null
 [ -f "$UNINST" ] && ok "uninstaller: $UNINST"
 
-# ── 5 · open it ──────────────────────────────────────────────────────────────
+# ── 4 · open it ──────────────────────────────────────────────────────────────
 say ""
 ok "installed: $APP"
 say ""
 say "  Your data lives OUTSIDE the app and survives every update:"
 say "    ~/CloneFrame          folders every frame reads and writes"
-say "    ~/.clone-frame-hub    settings, pairing token, agent workspace"
+say "    ~/.clone-frame-hub    settings, the pairing token, the agent workspace, and"
+say "                          the app's private browser profile"
 say ""
 say "  To update: Trash the app, download the new release, run its installer."
-say "  To remove: Trash the app — or, for a full cleanup that also stops the daemon"
-say "             and offers to delete your data:"
+say "  To remove: run the uninstaller — Trashing the app alone leaves the daemon and"
+say "             any detached iT sessions running until you log out:"
 say "             $UNINST"
 say ""
 say "  This folder is no longer needed — the app carries everything it needs."

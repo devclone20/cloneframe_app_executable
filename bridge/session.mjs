@@ -270,9 +270,18 @@ function issue(opts = {}) {
     issuedAt: Date.now(),
     token: randomBytes(24).toString('base64url'),
   };
+  // REFUSE past the ceiling; never silently drop one to make room. `.slice(0, 63)` meant
+  // that issuing a 65th key deleted the 64th — a credential the owner was relying on
+  // stopped working, with no error and `{ok:true}` returned. These keys each grant the
+  // owner's shell (see the header); a "create" that can silently revoke a different
+  // credential is the wrong failure mode wherever the ceiling sits (DEBUG4 · CF4-B-007).
+  const MAX_KEYS = 64;
   try {
     const s = store.read();
-    const list = (Array.isArray(s.keys) ? s.keys : []).slice(0, 63);   // a hard ceiling, not a policy
+    const list = Array.isArray(s.keys) ? s.keys : [];
+    if (list.length >= MAX_KEYS) {
+      return { ok: false, error: `key limit reached (${MAX_KEYS}) — revoke one before issuing another` };
+    }
     store.write({ ...s, keys: [...list, key] });
     _invalidate();
   } catch (e) { return { ok: false, error: (e && e.message) || 'write failed' }; }

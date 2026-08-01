@@ -294,8 +294,12 @@ yours, in files you can see.
 
 ### 2. The pairing token
 
-The Bridge protects itself with a **pairing token** — a random secret generated
-each time it starts. When you open the app from the URL the Bridge itself serves
+The Bridge protects itself with a **pairing token** — a random secret minted the
+first time the Bridge runs and then **kept**. It does not rotate on its own: the
+default is a permanent token, because a local app you open twenty times a day must
+not log you out. You can shorten its life or replace it whenever you like in
+**Settings → Session** (pick an expiry, or press *Rotate now*, which invalidates
+every copy of the old one immediately). When you open the app from the URL the Bridge itself serves
 (`http://127.0.0.1:8765`), the token is handed to the window **automatically**;
 you never see or type it. Together with the loopback-only binding, this means only
 a window on *your* machine, opened the right way, can talk to the Bridge.
@@ -321,7 +325,9 @@ flowchart LR
 ```
 
 Even with everything switched on and running as root, **catastrophic commands**
-(`rm -rf /`, `mkfs`, `dd` to a disk) are blocked. And your wallet, if you connect
+(`rm -rf /`, `mkfs`, `dd` to a disk) are blocked — on every path the agent can reach
+a shell through, including typing into a terminal it already opened. What *you* type
+is not filtered, on purpose. And your wallet, if you connect
 one, is the sole key holder — the app only ever builds **unsigned** transactions.
 It never asks for a private key or seed phrase.
 

@@ -670,6 +670,37 @@ export const Keeper = {
     } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   },
 
+  // Stop every session daemon this machine has running. Called by the bridge's own
+  // shutdown handler and, unconditionally, by uninstall.command.
+  //
+  // WHY THIS EXISTS. These daemons are detached and unref'd on purpose (see
+  // spawnDaemonProcess) so a terminal survives a reload — and nothing in the product
+  // ever took them down again. Not quitting the app, not stopping the bridge, and not
+  // the uninstaller, whose pid guard matches `hub-bridge.mjs` and so cannot see a
+  // process running THIS file. Each daemon holds a live login shell; the 12-hour
+  // DETACH_IDLE_MS backstop only fires on ZERO pty I/O, so anything still producing
+  // output — a dev server, a tail, a watch task — was immortal (DEBUG4 · CF4-B-005).
+  //
+  // Returns how many were asked to stop. Never throws: this runs on the way out.
+  stopAll() {
+    let asked = 0;
+    try {
+      for (const s of scanSessions()) {
+        if (!s || !s.id) continue;
+        try { const m = readMeta(s.id); if (m && pidAlive(m.pid)) { process.kill(m.pid, 'SIGTERM'); asked++; } } catch {}
+      }
+    } catch { /* nothing to scan */ }
+    return { ok: true, asked };
+  },
+
+  // The narrower half, for a bridge that is merely restarting rather than going away.
+  // A session the owner explicitly asked to keep is exactly the case persistence exists
+  // for and must survive; everything else spawned by this run should not outlive it.
+  // Today every keeper session is owner-requested, so this is a no-op by design — it is
+  // the seam an "ephemeral keeper" would hook into, kept honest rather than pretending
+  // the shutdown reaps something it does not.
+  async stopEphemeral() { return { ok: true, asked: 0 }; },
+
   rename(id, name) {
     if (!validId(id)) return { ok: false, error: 'invalid id' };
     const meta = readMeta(id);

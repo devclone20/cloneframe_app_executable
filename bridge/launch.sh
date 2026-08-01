@@ -19,6 +19,17 @@ URL="http://127.0.0.1:${PORT}"
 CONF="$HOME/.clone-frame-hub"
 mkdir -p "$CONF"
 umask 077                       # logs may hold hostnames/IPs — create them owner-only (0600)
+# Which processes are OURS, and how to stop one. Shared with uninstall.command and the
+# smoke gate so the "is this pid actually the HUB Bridge" rule has exactly one home.
+. "$SCRIPT_DIR/hub-procs.sh"
+# The launch log is append-only and this runs on every launch, so without a cap it grows
+# for the life of the install — inside the directory the uninstaller offers to KEEP.
+# Trim to the last ~256 KB before reopening it. (DEBUG4 · CF4-A-014)
+for L in "$CONF/launch.log" "$CONF/electron.log"; do
+  if [ -f "$L" ] && [ "$(/usr/bin/stat -f%z "$L" 2>/dev/null || echo 0)" -gt 262144 ]; then
+    /usr/bin/tail -c 200000 "$L" > "$L.trim" 2>/dev/null && mv "$L.trim" "$L" 2>/dev/null
+  fi
+done
 exec >> "$CONF/launch.log" 2>&1
 echo "── launch $(date '+%F %T') ──"
 
@@ -48,14 +59,16 @@ case "$HEALTH" in
 esac
 if [ "$NEEDS_START" = 2 ]; then
   echo "server is running an older build — restarting it…"
-  # Ask it to stop, then make sure. Only ever the process holding OUR port on loopback.
-  PIDS="$(/usr/sbin/lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null)"
-  for pid in $PIDS; do kill "$pid" 2>/dev/null; done
-  for i in $(seq 1 25); do
-    /usr/bin/curl -s --max-time 1 "${URL}/health" >/dev/null 2>&1 || break
-    sleep 0.2
+  # Ask it to stop, then make sure — and ONLY ever our own daemon. This used to
+  # select by port number alone, so anything else listening on ${PORT} got a TERM
+  # and then a KILL -9 from a launcher the owner double-clicked to open an app.
+  # The pid must also BE the HUB Bridge; hub_stop_port is the one place that
+  # decides that, shared with uninstall.command and the smoke gate.
+  STOPPED="$(hub_stop_port "$PORT")"
+  echo "stopped ${STOPPED} HUB Bridge process(es) on ${PORT}"
+  for other in $(hub_foreign_pids "$PORT"); do
+    echo "left pid ${other} alone — it holds port ${PORT} but is not the HUB Bridge"
   done
-  for pid in $PIDS; do kill -9 "$pid" 2>/dev/null; done
   NEEDS_START=1
 fi
 if [ "$NEEDS_START" = 1 ]; then
@@ -104,7 +117,12 @@ if /usr/sbin/screencapture -x /tmp/.cfhub-perm-probe.png >/dev/null 2>"$CONF/per
 else
   PERM_MISSING="Screen Recording"
 fi
-ls "$HOME/Desktop" >/dev/null 2>&1 || PERM_MISSING="${PERM_MISSING:+$PERM_MISSING and }Full Disk Access"
+# `ls ~/Desktop` failing is the DESKTOP FOLDER permission (kTCCServiceSystemPolicyDesktopFolder),
+# which is its own row in System Settings — NOT Full Disk Access, which lives in a different
+# pane entirely. Naming the wrong one sent the owner to grant the broadest permission macOS
+# has in order to fix a folder prompt, and coming back to the identical alert with no way to
+# tell that the app had asked for the wrong thing. (DEBUG4 · CF4-A-015)
+ls "$HOME/Desktop" >/dev/null 2>&1 || PERM_MISSING="${PERM_MISSING:+$PERM_MISSING and }Files and Folders (Desktop)"
 if [ -n "$PERM_MISSING" ]; then
   # TCC attributes these permissions to the RESPONSIBLE process at the top of the
   # launch tree — the .app bundle the user double-clicked — not to $NODE or this
@@ -149,8 +167,28 @@ elif [ "${HUB_SHELL:-}" = "electron" ] && [ -f "$ELECTRON_CLI" ]; then
   exit 0
 fi
 
-# ── DEFAULT: Google Chrome app window ─────────────────────────────────────────
-if [ -d "/Applications/Google Chrome.app" ]; then
+# ── DEFAULT: a Chromium app window ────────────────────────────────────────────
+# The app needs a Chromium `--app=` window. It used to look in exactly one place —
+# /Applications/Google Chrome.app — so Chrome installed in ~/Applications, or Brave,
+# Edge, Chromium or Arc, all fell through to `open "$URL"` in whatever the default
+# browser happened to be, with no explanation. Look where these actually install,
+# in preference order, and keep Google Chrome first because it is the one the docs
+# name and the one whose profile carries the owner's wallet extensions.
+CHROME_APP=""
+for cand in \
+  "/Applications/Google Chrome.app" \
+  "$HOME/Applications/Google Chrome.app" \
+  "/Applications/Chromium.app" \
+  "$HOME/Applications/Chromium.app" \
+  "/Applications/Brave Browser.app" \
+  "$HOME/Applications/Brave Browser.app" \
+  "/Applications/Microsoft Edge.app" \
+  "$HOME/Applications/Microsoft Edge.app" \
+  "/Applications/Arc.app" \
+  "$HOME/Applications/Arc.app" ; do
+  [ -d "$cand" ] && { CHROME_APP="$cand"; break; }
+done
+if [ -n "$CHROME_APP" ]; then
   # HUB_PROFILE=app  (default) → the HUB's own dedicated Chrome profile at
   #                   $CONF/chrome (migrated from the retired CfT profile, so
   #                   the app's Store/sessions carried over). Isolated from the
@@ -159,9 +197,9 @@ if [ -d "/Applications/Google Chrome.app" ]; then
   # HUB_PROFILE=main → the user's real Chrome profile (wallet extensions +
   #                   existing Google session inside the app window).
   PROFILE="${HUB_PROFILE:-app}"
-  echo "opening Google Chrome app window (profile: $PROFILE)"
+  echo "opening ${CHROME_APP:t:r} app window (profile: $PROFILE)"
   if [ "$PROFILE" = "main" ]; then
-    /usr/bin/open -na "Google Chrome" --args \
+    /usr/bin/open -na "$CHROME_APP" --args \
       --app="$URL" \
       --no-first-run --no-default-browser-check
   else
@@ -172,13 +210,13 @@ if [ -d "/Applications/Google Chrome.app" ]; then
     # enough. Idempotent: only writes when the pref isn't already 0.
     mkdir -p "$CONF/chrome/Default"
     "$NODE" -e 'const f=process.argv[1],fs=require("fs");let j={};try{j=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}j.profile=j.profile||{};if(j.profile.cookie_controls_mode!==0){j.profile.cookie_controls_mode=0;fs.writeFileSync(f,JSON.stringify(j))}' "$CONF/chrome/Default/Preferences" 2>/dev/null || true
-    /usr/bin/open -na "Google Chrome" --args \
+    /usr/bin/open -na "$CHROME_APP" --args \
       --app="$URL" \
       --user-data-dir="$CONF/chrome" \
       --no-first-run --no-default-browser-check
   fi
 else
-  echo "Google Chrome not found — opening default browser"
+  echo "no Chromium browser found — opening default browser"
   osascript -e 'display alert "CLONE FRAME HUB" message "Google Chrome is not installed. Opening in your default browser — install Chrome for the full app-window experience."' >/dev/null 2>&1 || true
   /usr/bin/open "$URL"
 fi

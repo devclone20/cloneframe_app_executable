@@ -54,10 +54,21 @@ APP_VERSION="$(node -p "require('$SCRIPT_DIR/package.json').version" 2>/dev/null
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '$APP_VERSION'" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool false" "$PLIST" 2>/dev/null || true
 
-# optional custom icon (replaces the applet icon) if hub.icns is present
-if [ -f "$SCRIPT_DIR/hub.icns" ]; then
-  cp "$SCRIPT_DIR/hub.icns" "$APP/Contents/Resources/applet.icns"
-fi
+# The product icon. This looked for bridge/hub.icns — a file that has never existed —
+# while the real icon sits in branding/applet.icns, which was on neither payload
+# allowlist, so it was not even present to be found. Three independent breaks, and the
+# result was that every installed copy since the first has shown the generic AppleScript
+# applet icon in Finder, the Dock and ⌘-Tab (DEBUG4 · CF4-A-004).
+# Look where the icon actually is; keep the legacy name as a fallback so a local
+# override still works.
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+for ICON in "$ROOT_DIR/branding/applet.icns" "$SCRIPT_DIR/hub.icns"; do
+  if [ -f "$ICON" ]; then
+    cp "$ICON" "$APP/Contents/Resources/applet.icns"
+    echo "  · icon: ${ICON##*/}"
+    break
+  fi
+done
 
 # ── bundle mode: copy the whole payload in, BEFORE signing ───────────────────────
 # HUB_ROOT is path.dirname(BRIDGE_DIR) — the daemon serves the app from its own
@@ -75,12 +86,9 @@ if [ "$BUNDLE" = 1 ]; then
   # screen told the owner, in consecutive lines, both to "run uninstall.command" and that the
   # folder it lives in "is no longer needed" — so following the instructions destroyed the only
   # copy of the tool the same instructions point at.
-  for item in index.html mdlite.js privy-login.js vendor bridge agent context integrations package.json uninstall.command; do
+  for item in index.html mdlite.js privy-login.js vendor bridge agent context package.json uninstall.command branding; do
     [ -e "$ROOT/$item" ] && cp -R "$ROOT/$item" "$HUBDIR/"
   done
-  # dist/index.html wins over the root copy when both exist (transport/static.mjs), and
-  # they are byte-identical — ship one, not two, and let the root file be the one.
-  rm -rf "$HUBDIR/dist"
   # Never inherit a machine's node_modules. It carries dev dependencies, and worse, it
   # carries whatever that machine happened to have installed — a bundle must be built from
   # the manifest, not from someone's working tree. At ANY depth: agent/.pi/npm/node_modules
@@ -88,10 +96,22 @@ if [ "$BUNDLE" = 1 ]; then
   # from here, and was 23 MB of the first bundle this produced.
   find "$HUBDIR" -name node_modules -type d -prune -exec rm -rf {} + 2>/dev/null || true
   find "$HUBDIR" -name .DS_Store -delete 2>/dev/null || true
-  echo "  · installing the daemon's dependencies into the bundle…"
-  ( cd "$HUBDIR/bridge" && npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 ) || \
-    echo "  ! npm install failed inside the bundle — the app still runs, minus the features those add-ons power"
-  chmod +x "$HUBDIR/bridge/launch.sh" "$HUBDIR/bridge/make-app.sh" 2>/dev/null || true
+  # THE one npm install. install.command used to run this first, in the DOWNLOAD's bridge/,
+  # with a good error message naming node-pty and xcode-select — and then the copy above
+  # pruned exactly what it had just built, so the whole thing was paid for twice and the
+  # useful diagnostic was attached to the tree that gets deleted, while the install that
+  # actually matters swallowed its output into /dev/null (DEBUG4 · CF4-A-005).
+  # node-pty compiles from source. Once is enough, and it is this one.
+  echo "  · installing the daemon's add-ons (ws, node-pty, imapflow, mailparser, nodemailer)…"
+  if ( cd "$HUBDIR/bridge" && npm install --omit=dev --no-audit --no-fund >/tmp/cfhub-install.log 2>&1 ); then
+    echo "  · add-ons installed"
+  else
+    echo "  ! some add-ons did not build — see /tmp/cfhub-install.log"
+    echo "    This is almost always node-pty, the live terminal, wanting the Xcode"
+    echo "    command line tools:  xcode-select --install"
+    echo "    Everything else still works; iT will say the terminal is unavailable."
+  fi
+  chmod +x "$HUBDIR/bridge/launch.sh" "$HUBDIR/bridge/make-app.sh" "$HUBDIR/uninstall.command" 2>/dev/null || true
 fi
 
 # ad-hoc sign so Gatekeeper/LaunchServices launch it without warnings.

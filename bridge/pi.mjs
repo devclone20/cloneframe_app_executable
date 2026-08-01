@@ -231,20 +231,58 @@ function modelLimits(spec) {
   const max = /claude|gpt-4o|gemini|o[1-4]/.test(id) ? 32000 : 8192;
   return { contextWindow: ctx, maxTokens: max };
 }
+// Sweep runtime directories nothing is using any more.
+//
+// `pi-runtime` appeared EXACTLY ONCE in the whole codebase — on the line that creates it.
+// No cleanup on session end, none on daemon shutdown, none in the uninstaller unless the
+// owner typed DELETE. A two-day-old models.json was still sitting there naming a relay
+// token, in a design whose own words are "minted per session … dead when the session ends"
+// (DEBUG4 · CF4-C-004). The token is dead after a restart, so this is residue rather than a
+// live credential — but the owner's standard for this app is that closing something leaves
+// nothing behind, and a stale file naming a capability is something.
+//
+// Conservative on purpose: only directories older than the cutoff, only ones not currently
+// registered to a live session, and never the tree itself. Best-effort throughout.
+const RUNTIME_TTL_MS = 24 * 60 * 60 * 1000;
+function sweepRuntimeDirs(keep = new Set()) {
+  const root = path.join(CONFIG_DIR, 'pi-runtime');
+  let swept = 0;
+  try {
+    for (const name of fs.readdirSync(root)) {
+      if (keep.has(name)) continue;
+      const dir = path.join(root, name);
+      try {
+        const st = fs.statSync(dir);
+        if (!st.isDirectory()) continue;
+        if (Date.now() - st.mtimeMs < RUNTIME_TTL_MS) continue;
+        fs.rmSync(dir, { recursive: true, force: true });
+        swept++;
+      } catch { /* in use, or gone already */ }
+    }
+  } catch { /* no runtime tree yet */ }
+  return swept;
+}
+
 function buildRuntimeDir(modelKey, spec, relayToken) {
   const safe = String(modelKey).replace(/[^\w.-]/g, '_').slice(0, 80) || 'model';
   const rt = path.join(CONFIG_DIR, 'pi-runtime', safe);
   fs.mkdirSync(rt, { recursive: true, mode: 0o700 });
+  // Building one is the natural moment to retire the ones nobody came back for.
+  try { sweepRuntimeDirs(new Set([safe])); } catch {}
   const lim = modelLimits(spec);
   // baseUrl points at THIS bridge; the real provider URL and key stay in the daemon.
   const base = relayToken ? (BRIDGE_ORIGIN() + '/llm/' + relayToken) : spec.baseUrl;
+  // mode 0600. This file's baseUrl IS the session's relay capability, and it was written
+  // with the process umask default — `-rw-r--r--`, world-readable — protected only by the
+  // 0700 directory two levels above it. Every other secret-bearing file in this tree is
+  // 0600; this one's safety was an accident of its parent (DEBUG4 · CF4-C-004).
   fs.writeFileSync(path.join(rt, 'models.json'), JSON.stringify({ providers: { cfhub: {
     baseUrl: base, api: spec.api, apiKey: '$CFHUB_PI_APIKEY', authHeader: true,
     models: [{ id: spec.model, name: spec.model, reasoning: false, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: lim.contextWindow, maxTokens: lim.maxTokens }],
-  } } }, null, 2));
+  } } }, null, 2), { mode: 0o600 });
   let ubase = {};
   try { ubase = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.pi', 'agent', 'settings.json'), 'utf8')); } catch {}
-  fs.writeFileSync(path.join(rt, 'settings.json'), JSON.stringify({ theme: ubase.theme, enableSkillCommands: ubase.enableSkillCommands !== false, packages: ubase.packages || ['npm:pi-web-access'], defaultProvider: 'cfhub', defaultModel: spec.model, defaultThinkingLevel: 'off' }, null, 2));
+  fs.writeFileSync(path.join(rt, 'settings.json'), JSON.stringify({ theme: ubase.theme, enableSkillCommands: ubase.enableSkillCommands !== false, packages: ubase.packages || ['npm:pi-web-access'], defaultProvider: 'cfhub', defaultModel: spec.model, defaultThinkingLevel: 'off' }, null, 2), { mode: 0o600 });
   // Shared resources only. auth.json is deliberately NOT linked: it used to be symlinked
   // read-write, so pi persisting a model wrote THROUGH the link into the owner's global
   // credentials, and a provider-picked session could authenticate as any other login it found

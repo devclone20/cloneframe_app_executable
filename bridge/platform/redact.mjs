@@ -153,7 +153,20 @@ const SECRET_PATTERNS = [
   // backstop below KEEPS its \b — without it, ordinary words like `risk-…` would
   // false-positive.
   /sk-ant-[A-Za-z0-9_-]{12,}/,
-  /\bsk-[A-Za-z0-9]{16,}\b/,
+  // Hyphens and underscores after `sk-`. This was [A-Za-z0-9] only, so OpenRouter's
+  // `sk-or-v1-…` broke the match at character three and the key went to the log intact
+  // — while the header above advertised a "generic sk- backstop". Keep the \b: without
+  // it, ordinary words like `risk-…` false-positive (DEBUG4 · CF4-C-001).
+  /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{15,}\b/,
+  // The providers this app actually ships. `models.mjs` KNOWN lists seven; the patterns
+  // here covered Anthropic and OpenAI and then AWS, GitHub and Slack — clouds, not model
+  // providers. Gemini, Groq and xAI keys were reaching admin.mjs's log tail, the UI that
+  // renders it, and any bug report pasted from it. Measured before and after.
+  /\bAIza[A-Za-z0-9_-]{30,}/,        // Google Gemini
+  /\bgsk_[A-Za-z0-9]{20,}/,          // Groq
+  /\bxai-[A-Za-z0-9]{20,}/,          // xAI
+  /\br8_[A-Za-z0-9]{20,}/,           // Replicate — same shape, same risk
+  /\bhf_[A-Za-z0-9]{20,}/,           // Hugging Face — MATRIX pulls weights with these
   /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b/, // JWT-shaped
   /\bAKIA[0-9A-Z]{16}\b/,
   /\bghp_[A-Za-z0-9]{20,}\b/,
@@ -161,7 +174,12 @@ const SECRET_PATTERNS = [
   /(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/i,
   // Capturing group holds the key name + separator so scrubText() can keep it
   // and redact only the value (matches admin.mjs's own `'$1[REDACTED]'`).
-  /(\b(?:api[_-]?key|apikey|password|passwd|secret|access[_-]?token|refresh[_-]?token|client[_-]?secret)\b["']?\s*[:=]\s*)["']?[^\s,"'<>]+/i,
+  // `[\w-]*` before the key name, because `\b` does NOT match between `GEMINI_` and `API`
+  // — `_` is a word character. So `api_key: …` was caught and `GEMINI_API_KEY=…` was not,
+  // which is the exact form every provider's own documentation tells people to write, and
+  // the exact form that appears in an `env` dump inside a terminal transcript
+  // (DEBUG4 · CF4-C-001).
+  /((?:^|[\s"'{,])[\w-]*(?:api[_-]?key|apikey|password|passwd|secret|access[_-]?token|refresh[_-]?token|client[_-]?secret)\b["']?\s*[:=]\s*)["']?[^\s,"'<>]+/i,
   /(\bauthorization\b["']?\s*[:=]\s*)["']?[^\s,"'<>]+/i,
 ];
 

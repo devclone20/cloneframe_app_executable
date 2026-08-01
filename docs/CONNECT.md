@@ -351,8 +351,13 @@ their **manifests and installers** — so nothing huge or secret is committed �
 and each tool installs itself into its own folder, then runs **inside** the app.
 
 None of these can be installed from the app today: there is no INTEGRATIONS tab, and
-`integrations/install-all.sh` does not exist in this repository. The only thing shipped
-under `integrations/` is the Framer note.
+`integrations/install-all.sh` does not exist in this repository. **Nothing at all ships
+under `integrations/` — the folder was removed in 0.3.9.** Its entire contents were one
+803-byte file that Chrome itself generates when it indexes a ruleset; the extension that
+would have used it was never written, and the Chrome-for-Testing runtime was removed on
+purpose (its permanent "for automated testing" banner and Google's 403 on sign-in flows
+made it unusable). The table below describes tools you install yourself, on your own
+machine — it is a map of what composes with CLONE FRAME, not a list of what is inside it.
 
 ### What each integration needs, at a glance
 
@@ -361,8 +366,7 @@ under `integrations/` is the Framer note.
 | **EXO LAB** | Runs a local LLM cluster; serves an API on `:52415` | Just your own hardware | Everything — no cloud key |
 | **Manaflow / cmux** | Spawns parallel coding agents | A free Hexclave project (3 keys) + your Anthropic key in-app | Your key and code; runs without Docker |
 | **TMUX** | Persistent agent "crews" that survive disconnects | Nothing to paste | The tmux sessions on your machine |
-| **Framer** | Lets the in-app browser frame sites that block embedding | Nothing to paste | Runs with the bundled runtime |
-| **Runtime** | A bundled Chrome for Testing the app launches into | Nothing to paste | Local browser runtime |
+
 
 ### 6a · EXO LAB — your local models
 
@@ -438,7 +442,8 @@ flowchart LR
 
 Two safety nets are always on, regardless of the switches:
 
-- **Catastrophic commands are blocked** — things like `rm -rf /`, `mkfs`, or
+- **Catastrophic commands are blocked** for the agent, on every path it can reach a
+  shell through (what you type yourself is never filtered) — things like `rm -rf /`, `mkfs`, or
   `dd` to a disk are refused **even in root mode**.
 - **The in-app browser runs outside the app** — the page lives in a separate Chrome
   process and only its picture is streamed back, so a page's JavaScript can never

@@ -91,19 +91,35 @@ function hasHardenedRmRf(line) {
   return false;
 }
 
-/**
- * isDestructive(line) -> boolean
- * Returns true iff `line` contains a catastrophic shell pattern: an `rm -rf`
- * (or equivalent) targeting `/`, `~`, or `$HOME`; `mkfs`; `dd ... of=/dev/*`;
- * or a fork bomb. Pure — no I/O, no throw (a non-string input is coerced and
- * never crashes the caller).
- *
- * @param {string} line - a single shell command line (raw, pre-exec)
- * @returns {boolean}
- */
-export function isDestructive(line) {
-  const s = typeof line === 'string' ? line : String(line ?? '');
-  if (!s.trim()) return false;
+// A quoted argument is not automatically inert, and this was the guard's last
+// documented hole (DEBUG4 · CF4-H-002). Two facts make it real:
+//
+//   1. The blocked-path branch needs the target followed by whitespace or end of
+//      input. In `git commit -m "rm -rf /"` a `"` sits there instead, so nothing
+//      fired — and the tokenizer sees the whole quoted string as ONE token, so
+//      hasHardenedRmRf never even finds an `rm`.
+//   2. A DOUBLE-quoted argument is still expanded by the shell: backticks and
+//      `$( )` inside it run BEFORE the outer command does. agent/AGENTS.md:381
+//      already warns the agent about exactly this shape — a commit message that
+//      executes — and the guard was the one place that could not see it.
+//
+// So: peel one level of quoting and re-test the contents. Depth-limited to one
+// peel, which is all a shell gives you without escaping; the point is not to
+// out-parse a shell (this file says plainly that it cannot) but to stop a quote
+// character being a bypass for the four patterns we DO recognise.
+const QUOTED = /"([^"]*)"|'([^']*)'/g;
+function quotedParts(line) {
+  const out = [];
+  for (const m of line.matchAll(QUOTED)) {
+    const inner = m[1] !== undefined ? m[1] : m[2];
+    if (inner && inner.trim()) out.push(inner);
+  }
+  return out;
+}
+
+// The four pattern families, applied to one string. Split out of isDestructive so
+// the quoted-content pass can reuse it without recursing into the peeling itself.
+function matchesAny(s) {
   return LEGACY_RM_RF.test(s)
     || LEGACY_MKFS.test(s)
     || LEGACY_DD.test(s)
@@ -111,6 +127,24 @@ export function isDestructive(line) {
     || HARDENED_DD.test(s)
     || HARDENED_FORKBOMB.test(s)
     || hasHardenedRmRf(s);
+}
+
+/**
+ * isDestructive(line) -> boolean
+ * Returns true iff `line` contains a catastrophic shell pattern: an `rm -rf`
+ * (or equivalent) targeting `/`, `~`, or `$HOME`; `mkfs`; `dd ... of=/dev/*`;
+ * or a fork bomb — in the line itself OR inside a quoted argument of it. Pure —
+ * no I/O, no throw (a non-string input is coerced and never crashes the caller).
+ *
+ * @param {string} line - a single shell command line (raw, pre-exec)
+ * @returns {boolean}
+ */
+export function isDestructive(line) {
+  const s = typeof line === 'string' ? line : String(line ?? '');
+  if (!s.trim()) return false;
+  if (matchesAny(s)) return true;
+  for (const inner of quotedParts(s)) if (matchesAny(inner)) return true;
+  return false;
 }
 
 export const ShellGuard = { isDestructive };
