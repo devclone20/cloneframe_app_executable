@@ -14,6 +14,28 @@
 [![Star this repo](https://img.shields.io/badge/⭐-star%20this%20repo-brightgreen)](#-support-the-developer)
 [![Latest release](https://img.shields.io/github/v/release/devclone20/cloneframe_app_executable?label=download&color=2da44e)](https://github.com/devclone20/cloneframe_app_executable/releases/latest)
 
+## ▶️ Watch the tour
+
+![CLONE FRAME HUB in motion](docs/assets/tour-preview.gif)
+
+<p align="center">
+  <strong><a href="https://github.com/devclone20/cloneframe_app_executable/releases/latest/download/CLONE_FRAME_TOUR.mp4">⬇️ The full tour — 81 seconds, with sound</a></strong><br>
+  <em>One take, no slides: the frame grid, CODE talking to your own model, a real
+  terminal running real processes, the in-app browser, and MATRIX.</em>
+</p>
+
+The loop above plays here on the page. The full film is a download rather than a
+player because GitHub renders neither a `<video>` tag in a README nor an mp4 of this
+size in its file viewer — both checked rather than assumed. It also lives in this
+repository at [`docs/media/`](docs/media/CLONE_FRAME_TOUR.mp4), and it is **not** in
+the release zip, so the app you install stays 4.5 MB.
+
+Some strips are pixelated on purpose. This was filmed on a working machine, and the
+username on it is half of an auth pair — the same reason the app never prints your
+pairing token back to you.
+
+---
+
 ## ⬇️ Get the app
 
 **One file. Download it, double-click, done.**
