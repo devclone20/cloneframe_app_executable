@@ -28,16 +28,50 @@ const EXT = path.join(WORKSPACE, '.pi', 'extensions', 'clone-frame.ts');
 const BIN_DIR = path.join(CONFIG_DIR, 'bin');
 const LAUNCHER = path.join(BIN_DIR, 'pi-clone');
 
-// ── locate the pi binary (PATH, then the common Homebrew spots) ───────────────
+// ── the PATH every pi child needs ────────────────────────────────────────────
+// pi is a Node CLI whose launcher opens with `#!/usr/bin/env node`. Finding the pi binary
+// is therefore only half the job: the shebang has to find NODE, and a daemon launched from
+// Finder inherits a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin) with no Homebrew in it.
+// The result was silent and total — `pi --version` exited 127 with empty stdout, piVersion()
+// read that as null, and the whole app concluded pi was NOT INSTALLED on a machine where it
+// was installed and working. BRAIN told the owner to download it, the skills list took the
+// not-installed early return and rendered nothing, and CODE fell back to the raw provider,
+// so a model asked for its name answered with its OWN ("DeepSeek") instead of pi's.
+//
+// The node that must be found is not a guess: it is the one running this daemon.
+function childPath() {
+  const own = path.dirname(process.execPath);      // the node pi's shebang needs, by definition
+  const seen = new Set(), out = [];
+  for (const d of [BIN_DIR, own, '/opt/homebrew/bin', '/usr/local/bin',
+                   ...String(process.env.PATH || '').split(':')]) {
+    if (d && !seen.has(d)) { seen.add(d); out.push(d); }
+  }
+  return out.join(':');
+}
+const childEnv = (extra) => ({ ...process.env, PATH: childPath(), PI_SKIP_VERSION_CHECK: '1', ...(extra || {}) });
+
+// ── locate the pi binary ─────────────────────────────────────────────────────
+// The BUNDLED copy wins. pi is a dependency of bridge/package.json, so install.command's
+// npm install puts it inside the .app next to ws and node-pty — which is what makes the
+// agent arrive WITH the app instead of being a thing the owner must go and install first.
+// A global pi stays a valid fallback for anyone who already had one.
+const BUNDLED_PI = path.join(BUNDLE, 'bridge', 'node_modules', '.bin', 'pi');
 let _piBin = null;
 function piBin() {
   if (_piBin !== null) return _piBin;
-  const found = spawnSync('/bin/sh', ['-lc', 'command -v pi || true'], { encoding: 'utf8' });
+  try { fs.accessSync(BUNDLED_PI, fs.constants.X_OK); _piBin = BUNDLED_PI; return _piBin; } catch {}
+  // Ask a shell that can actually see the same PATH the children will get, or the lookup
+  // disagrees with the launch and we resolve a binary we then fail to run.
+  const found = spawnSync('/bin/sh', ['-lc', 'command -v pi || true'],
+    { encoding: 'utf8', env: childEnv() });
   let p = (found.stdout || '').trim().split('\n').filter(Boolean)[0] || '';
   if (!p) for (const c of ['/opt/homebrew/bin/pi', '/usr/local/bin/pi']) { try { fs.accessSync(c, fs.constants.X_OK); p = c; break; } catch {} }
   _piBin = p || 'pi';
   return _piBin;
 }
+// Which pi answered, and whether it is ours — the Update button must never offer to upgrade
+// a Homebrew install this app does not own.
+const piBinInfo = () => ({ bin: piBin(), bundled: piBin() === BUNDLED_PI });
 // `pi --version` is a process spawn (~350ms) that blocks the WHOLE daemon — every panel,
 // every stream, every other session. handlePiChat called it twice per message. It answers the
 // same thing until pi is upgraded, so cache it; a short TTL still notices an upgrade.
@@ -46,10 +80,19 @@ const VER_TTL = 60_000;
 function piVersion() {
   if (_ver.at && Date.now() - _ver.at < VER_TTL) return _ver.v;
   let v = null;
-  try { const r = spawnSync(piBin(), ['--version'], { encoding: 'utf8', timeout: 5000 }); v = (r.stdout || '').trim() || null; } catch { v = null; }
+  // A failure here is reported as "pi is not installed" across the whole app, so keep WHY.
+  let why = null;
+  try {
+    const r = spawnSync(piBin(), ['--version'], { encoding: 'utf8', timeout: 5000, env: childEnv() });
+    v = (r.stdout || '').trim() || null;
+    if (!v) why = (r.stderr || '').trim() || (r.error && r.error.code) || ('exit ' + r.status);
+  } catch (e) { v = null; why = e && e.message; }
   _ver = { at: Date.now(), v };
+  _verWhy = v ? null : why;
   return v;
 }
+let _verWhy = null;
+const piVersionError = () => _verWhy;
 
 // ── install / keep the agent workspace in step with the bundle ────────────────
 // The bundle's agent/ is the source of truth; the runtime copy is what pi actually runs in.
@@ -108,6 +151,7 @@ function ensureWorkspace({ force = false } = {}) {
       try { state[rel] = sha(fs.readFileSync(path.join(WORKSPACE, rel))); } catch { delete state[rel]; }
     }
     writeSyncState(state);
+    ensureIdentity();   // a workspace without a name lets the model answer with the vendor's
     return { ok: true, workspace: WORKSPACE, extension: EXT, kept };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
@@ -302,6 +346,10 @@ function status() {
     ok: true,
     installed: !!version, version,
     bin: piBin(),
+    // Ours (inside the .app) or the machine's own? The panel offers UPDATE only for ours, and
+    // when pi will not run it needs the REASON, not another "not installed" (see childPath).
+    bundled: piBinInfo().bundled,
+    versionError: version ? null : piVersionError(),
     workspace: fs.existsSync(path.join(WORKSPACE, 'AGENTS.md')),
     workspacePath: WORKSPACE,
     extension: fs.existsSync(EXT),
@@ -403,7 +451,9 @@ class PiSession {
       relEnv = { PI_CODING_AGENT_DIR: buildRuntimeDir(this.modelKey, this.spec, token), CFHUB_PI_APIKEY: token };
       extraArgs = ['--provider', 'cfhub', '--model', this.spec.model];
     } else dropRelay(this.id);
-    const env = { ...process.env, PATH: BIN_DIR + ':' + (process.env.PATH || ''), PI_SKIP_VERSION_CHECK: '1', ...relEnv };
+    // Same PATH the version probe used — see childPath(). Resolving pi with one environment
+    // and running it with another is how a binary that answers `--version` still dies at 127.
+    const env = childEnv(relEnv);
     const p = spawn(piBin(), ['--mode', 'rpc', '--no-session', '-a', ...extraArgs, '-e', EXT], { cwd: WORKSPACE, env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc = p;
     this.primed = false;   // a NEW process remembers nothing — it must be told the conversation
@@ -1031,5 +1081,121 @@ function saveDoc(name, text) {
   return { ok: true, bytes: Buffer.byteLength(text) };
 }
 
-export const Pi = { status, install, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, doc, docPaths, refreshTree, saveDoc, handlePiChat, handleRelay, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
+// ── who the agent is ─────────────────────────────────────────────────────────
+// The owner asked its name and it answered "DeepSeek". The immediate cause was elsewhere
+// (pi could not run, so the raw provider answered — see childPath), but the deeper one is
+// real and would have surfaced the moment pi did run: NOTHING told the agent who it was.
+// A language model with no identity in its system prompt answers with its vendor's name,
+// because that is the only name it has.
+//
+// One file holds it: .pi/APPEND_SYSTEM.md, which pi appends to its own system prompt. That
+// is already the file pi writes when the owner says "call yourself NAME" in chat, and it is
+// in OWNED, so app updates never touch it. BRAIN writes the SAME file — two doors, one
+// truth, instead of a settings field and a chat command disagreeing about the agent's name.
+//
+// The app owns only the block between these markers. Whatever the owner or pi wrote outside
+// it is theirs and is carried across every write.
+const ID_START = '<!-- CLONE FRAME · IDENTITY — managed by BRAIN. Edit it there, or just tell the agent in chat. -->';
+const ID_END = '<!-- /CLONE FRAME · IDENTITY -->';
+const SOUL_FILE = () => path.join(WORKSPACE, '.pi', 'APPEND_SYSTEM.md');
+const DEFAULT_NAME = 'pi';
+
+function identityBlock(name) {
+  const n = String(name || DEFAULT_NAME).trim() || DEFAULT_NAME;
+  return ID_START + '\n'
+    + 'Your name is **' + n + '**. That is the name you answer with, always.\n\n'
+    + 'The language model underneath you — whichever one the owner picked in CODE, from any\n'
+    + 'vendor — is an ENGINE you are running on. It is not your identity. When you are asked\n'
+    + 'who or what you are, answer ' + n + '. Never answer with the model\'s name or its\n'
+    + 'vendor\'s, and never say you are that company\'s assistant. Swapping the model changes\n'
+    + 'what you think with, not who you are.\n\n'
+    // House style. The owner reads what this agent writes inside BRAIN, where it is rendered
+    // as markdown — so anything it writes has to be SHAPED, not poured. Without this the
+    // agent appends prose in whatever form the underlying model favours that day, and a
+    // document that was structured on Monday is a wall of text by Friday.
+    + 'HOW YOU WRITE. Anything you write into this app is read as markdown, so give it shape:\n'
+    + '- `##` for each topic, `###` for a sub-topic. Never a wall of text.\n'
+    + '- Short paragraphs. One idea each. Blank line between them.\n'
+    + '- Lists for steps and options; a table when you are comparing things side by side.\n'
+    + '- Fenced code blocks with a language for commands, paths and code — never loose text.\n'
+    + '- **Bold** only the one thing that matters in a section. Bold everywhere is bold nowhere.\n'
+    + '- A `>` quote for a rule or a warning that must not be missed.\n'
+    + '- Keep the shape you find. When you add to a document, match the headings already in it.\n'
+    + ID_END;
+}
+const readSoulFile = () => { try { return fs.readFileSync(SOUL_FILE(), 'utf8'); } catch { return ''; } };
+
+/** Split the file into the app-managed identity block and everything else. */
+function splitSoul(text) {
+  const i = text.indexOf(ID_START), j = text.indexOf(ID_END);
+  if (i < 0 || j < i) return { block: '', rest: text };
+  return { block: text.slice(i, j + ID_END.length), rest: (text.slice(0, i) + text.slice(j + ID_END.length)).trim() };
+}
+const nameFromBlock = (block) => { const m = block.match(/Your name is \*\*(.+?)\*\*/); return m ? m[1] : null; };
+
+/** Read the agent's identity: the name it answers with, plus the owner's own soul text. */
+function identity() {
+  const raw = readSoulFile();
+  const { block, rest } = splitSoul(raw);
+  return {
+    ok: true,
+    name: (block && nameFromBlock(block)) || DEFAULT_NAME,
+    soul: rest,
+    managed: !!block,
+    path: SOUL_FILE().replace(os.homedir(), '~'),
+  };
+}
+
+/** Name the agent (and optionally give it a soul). Writes the file pi itself reads. */
+function setIdentity({ name, soul } = {}) {
+  // A name lands inside the system prompt, so it may not carry markup or line breaks that
+  // could restructure it. Trim hard rather than reject — the owner is naming a thing, not
+  // filling in a form.
+  const clean = String(name == null ? DEFAULT_NAME : name).replace(/[\r\n*_`#<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULT_NAME;
+  const rest = soul == null ? splitSoul(readSoulFile()).rest : String(soul);
+  if (Buffer.byteLength(rest) > MAX_DOC) return { ok: false, error: 'the soul text is too large' };
+  const text = identityBlock(clean) + (rest.trim() ? '\n\n' + rest.trim() + '\n' : '\n');
+  try {
+    fs.mkdirSync(path.dirname(SOUL_FILE()), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(SOUL_FILE(), text, { mode: 0o600 });
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  // Every live session holds the old prompt: pi reads this file when it starts. Retire them
+  // so the next message comes from an agent that knows its new name, instead of the rename
+  // appearing to do nothing until something else happens to restart the process.
+  for (const id of [...SESSIONS.keys()]) { try { end({ id }); } catch {} }
+  return { ok: true, name: clean, restarted: true };
+}
+
+/** A fresh install ships as "pi" — never nameless, or the model answers with its own name. */
+function ensureIdentity() {
+  try { if (!splitSoul(readSoulFile()).block) setIdentity({ name: DEFAULT_NAME }); } catch {}
+}
+
+// ── update the bundled agent ─────────────────────────────────────────────────
+// pi ships INSIDE the app, so keeping it current is the app's job, not the owner's — but
+// only when the pi answering is ours. A global pi belongs to whoever installed it (Homebrew,
+// npm -g); upgrading that from in here would reach outside the bundle and change a tool the
+// owner uses in their own terminals. Refuse, and say which one is in charge.
+const PI_PKG = '@earendil-works/pi-coding-agent';
+async function update() {
+  const { bundled, bin } = piBinInfo();
+  if (!bundled) {
+    return { ok: false, external: true, bin,
+      error: 'The pi in use was installed outside this app (' + bin + '). Update it where it '
+           + 'came from — `npm i -g ' + PI_PKG + '` or your package manager — so the app never '
+           + 'changes a tool it does not own.' };
+  }
+  const before = piVersion();
+  const r = spawnSync('npm', ['install', PI_PKG + '@latest', '--omit=dev', '--no-audit', '--no-fund'],
+    { cwd: path.join(BUNDLE, 'bridge'), encoding: 'utf8', timeout: 600_000, env: childEnv() });
+  if (r.status !== 0) {
+    return { ok: false, error: ((r.stderr || '').trim() || (r.error && r.error.message) || 'npm exited ' + r.status).slice(0, 400) };
+  }
+  _ver = { at: 0, v: null };   // the cache would otherwise report the old build for a minute
+  _piBin = null;
+  const after = piVersion();
+  return { ok: true, from: before, to: after, changed: before !== after };
+}
+
+export const Pi = { status, install, update, installLauncher, ensureWorkspace, stop, end, commands, brain, repairSkill, doc, docPaths, refreshTree, saveDoc, identity, setIdentity, handlePiChat, handleRelay, buildFleetRuntime, _paths: { WORKSPACE, EXT, LAUNCHER } };
 export default Pi;

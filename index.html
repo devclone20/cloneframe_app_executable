@@ -9,7 +9,7 @@
 <style>
 /* ============================================================
    CLONE FRAME HUB — Frame Live Square.  The version lives in package.json and reaches
-   the app only through the 0.4.0 build token — never as a number written here.
+   the app only through the 0.4.1 build token — never as a number written here.
    Tokens: bg/fg/panel/border/accent model (concept inspired by
    Odysseus — clean-room reimplementation, zero AGPL code).
    Layers: #web (cosmos) < #fx (LIVE theme) < #world>#grid < UI.
@@ -1546,7 +1546,35 @@ body[data-density="comfy"]{--ui-scale:1.1}
 .brn-doc-hd .dim{font-size:10px}
 .brn-doc-hd .acts{margin-left:auto;display:flex;gap:6px}
 .brn-doc-body{max-height:300px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.65;color:var(--ink-dim);white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
-.brn-doc-body.md{font-family:inherit;white-space:normal}
+/* The rendered field guide. Before this the .md variant reset the font and nothing else, so
+   59 KB of headings, lists and prose arrived as one undifferentiated wall at 10.5px — the
+   owner could not tell a section from a sentence. Everything below is hierarchy: size, weight,
+   colour and space, in that order of loudness. */
+.brn-doc-body.md{font-family:inherit;white-space:normal;max-height:460px;font-size:11.5px;line-height:1.75;color:var(--ink-dim);padding:14px 16px 18px}
+.brn-doc-body.md>*:first-child{margin-top:0}
+.brn-doc-body.md p{margin:0 0 11px}
+/* Headings carry the structure. h1 is the document, h2 opens a topic with a rule under it so
+   the eye finds section starts while scrolling, h3 is a sub-topic and stays quiet. */
+.brn-doc-body.md h1{font-size:16px;line-height:1.35;font-weight:650;letter-spacing:-.01em;color:var(--ink);margin:20px 0 10px}
+.brn-doc-body.md h2{font-size:12.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:22px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.brn-doc-body.md h3{font-size:11.5px;font-weight:650;color:var(--ink);margin:16px 0 6px}
+.brn-doc-body.md h4,.brn-doc-body.md h5,.brn-doc-body.md h6{font-size:11px;font-weight:600;color:var(--ink);margin:13px 0 5px}
+.brn-doc-body.md ul,.brn-doc-body.md ol{margin:0 0 11px;padding-left:18px}
+.brn-doc-body.md li{margin:0 0 4px}
+.brn-doc-body.md li::marker{color:var(--accent)}
+/* Bold is the author raising their voice — it has to actually look louder than the body. */
+.brn-doc-body.md strong{color:var(--ink);font-weight:650}
+.brn-doc-body.md em{color:var(--ink);font-style:italic;opacity:.92}
+.brn-doc-body.md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.brn-doc-body.md code{font-family:var(--mono);font-size:10.5px;background:rgba(127,127,127,.13);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink)}
+.brn-doc-body.md pre{margin:0 0 12px;padding:11px 13px;background:rgba(127,127,127,.09);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+.brn-doc-body.md pre code{background:none;border:0;padding:0;font-size:10.5px;line-height:1.6}
+/* A quote is a callout here: the guide uses them for the rules that must not be missed. */
+.brn-doc-body.md blockquote{margin:0 0 12px;padding:8px 12px;border-left:2px solid var(--accent);background:rgba(127,127,127,.06);border-radius:0 6px 6px 0;color:var(--ink)}
+.brn-doc-body.md hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+.brn-doc-body.md table{border-collapse:collapse;margin:0 0 12px;font-size:10.5px;display:block;overflow-x:auto}
+.brn-doc-body.md th,.brn-doc-body.md td{border:1px solid var(--line);padding:5px 9px;text-align:left}
+.brn-doc-body.md th{color:var(--ink);font-weight:650;background:rgba(127,127,127,.07)}
 .brn-doc textarea{all:unset;display:block;width:100%;box-sizing:border-box;max-height:300px;min-height:200px;overflow:auto;padding:10px 12px;font-size:10.5px;line-height:1.6;color:var(--fg);font-family:var(--mono);caret-color:var(--accent)}
 /* the body drawn as an architecture diagram — layers top to bottom, face → hands → mind */
 .brn-arch{max-height:460px;overflow:auto;padding:12px}
@@ -2885,7 +2913,7 @@ if(window.cfhubNative)document.documentElement.classList.add('native-shell');</s
   <div id="guidebar">
     <span class="gt" id="gtitle">FRAME LIVE SQUARE</span>
     <span id="gitems"></span>
-    <span class="gver">v0.4.0 · WEB</span>
+    <span class="gver">v0.4.1 · WEB</span>
   </div>
 </div>
 <button id="guidetab" title="Show / hide guide" aria-label="Show or hide the guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 14l6-6 6 6"/></svg></button>
@@ -6330,7 +6358,7 @@ const Panels=(()=>{
     }
     const NEO=`<span class="kw">      ▒▓█ clone frame █▓▒</span>
 <span class="dim">  ────────────────────────</span>
-  OS      CLONE FRAME OS · v0.4.0
+  OS      CLONE FRAME OS · v0.4.1
   Shell   zsh + Oh-My-Zsh (${theme})
   Agent   iCLONE #55101 · VEGETA #58099
   Chain   Base 8453 · iNFT ERC-721A/2981/6551
@@ -11402,7 +11430,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       const okOut=o=>({ok:true,out:o});
       switch(cmd){
         case 'ping':return okOut('pong · '+workspaces.length+' workspace'+(workspaces.length===1?'':'s')+' · '+(canTTY?'tty live':'smart only'));
-        case 'version':return okOut('iT · CLONE FRAME HUB v0.4.0 EXTRACTION');
+        case 'version':return okOut('iT · CLONE FRAME HUB v0.4.1 EXTRACTION');
         case 'list-workspaces':return{ok:true,rows:workspaces.map((w,i)=>({'#':i+1,name:wsLabel(w),cwd:contract(w.cwd),panes:(w.panes||[]).length||'·',tabs:(w.panes||[]).reduce((n,pn)=>n+pn.surfaces.length,0)||'·',unread:(w.panes||[]).some(pn=>pn.surfaces.some(t=>t.unread))?'●':'',active:i===wsActive?'←':''}))};
         case 'current-workspace':{const w=wsCur();return okOut((wsActive+1)+' · '+wsLabel(w)+' · '+contract(w.cwd))}
         case 'new-workspace':{const w=newWorkspace((f.cwd&&f.cwd!=='true')?f.cwd:homeAbs,{name:(f.name&&f.name!=='true')?f.name:''});return okOut('workspace '+workspaces.length+' · '+wsLabel(w))}
@@ -12371,15 +12399,41 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
             +row('iT launcher',!!s.launcher,s.launcher?'pi-clone':'missing')
             +row('Web access (search & fetch)',!!s.webAccess,s.webAccess?'pi-web-access':'not installed')
             +row('Live chat sessions',true,String(s.sessions||0)))
-          :'<div class="setline" style="display:block;color:var(--accent);font-size:10.5px;line-height:1.6">Pi is not installed on this machine. Install it once, globally:<br><span class="path">npm i -g @earendil-works/pi-coding-agent</span><br>then hit INSTALL / REPAIR below.</div>')
-        +'<div class="setline" style="gap:8px;flex-wrap:wrap"><button class="btn" id="pirepair">INSTALL / REPAIR</button><button class="btn" id="picode">OPEN CODE — TALK TO PI</button><button class="btn" id="piit">LAUNCH IN iT</button><span class="dim" style="font-size:10px;margin-left:auto">workspace + launcher are re-synced on every app start</span></div>'
+          // "Not installed" was shown for a pi that WAS installed and working: the daemon could
+          // not RUN it, because a Finder-launched app inherits a PATH with no node on it and pi's
+          // launcher is `#!/usr/bin/env node`. The probe now keeps the real reason, so this card
+          // reports what actually happened instead of sending the owner to reinstall a working
+          // binary. Both states are shown, because they need different fixes.
+          :'<div class="setline" style="display:block;color:var(--accent);font-size:10.5px;line-height:1.6">'
+            +(s&&s.versionError
+              ?'Pi is present but <b>would not run</b>: <span class="path">'+escHtml(String(s.versionError).slice(0,160))+'</span><br>Hit INSTALL / REPAIR — it reinstalls the copy this app owns.'
+              :'Pi ships with CLONE FRAME and installs with it. If this says nothing arrived, hit <b>INSTALL / REPAIR</b>.')
+            +'</div>')
+        +'<div class="setline" style="gap:8px;flex-wrap:wrap"><button class="btn" id="pirepair">INSTALL / REPAIR</button>'
+        // Green, beside the install control, as the owner asked. Offered only for the copy
+        // inside the .app — a Homebrew or npm -g pi belongs to whoever installed it, and this
+        // app upgrading it would reach outside the bundle and change their own terminal tool.
+        +(s&&s.bundled?'<button class="btn" id="piupdate" style="border-color:var(--ok,#37e05f);color:var(--ok,#37e05f)">UPDATE PI</button>':'')
+        +'<button class="btn" id="picode">OPEN CODE — TALK TO PI</button><button class="btn" id="piit">LAUNCH IN iT</button><span class="dim" style="font-size:10px;margin-left:auto">'+(s&&s.bundled?'bundled with this app':'using the machine’s own pi — update it where it came from')+'</span></div>'
         +'<div class="sethead">MIND — THE MODEL (BYOK)</div>'
         +row('Current LLM model',!!(s&&s.model),(s&&s.model)?(s.model+(s.provider&&!String(s.model).includes('/')?' · '+s.provider:'')):'not set — run pi /login')
         +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">Pi thinks on <b>your own model</b>, configured in pi itself: run <span class="path">pi</span> in any terminal → <span class="path">/login</span> (API key or OAuth). The key lives in <span class="path">~/.pi/agent/auth.json</span> — it never enters this app, its HTML or its logs. Pick a different LLM for pi below in <b>CODE</b>, or here.</div>'
         +'<div class="sethead">NAME &amp; SOUL — FACTORY: PLAIN “pi”</div>'
-        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">It ships as plain <b>pi</b> — no custom name, no persona. Want one? <b>Ask pi in chat</b> (“call yourself NAME”, “here is your soul: …”) and it writes its own identity layer (<span class="path">.pi/APPEND_SYSTEM.md</span> in its workspace) and answers to both names. Deleting that file resets it to factory. App updates never touch it.</div>';
+        +'<div class="setline" style="display:block;line-height:1.7;color:var(--ink-dim);font-size:10.5px">It ships as plain <b>pi</b>, and it is named in <b>BRAIN → Skills → Who your agent is</b> — or just <b>ask it in chat</b> (“call yourself NAME”). Both write the same file (<span class="path">.pi/APPEND_SYSTEM.md</span>), so the field and the conversation can never disagree. The model you pick is the <b>engine</b> it thinks with, never its identity — that is why a renamed agent on DeepSeek still answers with its own name and not the vendor’s. App updates never touch it.</div>';
       const rf=()=>secPiAgent();
       pane.querySelector('#pirepair').addEventListener('click',async()=>{try{const r=await RPC('pi','install');Toast.show(r&&r.ok?'Pi workspace + launcher installed':'Install had errors — see server.log')}catch(e){Toast.show('install failed: '+e.message)}rf()});
+      // npm reaching the network can take minutes. The button says so and refuses to be
+      // pressed twice, or the owner gets two installs racing over the same node_modules.
+      const up=pane.querySelector('#piupdate');
+      if(up)up.addEventListener('click',async()=>{
+        up.disabled=true;const was=up.textContent;up.textContent='UPDATING…';
+        try{
+          const r=await RPC('pi','update');
+          if(r&&r.ok)Toast.show(r.changed?('pi updated · '+(r.from||'?')+' → '+(r.to||'?')):('pi is already current · '+(r.to||'')));
+          else Toast.show(r&&r.error?r.error:'update failed');
+        }catch(e){Toast.show('update failed: '+e.message)}
+        up.disabled=false;up.textContent=was;rf();
+      });
       pane.querySelector('#picode').addEventListener('click',()=>{openPanel('terminal');Toast.show('CODE opened — new sessions default to pi')});
       pane.querySelector('#piit').addEventListener('click',()=>{openPanel('shell');Toast.show('Type pi-clone in the iT shell to launch pi')});
     }
@@ -12785,7 +12839,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'<div class="setline">Export / import settings<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="expbtn" style="padding:5px 12px;font-size:10.5px">EXPORT</button><button class="btn" id="impbtn" style="padding:5px 12px;font-size:10.5px">IMPORT</button></span></div>'
         +'<div class="setline" style="border-color:color-mix(in srgb,var(--accent) 30%,transparent)">Delete everything (danger zone)<button class="btn" id="wipebtn" style="margin-left:auto;padding:5px 12px;font-size:10.5px;border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)">DELETE</button></div>'
         +'<div class="sethead">ABOUT</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4.0 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
+        +'<div style="font-size:10.5px;color:var(--ink-faint);line-height:1.6">CLONE FRAME HUB · v0.4.1 EXTRACTION<br>Own Your AI — Terminal · Harness · LAB. iNFT on Base 8453. BYOK: your key, your model. Our own engines: iT terminal (workspaces · splits · persistent sessions), the HUB bridge, MATRIX. MIT.</div>';
       pane.querySelector('#pname').addEventListener('change',e=>{Store.get().profile.name=e.target.value.trim();Store.save()});
       pane.querySelector('#expbtn').addEventListener('click',()=>{
         const blob=new Blob([JSON.stringify(Store.get(),null,2)],{type:'application/json'});
@@ -15655,6 +15709,48 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
         +'Restart it and this fills in:<br><code style="display:inline-block;margin-top:6px;padding:6px 9px;border:1px solid var(--line);border-radius:8px">zsh bridge/launch.sh</code>'
         +'<br><br><span class="dim">/health reports <code>"stale": true</code> whenever the files on disk are newer than the running process. Reloading the window is not enough — the daemon is a separate program.</span></div>';
     }
+    // ---- who the agent is ----
+    // The owner asked the agent its name and it answered "DeepSeek" — the model's name, not
+    // its own. A model with no identity in its system prompt has no other name to give.
+    // This writes .pi/APPEND_SYSTEM.md, which is the SAME file pi writes when you tell it
+    // "call yourself NAME" in chat: one truth, two doors, so the field and the conversation
+    // can never disagree. App updates never touch it.
+    let ident=null,identErr=null,identBusy=false;
+    function renderIdentity(){
+      const el=body.querySelector('#bsident');if(!el)return;
+      if(identErr){showErr(el,identErr);return}
+      if(!ident){el.innerHTML='<div class="qempty" style="padding:10px">reading the agent’s name…</div>';return}
+      el.innerHTML=`<div class="af-sec">WHO YOUR AGENT IS</div>`
+        +`<div class="brn-desc" style="margin:-4px 0 8px">It ships as <b>pi</b>. Give it any name and it answers to that — in CODE, in iT, everywhere. The model you pick is the <b>engine</b> it thinks with, never its identity: swapping DeepSeek for Claude or a local model does not change who it is.</div>`
+        +`<div class="setline" style="gap:8px"><span style="min-width:52px">Name</span>`
+        +`<input class="brn-search" id="bsidname" style="margin:0;flex:1" maxlength="40" placeholder="pi" value="${escAttr(ident.name||'')}">`
+        +`<button class="btn mini" id="bsidsave">Save</button><button class="btn mini" id="bsidreset">Factory</button></div>`
+        +`<div class="brn-desc" style="margin:6px 0 4px">Its soul — anything you want it to always be. Optional, and yours to write.</div>`
+        +`<textarea id="bsidsoul" rows="4" spellcheck="false" style="width:100%;box-sizing:border-box;background:var(--panel,#0c0f16);color:var(--ink,#dfe6f2);border:1px solid var(--line,#232a38);border-radius:7px;padding:8px;font:11px/1.6 var(--mono,ui-monospace,monospace);resize:vertical">${escHtml(ident.soul||'')}</textarea>`
+        +`<div class="brn-desc" style="margin:6px 0 2px">Written to <span class="path">${escHtml(ident.path||'')}</span>. Saving restarts live CODE sessions so the next message comes from an agent that knows the new name.</div>`;
+      const nameEl=el.querySelector('#bsidname'),soulEl=el.querySelector('#bsidsoul');
+      const put=async(name,soul,note)=>{
+        if(identBusy)return;identBusy=true;
+        try{
+          const r=await RPC('pi','setIdentity',{name,soul});
+          if(r&&r.ok){ident=null;await loadIdentity(true);Toast.show(note||('Your agent is now '+r.name))}
+          else Toast.show((r&&r.error)||'could not save');
+        }catch(e){Toast.show('could not save: '+(e.message||e))}
+        identBusy=false;
+      };
+      el.querySelector('#bsidsave').addEventListener('click',()=>put(nameEl.value,soulEl.value));
+      // Factory is a real reset, not a blank field: it restores the shipped name AND clears
+      // whatever soul was written, so "back to how it came" means it.
+      el.querySelector('#bsidreset').addEventListener('click',()=>put('pi','','Back to factory — plain pi'));
+    }
+    async function loadIdentity(force){
+      if(ident&&!force)return renderIdentity();
+      if(!Bridge.on()){ident=null;identErr=null;const el=body.querySelector('#bsident');if(el)needBridge(el);return}
+      ident=null;identErr=null;renderIdentity();
+      try{const r=await RPC('pi','identity');ident=(r&&r.ok)?r:null;if(!ident)identErr=new Error('the bridge could not read the agent’s name')}
+      catch(e){identErr=e}
+      renderIdentity();
+    }
     async function loadAgentBrain(force){
       if(agent&&!force)return renderAgentBrain();
       if(!Bridge.on()){agent=null;agentErr=null;const el=body.querySelector('#bsagent');if(el)needBridge(el);return}
@@ -15666,6 +15762,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
     function renderSkills(){
       body.innerHTML=`<div class="brn-head"><b>Skills</b><span class="badge">${db.skills.length} of your own</span><span class="brn-enl">Enabled</span><div class="sw3 ${db.skillsEnabled?'on':''}" id="bssw"><i></i></div></div>
         <input class="brn-search" id="bsq" placeholder="Search skills...">
+        <div id="bsident"></div>
         <div id="bsagent"></div>
         <div class="af-sec">NOTES YOU WROTE HERE</div>
         <div class="brn-desc" style="margin:-4px 0 6px">Yours, kept in this app. A real pi skill is a folder with a SKILL.md — write one there and it appears above.</div>
@@ -15678,7 +15775,7 @@ uv pip install "mlx==0.32.0" mlx-vlm "git+https://github.com/rltakashige/mlx-lm@
       body.querySelector('#bssw').addEventListener('click',e=>{db.skillsEnabled=!db.skillsEnabled;save();e.currentTarget.classList.toggle('on',db.skillsEnabled);Toast.show(db.skillsEnabled?'Skills enabled':'Skills disabled')});
       body.querySelector('#bsselect').addEventListener('click',()=>{skSel=!skSel;skPick.clear();skMenu=null;renderSkills()});
       const del=body.querySelector('#bsdel');if(del)del.addEventListener('click',()=>{if(!skPick.size){Toast.show('Nothing selected');return}db.skills=db.skills.filter(s=>!skPick.has(s.id));skPick.clear();skSel=false;save();renderSkills();Toast.show('Deleted')});
-      listSk();loadAgentBrain();
+      listSk();loadIdentity();loadAgentBrain();
     }
     /* — add — */
     function renderAdd(){

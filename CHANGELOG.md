@@ -1,3 +1,46 @@
+## 0.4.1 — 2026-08-02
+
+### The agent could not run, so a model answered in its place
+
+pi is a Node CLI whose launcher opens with a node shebang. Finding the binary is half the
+job — the shebang still has to find **node**, and an app launched from Finder inherits a PATH
+with no Homebrew on it. `pi --version` exited 127 with empty stdout, and the app concluded pi
+was NOT INSTALLED on a machine where it was installed and working.
+
+The damage landed nowhere near the cause:
+
+- **BRAIN** told the owner to download pi, and its skills list rendered nothing at all
+- **CODE** fell through to the raw provider — so the agent, asked its name, answered *DeepSeek*
+
+The routing was never wrong: a provider model already routed to pi. pi just could not start.
+Measured before and after: `installed:false, 0 skills` becomes `installed:true, 0.83.0, 14 skills`.
+
+### The agent had no name to give
+
+Nothing told it who it was, and a model with no identity in its prompt answers with its
+vendor's. It ships named now, and **BRAIN → Skills** names it — writing the same file pi
+writes when told to call itself something in chat, so a field and a conversation cannot
+disagree. The model is the engine; it is never the identity.
+
+### pi ships inside the app
+
+A dependency of the bridge, installed into the .app beside ws and node-pty. The download stays
+4.5 MB; the install pulls it. A green **UPDATE PI** button sits beside INSTALL, offered only
+for the copy the app owns — a Homebrew pi belongs to whoever installed it.
+
+### BRAIN → Body was unreadable
+
+Two defects, one wall of text:
+
+- **Emphasis never closed.** The renderer ran its inline pass line by line, so bold opening on
+  one line and closing on the next printed its asterisks raw. Underscore italics were not
+  implemented at all.
+- **The rendered document had no typography.** Headings, lists, quotes and code all arrived at
+  one size and one colour.
+
+The 59 KB field guide now renders 240 bold runs, 21 sections and 17 sub-sections — and the
+agent carries a house style, so anything it writes later keeps the same shape.
+
 # Changelog
 
 What changed, and what it cost you before it changed. Written for someone deciding

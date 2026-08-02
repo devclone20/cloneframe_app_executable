@@ -16,7 +16,7 @@
 
 ## ▶️ Watch the tour
 
-![CLONE FRAME HUB in motion](docs/assets/tour-preview.gif)
+![CLONE FRAME HUB in motion](docs/media/tour-preview.gif)
 
 <p align="center">
   <strong><a href="https://github.com/devclone20/cloneframe_app_executable/releases/latest/download/CLONE_FRAME_TOUR.mp4">⬇️ The full tour — 81 seconds, with sound</a></strong><br>
